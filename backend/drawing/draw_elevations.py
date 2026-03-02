@@ -302,22 +302,41 @@ def draw_north_elevation(ax, params, calc):
         stair_loc = params.get("stairLocation", "front")
         
         if stair_loc in ("left", "right"):
-            # Stairs descending from deck edge
-            sx = deck_start_x + D if stair_loc == "right" else deck_start_x
-            direction = 1 if stair_loc == "right" else -1
+            # In side view, stairs extend outward from the deck edge
+            # Right stairs: extend past the far edge of deck
+            # Left stairs: extend before the near edge of deck
+            if stair_loc == "right":
+                sx = deck_start_x + D
+                direction = 1
+            else:
+                sx = deck_start_x
+                direction = -1
+            
             rise = stair["actual_rise"] / 12
             run = stair["tread_depth"] / 12
 
+            # Draw stepped profile (horizontal treads + vertical risers)
             for i in range(stair["num_treads"]):
                 tx = sx + direction * i * run
                 ty = deck_top - i * rise
+                # Tread (horizontal)
                 ax.plot([tx, tx + direction * run], [ty, ty], color=BRAND["dark"], lw=0.6)
-                ax.plot([tx + direction * run, tx + direction * run], [ty, ty - rise],
+                # Riser (vertical down)
+                next_ty = deck_top - (i + 1) * rise
+                ax.plot([tx + direction * run, tx + direction * run], [ty, next_ty],
                         color=BRAND["dark"], lw=0.6)
 
-            # Stringer
+            # Bottom tread at ground
             end_x = sx + direction * stair["num_treads"] * run
+            ax.plot([end_x - direction * run, end_x], [ground_y, ground_y], color=BRAND["dark"], lw=0.6)
+
+            # Stringer (diagonal)
             ax.plot([sx, end_x], [deck_top, ground_y], color=BRAND["dark"], lw=0.8)
+
+            # Handrails (dashed)
+            rail_h_ft = 3
+            ax.plot([sx, end_x], [deck_top + rail_h_ft, ground_y + rail_h_ft],
+                    color=BRAND["dark"], lw=0.4, ls='--')
 
     # === LABELS ===
     lbl_x = deck_start_x + D + 2

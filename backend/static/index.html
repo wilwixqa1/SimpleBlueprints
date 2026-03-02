@@ -302,8 +302,6 @@ function PlanView({ p, c, mode, u }) {
           </g>}
         </g>;
       })()}
-        </g>;
-      })()}
       <line x1={pad} y1={pad + sd + 25} x2={pad + sw} y2={pad + sd + 25} stroke="#c62828" strokeWidth="0.6" />
       <line x1={pad} y1={pad + sd + 22} x2={pad} y2={pad + sd + 28} stroke="#c62828" strokeWidth="0.6" />
       <line x1={pad + sw} y1={pad + sd + 22} x2={pad + sw} y2={pad + sd + 28} stroke="#c62828" strokeWidth="0.6" />
@@ -576,7 +574,7 @@ const App = function SimpleBlueprints() {
     return new Promise((resolve) => {
       try {
         if (typeof THREE === 'undefined') { resolve(null); return; }
-        const w = 1400, h = 900;
+        const w = 800, h = 500;
         const { W, D, H, pp, postSize, beamSize, joistSize, sp, fDiam } = c;
         const scene = new THREE.Scene(); scene.background = new THREE.Color(0xf5f2eb);
         scene.fog = new THREE.Fog(0xf5f2eb, 60, 120);
@@ -689,7 +687,7 @@ const App = function SimpleBlueprints() {
         cam.lookAt(0, lookY, 0);
 
         ren.render(scene, cam);
-        const dataUrl = ren.domElement.toDataURL("image/png");
+        const dataUrl = ren.domElement.toDataURL("image/jpeg", 0.85);
         ren.dispose();
         resolve(dataUrl.split(",")[1]);
       } catch (e) { console.warn("3D capture failed:", e); resolve(null); }
