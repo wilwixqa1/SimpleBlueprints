@@ -156,23 +156,38 @@ def draw_south_elevation(ax, params, calc):
         ax.plot([deck_x + bx, deck_x + bx], [deck_top + 0.25, rail_top],
                 color=BRAND["rail"], lw=0.12, alpha=0.5)
 
-    # === STAIRS (if front) ===
+    # === STAIRS (if front) - seen head-on, show stepped profile ===
     if params.get("hasStairs") and params.get("stairLocation") == "front" and calc.get("stairs"):
         stair = calc["stairs"]
-        stair_x = deck_x + W / 2 - 2  # 4' wide centered
-        total_run = stair["total_run_ft"]
-        rise_per = stair["actual_rise"] / 12  # feet
+        sw = stair.get("width", 4)
+        stair_x = deck_x + W / 2 - sw / 2
+        rise_per = stair["actual_rise"] / 12  # feet per step
+        n_risers = stair["num_risers"]
 
-        for i in range(stair["num_treads"]):
-            tx = stair_x + (stair["num_treads"] - 1 - i) * (total_run / stair["num_treads"])
-            ty = i * rise_per
-            # Tread
-            ax.plot([stair_x, stair_x + 4], [ty, ty], color=BRAND["dark"], lw=0.6)
-        # Stringer lines
-        ax.plot([stair_x, stair_x + total_run + 0.5], [deck_top, ground_y],
-                color=BRAND["dark"], lw=0.8)
-        ax.plot([stair_x + 4, stair_x + 4 + total_run + 0.5], [deck_top, ground_y],
-                color=BRAND["dark"], lw=0.8)
+        # Draw stepped profile: horizontal treads + vertical risers
+        for i in range(n_risers):
+            ty = deck_top + i * rise_per
+            # Tread (horizontal line)
+            ax.plot([stair_x, stair_x + sw], [ty, ty], color=BRAND["dark"], lw=0.8)
+            # Riser (vertical line down to next tread)
+            ax.plot([stair_x, stair_x], [ty, ty + rise_per], color=BRAND["dark"], lw=0.5)
+            ax.plot([stair_x + sw, stair_x + sw], [ty, ty + rise_per], color=BRAND["dark"], lw=0.5)
+
+        # Bottom tread at ground
+        ax.plot([stair_x, stair_x + sw], [ground_y, ground_y], color=BRAND["dark"], lw=0.8)
+
+        # Stringer label
+        if stair.get("has_landing"):
+            pad_w = sw + 1
+            ax.add_patch(patches.Rectangle((stair_x - 0.5, ground_y), pad_w, 0.3,
+                         fc='#e8e8e0', ec=BRAND["dark"], lw=0.4))
+
+        # Handrails on both sides
+        rail_h = 3  # 36" rail height in feet
+        ax.plot([stair_x, stair_x], [deck_top, deck_top - rail_h / 12],
+                color=BRAND["dark"], lw=0.3, ls='--')
+        ax.plot([stair_x + sw, stair_x + sw], [deck_top, deck_top - rail_h / 12],
+                color=BRAND["dark"], lw=0.3, ls='--')
 
     # === LABELS ===
     lbl_x = deck_x + W + 1.5
