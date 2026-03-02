@@ -8,8 +8,8 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%233d5a2e'/><text x='16' y='22' text-anchor='middle' fill='white' font-size='16' font-weight='900' font-family='monospace'>SB</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,700;0,9..40,900;1,9..40,400&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.development.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.development.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <style>
@@ -368,8 +368,8 @@ function Deck3D({ c, p }) {
     for (let x = sp / 12; x < W; x += sp / 12) { const j = new THREE.Mesh(jG, mats.joist); j.position.set(cx + x, H - jH2 / 2 - 0.1, cz + jLen / 2); scene.add(j); }
 
     // Rim joists
-    scene.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(W, jH2, jW2), mats.joist), { position: new THREE.Vector3(cx + W / 2, H - jH2 / 2 - 0.1, cz + D) }));
-    [0, W].forEach(x => scene.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(jW2, jH2, D), mats.joist), { position: new THREE.Vector3(cx + x, H - jH2 / 2 - 0.1, cz + D / 2) })));
+    const rimFront = new THREE.Mesh(new THREE.BoxGeometry(W, jH2, jW2), mats.joist); rimFront.position.set(cx + W / 2, H - jH2 / 2 - 0.1, cz + D); scene.add(rimFront);
+    [0, W].forEach(x => { const rim = new THREE.Mesh(new THREE.BoxGeometry(jW2, jH2, D), mats.joist); rim.position.set(cx + x, H - jH2 / 2 - 0.1, cz + D / 2); scene.add(rim); });
 
     // Decking
     const bdW = 5.5 / 12, bdH = 1 / 12;
