@@ -30,6 +30,7 @@ from drawing.draw_details import draw_details_sheet
 from drawing.draw_materials import draw_materials_sheet
 from drawing.title_block import draw_title_block
 from drawing.draw_cover import draw_cover_sheet
+from drawing.draw_site_plan import draw_site_plan
 
 # ============================================================
 # CONFIG
@@ -87,6 +88,8 @@ class DeckParams(BaseModel):
     overFooting: Optional[int] = None
     projectInfo: Optional[dict] = None
     coverImage: Optional[str] = None
+    sitePlanMode: Optional[str] = "generate"
+    sitePlanFile: Optional[str] = None
 
 
 # ============================================================
@@ -97,6 +100,8 @@ def generate_blueprint_pdf(params: dict) -> tuple[str, dict]:
     calc = calculate_structure(params)
     pi = params.get("projectInfo", {}) or {}
     cover_img = params.get("coverImage", None)
+    sp_mode = params.get("sitePlanMode", "generate")
+    sp_file = params.get("sitePlanFile", None)
     file_id = str(uuid.uuid4())
     output_path = PDF_DIR / f"{file_id}.pdf"
 
@@ -122,6 +127,63 @@ def generate_blueprint_pdf(params: dict) -> tuple[str, dict]:
             draw_title_block(fig, sheet_num, sheet_title, calc, pi)
             pdf.savefig(fig, dpi=200)
             plt.close(fig)
+
+        # Sheet A-5: Site Plan (generated or uploaded)
+        if sp_mode == "upload" and sp_file:
+            try:
+                import io
+                import base64
+                from PIL import Image
+                img_data = base64.b64decode(sp_file)
+                # Check if it's a PDF or image
+                if img_data[:4] == b'%PDF':
+                    # For PDF uploads, convert first page to image
+                    # Save temp file and use pdf2image or just embed as image
+                    tmp_path = PDF_DIR / f"{file_id}_survey.pdf"
+                    tmp_path.write_bytes(img_data)
+                    import subprocess
+                    tmp_png = PDF_DIR / f"{file_id}_survey.png"
+                    subprocess.run(["pdftoppm", "-png", "-r", "200", "-f", "1", "-l", "1",
+                                    str(tmp_path), str(tmp_png).replace('.png', '')],
+                                   capture_output=True, timeout=10)
+                    png_path = PDF_DIR / f"{file_id}_survey-1.png"
+                    if png_path.exists():
+                        img = Image.open(png_path)
+                    else:
+                        img = None
+                    tmp_path.unlink(missing_ok=True)
+                    png_path.unlink(missing_ok=True)
+                else:
+                    img = Image.open(io.BytesIO(img_data))
+
+                if img:
+                    fig5 = plt.figure(figsize=(14, 8.5))
+                    fig5.set_facecolor('white')
+                    ax5 = fig5.add_axes([0.02, 0.05, 0.96, 0.88])
+                    ax5.axis('off')
+                    import numpy as np
+                    ax5.imshow(np.array(img), aspect='auto')
+                    fig5.text(0.5, 0.97, "SHEET A-5  |  UPLOADED SITE PLAN / SURVEY",
+                              ha='center', fontsize=8, fontfamily='monospace',
+                              color='#7a8068')
+                    draw_title_block(fig5, "A-5", "SITE PLAN (UPLOADED)", calc, pi)
+                    pdf.savefig(fig5, dpi=200)
+                    plt.close(fig5)
+            except Exception as e:
+                # Fallback to generated if upload fails
+                fig5 = plt.figure(figsize=(14, 8.5))
+                fig5.set_facecolor('white')
+                draw_site_plan(fig5, params, calc)
+                draw_title_block(fig5, "A-5", "SITE PLAN", calc, pi)
+                pdf.savefig(fig5, dpi=200)
+                plt.close(fig5)
+        else:
+            fig5 = plt.figure(figsize=(14, 8.5))
+            fig5.set_facecolor('white')
+            draw_site_plan(fig5, params, calc)
+            draw_title_block(fig5, "A-5", "SITE PLAN", calc, pi)
+            pdf.savefig(fig5, dpi=200)
+            plt.close(fig5)
 
     return file_id, calc
 
