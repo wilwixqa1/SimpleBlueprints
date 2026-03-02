@@ -28,6 +28,8 @@ from drawing.draw_plan import draw_plan_and_framing, format_feet_inches
 from drawing.draw_elevations import draw_elevations_sheet
 from drawing.draw_details import draw_details_sheet
 from drawing.draw_materials import draw_materials_sheet
+from drawing.title_block import draw_title_block
+from drawing.draw_cover import draw_cover_sheet
 
 # ============================================================
 # CONFIG
@@ -83,6 +85,8 @@ class DeckParams(BaseModel):
     overPostSize: Optional[str] = None
     overPostCount: Optional[int] = None
     overFooting: Optional[int] = None
+    projectInfo: Optional[dict] = None
+    coverImage: Optional[str] = None
 
 
 # ============================================================
@@ -91,37 +95,33 @@ class DeckParams(BaseModel):
 def generate_blueprint_pdf(params: dict) -> tuple[str, dict]:
     """Generate a complete blueprint PDF. Returns (file_id, calc_result)."""
     calc = calculate_structure(params)
+    pi = params.get("projectInfo", {}) or {}
+    cover_img = params.get("coverImage", None)
     file_id = str(uuid.uuid4())
     output_path = PDF_DIR / f"{file_id}.pdf"
 
+    sheets = [
+        ("A-1", "DECK PLAN & FRAMING", draw_plan_and_framing),
+        ("A-2", "EXTERIOR ELEVATIONS", draw_elevations_sheet),
+        ("A-3", "STRUCTURAL DETAILS", draw_details_sheet),
+        ("A-4", "MATERIAL LIST & COST ESTIMATE", draw_materials_sheet),
+    ]
+
     with PdfPages(str(output_path)) as pdf:
-        # Sheet A-1: Plan + Framing
-        fig1 = plt.figure(figsize=(14, 8.5))
-        fig1.set_facecolor('white')
-        draw_plan_and_framing(fig1, params, calc)
-        pdf.savefig(fig1, dpi=200)
-        plt.close(fig1)
+        # Sheet A-0: Cover
+        fig0 = plt.figure(figsize=(14, 8.5))
+        fig0.set_facecolor('white')
+        draw_cover_sheet(fig0, params, calc, pi, cover_img)
+        pdf.savefig(fig0, dpi=200)
+        plt.close(fig0)
 
-        # Sheet A-2: Elevations
-        fig2 = plt.figure(figsize=(14, 8.5))
-        fig2.set_facecolor('white')
-        draw_elevations_sheet(fig2, params, calc)
-        pdf.savefig(fig2, dpi=200)
-        plt.close(fig2)
-
-        # Sheet A-3: Details
-        fig3 = plt.figure(figsize=(14, 8.5))
-        fig3.set_facecolor('white')
-        draw_details_sheet(fig3, params, calc)
-        pdf.savefig(fig3, dpi=200)
-        plt.close(fig3)
-
-        # Sheet A-4: Material List
-        fig4 = plt.figure(figsize=(14, 8.5))
-        fig4.set_facecolor('white')
-        draw_materials_sheet(fig4, params, calc)
-        pdf.savefig(fig4, dpi=200)
-        plt.close(fig4)
+        for sheet_num, sheet_title, draw_fn in sheets:
+            fig = plt.figure(figsize=(14, 8.5))
+            fig.set_facecolor('white')
+            draw_fn(fig, params, calc)
+            draw_title_block(fig, sheet_num, sheet_title, calc, pi)
+            pdf.savefig(fig, dpi=200)
+            plt.close(fig)
 
     return file_id, calc
 

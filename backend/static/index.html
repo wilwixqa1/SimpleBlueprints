@@ -498,17 +498,93 @@ const App = function SimpleBlueprints() {
   const c = useMemo(() => calcStructure(p), [p]);
   const m = useMemo(() => estMaterials(p, c), [p, c]);
   const [genStatus, setGenStatus] = useState("idle"); // idle | generating | done | error
+  const [info, setInfo] = useState({ owner: "", address: "", city: "", state: "", zip: "", lot: "", contractor: "" });
+  const setI = (f, v) => setInfo(prev => ({ ...prev, [f]: v }));
   const [genError, setGenError] = useState("");
 
   const API = "https://simpleblueprints-production.up.railway.app";
 
+  const capture3D = () => {
+    return new Promise((resolve) => {
+      try {
+        if (typeof THREE === 'undefined') { resolve(null); return; }
+        const w = 1200, h = 800;
+        const scene = new THREE.Scene(); scene.background = new THREE.Color(0xf5f2eb);
+        const cam = new THREE.PerspectiveCamera(45, w / h, 0.1, 200);
+        const ren = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+        ren.setSize(w, h); ren.setPixelRatio(1);
+        ren.shadowMap.enabled = true; ren.shadowMap.type = THREE.PCFSoftShadowMap;
+
+        scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+        const sun = new THREE.DirectionalLight(0xfff5e0, 0.8); sun.position.set(20, 30, 15); sun.castShadow = true;
+        sun.shadow.mapSize.set(1024, 1024); sun.shadow.camera.left = -40; sun.shadow.camera.right = 40; sun.shadow.camera.top = 40; sun.shadow.camera.bottom = -40;
+        scene.add(sun); scene.add(new THREE.DirectionalLight(0xc0d0ff, 0.3).position.set(-10, 15, -10) && scene.children[scene.children.length - 1] || sun);
+
+        const fill = new THREE.DirectionalLight(0xc0d0ff, 0.3); fill.position.set(-10, 15, -10); scene.add(fill);
+
+        const { W, D, H, pp, postSize, beamSize, joistSize, sp, fDiam } = c;
+        const mats = {
+          concrete: new THREE.MeshStandardMaterial({ color: 0xb8b8b8, roughness: 0.9 }),
+          post: new THREE.MeshStandardMaterial({ color: 0xc4a060, roughness: 0.7 }),
+          beam: new THREE.MeshStandardMaterial({ color: 0xc4960a, roughness: 0.6 }),
+          joist: new THREE.MeshStandardMaterial({ color: 0xd4b87a, roughness: 0.7 }),
+          deck: new THREE.MeshStandardMaterial({ color: p.deckingType === "composite" ? 0x8B7355 : 0xc4a060, roughness: 0.6 }),
+          rail: new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.4, metalness: 0.3 }),
+          house: new THREE.MeshStandardMaterial({ color: 0xd8d4c8, roughness: 0.8 }),
+          roof: new THREE.MeshStandardMaterial({ color: 0x666666, roughness: 0.7 }),
+        };
+
+        const gnd = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), new THREE.MeshStandardMaterial({ color: 0xb8c9a0, roughness: 1 }));
+        gnd.rotation.x = -Math.PI / 2; gnd.receiveShadow = true; scene.add(gnd);
+
+        const cx = -W / 2, cz = -D / 2;
+        // House
+        const hW = p.houseWidth || 40, hD = 14, hH = Math.max(H + 8, 12);
+        const hX = cx + (W - hW) / 2, hZ = cz - hD;
+        const house = new THREE.Mesh(new THREE.BoxGeometry(hW, hH, hD), mats.house);
+        house.position.set(hX + hW / 2, hH / 2, hZ + hD / 2); house.castShadow = true; scene.add(house);
+        // Deck surface
+        const deckM = new THREE.Mesh(new THREE.BoxGeometry(W, 0.15, D), mats.deck);
+        deckM.position.set(cx + W / 2, H, cz + D / 2); deckM.castShadow = true; deckM.receiveShadow = true; scene.add(deckM);
+        // Posts
+        pp.forEach(px => {
+          const post = new THREE.Mesh(new THREE.BoxGeometry(postSize === "6x6" ? 0.5 : 0.3, H, postSize === "6x6" ? 0.5 : 0.3), mats.post);
+          post.position.set(cx + px, H / 2, cz + D - 1.5); post.castShadow = true; scene.add(post);
+        });
+        // Beam
+        const bm = new THREE.Mesh(new THREE.BoxGeometry(W - 2, 0.8, 0.3), mats.beam);
+        bm.position.set(cx + W / 2, H - 0.5, cz + D - 1.5); scene.add(bm);
+        // Railing
+        [[cx, cz, cx, cz + D], [cx, cz + D, cx + W, cz + D], [cx + W, cz, cx + W, cz + D]].forEach(([x1, z1, x2, z2]) => {
+          const len = Math.sqrt((x2 - x1) ** 2 + (z2 - z1) ** 2);
+          const rail = new THREE.Mesh(new THREE.BoxGeometry(len, 0.08, 0.06), mats.rail);
+          rail.position.set((x1 + x2) / 2, H + 3, (z1 + z2) / 2);
+          rail.rotation.y = Math.atan2(x2 - x1, z2 - z1) + Math.PI / 2;
+          scene.add(rail);
+        });
+
+        // Camera
+        const dist = Math.max(W, D, H * 2) * 1.8;
+        const theta = -0.6, phi = 0.5;
+        cam.position.set(dist * Math.sin(theta) * Math.cos(phi), dist * Math.sin(phi) + H, dist * Math.cos(theta) * Math.cos(phi));
+        cam.lookAt(0, H * 0.4, 0);
+
+        ren.render(scene, cam);
+        const dataUrl = ren.domElement.toDataURL("image/png");
+        ren.dispose();
+        resolve(dataUrl.split(",")[1]);
+      } catch (e) { console.warn("3D capture failed:", e); resolve(null); }
+    });
+  };
+
   const generateBlueprint = async () => {
     setGenStatus("generating"); setGenError("");
     try {
+      const coverImage = await capture3D();
       const res = await fetch(`${API}/api/generate-test`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(p),
+        body: JSON.stringify({ ...p, projectInfo: info, coverImage }),
       });
       if (!res.ok) throw new Error(`Server error: ${res.status}`);
       const data = await res.json();
@@ -883,6 +959,46 @@ const App = function SimpleBlueprints() {
                   <div style={{ fontSize: 9, fontWeight: 700, color: br.gn, marginBottom: 6, fontFamily: mono, letterSpacing: "1px", textTransform: "uppercase" }}>Structure</div>
                   <Spec l="Joists" v={`${c.joistSize}@${c.sp}"`} /><Spec l="Beam" v={c.beamSize.replace("3-ply ","3×").replace("2-ply ","2×")} /><Spec l="Posts" v={`${c.postSize}×${c.nP}`} /><Spec l="Footings" v={`${c.fDiam}"Ø×${c.nF}`} /><Spec l="Load" v={`${c.TL} PSF`} color={br.rd} />
                   {c.warnings.length > 0 && <div style={{ fontSize: 8, color: br.rd, marginTop: 4, fontFamily: mono }}>⚠️ {c.warnings.length} warning{c.warnings.length > 1 ? "s" : ""}</div>}
+                </div>
+              </div>
+
+              {/* Project Info for Title Block */}
+              <div style={{ padding: 14, background: br.wr, borderRadius: 8, border: `1px solid ${br.bd}`, marginBottom: 14 }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: br.gn, marginBottom: 10, fontFamily: mono, letterSpacing: "1px", textTransform: "uppercase" }}>Project Information <span style={{ fontWeight: 400, color: br.mu, fontSize: 8 }}>(prints on title block)</span></div>
+                {[
+                  ["owner", "Owner / Applicant Name"],
+                  ["address", "Project Address"],
+                  ["city", "City"],
+                ].map(([f, lbl]) => (
+                  <div key={f} style={{ marginBottom: 8 }}>
+                    <label style={{ fontSize: 9, color: br.mu, fontFamily: mono, display: "block", marginBottom: 2 }}>{lbl}</label>
+                    <input value={info[f]} onChange={e => setI(f, e.target.value)} placeholder={lbl}
+                      style={{ width: "100%", padding: "7px 10px", border: `1px solid ${br.bd}`, borderRadius: 5, fontSize: 12, fontFamily: mono, color: br.tx, background: "#fff", outline: "none" }} />
+                  </div>
+                ))}
+                <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: 9, color: br.mu, fontFamily: mono, display: "block", marginBottom: 2 }}>State</label>
+                    <input value={info.state} onChange={e => setI("state", e.target.value)} placeholder="State"
+                      style={{ width: "100%", padding: "7px 10px", border: `1px solid ${br.bd}`, borderRadius: 5, fontSize: 12, fontFamily: mono, color: br.tx, background: "#fff", outline: "none" }} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: 9, color: br.mu, fontFamily: mono, display: "block", marginBottom: 2 }}>ZIP</label>
+                    <input value={info.zip} onChange={e => setI("zip", e.target.value)} placeholder="ZIP"
+                      style={{ width: "100%", padding: "7px 10px", border: `1px solid ${br.bd}`, borderRadius: 5, fontSize: 12, fontFamily: mono, color: br.tx, background: "#fff", outline: "none" }} />
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: 9, color: br.mu, fontFamily: mono, display: "block", marginBottom: 2 }}>Lot / Parcel #</label>
+                    <input value={info.lot} onChange={e => setI("lot", e.target.value)} placeholder="Optional"
+                      style={{ width: "100%", padding: "7px 10px", border: `1px solid ${br.bd}`, borderRadius: 5, fontSize: 12, fontFamily: mono, color: br.tx, background: "#fff", outline: "none" }} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: 9, color: br.mu, fontFamily: mono, display: "block", marginBottom: 2 }}>Contractor</label>
+                    <input value={info.contractor} onChange={e => setI("contractor", e.target.value)} placeholder="Owner-Builder"
+                      style={{ width: "100%", padding: "7px 10px", border: `1px solid ${br.bd}`, borderRadius: 5, fontSize: 12, fontFamily: mono, color: br.tx, background: "#fff", outline: "none" }} />
+                  </div>
                 </div>
               </div>
 
