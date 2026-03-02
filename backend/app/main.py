@@ -31,6 +31,7 @@ from drawing.draw_materials import draw_materials_sheet
 from drawing.title_block import draw_title_block
 from drawing.draw_cover import draw_cover_sheet
 from drawing.draw_site_plan import draw_site_plan
+from app.analytics import init_db, log_generation, log_page_view, get_stats, admin_dashboard_html
 
 # ============================================================
 # CONFIG
@@ -50,6 +51,10 @@ stripe.api_key = STRIPE_SECRET
 # APP
 # ============================================================
 app = FastAPI(title="SimpleBlueprints API", version="1.0.0")
+
+@app.on_event("startup")
+async def startup():
+    init_db()
 
 # Redirect HTTP to HTTPS in production
 @app.middleware("http")
@@ -364,16 +369,19 @@ async def success_page(session_id: str = ""):
 # ============================================================
 @app.post("/api/generate-test")
 async def generate_test(request: Request):
-    """Generate blueprint without payment — FOR TESTING ONLY.
-    Remove or protect this endpoint before going live."""
+    """Generate blueprint without payment — FOR TESTING ONLY."""
     try:
         body = await request.body()
-        if len(body) > 20 * 1024 * 1024:  # 20MB limit
+        if len(body) > 20 * 1024 * 1024:
             raise HTTPException(status_code=413, detail="Request too large")
         params = DeckParams(**json.loads(body))
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="Invalid JSON")
     file_id, calc = generate_blueprint_pdf(params.dict())
+    # Log analytics
+    ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "unknown").split(",")[0].strip()
+    ua = request.headers.get("user-agent", "")
+    log_generation(params.dict(), calc, ip=ip, user_agent=ua, source="test")
     return {
         "file_id": file_id,
         "download_url": f"/api/download/{file_id}",
@@ -388,8 +396,24 @@ from pathlib import Path as _Path
 _STATIC_DIR = _Path(__file__).parent.parent / "static"
 
 @app.get("/")
-async def root():
+async def root(request: Request):
     index_path = _STATIC_DIR / "index.html"
     if index_path.exists():
+        # Log page view
+        ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "unknown").split(",")[0].strip()
+        ua = request.headers.get("user-agent", "")
+        log_page_view(ip, "/", ua)
         return FileResponse(str(index_path), media_type="text/html")
     return {"message": "SimpleBlueprints API is running", "docs": "/docs"}
+
+
+# ============================================================
+# ADMIN DASHBOARD
+# ============================================================
+@app.get("/admin")
+async def admin():
+    return Response(content=admin_dashboard_html(), media_type="text/html")
+
+@app.get("/admin/api/stats")
+async def admin_stats():
+    return get_stats()
