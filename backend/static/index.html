@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SimpleBlueprints — Permit-Ready Deck Plans in Minutes</title>
-<meta name="description" content="Configure your deck, get IRC-compliant structural calculations, and download professional blueprint PDFs. No architect required.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%233d5a2e'/><text x='16' y='22' text-anchor='middle' fill='white' font-size='16' font-weight='900' font-family='monospace'>SB</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,700;0,9..40,900;1,9..40,400&display=swap" rel="stylesheet">
@@ -200,21 +199,43 @@ function PlanView({ p, c, mode }) {
       {[[pad, pad, pad, pad + sd], [pad, pad + sd, pad + sw, pad + sd], [pad + sw, pad, pad + sw, pad + sd]].map(([x1, y1, x2, y2], i) => (
         <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#444" strokeWidth="3.5" />
       ))}
-      {p.hasStairs && p.stairLocation === "front" && <g>
-        <rect x={pad + sw / 2 - 2 * sc} y={pad + sd + 1} width={4 * sc} height={16} fill="none" stroke="#444" strokeWidth="0.8" />
-        {[...Array(5)].map((_, i) => <line key={i} x1={pad + sw / 2 - 2 * sc} y1={pad + sd + 1 + i * 3.2} x2={pad + sw / 2 + 2 * sc} y2={pad + sd + 1 + i * 3.2} stroke="#aaa" strokeWidth="0.4" />)}
-        <text x={pad + sw / 2} y={pad + sd + 24} textAnchor="middle" style={{ fontSize: 5.5, fill: "#444", fontFamily: "monospace", fontWeight: 700 }}>DN</text>
-      </g>}
-      {p.hasStairs && p.stairLocation === "left" && <g>
-        <rect x={pad - 17} y={pad + sd - 4 * sc} width={16} height={4 * sc} fill="none" stroke="#444" strokeWidth="0.8" />
-        {[...Array(5)].map((_, i) => <line key={i} x1={pad - 17 + i * 3.2} y1={pad + sd - 4 * sc} x2={pad - 17 + i * 3.2} y2={pad + sd} stroke="#aaa" strokeWidth="0.4" />)}
-        <text x={pad - 9} y={pad + sd - 4 * sc - 3} textAnchor="middle" style={{ fontSize: 5.5, fill: "#444", fontFamily: "monospace", fontWeight: 700 }}>DN</text>
-      </g>}
-      {p.hasStairs && p.stairLocation === "right" && <g>
-        <rect x={pad + sw + 1} y={pad + sd - 4 * sc} width={16} height={4 * sc} fill="none" stroke="#444" strokeWidth="0.8" />
-        {[...Array(5)].map((_, i) => <line key={i} x1={pad + sw + 1 + i * 3.2} y1={pad + sd - 4 * sc} x2={pad + sw + 1 + i * 3.2} y2={pad + sd} stroke="#aaa" strokeWidth="0.4" />)}
-        <text x={pad + sw + 9} y={pad + sd - 4 * sc - 3} textAnchor="middle" style={{ fontSize: 5.5, fill: "#444", fontFamily: "monospace", fontWeight: 700 }}>DN</text>
-      </g>}
+      {p.hasStairs && c.stairs && p.stairLocation === "front" && (() => {
+        const st = c.stairs; const stW = st.width * sc; const stH = st.runFt * sc;
+        const sx = pad + sw / 2 - stW / 2; const sy = pad + sd + 1;
+        const tStep = stH / Math.max(st.nTreads, 1);
+        return <g>
+          <rect x={sx} y={sy} width={stW} height={stH} fill="none" stroke="#444" strokeWidth="0.8" />
+          {[...Array(st.nTreads + 1)].map((_, i) => <line key={i} x1={sx} y1={sy + i * tStep} x2={sx + stW} y2={sy + i * tStep} stroke="#aaa" strokeWidth="0.4" />)}
+          {[...Array(st.nStringers)].map((_, i) => { const ssx = st.nStringers > 1 ? sx + i * stW / (st.nStringers - 1) : sx + stW / 2; return <line key={`s${i}`} x1={ssx} y1={sy} x2={ssx} y2={sy + stH} stroke="#999" strokeWidth="0.3" strokeDasharray="2,2" />; })}
+          <text x={sx + stW / 2} y={sy + stH / 2 + 2} textAnchor="middle" style={{ fontSize: 5.5, fill: "#444", fontFamily: "monospace", fontWeight: 700 }}>DN</text>
+          {st.hasLanding && <rect x={sx - 2} y={sy + stH + 1} width={stW + 4} height={18} fill="#e8e8e0" stroke="#444" strokeWidth="0.5" strokeDasharray="3,2" />}
+          <text x={sx + stW + 4} y={sy + stH / 2} style={{ fontSize: 4, fill: "#666", fontFamily: "monospace" }}>{st.nStringers}×2×12</text>
+        </g>;
+      })()}
+      {p.hasStairs && c.stairs && p.stairLocation === "left" && (() => {
+        const st = c.stairs; const stW = st.width * sc; const stH = st.runFt * sc;
+        const sx = pad - stH - 1; const sy = pad + sd / 2 - stW / 2;
+        const tStep = stH / Math.max(st.nTreads, 1);
+        return <g>
+          <rect x={sx} y={sy} width={stH} height={stW} fill="none" stroke="#444" strokeWidth="0.8" />
+          {[...Array(st.nTreads + 1)].map((_, i) => <line key={i} x1={sx + stH - i * tStep} y1={sy} x2={sx + stH - i * tStep} y2={sy + stW} stroke="#aaa" strokeWidth="0.4" />)}
+          {[...Array(st.nStringers)].map((_, i) => { const ssy = st.nStringers > 1 ? sy + i * stW / (st.nStringers - 1) : sy + stW / 2; return <line key={`s${i}`} x1={sx} y1={ssy} x2={sx + stH} y2={ssy} stroke="#999" strokeWidth="0.3" strokeDasharray="2,2" />; })}
+          <text x={sx + stH / 2} y={sy + stW / 2 + 2} textAnchor="middle" style={{ fontSize: 5.5, fill: "#444", fontFamily: "monospace", fontWeight: 700 }}>DN</text>
+          {st.hasLanding && <rect x={sx - 19} y={sy - 2} width={18} height={stW + 4} fill="#e8e8e0" stroke="#444" strokeWidth="0.5" strokeDasharray="3,2" />}
+        </g>;
+      })()}
+      {p.hasStairs && c.stairs && p.stairLocation === "right" && (() => {
+        const st = c.stairs; const stW = st.width * sc; const stH = st.runFt * sc;
+        const sx = pad + sw + 1; const sy = pad + sd / 2 - stW / 2;
+        const tStep = stH / Math.max(st.nTreads, 1);
+        return <g>
+          <rect x={sx} y={sy} width={stH} height={stW} fill="none" stroke="#444" strokeWidth="0.8" />
+          {[...Array(st.nTreads + 1)].map((_, i) => <line key={i} x1={sx + i * tStep} y1={sy} x2={sx + i * tStep} y2={sy + stW} stroke="#aaa" strokeWidth="0.4" />)}
+          {[...Array(st.nStringers)].map((_, i) => { const ssy = st.nStringers > 1 ? sy + i * stW / (st.nStringers - 1) : sy + stW / 2; return <line key={`s${i}`} x1={sx} y1={ssy} x2={sx + stH} y2={ssy} stroke="#999" strokeWidth="0.3" strokeDasharray="2,2" />; })}
+          <text x={sx + stH / 2} y={sy + stW / 2 + 2} textAnchor="middle" style={{ fontSize: 5.5, fill: "#444", fontFamily: "monospace", fontWeight: 700 }}>DN</text>
+          {st.hasLanding && <rect x={sx + stH + 1} y={sy - 2} width={18} height={stW + 4} fill="#e8e8e0" stroke="#444" strokeWidth="0.5" strokeDasharray="3,2" />}
+        </g>;
+      })()}
       <line x1={pad} y1={pad + sd + 25} x2={pad + sw} y2={pad + sd + 25} stroke="#c62828" strokeWidth="0.6" />
       <line x1={pad} y1={pad + sd + 22} x2={pad} y2={pad + sd + 28} stroke="#c62828" strokeWidth="0.6" />
       <line x1={pad + sw} y1={pad + sd + 22} x2={pad + sw} y2={pad + sd + 28} stroke="#c62828" strokeWidth="0.6" />
@@ -276,6 +297,46 @@ function ElevationView({ c, p }) {
       <text x={dX + dSW + 10} y={dY + bH * 0.4 + 2} style={{ fontSize: 5, fill: "#333", fontFamily: "monospace" }}>{beamSize.toUpperCase()}</text>
       <text x={dX + dSW + 10} y={(gnd + dY) / 2} style={{ fontSize: 5, fill: "#333", fontFamily: "monospace" }}>{postSize} POSTS ({nP})</text>
       <text x={dX + dSW + 10} y={gnd + 4} style={{ fontSize: 5, fill: "#333", fontFamily: "monospace" }}>{fDiam}" Ø × {fDepth}" PIERS</text>
+      {p.hasStairs && c.stairs && (() => {
+        const st = c.stairs; const stRun = st.runFt * sX; const stW = st.width * sX;
+        const topY = dY; const botY = gnd;
+        let sx, showSide = false;
+        if (p.stairLocation === "front") { sx = dX + dSW / 2 - stW / 2; showSide = false; }
+        else if (p.stairLocation === "right") { sx = dX + dSW + 2; showSide = true; }
+        else { sx = dX - stRun - 2; showSide = true; }
+        if (!showSide) {
+          const stairX = dX + dSW / 2;
+          return <g>
+            <line x1={stairX - stW / 2} y1={topY} x2={stairX - stW / 2} y2={botY} stroke="#444" strokeWidth="0.8" />
+            <line x1={stairX + stW / 2} y1={topY} x2={stairX + stW / 2} y2={botY} stroke="#444" strokeWidth="0.8" />
+            {[...Array(st.nTreads)].map((_, i) => {
+              const ty = topY + (i + 1) * (botY - topY) / st.nRisers;
+              return <line key={i} x1={stairX - stW / 2} y1={ty} x2={stairX + stW / 2} y2={ty} stroke="#aaa" strokeWidth="0.4" />;
+            })}
+            <text x={stairX} y={botY + 10} textAnchor="middle" style={{ fontSize: 4.5, fill: "#666", fontFamily: "monospace" }}>{st.nStringers}×2×12 STRINGERS</text>
+            {st.hasLanding && <rect x={stairX - stW / 2 - 3} y={botY} width={stW + 6} height={3} fill="#e8e8e0" stroke="#444" strokeWidth="0.4" />}
+          </g>;
+        } else {
+          const startX = p.stairLocation === "right" ? dX + dSW : dX;
+          const dir = p.stairLocation === "right" ? 1 : -1;
+          return <g>
+            <line x1={startX} y1={topY} x2={startX + dir * stRun} y2={botY} stroke="#444" strokeWidth="1" />
+            <line x1={startX + dir * 2} y1={topY} x2={startX + dir * (stRun + 2)} y2={botY} stroke="#444" strokeWidth="0.5" />
+            {[...Array(st.nTreads)].map((_, i) => {
+              const frac = (i + 1) / st.nRisers;
+              const tx = startX + dir * stRun * frac;
+              const ty = topY + (botY - topY) * frac;
+              const tw = st.tread / 12 * sX * dir;
+              return <g key={i}>
+                <line x1={tx} y1={ty} x2={tx - tw} y2={ty} stroke="#aaa" strokeWidth="0.4" />
+                <line x1={tx} y1={ty} x2={tx} y2={ty - (botY - topY) / st.nRisers} stroke="#aaa" strokeWidth="0.3" />
+              </g>;
+            })}
+            <text x={startX + dir * stRun / 2} y={botY + 10} textAnchor="middle" style={{ fontSize: 4.5, fill: "#666", fontFamily: "monospace" }}>{st.nStringers}×2×12 STRINGERS</text>
+            {st.hasLanding && <rect x={Math.min(startX + dir * stRun, startX + dir * (stRun + 15))} y={botY} width={15} height={3} fill="#e8e8e0" stroke="#444" strokeWidth="0.4" />}
+          </g>;
+        }
+      })()}
     </svg>
   );
 }
@@ -798,7 +859,7 @@ const App = function SimpleBlueprints() {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
                 <div style={{ padding: 12, background: br.wr, borderRadius: 8, border: `1px solid ${br.bd}` }}>
                   <div style={{ fontSize: 9, fontWeight: 700, color: br.gn, marginBottom: 6, fontFamily: mono, letterSpacing: "1px", textTransform: "uppercase" }}>Project</div>
-                  <Spec l="Size" v={`${c.W}'×${c.D}' (${c.area} SF)`} /><Spec l="Height" v={`${c.H}'`} /><Spec l="Attach" v={c.attachment === "ledger" ? "Ledger" : "Free"} /><Spec l="Stairs" v={p.hasStairs ? p.stairLocation : "None"} /><Spec l="Deck" v={p.deckingType === "composite" ? "Composite" : "PT"} /><Spec l="Rail" v={p.railType === "fortress" ? "Fortress" : "Wood"} />
+                  <Spec l="Size" v={`${c.W}'×${c.D}' (${c.area} SF)`} /><Spec l="Height" v={`${c.H}'`} /><Spec l="Attach" v={c.attachment === "ledger" ? "Ledger" : "Free"} /><Spec l="Stairs" v={p.hasStairs ? `${p.stairLocation} ${p.stairWidth || 4}' · ${p.numStringers || 3} stringers${p.hasLanding ? " · landing" : ""}` : "None"} /><Spec l="Deck" v={p.deckingType === "composite" ? "Composite" : "PT"} /><Spec l="Rail" v={p.railType === "fortress" ? "Fortress" : "Wood"} />
                 </div>
                 <div style={{ padding: 12, background: br.wr, borderRadius: 8, border: `1px solid ${br.bd}` }}>
                   <div style={{ fontSize: 9, fontWeight: 700, color: br.gn, marginBottom: 6, fontFamily: mono, letterSpacing: "1px", textTransform: "uppercase" }}>Structure</div>
