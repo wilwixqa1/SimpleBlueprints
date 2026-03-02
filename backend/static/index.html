@@ -4,19 +4,23 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SimpleBlueprints — Permit-Ready Deck Plans in Minutes</title>
+<meta name="description" content="Configure your deck, get IRC-compliant structural calculations, and download professional blueprint PDFs instantly.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%233d5a2e'/><text x='16' y='22' text-anchor='middle' fill='white' font-size='16' font-weight='900' font-family='monospace'>SB</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,700;0,9..40,900;1,9..40,400&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.development.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.development.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'DM Sans', system-ui, sans-serif; background: #faf8f3; }
+  body { font-family: 'DM Sans', system-ui, sans-serif; background: #faf8f3; -webkit-font-smoothing: antialiased; }
   #root { min-height: 100vh; }
   input[type="range"] { -webkit-appearance: none; height: 6px; border-radius: 3px; background: #ddd8cc; outline: none; }
   input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: #3d5a2e; cursor: pointer; }
+  @media (max-width: 600px) {
+    h1 { font-size: 28px !important; }
+  }
 </style>
 </head>
 <body>
@@ -545,31 +549,26 @@ const App = function SimpleBlueprints() {
   // HOME
   if (page === "home") return (
     <div style={{ minHeight: "100vh", background: br.cr }}>
-      <nav style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 32px", borderBottom: `1px solid ${br.bd}` }}>
+      <nav style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px", borderBottom: `1px solid ${br.bd}` }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <div style={{ width: 28, height: 28, background: br.gn, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center" }}><span style={{ color: "#fff", fontSize: 14, fontWeight: 900 }}>SB</span></div>
           <span style={{ fontFamily: mono, fontSize: 15, fontWeight: 800, color: br.dk, letterSpacing: "0.5px" }}>simpleblueprints</span>
           <span style={{ fontSize: 10, color: br.ac, fontWeight: 700, fontFamily: mono, border: `1px solid ${br.ac}`, padding: "1px 6px", borderRadius: 3, marginLeft: 4 }}>BETA</span>
         </div>
-        <div style={{ display: "flex", gap: 24, alignItems: "center" }}>
-          <a style={{ fontSize: 12, color: br.mu, fontFamily: mono, cursor: "pointer" }}>How It Works</a>
-          <a style={{ fontSize: 12, color: br.mu, fontFamily: mono, cursor: "pointer" }}>Pricing</a>
-          <button style={{ padding: "8px 18px", background: br.gn, color: "#fff", border: "none", borderRadius: 6, fontSize: 12, fontFamily: mono, fontWeight: 700, cursor: "pointer" }}>Sign In</button>
-        </div>
       </nav>
-      <div style={{ maxWidth: 900, margin: "0 auto", padding: "80px 32px 50px", textAlign: "center" }}>
+      <div style={{ maxWidth: 900, margin: "0 auto", padding: "50px 20px 40px", textAlign: "center" }}>
         <div style={{ fontSize: 11, fontFamily: mono, color: br.gn, fontWeight: 700, letterSpacing: "3px", textTransform: "uppercase", marginBottom: 16 }}>Permit-Ready Plans in Minutes</div>
-        <h1 style={{ fontFamily: sans, fontSize: 52, fontWeight: 900, color: br.dk, lineHeight: 1.1, margin: "0 0 20px", letterSpacing: "-1px" }}>Simple structures.<br />Simple blueprints.</h1>
-        <p style={{ fontFamily: sans, fontSize: 18, color: br.mu, maxWidth: 560, margin: "0 auto 40px", lineHeight: 1.6 }}>Configure your project, get IRC-compliant structural calculations, and download a professional drawing set. No architect required.</p>
+        <h1 style={{ fontFamily: sans, fontSize: "clamp(28px, 6vw, 52px)", fontWeight: 900, color: br.dk, lineHeight: 1.1, margin: "0 0 20px", letterSpacing: "-1px" }}>Simple structures.<br />Simple blueprints.</h1>
+        <p style={{ fontFamily: sans, fontSize: "clamp(14px, 2.5vw, 18px)", color: br.mu, maxWidth: 560, margin: "0 auto 40px", lineHeight: 1.6 }}>Configure your project, get IRC-compliant structural calculations, and download a professional drawing set. No architect required.</p>
         <div style={{ display: "flex", gap: 32, justifyContent: "center", marginBottom: 60, flexWrap: "wrap" }}>
           {[["01", "Configure", "Set dimensions, materials, and location"], ["02", "Calculate", "Auto-sized joists, beams, posts & footings"], ["03", "Download", "4-sheet PDF blueprint + material list"]].map(([n, t, d]) => (
             <div key={n} style={{ textAlign: "center", maxWidth: 180 }}><div style={{ fontFamily: mono, fontSize: 28, fontWeight: 900, color: br.gn, marginBottom: 4 }}>{n}</div><div style={{ fontFamily: sans, fontSize: 16, fontWeight: 700, color: br.dk, marginBottom: 4 }}>{t}</div><div style={{ fontFamily: sans, fontSize: 13, color: br.mu, lineHeight: 1.5 }}>{d}</div></div>
           ))}
         </div>
       </div>
-      <div style={{ maxWidth: 900, margin: "0 auto", padding: "0 32px 80px" }}>
+      <div style={{ maxWidth: 900, margin: "0 auto", padding: "0 20px 60px" }}>
         <div style={{ fontSize: 11, fontFamily: mono, color: br.mu, fontWeight: 700, letterSpacing: "2px", textTransform: "uppercase", marginBottom: 20, textAlign: "center" }}>Choose Your Project</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))", gap: 14 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 10 }}>
           {products.map(pr => (
             <button key={pr.id} onClick={() => pr.active && setPage("wizard")} style={{ padding: "24px 20px", background: "#fff", border: pr.active ? `2px solid ${br.gn}` : `1px solid ${br.bd}`, borderRadius: 10, cursor: pr.active ? "pointer" : "default", textAlign: "left", opacity: pr.active ? 1 : 0.55, position: "relative" }}>
               {!pr.active && <span style={{ position: "absolute", top: 10, right: 10, fontSize: 8, fontFamily: mono, color: br.ac, fontWeight: 700, background: "#fef9e7", padding: "2px 8px", borderRadius: 3 }}>COMING SOON</span>}
@@ -601,7 +600,7 @@ const App = function SimpleBlueprints() {
       </nav>
       <div style={{ height: 3, background: br.wr }}><div style={{ height: "100%", background: br.gn, width: `${((step + 1) / 4) * 100}%`, transition: "width 0.3s" }} /></div>
 
-      <div style={{ maxWidth: 1180, margin: "0 auto", padding: "20px", display: "flex", gap: 20, flexWrap: "wrap" }}>
+      <div style={{ maxWidth: 1180, margin: "0 auto", padding: "12px", display: "flex", gap: 16, flexWrap: "wrap" }}>
         {/* LEFT: INPUTS */}
         <div style={{ flex: "1 1 320px", minWidth: 290 }}>
           <div style={{ background: "#fff", borderRadius: 10, padding: 22, border: `1px solid ${br.bd}`, boxShadow: "0 1px 8px rgba(0,0,0,0.04)" }}>
@@ -851,12 +850,12 @@ const App = function SimpleBlueprints() {
                   </div>
                 </div>
                 <div style={{ textAlign: "center", marginTop: 6 }}>
-                  <span style={{ fontSize: 8, color: br.mu, fontFamily: mono }}>3 sheets included · Full resolution PDF after purchase</span>
+                  <span style={{ fontSize: 8, color: br.mu, fontFamily: mono }}>4 sheets included · Plan · Elevations · Details · Materials</span>
                 </div>
               </div>
 
               {/* Summary + Structure */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10, marginBottom: 14 }}>
                 <div style={{ padding: 12, background: br.wr, borderRadius: 8, border: `1px solid ${br.bd}` }}>
                   <div style={{ fontSize: 9, fontWeight: 700, color: br.gn, marginBottom: 6, fontFamily: mono, letterSpacing: "1px", textTransform: "uppercase" }}>Project</div>
                   <Spec l="Size" v={`${c.W}'×${c.D}' (${c.area} SF)`} /><Spec l="Height" v={`${c.H}'`} /><Spec l="Attach" v={c.attachment === "ledger" ? "Ledger" : "Free"} /><Spec l="Stairs" v={p.hasStairs ? `${p.stairLocation} ${p.stairWidth || 4}' · ${p.numStringers || 3} stringers${p.hasLanding ? " · landing" : ""}` : "None"} /><Spec l="Deck" v={p.deckingType === "composite" ? "Composite" : "PT"} /><Spec l="Rail" v={p.railType === "fortress" ? "Fortress" : "Wood"} />
@@ -906,7 +905,7 @@ const App = function SimpleBlueprints() {
         </div>
 
         {/* RIGHT: PREVIEW */}
-        <div style={{ flex: "1 1 500px", minWidth: 360 }}>
+        <div style={{ flex: "1 1 500px", minWidth: 280 }}>
           <div style={{ background: "#fff", borderRadius: 10, padding: 18, border: `1px solid ${br.bd}`, boxShadow: "0 1px 8px rgba(0,0,0,0.04)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
               <h3 style={{ margin: 0, fontSize: 12, fontWeight: 700, color: br.dk, fontFamily: mono, letterSpacing: "1px", textTransform: "uppercase" }}>Preview</h3>

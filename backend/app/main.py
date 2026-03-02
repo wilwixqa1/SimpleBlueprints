@@ -27,6 +27,7 @@ from drawing.calc_engine import calculate_structure
 from drawing.draw_plan import draw_plan_and_framing, format_feet_inches
 from drawing.draw_elevations import draw_elevations_sheet
 from drawing.draw_details import draw_details_sheet
+from drawing.draw_materials import draw_materials_sheet
 
 # ============================================================
 # CONFIG
@@ -106,6 +107,13 @@ def generate_blueprint_pdf(params: dict) -> tuple[str, dict]:
         draw_details_sheet(fig3, params, calc)
         pdf.savefig(fig3, dpi=200)
         plt.close(fig3)
+
+        # Sheet A-4: Material List
+        fig4 = plt.figure(figsize=(14, 8.5))
+        fig4.set_facecolor('white')
+        draw_materials_sheet(fig4, params, calc)
+        pdf.savefig(fig4, dpi=200)
+        plt.close(fig4)
 
     return file_id, calc
 
