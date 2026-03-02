@@ -98,13 +98,19 @@ def draw_cover_sheet(fig, params, calc, project_info=None, cover_image_b64=None)
 
     # Project info area (below image)
     info_y = 27
+    box_h = info_y - 5
+    row_h = 1.8
+    label_fs = 5
+    val_fs = 5.5
 
     # Left: Project details
-    ax.add_patch(patches.Rectangle((5, 5), 64, info_y - 5,
-                 fc='#fafaf8', ec=BRAND["dark"], lw=0.5))
+    ax.add_patch(patches.Rectangle((5, 5), 64, box_h,
+                 fc='white', ec=BRAND["dark"], lw=0.8))
 
-    ax.text(7, info_y - 2, "PROJECT INFORMATION", fontsize=8, fontweight='bold',
-            fontfamily='monospace', color=BRAND["green"])
+    ax.add_patch(patches.Rectangle((5, info_y - 3.5), 64, 3.5,
+                 fc=BRAND["green"], ec='none'))
+    ax.text(7, info_y - 2.2, "PROJECT INFORMATION", fontsize=7, fontweight='bold',
+            fontfamily='monospace', color='white')
 
     owner = pi.get("owner", "—")
     address = pi.get("address", "—")
@@ -119,27 +125,33 @@ def draw_cover_sheet(fig, params, calc, project_info=None, cover_image_b64=None)
         city_line += f" {zip_code}" if city_line else zip_code
 
     details = [
-        ("OWNER / APPLICANT", owner.upper() if owner != "—" else "—"),
-        ("PROJECT ADDRESS", address.upper() if address != "—" else "—"),
+        ("OWNER", owner.upper() if owner != "—" else "—"),
+        ("ADDRESS", address.upper() if address != "—" else "—"),
         ("CITY / STATE / ZIP", city_line.upper() if city_line else "—"),
         ("LOT / PARCEL", lot.upper() if lot else "—"),
         ("CONTRACTOR", contractor.upper()),
-        ("DATE PREPARED", today.upper()),
+        ("DATE", today.upper()),
     ]
 
-    dy = info_y - 5
-    for label, value in details:
-        ax.text(8, dy, label, fontsize=5, fontfamily='monospace', color=BRAND["mute"])
-        ax.text(35, dy, value, fontsize=6, fontweight='bold', fontfamily='monospace',
+    dy = info_y - 5.5
+    for i, (label, value) in enumerate(details):
+        if i % 2 == 0:
+            ax.add_patch(patches.Rectangle((5.2, dy - 0.5), 63.6, row_h,
+                         fc='#f5f4f0', ec='none'))
+        ax.text(7, dy, label, fontsize=label_fs, fontfamily='monospace', color=BRAND["mute"],
+                fontweight='bold')
+        ax.text(28, dy, value, fontsize=val_fs, fontweight='bold', fontfamily='monospace',
                 color=BRAND["dark"])
-        dy -= 3
+        dy -= row_h
 
     # Right: Deck specs
-    ax.add_patch(patches.Rectangle((71, 5), 64.5, info_y - 5,
-                 fc='#fafaf8', ec=BRAND["dark"], lw=0.5))
+    ax.add_patch(patches.Rectangle((71, 5), 44, box_h,
+                 fc='white', ec=BRAND["dark"], lw=0.8))
 
-    ax.text(73, info_y - 2, "DECK SPECIFICATIONS", fontsize=8, fontweight='bold',
-            fontfamily='monospace', color=BRAND["green"])
+    ax.add_patch(patches.Rectangle((71, info_y - 3.5), 44, 3.5,
+                 fc=BRAND["green"], ec='none'))
+    ax.text(73, info_y - 2.2, "DECK SPECIFICATIONS", fontsize=7, fontweight='bold',
+            fontfamily='monospace', color='white')
 
     attachment = "Ledger Board" if calc.get("attachment") == "ledger" else "Freestanding"
     stair_desc = "None"
@@ -158,18 +170,42 @@ def draw_cover_sheet(fig, params, calc, project_info=None, cover_image_b64=None)
         ("STAIRS", stair_desc),
     ]
 
-    dy = info_y - 5
-    for label, value in specs:
-        ax.text(73, dy, label, fontsize=5, fontfamily='monospace', color=BRAND["mute"])
-        ax.text(95, dy, value, fontsize=5.5, fontweight='bold', fontfamily='monospace',
+    dy = info_y - 5.5
+    for i, (label, value) in enumerate(specs):
+        if i % 2 == 0:
+            ax.add_patch(patches.Rectangle((71.2, dy - 0.5), 43.6, row_h,
+                         fc='#f5f4f0', ec='none'))
+        ax.text(73, dy, label, fontsize=label_fs, fontfamily='monospace', color=BRAND["mute"],
+                fontweight='bold')
+        ax.text(93, dy, value, fontsize=val_fs, fontweight='bold', fontfamily='monospace',
                 color=BRAND["dark"])
-        dy -= 2.5
+        dy -= row_h
 
-    # Sheet index at bottom right
-    ax.text(133, 6.5, "DRAWING INDEX", fontsize=6, fontweight='bold',
-            fontfamily='monospace', color=BRAND["mute"], ha='right')
-    sheets = ["A-0  COVER SHEET", "A-1  PLAN & FRAMING", "A-2  ELEVATIONS",
-              "A-3  STRUCTURAL DETAILS", "A-4  MATERIAL LIST"]
-    for i, s in enumerate(sheets):
-        ax.text(133, 5.5 - i * 1.8, s, fontsize=4.5, fontfamily='monospace',
-                color=BRAND["dark"], ha='right')
+    # Right column: Drawing Index
+    idx_x = 117
+    idx_w = 18.5
+    ax.add_patch(patches.Rectangle((idx_x, 5), idx_w, box_h,
+                 fc='white', ec=BRAND["dark"], lw=0.8))
+
+    ax.add_patch(patches.Rectangle((idx_x, info_y - 3.5), idx_w, 3.5,
+                 fc=BRAND["green"], ec='none'))
+    ax.text(idx_x + idx_w / 2, info_y - 2.2, "DRAWING INDEX", fontsize=6, fontweight='bold',
+            fontfamily='monospace', color='white', ha='center')
+
+    sheets = [
+        ("A-0", "COVER"),
+        ("A-1", "PLAN & FRAMING"),
+        ("A-2", "ELEVATIONS"),
+        ("A-3", "DETAILS"),
+        ("A-4", "MATERIALS"),
+    ]
+    dy = info_y - 5.5
+    for i, (num, title) in enumerate(sheets):
+        if i % 2 == 0:
+            ax.add_patch(patches.Rectangle((idx_x + 0.2, dy - 0.5), idx_w - 0.4, row_h,
+                         fc='#f5f4f0', ec='none'))
+        ax.text(idx_x + 1.5, dy, num, fontsize=label_fs, fontweight='bold',
+                fontfamily='monospace', color=BRAND["green"])
+        ax.text(idx_x + 5, dy, title, fontsize=label_fs, fontfamily='monospace',
+                color=BRAND["dark"])
+        dy -= row_h
