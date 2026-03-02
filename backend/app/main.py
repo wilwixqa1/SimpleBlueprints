@@ -48,6 +48,14 @@ stripe.api_key = STRIPE_SECRET
 # ============================================================
 app = FastAPI(title="SimpleBlueprints API", version="1.0.0")
 
+# Redirect HTTP to HTTPS in production
+@app.middleware("http")
+async def https_redirect(request: Request, call_next):
+    if request.headers.get("x-forwarded-proto") == "http":
+        url = request.url.replace(scheme="https")
+        return RedirectResponse(url=str(url), status_code=301)
+    return await call_next(request)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # tighten in production
