@@ -508,8 +508,10 @@ const App = function SimpleBlueprints() {
     return new Promise((resolve) => {
       try {
         if (typeof THREE === 'undefined') { resolve(null); return; }
-        const w = 1200, h = 800;
+        const w = 1400, h = 900;
+        const { W, D, H, pp, postSize, beamSize, joistSize, sp, fDiam } = c;
         const scene = new THREE.Scene(); scene.background = new THREE.Color(0xf5f2eb);
+        scene.fog = new THREE.Fog(0xf5f2eb, 60, 120);
         const cam = new THREE.PerspectiveCamera(45, w / h, 0.1, 200);
         const ren = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
         ren.setSize(w, h); ren.setPixelRatio(1);
@@ -518,11 +520,9 @@ const App = function SimpleBlueprints() {
         scene.add(new THREE.AmbientLight(0xffffff, 0.5));
         const sun = new THREE.DirectionalLight(0xfff5e0, 0.8); sun.position.set(20, 30, 15); sun.castShadow = true;
         sun.shadow.mapSize.set(1024, 1024); sun.shadow.camera.left = -40; sun.shadow.camera.right = 40; sun.shadow.camera.top = 40; sun.shadow.camera.bottom = -40;
-        scene.add(sun); scene.add(new THREE.DirectionalLight(0xc0d0ff, 0.3).position.set(-10, 15, -10) && scene.children[scene.children.length - 1] || sun);
-
+        scene.add(sun);
         const fill = new THREE.DirectionalLight(0xc0d0ff, 0.3); fill.position.set(-10, 15, -10); scene.add(fill);
 
-        const { W, D, H, pp, postSize, beamSize, joistSize, sp, fDiam } = c;
         const mats = {
           concrete: new THREE.MeshStandardMaterial({ color: 0xb8b8b8, roughness: 0.9 }),
           post: new THREE.MeshStandardMaterial({ color: 0xc4a060, roughness: 0.7 }),
@@ -532,42 +532,92 @@ const App = function SimpleBlueprints() {
           rail: new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.4, metalness: 0.3 }),
           house: new THREE.MeshStandardMaterial({ color: 0xd8d4c8, roughness: 0.8 }),
           roof: new THREE.MeshStandardMaterial({ color: 0x666666, roughness: 0.7 }),
+          win: new THREE.MeshStandardMaterial({ color: 0x90bcd4, roughness: 0.2 }),
+          metal: new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 0.3, metalness: 0.5 }),
         };
 
         const gnd = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), new THREE.MeshStandardMaterial({ color: 0xb8c9a0, roughness: 1 }));
         gnd.rotation.x = -Math.PI / 2; gnd.receiveShadow = true; scene.add(gnd);
+        const grid = new THREE.GridHelper(80, 80, 0xa0b088, 0xa8b890); grid.position.y = 0.01; scene.add(grid);
 
         const cx = -W / 2, cz = -D / 2;
+
         // House
         const hW = p.houseWidth || 40, hD = 14, hH = Math.max(H + 8, 12);
         const hX = cx + (W - hW) / 2, hZ = cz - hD;
         const house = new THREE.Mesh(new THREE.BoxGeometry(hW, hH, hD), mats.house);
         house.position.set(hX + hW / 2, hH / 2, hZ + hD / 2); house.castShadow = true; scene.add(house);
-        // Deck surface
-        const deckM = new THREE.Mesh(new THREE.BoxGeometry(W, 0.15, D), mats.deck);
-        deckM.position.set(cx + W / 2, H, cz + D / 2); deckM.castShadow = true; deckM.receiveShadow = true; scene.add(deckM);
-        // Posts
-        pp.forEach(px => {
-          const post = new THREE.Mesh(new THREE.BoxGeometry(postSize === "6x6" ? 0.5 : 0.3, H, postSize === "6x6" ? 0.5 : 0.3), mats.post);
-          post.position.set(cx + px, H / 2, cz + D - 1.5); post.castShadow = true; scene.add(post);
-        });
-        // Beam
-        const bm = new THREE.Mesh(new THREE.BoxGeometry(W - 2, 0.8, 0.3), mats.beam);
-        bm.position.set(cx + W / 2, H - 0.5, cz + D - 1.5); scene.add(bm);
-        // Railing
-        [[cx, cz, cx, cz + D], [cx, cz + D, cx + W, cz + D], [cx + W, cz, cx + W, cz + D]].forEach(([x1, z1, x2, z2]) => {
-          const len = Math.sqrt((x2 - x1) ** 2 + (z2 - z1) ** 2);
-          const rail = new THREE.Mesh(new THREE.BoxGeometry(len, 0.08, 0.06), mats.rail);
-          rail.position.set((x1 + x2) / 2, H + 3, (z1 + z2) / 2);
-          rail.rotation.y = Math.atan2(x2 - x1, z2 - z1) + Math.PI / 2;
-          scene.add(rail);
-        });
 
-        // Camera
+        // Roof
+        const ov = 1.5, rpk = 5;
+        const rx1 = hX - ov, rx2 = hX + hW + ov, rxM = hX + hW / 2;
+        const ry = hH, ryP = hH + rpk, rz1 = hZ - 1, rz2 = hZ + hD + 1;
+        const rv = new Float32Array([rx1,ry,rz2,rx2,ry,rz2,rxM,ryP,rz2, rx2,ry,rz1,rx1,ry,rz1,rxM,ryP,rz1, rx1,ry,rz1,rx1,ry,rz2,rxM,ryP,rz2,rx1,ry,rz1,rxM,ryP,rz2,rxM,ryP,rz1, rx2,ry,rz2,rx2,ry,rz1,rxM,ryP,rz1,rx2,ry,rz2,rxM,ryP,rz1,rxM,ryP,rz2, rx1,ry,rz1,rx2,ry,rz1,rx2,ry,rz2,rx1,ry,rz1,rx2,ry,rz2,rx1,ry,rz2]);
+        const rg = new THREE.BufferGeometry(); rg.setAttribute('position', new THREE.BufferAttribute(rv, 3)); rg.computeVertexNormals();
+        const roofM = new THREE.Mesh(rg, mats.roof); roofM.castShadow = true; scene.add(roofM);
+
+        // Windows + door
+        for (let wx = 0.2; wx < 0.9; wx += 0.3) { const wn = new THREE.Mesh(new THREE.PlaneGeometry(3, 4), mats.win); wn.position.set(hX + hW * wx, H + 5, hZ + hD + 0.05); scene.add(wn); }
+        const dr = new THREE.Mesh(new THREE.PlaneGeometry(4, 6.5), mats.win); dr.position.set(cx + W / 2, H - 6.5 / 2 + 6.7, cz + 0.05); scene.add(dr);
+
+        // Piers
+        const pR = (fDiam / 12) / 2;
+        const pierG = new THREE.CylinderGeometry(pR, pR, 0.5, 16);
+        pp.forEach(px => { const pr = new THREE.Mesh(pierG, mats.concrete); pr.position.set(cx + px, 0.25, cz + D - 1.5); scene.add(pr); });
+
+        // Posts
+        const pDim = postSize === "6x6" ? 5.5 / 12 : 3.5 / 12;
+        const postG = new THREE.BoxGeometry(pDim, H, pDim);
+        pp.forEach(px => { const po = new THREE.Mesh(postG, mats.post); po.position.set(cx + px, H / 2, cz + D - 1.5); po.castShadow = true; scene.add(po); });
+
+        // Post caps
+        const capG = new THREE.BoxGeometry(pDim + 0.2, 0.15, pDim + 0.2);
+        pp.forEach(px => { const ca = new THREE.Mesh(capG, mats.metal); ca.position.set(cx + px, H, cz + D - 1.5); scene.add(ca); });
+
+        // Beam
+        const bH2 = 11.875 / 12, bW2 = beamSize.includes("3") ? 5.25 / 12 : 3.5 / 12;
+        const bm = new THREE.Mesh(new THREE.BoxGeometry(W - 2, bH2, bW2), mats.beam);
+        bm.position.set(cx + W / 2, H - bH2 / 2 - 0.1, cz + D - 1.5); bm.castShadow = true; scene.add(bm);
+
+        // Ledger
+        const ld = new THREE.Mesh(new THREE.BoxGeometry(W, 9.25 / 12, 1.5 / 12), mats.joist);
+        ld.position.set(cx + W / 2, H - 0.4, cz + 0.06); scene.add(ld);
+
+        // Joists
+        const jH2 = 9.25 / 12, jW2 = 1.5 / 12, jLen = D - 1.5;
+        const jG = new THREE.BoxGeometry(jW2, jH2, jLen);
+        for (let x = sp / 12; x < W; x += sp / 12) { const j = new THREE.Mesh(jG, mats.joist); j.position.set(cx + x, H - jH2 / 2 - 0.1, cz + jLen / 2); scene.add(j); }
+
+        // Rim joists
+        const rimF = new THREE.Mesh(new THREE.BoxGeometry(W, jH2, jW2), mats.joist);
+        rimF.position.set(cx + W / 2, H - jH2 / 2 - 0.1, cz + D); scene.add(rimF);
+        [0, W].forEach(x => { const rim = new THREE.Mesh(new THREE.BoxGeometry(jW2, jH2, D), mats.joist); rim.position.set(cx + x, H - jH2 / 2 - 0.1, cz + D / 2); scene.add(rim); });
+
+        // Decking boards
+        const bdW = 5.5 / 12, bdH = 1 / 12;
+        const bdG = new THREE.BoxGeometry(bdW - 0.02, bdH, D + 0.1);
+        for (let x = bdW / 2; x < W; x += bdW) { const b = new THREE.Mesh(bdG, mats.deck); b.position.set(cx + x, H + bdH / 2, cz + D / 2); b.receiveShadow = true; scene.add(b); }
+
+        // Railing - top + bottom rails
+        const rH = 3, trY = H + bdH + rH, brY = H + bdH + 0.25;
+        [[new THREE.BoxGeometry(W, 0.1, 0.08), cx + W / 2, trY, cz + D], [new THREE.BoxGeometry(0.08, 0.1, D), cx, trY, cz + D / 2], [new THREE.BoxGeometry(0.08, 0.1, D), cx + W, trY, cz + D / 2]].forEach(([g, x, y, z]) => { const r = new THREE.Mesh(g, mats.rail); r.position.set(x, y, z); scene.add(r); });
+        [[new THREE.BoxGeometry(W, 0.06, 0.06), cx + W / 2, brY, cz + D], [new THREE.BoxGeometry(0.06, 0.06, D), cx, brY, cz + D / 2], [new THREE.BoxGeometry(0.06, 0.06, D), cx + W, brY, cz + D / 2]].forEach(([g, x, y, z]) => { const r = new THREE.Mesh(g, mats.rail); r.position.set(x, y, z); scene.add(r); });
+
+        // Balusters
+        const balG = new THREE.BoxGeometry(0.04, rH - 0.3, 0.04);
+        for (let x = 0; x < W; x += 3.75 / 12) { const b = new THREE.Mesh(balG, mats.rail); b.position.set(cx + x, H + bdH + rH / 2 + 0.1, cz + D); scene.add(b); }
+        for (let z = 0; z < D; z += 3.75 / 12) { [cx, cx + W].forEach(x => { const b = new THREE.Mesh(balG, mats.rail); b.position.set(x, H + bdH + rH / 2 + 0.1, cz + z); scene.add(b); }); }
+
+        // Corner posts
+        const crnG = new THREE.BoxGeometry(0.2, rH + 0.2, 0.2);
+        [[cx, cz], [cx + W, cz], [cx, cz + D], [cx + W, cz + D]].forEach(([x, z]) => { const cp = new THREE.Mesh(crnG, mats.rail); cp.position.set(x, H + bdH + rH / 2, z); scene.add(cp); });
+
+        // Camera - nice perspective angle
         const dist = Math.max(W, D, H * 2) * 1.8;
-        const theta = -0.6, phi = 0.5;
-        cam.position.set(dist * Math.sin(theta) * Math.cos(phi), dist * Math.sin(phi) + H, dist * Math.cos(theta) * Math.cos(phi));
-        cam.lookAt(0, H * 0.4, 0);
+        const theta = 0.8, phi = 0.45;
+        const lookY = H / 2 + 1;
+        cam.position.set(dist * Math.sin(phi) * Math.cos(theta), dist * Math.cos(phi) + lookY, dist * Math.sin(phi) * Math.sin(theta));
+        cam.lookAt(0, lookY, 0);
 
         ren.render(scene, cam);
         const dataUrl = ren.domElement.toDataURL("image/png");
