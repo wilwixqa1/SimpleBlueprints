@@ -20,10 +20,9 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></" + "script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></" + "script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></" + "script>
-<script type="text/babel" data-type="module">
+<script type="text/babel">
 const { useState, useMemo, useEffect, useRef } = React;
-
-
+// THREE loaded via CDN
 
 // ============================================================
 // LOAD-TIERED IRC SPAN TABLES (matches Python engine)
@@ -560,7 +559,7 @@ const products = [
 // ============================================================
 // MAIN APP
 // ============================================================
-export default function SimpleBlueprints() {
+const App = function SimpleBlueprints() {
   const [page, setPage] = useState("home");
   const [step, setStep] = useState(0);
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -1295,7 +1294,5 @@ export default function SimpleBlueprints() {
   );
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(<SimpleBlueprints />);
-</" + "script>
-</body>
-</html>
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
+</" + "script></body></html>
