@@ -70,22 +70,39 @@ app.add_middleware(
 # MODELS
 # ============================================================
 class DeckParams(BaseModel):
-    width: float
-    depth: float
-    height: float
+    width: float = 20
+    depth: float = 12
+    height: float = 4
+    houseWidth: float = 40
+    houseDepth: float = 30
     attachment: str = "ledger"
     hasStairs: bool = False
     stairLocation: str = "front"
+    stairWidth: float = 4
+    numStringers: int = 3
+    hasLanding: bool = False
     joistSpacing: int = 16
     deckingType: str = "composite"
     railType: str = "fortress"
     snowLoad: str = "moderate"
     frostZone: str = "cold"
+    # Positioning
+    deckOffset: float = 0
+    stairOffset: float = 0
+    # Site plan
+    lotWidth: float = 80
+    lotDepth: float = 120
+    setbackFront: float = 25
+    setbackSide: float = 5
+    setbackRear: float = 20
+    houseOffsetSide: float = 20
+    # Overrides
     overJoist: Optional[str] = None
     overBeam: Optional[str] = None
     overPostSize: Optional[str] = None
     overPostCount: Optional[int] = None
     overFooting: Optional[int] = None
+    # Extras
     projectInfo: Optional[dict] = None
     coverImage: Optional[str] = None
     sitePlanMode: Optional[str] = "generate"
@@ -97,6 +114,25 @@ class DeckParams(BaseModel):
 # ============================================================
 def generate_blueprint_pdf(params: dict) -> tuple[str, dict]:
     """Generate a complete blueprint PDF. Returns (file_id, calc_result)."""
+    # Clamp and validate params
+    params["width"] = max(8, min(50, params.get("width", 20)))
+    params["depth"] = max(6, min(24, params.get("depth", 12)))
+    params["height"] = max(1, min(14, params.get("height", 4)))
+    params["houseWidth"] = max(20, min(80, params.get("houseWidth", 40)))
+    params["houseDepth"] = max(20, min(60, params.get("houseDepth", 30)))
+    params["stairWidth"] = max(3, min(params["width"], params.get("stairWidth", 4)))
+    params["lotWidth"] = max(30, min(300, params.get("lotWidth", 80)))
+    params["lotDepth"] = max(50, min(400, params.get("lotDepth", 120)))
+    params["setbackFront"] = max(0, min(50, params.get("setbackFront", 25)))
+    params["setbackSide"] = max(0, min(30, params.get("setbackSide", 5)))
+    params["setbackRear"] = max(0, min(50, params.get("setbackRear", 20)))
+    params["houseOffsetSide"] = max(5, min(params["lotWidth"] - params["houseWidth"] - 5,
+                                           params.get("houseOffsetSide", 20)))
+    params["deckOffset"] = max(-params["houseWidth"] / 2,
+                               min(params["houseWidth"] / 2,
+                                   params.get("deckOffset", 0)))
+    params["stairOffset"] = params.get("stairOffset", 0)
+
     calc = calculate_structure(params)
     pi = params.get("projectInfo", {}) or {}
     cover_img = params.get("coverImage", None)
@@ -327,9 +363,16 @@ async def success_page(session_id: str = ""):
 # GENERATE WITHOUT PAYMENT (for testing)
 # ============================================================
 @app.post("/api/generate-test")
-async def generate_test(params: DeckParams):
+async def generate_test(request: Request):
     """Generate blueprint without payment — FOR TESTING ONLY.
     Remove or protect this endpoint before going live."""
+    try:
+        body = await request.body()
+        if len(body) > 20 * 1024 * 1024:  # 20MB limit
+            raise HTTPException(status_code=413, detail="Request too large")
+        params = DeckParams(**json.loads(body))
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
     file_id, calc = generate_blueprint_pdf(params.dict())
     return {
         "file_id": file_id,

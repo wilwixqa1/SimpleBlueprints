@@ -248,7 +248,7 @@ def draw_plan_and_framing(fig, params, calc):
             tread_step = stair_run / max(n_treads, 1)
 
             if stair_loc == "front":
-                sx = W / 2 - sw_ft / 2
+                sx = W / 2 - sw_ft / 2 + params.get("stairOffset", 0)
                 sy = D
                 # Stringer outlines
                 ax.plot([sx, sx], [sy, sy + stair_run], color=BRAND["dark"], lw=1.0)
@@ -282,7 +282,7 @@ def draw_plan_and_framing(fig, params, calc):
 
             elif stair_loc == "left":
                 sx = -stair_run
-                sy = D / 2 - sw_ft / 2
+                sy = D / 2 - sw_ft / 2 + params.get("stairOffset", 0)
                 ax.plot([sx, 0], [sy, sy], color=BRAND["dark"], lw=1.0)
                 ax.plot([sx, 0], [sy + sw_ft, sy + sw_ft], color=BRAND["dark"], lw=1.0)
                 for i in range(n_treads + 1):
@@ -308,7 +308,7 @@ def draw_plan_and_framing(fig, params, calc):
 
             elif stair_loc == "right":
                 sx = W
-                sy = D / 2 - sw_ft / 2
+                sy = D / 2 - sw_ft / 2 + params.get("stairOffset", 0)
                 ax.plot([sx, sx + stair_run], [sy, sy], color=BRAND["dark"], lw=1.0)
                 ax.plot([sx, sx + stair_run], [sy + sw_ft, sy + sw_ft], color=BRAND["dark"], lw=1.0)
                 for i in range(n_treads + 1):
