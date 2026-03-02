@@ -160,7 +160,7 @@ def draw_south_elevation(ax, params, calc):
     if params.get("hasStairs") and params.get("stairLocation") == "front" and calc.get("stairs"):
         stair = calc["stairs"]
         sw = stair.get("width", 4)
-        stair_x = deck_x + W / 2 - sw / 2 + params.get("stairOffset", 0)
+        stair_x = deck_x + W / 2 - sw / 2
         rise_per = stair["actual_rise"] / 12  # feet per step
         n_risers = stair["num_risers"]
 
