@@ -549,7 +549,7 @@ const App = function SimpleBlueprints() {
             <input type="number" min={min} max={max} step={s} value={draft} onChange={e => setDraft(e.target.value)} onBlur={commit} onKeyDown={e => e.key === "Enter" && commit()} autoFocus
               style={{ width: 60, fontFamily: mono, fontSize: 16, fontWeight: 800, color: br.tx, textAlign: "right", border: `2px solid ${br.gn}`, borderRadius: 4, padding: "2px 4px", outline: "none", background: "#fff" }} />
           ) : (
-            <span onClick={() => setEditing(true)} style={{ fontFamily: mono, fontSize: 18, fontWeight: 800, color: br.tx, minWidth: 50, textAlign: "right", cursor: "text", borderBottom: `1px dashed ${br.bd}`, paddingBottom: 1 }}>{value}{unit}</span>
+            <span onClick={() => setEditing(true)} style={{ fontFamily: mono, fontSize: 18, fontWeight: 800, color: br.tx, minWidth: 58, textAlign: "center", cursor: "text", background: "#f0ede4", borderRadius: 5, padding: "2px 8px", border: `1px solid ${br.bd}`, display: "inline-flex", alignItems: "center", gap: 4 }}>{value}{unit}<span style={{ fontSize: 10, color: br.mu, opacity: 0.6 }}>✎</span></span>
           )}
         </div>
       </div>
