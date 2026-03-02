@@ -287,12 +287,14 @@ function Deck3D({ c, p }) {
   const { W, D, H, nP, pp, postSize, beamSize, joistSize, sp, fDiam } = c;
 
   useEffect(() => {
+    if (typeof THREE === 'undefined') return;
     const el = ref.current; if (!el) return;
-    const cW = el.clientWidth; const cH = el.clientHeight || 380;
+    const cW = el.clientWidth || 500; const cH = el.clientHeight || 380;
+    if (cW < 10) return;
     const scene = new THREE.Scene(); scene.background = new THREE.Color(0xf5f2eb); scene.fog = new THREE.Fog(0xf5f2eb, 60, 120);
     const cam = new THREE.PerspectiveCamera(45, cW / cH, 0.1, 200);
     orbit.current.dist = Math.max(W, D, H * 2) * 1.8;
-    const ren = new THREE.WebGLRenderer({ antialias: true }); ren.setSize(cW, cH); ren.setPixelRatio(Math.min(devicePixelRatio, 2));
+    const ren = new THREE.WebGLRenderer({ antialias: true }); ren.setSize(cW, cH); ren.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     ren.shadowMap.enabled = true; ren.shadowMap.type = THREE.PCFSoftShadowMap;
     el.innerHTML = ""; el.appendChild(ren.domElement);
     scene.add(new THREE.AmbientLight(0xffffff, 0.5));
