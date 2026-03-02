@@ -612,10 +612,10 @@ const App = function SimpleBlueprints() {
         const crnG = new THREE.BoxGeometry(0.2, rH + 0.2, 0.2);
         [[cx, cz], [cx + W, cz], [cx, cz + D], [cx + W, cz + D]].forEach(([x, z]) => { const cp = new THREE.Mesh(crnG, mats.rail); cp.position.set(x, H + bdH + rH / 2, z); scene.add(cp); });
 
-        // Camera - nice perspective angle
-        const dist = Math.max(W, D, H * 2) * 1.8;
-        const theta = 0.8, phi = 0.45;
-        const lookY = H / 2 + 1;
+        // Camera - zoomed out for full project overview
+        const dist = Math.max(W, D, H * 2) * 2.8;
+        const theta = 0.7, phi = 0.55;
+        const lookY = H / 2 + 2;
         cam.position.set(dist * Math.sin(phi) * Math.cos(theta), dist * Math.cos(phi) + lookY, dist * Math.sin(phi) * Math.sin(theta));
         cam.lookAt(0, lookY, 0);
 
