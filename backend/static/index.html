@@ -169,10 +169,10 @@ function estMaterials(p, c) {
 // ============================================================
 function PlanView({ p, c, mode, u }) {
   const pad = 45; const sc = Math.min(420 / Math.max(c.W, 16), 18);
-  const hw = (p.houseWidth || 40) * sc;
+  const hw = p.houseWidth * sc;
   const sw = c.W * sc; const sd = c.D * sc; const bY = sd - 1.5 * sc;
   // Deck offset: how far left edge of deck is from center of house (in feet)
-  const maxDeckOff = ((p.houseWidth || 40) - c.W) / 2;
+  const maxDeckOff = (p.houseWidth - c.W) / 2;
   const deckOff = Math.max(-maxDeckOff - c.W / 2, Math.min(maxDeckOff + c.W / 2, p.deckOffset || 0));
   const houseCx = pad + sw / 2 - deckOff * sc; // house center x relative to deck
   const hx = houseCx - hw / 2;
@@ -195,14 +195,18 @@ function PlanView({ p, c, mode, u }) {
 
     const onMove = (ev) => {
       if (!dragRef.current) return;
-      const dx = (ev.clientX - dragRef.current.startX) * dragRef.current.svgScale;
-      const deltaFt = dx / sc;
+      const loc = p.stairLocation;
+      // Deck always drags X. Stairs drag X for front, Y for left/right
+      const isVertical = dragRef.current.type === "stair" && loc !== "front";
+      const delta = isVertical
+        ? (ev.clientY - dragRef.current.startY) * dragRef.current.svgScale
+        : (ev.clientX - dragRef.current.startX) * dragRef.current.svgScale;
+      const deltaFt = delta / sc;
       if (dragRef.current.type === "deck") {
-        const maxOff = (p.houseWidth || 40) / 2;
+        const maxOff = p.houseWidth / 2;
         const newVal = Math.round(Math.max(-maxOff, Math.min(maxOff, dragRef.current.startVal + deltaFt)));
         u("deckOffset", newVal);
       } else {
-        const loc = p.stairLocation;
         const maxStairOff = loc === "front" ? (c.W - (p.stairWidth || 4)) / 2 :
                             (c.D - (p.stairWidth || 4)) / 2;
         const newVal = Math.round(Math.max(-maxStairOff, Math.min(maxStairOff, dragRef.current.startVal + deltaFt)));
@@ -302,8 +306,6 @@ function PlanView({ p, c, mode, u }) {
           </g>}
         </g>;
       })()}
-        </g>;
-      })()}
       <line x1={pad} y1={pad + sd + 25} x2={pad + sw} y2={pad + sd + 25} stroke="#c62828" strokeWidth="0.6" />
       <line x1={pad} y1={pad + sd + 22} x2={pad} y2={pad + sd + 28} stroke="#c62828" strokeWidth="0.6" />
       <line x1={pad + sw} y1={pad + sd + 22} x2={pad + sw} y2={pad + sd + 28} stroke="#c62828" strokeWidth="0.6" />
@@ -325,7 +327,7 @@ function ElevationView({ c, p }) {
   const pad = 40; const sY = Math.min(16, 250 / Math.max(H + 6, 10)); const sX = Math.min(14, 440 / Math.max(W + 10, 20));
   const gnd = pad + (H + 4) * sY; const dY = gnd - H * sY; const rTop = dY - 3 * sY;
   const dX = pad; const dSW = W * sX;
-  const hW = (p.houseWidth || 40) * sX; const hX = dX + (dSW - hW) / 2;
+  const hW = p.houseWidth * sX; const hX = dX + (dSW - hW) / 2 - (p.deckOffset || 0) * sX;
   const fndH = (H + 1) * sY; const f1H = 8.5 * sY; const f2H = H > 6 ? 8 * sY : 0;
   const wallH = fndH + f1H + f2H; const roofPk = 5 * sY; const hTop = gnd - wallH;
   const svgW = dSW + pad * 2 + 60; const svgH = wallH + roofPk + pad + 30;
@@ -453,7 +455,7 @@ function Deck3D({ c, p }) {
     const cx = -W / 2, cz = -D / 2;
 
     // House
-    const hW = p.houseWidth || 40, hD = 14, hH = Math.max(H + 8, 12);
+    const hW = p.houseWidth, hD = 14, hH = Math.max(H + 8, 12);
     const hX = cx + (W - hW) / 2, hZ = cz - hD;
     const house = new THREE.Mesh(new THREE.BoxGeometry(hW, hH, hD), mats.house);
     house.position.set(hX + hW / 2, hH / 2, hZ + hD / 2); house.castShadow = true; scene.add(house);
@@ -559,7 +561,30 @@ const App = function SimpleBlueprints() {
   const [view, setView] = useState("plan");
   const [planMode, setPlanMode] = useState("plan");
   const [p, setP] = useState({ width: 20, depth: 12, height: 4, houseWidth: 40, houseDepth: 30, attachment: "ledger", hasStairs: true, stairLocation: "front", stairWidth: 4, numStringers: 3, hasLanding: false, joistSpacing: 16, deckingType: "composite", railType: "fortress", snowLoad: "moderate", frostZone: "cold", lotWidth: 80, lotDepth: 120, setbackFront: 25, setbackSide: 5, setbackRear: 20, houseOffsetSide: 20, deckOffset: 0, stairOffset: 0 });
-  const u = (k, v) => setP(prev => ({ ...prev, [k]: v }));
+  const u = (k, v) => setP(prev => {
+    const next = { ...prev, [k]: v };
+    // Reset stairOffset when stair location changes
+    if (k === "stairLocation") next.stairOffset = 0;
+    // Clamp deckOffset when house or deck width changes
+    if (k === "houseWidth" || k === "width") {
+      const maxOff = Math.floor(next.houseWidth / 2);
+      next.deckOffset = Math.max(-maxOff, Math.min(maxOff, next.deckOffset || 0));
+    }
+    // Clamp stairWidth to deck width
+    if (k === "width" && next.stairWidth > next.width) next.stairWidth = next.width;
+    // Clamp stairOffset when stair or deck dims change
+    if (k === "stairWidth" || k === "width" || k === "depth") {
+      const edge = next.stairLocation === "front" ? next.width : next.depth;
+      const maxSO = Math.floor((edge - (next.stairWidth || 4)) / 2);
+      next.stairOffset = Math.max(-maxSO, Math.min(maxSO, next.stairOffset || 0));
+    }
+    // Clamp houseOffsetSide when lot or house width changes
+    if (k === "lotWidth" || k === "houseWidth") {
+      const maxHO = Math.max(5, next.lotWidth - next.houseWidth - 5);
+      next.houseOffsetSide = Math.min(next.houseOffsetSide || 20, maxHO);
+    }
+    return next;
+  });
   const c = useMemo(() => calcStructure(p), [p]);
   const m = useMemo(() => estMaterials(p, c), [p, c]);
   const [genStatus, setGenStatus] = useState("idle"); // idle | generating | done | error
@@ -611,7 +636,7 @@ const App = function SimpleBlueprints() {
         const cx = -W / 2, cz = -D / 2;
 
         // House
-        const hW = p.houseWidth || 40, hD = 14, hH = Math.max(H + 8, 12);
+        const hW = p.houseWidth, hD = 14, hH = Math.max(H + 8, 12);
         const hX = cx + (W - hW) / 2, hZ = cz - hD;
         const house = new THREE.Mesh(new THREE.BoxGeometry(hW, hH, hD), mats.house);
         house.position.set(hX + hW / 2, hH / 2, hZ + hD / 2); house.castShadow = true; scene.add(house);
@@ -838,7 +863,7 @@ const App = function SimpleBlueprints() {
                 <span style={{ transform: showAdvanced ? "rotate(180deg)" : "none", transition: "0.2s" }}>▾</span>
               </button>
               {showAdvanced && <div style={{ padding: 14, background: br.wr, borderRadius: 8, border: `1px solid ${br.bd}`, marginBottom: 12 }}>
-                <Slider label="Deck offset from center" value={p.deckOffset} min={-Math.floor((p.houseWidth || 40) / 2)} max={Math.floor((p.houseWidth || 40) / 2)} field="deckOffset" unit="'" />
+                <Slider label="Deck offset from center" value={p.deckOffset} min={-Math.floor(p.houseWidth / 2)} max={Math.floor(p.houseWidth / 2)} field="deckOffset" unit="'" />
                 {p.hasStairs && <Slider label="Stair offset from center" value={p.stairOffset} min={-Math.floor((p.stairLocation === "front" ? (p.width - (p.stairWidth || 4)) : (p.depth - (p.stairWidth || 4))) / 2)} max={Math.floor((p.stairLocation === "front" ? (p.width - (p.stairWidth || 4)) : (p.depth - (p.stairWidth || 4))) / 2)} field="stairOffset" unit="'" />}
               </div>}
 
