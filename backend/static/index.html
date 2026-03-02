@@ -11,9 +11,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<style>
-  *{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',system-ui,sans-serif;background:#faf8f3;-webkit-font-smoothing:antialiased}#root{min-height:100vh}input[type="range"]{-webkit-appearance:none;height:6px;border-radius:3px;background:#ddd8cc;outline:none}input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#3d5a2e;cursor:pointer}input[type="number"]::-webkit-inner-spin-button,input[type="number"]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}input[type="number"]{-moz-appearance:textfield}
-</style>
+<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',system-ui,sans-serif;background:#faf8f3;-webkit-font-smoothing:antialiased}#root{min-height:100vh}input[type="range"]{-webkit-appearance:none;height:6px;border-radius:3px;background:#ddd8cc;outline:none}input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#3d5a2e;cursor:pointer}input[type="number"]::-webkit-inner-spin-button,input[type="number"]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}input[type="number"]{-moz-appearance:textfield}</style>
 </head>
 <body>
 <div id="root"></div>
@@ -169,37 +167,92 @@ function estMaterials(p, c) {
 // ============================================================
 // PLAN VIEW SVG
 // ============================================================
-function PlanView({ p, c, mode }) {
+function PlanView({ p, c, mode, u }) {
   const pad = 45; const sc = Math.min(420 / Math.max(c.W, 16), 18);
+  const hw = (p.houseWidth || 40) * sc;
   const sw = c.W * sc; const sd = c.D * sc; const bY = sd - 1.5 * sc;
-  const svgW = sw + pad * 2 + 40; const svgH = sd + pad * 2 + 80;
+  // Deck offset: how far left edge of deck is from center of house (in feet)
+  const maxDeckOff = ((p.houseWidth || 40) - c.W) / 2;
+  const deckOff = Math.max(-maxDeckOff - c.W / 2, Math.min(maxDeckOff + c.W / 2, p.deckOffset || 0));
+  const houseCx = pad + sw / 2 - deckOff * sc; // house center x relative to deck
+  const hx = houseCx - hw / 2;
+  const svgW = Math.max(sw + pad * 2 + 40, hw + pad * 2 + 40); const svgH = sd + pad * 2 + 80;
+  // Deck left edge in SVG
+  const dx = pad;
   const jLines = []; if (mode === "framing") { const s = c.sp / 12 * sc; for (let x = s; x < sw - 1; x += s) jLines.push(x); }
+
+  // Drag state
+  const dragRef = useRef(null);
+  const svgRef = useRef(null);
+
+  const onPointerDown = (e, type) => {
+    e.preventDefault(); e.stopPropagation();
+    const svg = svgRef.current; if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    const svgScale = svgW / rect.width;
+    dragRef.current = { type, startX: e.clientX, startY: e.clientY, svgScale,
+      startVal: type === "deck" ? (p.deckOffset || 0) : (p.stairOffset || 0) };
+
+    const onMove = (ev) => {
+      if (!dragRef.current) return;
+      const dx = (ev.clientX - dragRef.current.startX) * dragRef.current.svgScale;
+      const deltaFt = dx / sc;
+      if (dragRef.current.type === "deck") {
+        const maxOff = (p.houseWidth || 40) / 2;
+        const newVal = Math.round(Math.max(-maxOff, Math.min(maxOff, dragRef.current.startVal + deltaFt)));
+        u("deckOffset", newVal);
+      } else {
+        const loc = p.stairLocation;
+        const maxStairOff = loc === "front" ? (c.W - (p.stairWidth || 4)) / 2 :
+                            (c.D - (p.stairWidth || 4)) / 2;
+        const newVal = Math.round(Math.max(-maxStairOff, Math.min(maxStairOff, dragRef.current.startVal + deltaFt)));
+        u("stairOffset", newVal);
+      }
+    };
+    const onUp = () => { dragRef.current = null; window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp); };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
+
+  // Stair offset in pixels
+  const stairOffPx = (p.stairOffset || 0) * sc;
+
   return (
-    <svg viewBox={`0 0 ${svgW} ${svgH}`} style={{ width: "100%", height: "auto" }}>
-      {(() => { const hw = (p.houseWidth || 40) * sc; const hx = pad + sw / 2 - hw / 2; return <>
-        <rect x={hx} y={pad - 50} width={hw} height={50} fill="#e8e6e0" stroke="#444" strokeWidth="1.2" rx="1" />
-        <text x={pad + sw / 2} y={pad - 25} textAnchor="middle" style={{ fontSize: 8, fill: "#999", fontFamily: "monospace", fontWeight: 600, letterSpacing: "1px" }}>EXISTING HOUSE</text>
-      </>; })()}
-      <rect x={pad} y={pad} width={sw} height={sd} fill={mode === "framing" ? "#fcfaf5" : "#efe5d5"} stroke="#333" strokeWidth="2" rx="1" />
+    <svg ref={svgRef} viewBox={`0 0 ${svgW} ${svgH}`} style={{ width: "100%", height: "auto" }}>
+      {/* House */}
+      <rect x={hx} y={pad - 50} width={hw} height={50} fill="#e8e6e0" stroke="#444" strokeWidth="1.2" rx="1" />
+      <text x={houseCx} y={pad - 25} textAnchor="middle" style={{ fontSize: 8, fill: "#999", fontFamily: "monospace", fontWeight: 600, letterSpacing: "1px" }}>EXISTING HOUSE</text>
+
+      {/* Deck */}
+      <rect x={dx} y={pad} width={sw} height={sd} fill={mode === "framing" ? "#fcfaf5" : "#efe5d5"} stroke="#333" strokeWidth="2" rx="1" />
+
+      {/* Deck drag handle */}
+      {u && mode === "plan" && <g style={{ cursor: "ew-resize" }} onPointerDown={e => onPointerDown(e, "deck")}>
+        <rect x={dx + sw / 2 - 15} y={pad - 3} width={30} height={6} rx={3} fill="#3d5a2e" opacity="0.7" />
+        <text x={dx + sw / 2} y={pad + 1} textAnchor="middle" style={{ fontSize: 4, fill: "#fff", fontFamily: "monospace", fontWeight: 700, pointerEvents: "none" }}>◄ DRAG ►</text>
+      </g>}
+
       {mode === "plan" && Array.from({ length: Math.ceil(sd / (5.5 / 12 * sc)) }, (_, i) => i * 5.5 / 12 * sc).filter(y => y <= sd).map((y, i) => (
-        <line key={i} x1={pad} y1={pad + y} x2={pad + sw} y2={pad + y} stroke="#c9ad7a" strokeWidth="0.3" />
+        <line key={i} x1={dx} y1={pad + y} x2={dx + sw} y2={pad + y} stroke="#c9ad7a" strokeWidth="0.3" />
       ))}
-      {c.attachment === "ledger" && <><line x1={pad} y1={pad} x2={pad + sw} y2={pad} stroke="#2e7d32" strokeWidth="3.5" />
-        <text x={pad + sw / 2} y={pad - 5} textAnchor="middle" style={{ fontSize: 5, fill: "#2e7d32", fontWeight: 700, fontFamily: "monospace" }}>LEDGER</text></>}
+      {c.attachment === "ledger" && <><line x1={dx} y1={pad} x2={dx + sw} y2={pad} stroke="#2e7d32" strokeWidth="3.5" />
+        <text x={dx + sw / 2} y={pad - 5} textAnchor="middle" style={{ fontSize: 5, fill: "#2e7d32", fontWeight: 700, fontFamily: "monospace" }}>LEDGER</text></>}
       {mode === "framing" && <>
-        {jLines.map((x, i) => <line key={i} x1={pad + x} y1={pad + 1} x2={pad + x} y2={pad + bY} stroke="#bbb" strokeWidth="0.4" />)}
-        <line x1={pad + 1 * sc} y1={pad + bY} x2={pad + sw - 1 * sc} y2={pad + bY} stroke="#c4960a" strokeWidth="4" strokeLinecap="round" />
-        <text x={pad + sw / 2} y={pad + bY - 6} textAnchor="middle" style={{ fontSize: 5.5, fill: "#9a7a00", fontWeight: 700, fontFamily: "monospace" }}>{c.beamSize.toUpperCase()}</text>
-        <text x={pad + sw / 2} y={pad + sd / 2 - 4} textAnchor="middle" style={{ fontSize: 7, fill: "#888", fontFamily: "monospace" }}>{c.joistSize} @ {c.sp}" O.C.</text>
-        {c.pp.map((px, i) => <g key={i}><circle cx={pad + px * sc} cy={pad + bY} r={4.5} fill="#c4a060" stroke="#444" strokeWidth="1" /><circle cx={pad + px * sc} cy={pad + bY} r={9} fill="none" stroke="#444" strokeWidth="0.4" strokeDasharray="2,2" /></g>)}
+        {jLines.map((x, i) => <line key={i} x1={dx + x} y1={pad + 1} x2={dx + x} y2={pad + bY} stroke="#bbb" strokeWidth="0.4" />)}
+        <line x1={dx + 1 * sc} y1={pad + bY} x2={dx + sw - 1 * sc} y2={pad + bY} stroke="#c4960a" strokeWidth="4" strokeLinecap="round" />
+        <text x={dx + sw / 2} y={pad + bY - 6} textAnchor="middle" style={{ fontSize: 5.5, fill: "#9a7a00", fontWeight: 700, fontFamily: "monospace" }}>{c.beamSize.toUpperCase()}</text>
+        <text x={dx + sw / 2} y={pad + sd / 2 - 4} textAnchor="middle" style={{ fontSize: 7, fill: "#888", fontFamily: "monospace" }}>{c.joistSize} @ {c.sp}" O.C.</text>
+        {c.pp.map((px, i) => <g key={i}><circle cx={dx + px * sc} cy={pad + bY} r={4.5} fill="#c4a060" stroke="#444" strokeWidth="1" /><circle cx={dx + px * sc} cy={pad + bY} r={9} fill="none" stroke="#444" strokeWidth="0.4" strokeDasharray="2,2" /></g>)}
       </>}
-      {mode === "plan" && <text x={pad + sw / 2} y={pad + sd / 2 + 3} textAnchor="middle" style={{ fontSize: 10, fill: "#666", fontFamily: "monospace", fontWeight: 700 }}>{c.area} S.F.</text>}
-      {[[pad, pad, pad, pad + sd], [pad, pad + sd, pad + sw, pad + sd], [pad + sw, pad, pad + sw, pad + sd]].map(([x1, y1, x2, y2], i) => (
+      {mode === "plan" && <text x={dx + sw / 2} y={pad + sd / 2 + 3} textAnchor="middle" style={{ fontSize: 10, fill: "#666", fontFamily: "monospace", fontWeight: 700 }}>{c.area} S.F.</text>}
+      {[[dx, pad, dx, pad + sd], [dx, pad + sd, dx + sw, pad + sd], [dx + sw, pad, dx + sw, pad + sd]].map(([x1, y1, x2, y2], i) => (
         <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#444" strokeWidth="3.5" />
       ))}
+
+      {/* Front stairs */}
       {p.hasStairs && c.stairs && p.stairLocation === "front" && (() => {
         const st = c.stairs; const stW = st.width * sc; const stH = st.runFt * sc;
-        const sx = pad + sw / 2 - stW / 2; const sy = pad + sd + 1;
+        const sx = dx + sw / 2 - stW / 2 + stairOffPx; const sy = pad + sd + 1;
         const tStep = stH / Math.max(st.nTreads, 1);
         return <g>
           <rect x={sx} y={sy} width={stW} height={stH} fill="none" stroke="#444" strokeWidth="0.8" />
@@ -208,11 +261,18 @@ function PlanView({ p, c, mode }) {
           <text x={sx + stW / 2} y={sy + stH / 2 + 2} textAnchor="middle" style={{ fontSize: 5.5, fill: "#444", fontFamily: "monospace", fontWeight: 700 }}>DN</text>
           {st.hasLanding && <rect x={sx - 2} y={sy + stH + 1} width={stW + 4} height={18} fill="#e8e8e0" stroke="#444" strokeWidth="0.5" strokeDasharray="3,2" />}
           <text x={sx + stW + 4} y={sy + stH / 2} style={{ fontSize: 4, fill: "#666", fontFamily: "monospace" }}>{st.nStringers}×2×12</text>
+          {/* Stair drag handle */}
+          {u && mode === "plan" && <g style={{ cursor: "ew-resize" }} onPointerDown={e => onPointerDown(e, "stair")}>
+            <rect x={sx + stW / 2 - 12} y={sy + stH + (st.hasLanding ? 20 : 2)} width={24} height={6} rx={3} fill="#c62828" opacity="0.7" />
+            <text x={sx + stW / 2} y={sy + stH + (st.hasLanding ? 24 : 6)} textAnchor="middle" style={{ fontSize: 3.5, fill: "#fff", fontFamily: "monospace", fontWeight: 700, pointerEvents: "none" }}>◄ ►</text>
+          </g>}
         </g>;
       })()}
+
+      {/* Left stairs */}
       {p.hasStairs && c.stairs && p.stairLocation === "left" && (() => {
         const st = c.stairs; const stW = st.width * sc; const stH = st.runFt * sc;
-        const sx = pad - stH - 1; const sy = pad + sd / 2 - stW / 2;
+        const sx = dx - stH - 1; const sy = pad + sd / 2 - stW / 2 + stairOffPx;
         const tStep = stH / Math.max(st.nTreads, 1);
         return <g>
           <rect x={sx} y={sy} width={stH} height={stW} fill="none" stroke="#444" strokeWidth="0.8" />
@@ -220,11 +280,16 @@ function PlanView({ p, c, mode }) {
           {[...Array(st.nStringers)].map((_, i) => { const ssy = st.nStringers > 1 ? sy + i * stW / (st.nStringers - 1) : sy + stW / 2; return <line key={`s${i}`} x1={sx} y1={ssy} x2={sx + stH} y2={ssy} stroke="#999" strokeWidth="0.3" strokeDasharray="2,2" />; })}
           <text x={sx + stH / 2} y={sy + stW / 2 + 2} textAnchor="middle" style={{ fontSize: 5.5, fill: "#444", fontFamily: "monospace", fontWeight: 700 }}>DN</text>
           {st.hasLanding && <rect x={sx - 19} y={sy - 2} width={18} height={stW + 4} fill="#e8e8e0" stroke="#444" strokeWidth="0.5" strokeDasharray="3,2" />}
+          {u && mode === "plan" && <g style={{ cursor: "ns-resize" }} onPointerDown={e => onPointerDown(e, "stair")}>
+            <rect x={sx + stH / 2 - 3} y={sy + stW / 2 - 12} width={6} height={24} rx={3} fill="#c62828" opacity="0.7" />
+          </g>}
         </g>;
       })()}
+
+      {/* Right stairs */}
       {p.hasStairs && c.stairs && p.stairLocation === "right" && (() => {
         const st = c.stairs; const stW = st.width * sc; const stH = st.runFt * sc;
-        const sx = pad + sw + 1; const sy = pad + sd / 2 - stW / 2;
+        const sx = dx + sw + 1; const sy = pad + sd / 2 - stW / 2 + stairOffPx;
         const tStep = stH / Math.max(st.nTreads, 1);
         return <g>
           <rect x={sx} y={sy} width={stH} height={stW} fill="none" stroke="#444" strokeWidth="0.8" />
@@ -232,6 +297,11 @@ function PlanView({ p, c, mode }) {
           {[...Array(st.nStringers)].map((_, i) => { const ssy = st.nStringers > 1 ? sy + i * stW / (st.nStringers - 1) : sy + stW / 2; return <line key={`s${i}`} x1={sx} y1={ssy} x2={sx + stH} y2={ssy} stroke="#999" strokeWidth="0.3" strokeDasharray="2,2" />; })}
           <text x={sx + stH / 2} y={sy + stW / 2 + 2} textAnchor="middle" style={{ fontSize: 5.5, fill: "#444", fontFamily: "monospace", fontWeight: 700 }}>DN</text>
           {st.hasLanding && <rect x={sx + stH + 1} y={sy - 2} width={18} height={stW + 4} fill="#e8e8e0" stroke="#444" strokeWidth="0.5" strokeDasharray="3,2" />}
+          {u && mode === "plan" && <g style={{ cursor: "ns-resize" }} onPointerDown={e => onPointerDown(e, "stair")}>
+            <rect x={sx + stH / 2 - 3} y={sy + stW / 2 - 12} width={6} height={24} rx={3} fill="#c62828" opacity="0.7" />
+          </g>}
+        </g>;
+      })()}
         </g>;
       })()}
       <line x1={pad} y1={pad + sd + 25} x2={pad + sw} y2={pad + sd + 25} stroke="#c62828" strokeWidth="0.6" />
@@ -485,9 +555,10 @@ const products = [
 const App = function SimpleBlueprints() {
   const [page, setPage] = useState("home");
   const [step, setStep] = useState(0);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [view, setView] = useState("plan");
   const [planMode, setPlanMode] = useState("plan");
-  const [p, setP] = useState({ width: 20, depth: 12, height: 4, houseWidth: 40, houseDepth: 30, attachment: "ledger", hasStairs: true, stairLocation: "front", stairWidth: 4, numStringers: 3, hasLanding: false, joistSpacing: 16, deckingType: "composite", railType: "fortress", snowLoad: "moderate", frostZone: "cold", lotWidth: 80, lotDepth: 120, setbackFront: 25, setbackSide: 5, setbackRear: 20, houseOffsetSide: 20 });
+  const [p, setP] = useState({ width: 20, depth: 12, height: 4, houseWidth: 40, houseDepth: 30, attachment: "ledger", hasStairs: true, stairLocation: "front", stairWidth: 4, numStringers: 3, hasLanding: false, joistSpacing: 16, deckingType: "composite", railType: "fortress", snowLoad: "moderate", frostZone: "cold", lotWidth: 80, lotDepth: 120, setbackFront: 25, setbackSide: 5, setbackRear: 20, houseOffsetSide: 20, deckOffset: 0, stairOffset: 0 });
   const u = (k, v) => setP(prev => ({ ...prev, [k]: v }));
   const c = useMemo(() => calcStructure(p), [p]);
   const m = useMemo(() => estMaterials(p, c), [p, c]);
@@ -761,6 +832,15 @@ const App = function SimpleBlueprints() {
                 <Slider label="Number of stringers" value={p.numStringers} min={2} max={5} field="numStringers" unit="" />
                 <Chips label="Landing pad" field="hasLanding" opts={[[true, "Yes"], [false, "No"]]} />
               </>}
+
+              <button onClick={() => setShowAdvanced(!showAdvanced)} style={{ width: "100%", padding: "8px 14px", marginBottom: 12, background: "none", border: `1px solid ${br.bd}`, borderRadius: 6, cursor: "pointer", fontSize: 10, fontFamily: mono, color: br.mu, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span>Positioning (drag in preview or set here)</span>
+                <span style={{ transform: showAdvanced ? "rotate(180deg)" : "none", transition: "0.2s" }}>▾</span>
+              </button>
+              {showAdvanced && <div style={{ padding: 14, background: br.wr, borderRadius: 8, border: `1px solid ${br.bd}`, marginBottom: 12 }}>
+                <Slider label="Deck offset from center" value={p.deckOffset} min={-Math.floor((p.houseWidth || 40) / 2)} max={Math.floor((p.houseWidth || 40) / 2)} field="deckOffset" unit="'" />
+                {p.hasStairs && <Slider label="Stair offset from center" value={p.stairOffset} min={-Math.floor((p.stairLocation === "front" ? (p.width - (p.stairWidth || 4)) : (p.depth - (p.stairWidth || 4))) / 2)} max={Math.floor((p.stairLocation === "front" ? (p.width - (p.stairWidth || 4)) : (p.depth - (p.stairWidth || 4))) / 2)} field="stairOffset" unit="'" />}
+              </div>}
 
               <div style={{ marginTop: 16, padding: 14, background: br.wr, borderRadius: 8, border: `1px solid ${br.bd}` }}>
                 <div style={{ fontSize: 10, fontWeight: 700, color: br.gn, fontFamily: mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 4 }}>Site Plan / Survey</div>
@@ -1150,7 +1230,10 @@ const App = function SimpleBlueprints() {
                 <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
                   {[["plan", "Deck Plan"], ["framing", "Framing"]].map(([id, label]) => <button key={id} onClick={() => setPlanMode(id)} style={{ padding: "4px 10px", fontSize: 9, fontFamily: mono, cursor: "pointer", border: planMode === id ? `1px solid ${br.gn}` : `1px solid ${br.bd}`, background: planMode === id ? br.gn : "transparent", color: planMode === id ? "#fff" : br.mu, borderRadius: 4, fontWeight: planMode === id ? 700 : 400 }}>{label}</button>)}
                 </div>
-                <PlanView p={p} c={c} mode={planMode} />
+                <PlanView p={p} c={c} mode={planMode} u={u} />
+                {planMode === "plan" && <div style={{ textAlign: "center", fontSize: 9, color: br.mu, fontFamily: mono, marginTop: 4, opacity: 0.7 }}>
+                  Drag the <span style={{ color: "#3d5a2e", fontWeight: 700 }}>green</span> handle to slide the deck · Drag the <span style={{ color: "#c62828", fontWeight: 700 }}>red</span> handle to move stairs
+                </div>}
               </>}
               {view === "elevation" && <ElevationView c={c} p={p} />}
               {view === "3d" && <Deck3D c={c} p={p} />}
