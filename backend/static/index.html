@@ -18,9 +18,6 @@
   #root { min-height: 100vh; }
   input[type="range"] { -webkit-appearance: none; height: 6px; border-radius: 3px; background: #ddd8cc; outline: none; }
   input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: #3d5a2e; cursor: pointer; }
-  @media (max-width: 600px) {
-    h1 { font-size: 28px !important; }
-  }
 </style>
 </head>
 <body>
@@ -184,8 +181,10 @@ function PlanView({ p, c, mode }) {
   const jLines = []; if (mode === "framing") { const s = c.sp / 12 * sc; for (let x = s; x < sw - 1; x += s) jLines.push(x); }
   return (
     <svg viewBox={`0 0 ${svgW} ${svgH}`} style={{ width: "100%", height: "auto" }}>
-      <rect x={pad} y={pad - 50} width={sw} height={50} fill="#e8e6e0" stroke="#444" strokeWidth="1.2" rx="1" />
-      <text x={pad + sw / 2} y={pad - 25} textAnchor="middle" style={{ fontSize: 8, fill: "#999", fontFamily: "monospace", fontWeight: 600, letterSpacing: "1px" }}>EXISTING HOUSE</text>
+      {(() => { const hw = (p.houseWidth || 40) * sc; const hx = pad + sw / 2 - hw / 2; return <>
+        <rect x={hx} y={pad - 50} width={hw} height={50} fill="#e8e6e0" stroke="#444" strokeWidth="1.2" rx="1" />
+        <text x={pad + sw / 2} y={pad - 25} textAnchor="middle" style={{ fontSize: 8, fill: "#999", fontFamily: "monospace", fontWeight: 600, letterSpacing: "1px" }}>EXISTING HOUSE</text>
+      </>; })()}
       <rect x={pad} y={pad} width={sw} height={sd} fill={mode === "framing" ? "#fcfaf5" : "#efe5d5"} stroke="#333" strokeWidth="2" rx="1" />
       {mode === "plan" && Array.from({ length: Math.ceil(sd / (5.5 / 12 * sc)) }, (_, i) => i * 5.5 / 12 * sc).filter(y => y <= sd).map((y, i) => (
         <line key={i} x1={pad} y1={pad + y} x2={pad + sw} y2={pad + y} stroke="#c9ad7a" strokeWidth="0.3" />
@@ -261,7 +260,7 @@ function ElevationView({ c, p }) {
   const pad = 40; const sY = Math.min(16, 250 / Math.max(H + 6, 10)); const sX = Math.min(14, 440 / Math.max(W + 10, 20));
   const gnd = pad + (H + 4) * sY; const dY = gnd - H * sY; const rTop = dY - 3 * sY;
   const dX = pad; const dSW = W * sX;
-  const hW = Math.min(W, 30) * sX; const hX = dX + (dSW - hW) / 2;
+  const hW = (p.houseWidth || 40) * sX; const hX = dX + (dSW - hW) / 2;
   const fndH = (H + 1) * sY; const f1H = 8.5 * sY; const f2H = H > 6 ? 8 * sY : 0;
   const wallH = fndH + f1H + f2H; const roofPk = 5 * sY; const hTop = gnd - wallH;
   const svgW = dSW + pad * 2 + 60; const svgH = wallH + roofPk + pad + 30;
@@ -389,7 +388,7 @@ function Deck3D({ c, p }) {
     const cx = -W / 2, cz = -D / 2;
 
     // House
-    const hW = Math.min(W + 4, 35), hD = 14, hH = Math.max(H + 8, 12);
+    const hW = p.houseWidth || 40, hD = 14, hH = Math.max(H + 8, 12);
     const hX = cx + (W - hW) / 2, hZ = cz - hD;
     const house = new THREE.Mesh(new THREE.BoxGeometry(hW, hH, hD), mats.house);
     house.position.set(hX + hW / 2, hH / 2, hZ + hD / 2); house.castShadow = true; scene.add(house);
@@ -493,7 +492,7 @@ const App = function SimpleBlueprints() {
   const [step, setStep] = useState(0);
   const [view, setView] = useState("plan");
   const [planMode, setPlanMode] = useState("plan");
-  const [p, setP] = useState({ width: 20, depth: 12, height: 4, attachment: "ledger", hasStairs: true, stairLocation: "front", stairWidth: 4, numStringers: 3, hasLanding: false, joistSpacing: 16, deckingType: "composite", railType: "fortress", snowLoad: "moderate", frostZone: "cold" });
+  const [p, setP] = useState({ width: 20, depth: 12, height: 4, houseWidth: 40, attachment: "ledger", hasStairs: true, stairLocation: "front", stairWidth: 4, numStringers: 3, hasLanding: false, joistSpacing: 16, deckingType: "composite", railType: "fortress", snowLoad: "moderate", frostZone: "cold" });
   const u = (k, v) => setP(prev => ({ ...prev, [k]: v }));
   const c = useMemo(() => calcStructure(p), [p]);
   const m = useMemo(() => estMaterials(p, c), [p, c]);
@@ -610,6 +609,7 @@ const App = function SimpleBlueprints() {
               <Slider label="Width (along house)" value={p.width} min={8} max={50} field="width" />
               <Slider label="Depth (from house)" value={p.depth} min={6} max={24} field="depth" />
               <Slider label="Height above grade" value={p.height} min={1} max={14} field="height" />
+              <Slider label="House width" value={p.houseWidth} min={20} max={80} field="houseWidth" />
               <Chips label="Attachment" field="attachment" opts={[["ledger", "Ledger Board"], ["freestanding", "Freestanding"]]} />
               <Chips label="Stairs" field="hasStairs" opts={[[true, "Yes"], [false, "No"]]} />
               {p.hasStairs && <>
