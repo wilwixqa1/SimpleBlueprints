@@ -94,9 +94,11 @@ function calcStructure(p) {
   const totalPosts = attachment === "ledger" ? nP : nP * 2;
   let stairs = null;
   if (p.hasStairs && H > 0.5) {
+    const stairW = p.stairWidth || 4;
+    const nStringers = p.numStringers || 3;
     const nR = Math.ceil(H * 12 / 7.5); const aR = H * 12 / nR;
     const tR = (nR - 1) * 10.5;
-    stairs = { nRisers: nR, nTreads: nR - 1, rise: +aR.toFixed(2), tread: 10.5, runFt: +(tR / 12).toFixed(1), stringerFt: +(Math.sqrt((H * 12) ** 2 + tR ** 2) / 12 + 1).toFixed(1) };
+    stairs = { nRisers: nR, nTreads: nR - 1, rise: +aR.toFixed(2), tread: 10.5, runFt: +(tR / 12).toFixed(1), stringerFt: +(Math.sqrt((H * 12) ** 2 + tR ** 2) / 12 + 1).toFixed(1), width: stairW, nStringers, hasLanding: !!p.hasLanding, location: p.stairLocation || "front" };
   }
   const warnings = [];
   const maxSpan = (table["2x12"] || {})[sp] || 0;
@@ -426,7 +428,7 @@ const App = function SimpleBlueprints() {
   const [step, setStep] = useState(0);
   const [view, setView] = useState("plan");
   const [planMode, setPlanMode] = useState("plan");
-  const [p, setP] = useState({ width: 20, depth: 12, height: 4, attachment: "ledger", hasStairs: true, stairLocation: "front", joistSpacing: 16, deckingType: "composite", railType: "fortress", snowLoad: "moderate", frostZone: "cold" });
+  const [p, setP] = useState({ width: 20, depth: 12, height: 4, attachment: "ledger", hasStairs: true, stairLocation: "front", stairWidth: 4, numStringers: 3, hasLanding: false, joistSpacing: 16, deckingType: "composite", railType: "fortress", snowLoad: "moderate", frostZone: "cold" });
   const u = (k, v) => setP(prev => ({ ...prev, [k]: v }));
   const c = useMemo(() => calcStructure(p), [p]);
   const m = useMemo(() => estMaterials(p, c), [p, c]);
@@ -550,7 +552,12 @@ const App = function SimpleBlueprints() {
               <Slider label="Height above grade" value={p.height} min={1} max={14} field="height" />
               <Chips label="Attachment" field="attachment" opts={[["ledger", "Ledger Board"], ["freestanding", "Freestanding"]]} />
               <Chips label="Stairs" field="hasStairs" opts={[[true, "Yes"], [false, "No"]]} />
-              {p.hasStairs && <Chips label="Stair location" field="stairLocation" opts={[["front", "Front"], ["left", "Left"], ["right", "Right"]]} />}
+              {p.hasStairs && <>
+                <Chips label="Stair location" field="stairLocation" opts={[["front", "Front"], ["left", "Left"], ["right", "Right"]]} />
+                <Chips label="Stair width" field="stairWidth" opts={[[3, "3'"], [4, "4'"], [5, "5'"]]} />
+                <Chips label="Stringers" field="numStringers" opts={[[2, "2"], [3, "3"], [4, "4"]]} />
+                <Chips label="Landing pad" field="hasLanding" opts={[[true, "Yes"], [false, "No"]]} />
+              </>}
             </>}
             {step === 1 && <>
               <Chips label="Joist spacing" field="joistSpacing" opts={[[12, '12" O.C.'], [16, '16" O.C.'], [24, '24" O.C.']]} />

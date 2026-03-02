@@ -235,45 +235,102 @@ def draw_plan_and_framing(fig, params, calc):
         for x1, y1, x2, y2 in rail_sides:
             ax.plot([x1, x2], [y1, y2], color=BRAND["rail"], lw=3.5)
 
-        # Stairs
-        if has_stairs:
-            sw_ft = 4  # stair width
-            stair_len = 2  # visual length on plan
+        # Stairs (parametric)
+        if has_stairs and calc.get("stairs"):
+            st = calc["stairs"]
+            sw_ft = st.get("width", 4)
+            stair_run = st["total_run_ft"]  # actual total run from calc
+            n_treads = st["num_treads"]
+            n_stringers = st["num_stringers"]
+            has_landing = st.get("has_landing", False)
+            stair_loc = st.get("location", params.get("stairLocation", "front"))
+            landing_depth = 3 if has_landing else 0
+            tread_step = stair_run / max(n_treads, 1)
 
             if stair_loc == "front":
                 sx = W / 2 - sw_ft / 2
                 sy = D
-                # Opening in front rail
-                ax.plot([sx, sx], [sy, sy + stair_len], color=BRAND["dark"], lw=0.8)
-                ax.plot([sx + sw_ft, sx + sw_ft], [sy, sy + stair_len], color=BRAND["dark"], lw=0.8)
-                # Treads
-                for i in range(5):
-                    ty = sy + i * stair_len / 5
-                    ax.plot([sx, sx + sw_ft], [ty, ty], color=BRAND["mute"], lw=0.4)
-                ax.text(sx + sw_ft / 2, sy + stair_len + 0.5, 'DN',
-                        ha='center', fontsize=5, fontweight='bold', color=BRAND["dark"])
+                # Stringer outlines
+                ax.plot([sx, sx], [sy, sy + stair_run], color=BRAND["dark"], lw=1.0)
+                ax.plot([sx + sw_ft, sx + sw_ft], [sy, sy + stair_run], color=BRAND["dark"], lw=1.0)
+                # Tread lines
+                for i in range(n_treads + 1):
+                    ty = sy + i * tread_step
+                    ax.plot([sx, sx + sw_ft], [ty, ty], color=BRAND["mute"], lw=0.5)
+                # Stringer center lines (dashed)
+                for si in range(n_stringers):
+                    ssx = sx + (si) * sw_ft / (n_stringers - 1) if n_stringers > 1 else sx + sw_ft / 2
+                    ax.plot([ssx, ssx], [sy, sy + stair_run], color=BRAND["mute"], lw=0.3, ls='--', dashes=(2, 2))
+                # DN arrow
+                mid_x = sx + sw_ft / 2
+                ax.annotate('', xy=(mid_x, sy + stair_run - 0.3), xytext=(mid_x, sy + 0.3),
+                            arrowprops=dict(arrowstyle='->', color=BRAND["dark"], lw=0.8))
+                ax.text(mid_x, sy + stair_run / 2, 'DN', ha='center', va='center', fontsize=5,
+                        fontweight='bold', color=BRAND["dark"],
+                        bbox=dict(boxstyle='square,pad=0.15', fc='white', ec='none', alpha=0.9))
+                # Landing pad
+                if has_landing:
+                    ly = sy + stair_run
+                    ax.add_patch(patches.Rectangle((sx - 0.5, ly), sw_ft + 1, landing_depth,
+                                 fc='#e8e8e0', ec=BRAND["dark"], lw=0.6, ls='--'))
+                    ax.text(sx + sw_ft / 2, ly + landing_depth / 2, 'CONC. PAD',
+                            ha='center', va='center', fontsize=3.5, color=BRAND["mute"])
+                # Label
+                ax.text(sx + sw_ft + 0.8, sy + stair_run / 2,
+                        f'({n_stringers}) 2×12 PT\nSTRINGERS\n{st["actual_rise"]:.1f}" RISE\n{st["tread_depth"]}" RUN',
+                        fontsize=3.5, fontfamily='monospace', color=BRAND["dark"], va='center')
 
             elif stair_loc == "left":
-                sx = -stair_len
-                sy = D - sw_ft
-                ax.plot([sx, 0], [sy, sy], color=BRAND["dark"], lw=0.8)
-                ax.plot([sx, 0], [sy + sw_ft, sy + sw_ft], color=BRAND["dark"], lw=0.8)
-                for i in range(5):
-                    tx = sx + i * stair_len / 5
-                    ax.plot([tx, tx], [sy, sy + sw_ft], color=BRAND["mute"], lw=0.4)
-                ax.text(sx - 0.5, sy + sw_ft / 2, 'DN',
-                        ha='right', fontsize=5, fontweight='bold', color=BRAND["dark"])
+                sx = -stair_run
+                sy = D / 2 - sw_ft / 2
+                ax.plot([sx, 0], [sy, sy], color=BRAND["dark"], lw=1.0)
+                ax.plot([sx, 0], [sy + sw_ft, sy + sw_ft], color=BRAND["dark"], lw=1.0)
+                for i in range(n_treads + 1):
+                    tx = 0 - i * tread_step
+                    ax.plot([tx, tx], [sy, sy + sw_ft], color=BRAND["mute"], lw=0.5)
+                for si in range(n_stringers):
+                    ssy = sy + (si) * sw_ft / (n_stringers - 1) if n_stringers > 1 else sy + sw_ft / 2
+                    ax.plot([sx, 0], [ssy, ssy], color=BRAND["mute"], lw=0.3, ls='--', dashes=(2, 2))
+                mid_y = sy + sw_ft / 2
+                ax.annotate('', xy=(sx + 0.3, mid_y), xytext=(-0.3, mid_y),
+                            arrowprops=dict(arrowstyle='->', color=BRAND["dark"], lw=0.8))
+                ax.text(sx + stair_run / 2, mid_y, 'DN', ha='center', va='center', fontsize=5,
+                        fontweight='bold', color=BRAND["dark"],
+                        bbox=dict(boxstyle='square,pad=0.15', fc='white', ec='none', alpha=0.9))
+                if has_landing:
+                    ax.add_patch(patches.Rectangle((sx - landing_depth, sy - 0.5), landing_depth, sw_ft + 1,
+                                 fc='#e8e8e0', ec=BRAND["dark"], lw=0.6, ls='--'))
+                    ax.text(sx - landing_depth / 2, sy + sw_ft / 2, 'CONC.\nPAD',
+                            ha='center', va='center', fontsize=3.5, color=BRAND["mute"])
+                ax.text(sx + stair_run / 2, sy - 0.8,
+                        f'({n_stringers}) 2×12 PT STRINGERS · {st["actual_rise"]:.1f}" RISE · {st["tread_depth"]}" RUN',
+                        ha='center', fontsize=3.5, fontfamily='monospace', color=BRAND["dark"])
 
             elif stair_loc == "right":
                 sx = W
-                sy = D - sw_ft
-                ax.plot([sx, sx + stair_len], [sy, sy], color=BRAND["dark"], lw=0.8)
-                ax.plot([sx, sx + stair_len], [sy + sw_ft, sy + sw_ft], color=BRAND["dark"], lw=0.8)
-                for i in range(5):
-                    tx = sx + i * stair_len / 5
-                    ax.plot([tx, tx], [sy, sy + sw_ft], color=BRAND["mute"], lw=0.4)
-                ax.text(sx + stair_len + 0.5, sy + sw_ft / 2, 'DN',
-                        ha='left', fontsize=5, fontweight='bold', color=BRAND["dark"])
+                sy = D / 2 - sw_ft / 2
+                ax.plot([sx, sx + stair_run], [sy, sy], color=BRAND["dark"], lw=1.0)
+                ax.plot([sx, sx + stair_run], [sy + sw_ft, sy + sw_ft], color=BRAND["dark"], lw=1.0)
+                for i in range(n_treads + 1):
+                    tx = sx + i * tread_step
+                    ax.plot([tx, tx], [sy, sy + sw_ft], color=BRAND["mute"], lw=0.5)
+                for si in range(n_stringers):
+                    ssy = sy + (si) * sw_ft / (n_stringers - 1) if n_stringers > 1 else sy + sw_ft / 2
+                    ax.plot([sx, sx + stair_run], [ssy, ssy], color=BRAND["mute"], lw=0.3, ls='--', dashes=(2, 2))
+                mid_y = sy + sw_ft / 2
+                ax.annotate('', xy=(sx + stair_run - 0.3, mid_y), xytext=(sx + 0.3, mid_y),
+                            arrowprops=dict(arrowstyle='->', color=BRAND["dark"], lw=0.8))
+                ax.text(sx + stair_run / 2, mid_y, 'DN', ha='center', va='center', fontsize=5,
+                        fontweight='bold', color=BRAND["dark"],
+                        bbox=dict(boxstyle='square,pad=0.15', fc='white', ec='none', alpha=0.9))
+                if has_landing:
+                    ax.add_patch(patches.Rectangle((sx + stair_run, sy - 0.5), landing_depth, sw_ft + 1,
+                                 fc='#e8e8e0', ec=BRAND["dark"], lw=0.6, ls='--'))
+                    ax.text(sx + stair_run + landing_depth / 2, sy + sw_ft / 2, 'CONC.\nPAD',
+                            ha='center', va='center', fontsize=3.5, color=BRAND["mute"])
+                ax.text(sx + stair_run / 2, sy - 0.8,
+                        f'({n_stringers}) 2×12 PT STRINGERS · {st["actual_rise"]:.1f}" RISE · {st["tread_depth"]}" RUN',
+                        ha='center', fontsize=3.5, fontfamily='monospace', color=BRAND["dark"])
 
         # Dimensions
         draw_dimension_h(ax, 0, W, D, format_feet_inches(W),

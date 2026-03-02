@@ -118,6 +118,10 @@ def calculate_structure(params):
 
     stair_info = None
     if params.get("hasStairs") and height > 0.5:
+        stair_width = params.get("stairWidth", 4)
+        num_stringers_param = params.get("numStringers", 3)
+        has_landing = params.get("hasLanding", False)
+        stair_loc = params.get("stairLocation", "front")
         num_risers = math.ceil(height * 12 / 7.5)
         actual_rise = height * 12 / num_risers
         tread_depth = 10.5
@@ -130,7 +134,10 @@ def calculate_structure(params):
             "tread_depth": tread_depth,
             "total_run_ft": round(total_run / 12, 1),
             "stringer_length_ft": round(stringer_length + 1, 1),
-            "num_stringers": 3,
+            "num_stringers": num_stringers_param,
+            "width": stair_width,
+            "has_landing": has_landing,
+            "location": stair_loc,
         }
 
     warnings = []
