@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SimpleBlueprints — Permit-Ready Deck Plans in Minutes</title>
-<meta name="description" content="Configure your deck, get IRC-compliant structural calculations, and download professional blueprint PDFs instantly.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%233d5a2e'/><text x='16' y='22' text-anchor='middle' fill='white' font-size='16' font-weight='900' font-family='monospace'>SB</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,700;0,9..40,900;1,9..40,400&display=swap" rel="stylesheet">
@@ -18,6 +17,8 @@
   #root { min-height: 100vh; }
   input[type="range"] { -webkit-appearance: none; height: 6px; border-radius: 3px; background: #ddd8cc; outline: none; }
   input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: #3d5a2e; cursor: pointer; }
+  input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  input[type="number"] { -moz-appearance: textfield; }
 </style>
 </head>
 <body>
@@ -528,14 +529,32 @@ const App = function SimpleBlueprints() {
   const br = { dk: "#1a1f16", gn: "#3d5a2e", cr: "#faf8f3", wr: "#f2ece0", ac: "#c4960a", tx: "#2c3024", mu: "#7a8068", bd: "#ddd8cc", rd: "#c0392b", bl: "#2471a3" };
 
   const Label = ({ children }) => <label style={{ display: "block", fontSize: 10, fontWeight: 700, color: br.mu, marginBottom: 4, fontFamily: mono, letterSpacing: "1px", textTransform: "uppercase" }}>{children}</label>;
-  const Slider = ({ label, value, min, max, step: s = 1, field }) => (
-    <div style={{ marginBottom: 16 }}><Label>{label}</Label>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <input type="range" min={min} max={max} step={s} value={value} onChange={e => u(field, Number(e.target.value))} style={{ flex: 1, accentColor: br.gn, height: 6 }} />
-        <span style={{ fontFamily: mono, fontSize: 18, fontWeight: 800, color: br.tx, minWidth: 50, textAlign: "right" }}>{value}'</span>
+  const Slider = ({ label, value, min, max, step: s = 1, field, unit = "'" }) => {
+    const [editing, setEditing] = useState(false);
+    const [draft, setDraft] = useState(String(value));
+    const commit = () => {
+      setEditing(false);
+      let v = parseFloat(draft);
+      if (isNaN(v)) v = value;
+      v = Math.max(min, Math.min(max, s < 1 ? v : Math.round(v / s) * s));
+      u(field, v);
+      setDraft(String(v));
+    };
+    useEffect(() => { if (!editing) setDraft(String(value)); }, [value, editing]);
+    return (
+      <div style={{ marginBottom: 16 }}><Label>{label}</Label>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <input type="range" min={min} max={max} step={s} value={value} onChange={e => u(field, Number(e.target.value))} style={{ flex: 1, accentColor: br.gn, height: 6 }} />
+          {editing ? (
+            <input type="number" min={min} max={max} step={s} value={draft} onChange={e => setDraft(e.target.value)} onBlur={commit} onKeyDown={e => e.key === "Enter" && commit()} autoFocus
+              style={{ width: 60, fontFamily: mono, fontSize: 16, fontWeight: 800, color: br.tx, textAlign: "right", border: `2px solid ${br.gn}`, borderRadius: 4, padding: "2px 4px", outline: "none", background: "#fff" }} />
+          ) : (
+            <span onClick={() => setEditing(true)} style={{ fontFamily: mono, fontSize: 18, fontWeight: 800, color: br.tx, minWidth: 50, textAlign: "right", cursor: "text", borderBottom: `1px dashed ${br.bd}`, paddingBottom: 1 }}>{value}{unit}</span>
+          )}
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
   const Chips = ({ label, field, opts }) => (
     <div style={{ marginBottom: 16 }}><Label>{label}</Label>
       <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
@@ -614,8 +633,8 @@ const App = function SimpleBlueprints() {
               <Chips label="Stairs" field="hasStairs" opts={[[true, "Yes"], [false, "No"]]} />
               {p.hasStairs && <>
                 <Chips label="Stair location" field="stairLocation" opts={[["front", "Front"], ["left", "Left"], ["right", "Right"]]} />
-                <Chips label="Stair width" field="stairWidth" opts={[[3, "3'"], [4, "4'"], [5, "5'"]]} />
-                <Chips label="Stringers" field="numStringers" opts={[[2, "2"], [3, "3"], [4, "4"]]} />
+                <Slider label="Stair width" value={p.stairWidth} min={3} max={8} field="stairWidth" />
+                <Slider label="Number of stringers" value={p.numStringers} min={2} max={5} field="numStringers" unit="" />
                 <Chips label="Landing pad" field="hasLanding" opts={[[true, "Yes"], [false, "No"]]} />
               </>}
             </>}
