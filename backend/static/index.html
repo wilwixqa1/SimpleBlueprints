@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SimpleBlueprints — Permit-Ready Deck Plans in Minutes</title>
+<meta name="description" content="Configure your deck, get IRC-compliant structural calculations, and download professional blueprint PDFs. No architect required.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%233d5a2e'/><text x='16' y='22' text-anchor='middle' fill='white' font-size='16' font-weight='900' font-family='monospace'>SB</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,700;0,9..40,900;1,9..40,400&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'DM Sans', system-ui, sans-serif; background: #faf8f3; }
+  #root { min-height: 100vh; }
+  input[type="range"] { -webkit-appearance: none; height: 6px; border-radius: 3px; background: #ddd8cc; outline: none; }
+  input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: #3d5a2e; cursor: pointer; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useMemo, useEffect, useRef } = React;
+// THREE loaded via CDN
+
+// ============================================================
+// LOAD-TIERED IRC SPAN TABLES (matches Python engine)
+// ============================================================
+const JOIST_SPANS = {
+  50: { "2x6": { 12: 9.5, 16: 8.5, 24: 7 }, "2x8": { 12: 12.5, 16: 11.5, 24: 9.5 }, "2x10": { 12: 16, 16: 14.5, 24: 12 }, "2x12": { 12: 19.5, 16: 17.5, 24: 14.5 } },
+  60: { "2x6": { 12: 8.5, 16: 7.5, 24: 6 }, "2x8": { 12: 11, 16: 10, 24: 8.5 }, "2x10": { 12: 14, 16: 12.5, 24: 10.5 }, "2x12": { 12: 17, 16: 15.5, 24: 12.5 } },
+  75: { "2x6": { 12: 7.5, 16: 6.5, 24: 5.5 }, "2x8": { 12: 10, 16: 9, 24: 7.5 }, "2x10": { 12: 12.5, 16: 11, 24: 9.5 }, "2x12": { 12: 15, 16: 13.5, 24: 11 } },
+  95: { "2x6": { 12: 6.5, 16: 5.5, 24: 4.5 }, "2x8": { 12: 8.5, 16: 7.5, 24: 6.5 }, "2x10": { 12: 11, 16: 9.5, 24: 8 }, "2x12": { 12: 13, 16: 11.5, 24: 9.5 } },
+};
+
+const FROST = { warm: 12, moderate: 24, cold: 36, severe: 48 };
+const SNOW = { none: 0, light: 20, moderate: 40, heavy: 60 };
+
+function getSpanTable(TL) {
+  for (const tier of [50, 60, 75, 95]) { if (TL <= tier) return JOIST_SPANS[tier]; }
+  return JOIST_SPANS[95];
+}
+
+function calcStructure(p) {
+  const { width: W, depth: D, height: H, joistSpacing: sp, attachment, snowLoad, frostZone, deckingType } = p;
+  const area = W * D;
+  const LL = 40 + (SNOW[snowLoad] || 0);
+  const DL = deckingType === "composite" ? 15 : 12;
+  const TL = LL + DL;
+  const jSpan = attachment === "ledger" ? D - 1.5 : D / 2 - 0.75;
+  const table = getSpanTable(TL);
+
+  // === JOISTS (overridable) ===
+  let joistSize = "2x12";
+  let joistAuto = true;
+  for (const [sz, spans] of Object.entries(table)) { if ((spans[sp] || 0) >= jSpan) { joistSize = sz; break; } }
+  const autoJoist = joistSize;
+  if (p.overJoist) { joistSize = p.overJoist; joistAuto = false; }
+
+  // === POSTS (overridable count) ===
+  let nP = W <= 10 ? 2 : W <= 16 ? 3 : W <= 24 ? 3 : W <= 32 ? 4 : Math.max(4, Math.ceil(W / 10) + 1);
+  const autoNP = nP;
+  if (p.overPostCount) { nP = p.overPostCount; }
+  const bSpan = W / (nP - 1);
+
+  // === BEAM (overridable) ===
+  let beamSize = "2-ply 2x10";
+  if (bSpan > 8 || D > 10) beamSize = "3-ply 2x10";
+  if (bSpan > 10 || D > 12) beamSize = "3-ply 2x12";
+  if (bSpan > 12) beamSize = "3-ply LVL 1.75x12";
+  const autoBeam = beamSize;
+  if (p.overBeam) { beamSize = p.overBeam; }
+
+  // === POST SIZE (overridable) ===
+  let postSize = H > 8 ? "6x6" : (TL > 60 && H > 5 ? "6x6" : "4x4");
+  const autoPostSize = postSize;
+  if (p.overPostSize) { postSize = p.overPostSize; }
+
+  const pp = []; for (let i = 0; i < nP; i++) pp.push(+(2 + i * (W - 4) / (nP - 1)).toFixed(2));
+  const trib = (W / Math.max(nP - 1, 1)) * D;
+  const reqD = Math.sqrt(trib * TL / 1500 / Math.PI) * 2 * 12;
+
+  // === FOOTINGS (overridable) ===
+  let fDiam = [12, 16, 18, 21, 24, 30].find(s => s >= reqD) || 30;
+  const autoFDiam = fDiam;
+  if (p.overFooting) { fDiam = p.overFooting; }
+  const fDepth = FROST[frostZone] || 30;
+  const nJ = Math.ceil(W / (sp / 12)) + 1;
+  let railLen = W + D * 2; if (attachment === "freestanding") railLen += W;
+  if (p.hasStairs) railLen -= 3;
+  const totalPosts = attachment === "ledger" ? nP : nP * 2;
+  let stairs = null;
+  if (p.hasStairs && H > 0.5) {
+    const nR = Math.ceil(H * 12 / 7.5); const aR = H * 12 / nR;
+    const tR = (nR - 1) * 10.5;
+    stairs = { nRisers: nR, nTreads: nR - 1, rise: +aR.toFixed(2), tread: 10.5, runFt: +(tR / 12).toFixed(1), stringerFt: +(Math.sqrt((H * 12) ** 2 + tR ** 2) / 12 + 1).toFixed(1) };
+  }
+  const warnings = [];
+  const maxSpan = (table["2x12"] || {})[sp] || 0;
+  if (jSpan > maxSpan) warnings.push(`Joist span (${jSpan.toFixed(1)}') exceeds IRC at ${TL} PSF. Engineering required.`);
+  if (H > 10) warnings.push("Height >10'. Lateral bracing by engineer recommended.");
+  if (area > 500) warnings.push("Area >500 SF. Check local permit requirements.");
+
+  // Override warnings — warn if user picked something smaller than auto
+  const joistRank = { "2x6": 0, "2x8": 1, "2x10": 2, "2x12": 3 };
+  if (p.overJoist && (joistRank[p.overJoist] || 0) < (joistRank[autoJoist] || 0)) {
+    warnings.push(`⬇ Joist override (${p.overJoist}) is smaller than recommended (${autoJoist}). May not meet code.`);
+  }
+  const beamRank = { "2-ply 2x8": 0, "2-ply 2x10": 1, "2-ply 2x12": 2, "3-ply 2x10": 3, "3-ply 2x12": 4, "3-ply LVL 1.75x12": 5 };
+  if (p.overBeam && (beamRank[p.overBeam] || 0) < (beamRank[autoBeam] || 0)) {
+    warnings.push(`⬇ Beam override (${p.overBeam}) is smaller than recommended (${autoBeam}). May not meet code.`);
+  }
+  if (p.overPostSize === "4x4" && autoPostSize === "6x6") {
+    warnings.push(`⬇ Post override (4x4) is smaller than recommended (6x6). May not meet code.`);
+  }
+  if (p.overFooting && p.overFooting < autoFDiam) {
+    warnings.push(`⬇ Footing override (${p.overFooting}") is smaller than recommended (${autoFDiam}"). May not meet code.`);
+  }
+  if (p.overPostCount && p.overPostCount < autoNP) {
+    warnings.push(`⬇ Fewer posts (${p.overPostCount}) than recommended (${autoNP}). May not meet code.`);
+  }
+
+  return { W, D, H, area, LL, DL, TL, joistSize, sp, jSpan: +jSpan.toFixed(1), nJ, beamSize, bSpan: +bSpan.toFixed(1), postSize, nP, totalPosts, pp, fDiam, fDepth, nF: totalPosts, ledgerSize: joistSize, railLen: +railLen.toFixed(1), stairs, warnings, attachment,
+    auto: { joist: autoJoist, beam: autoBeam, postSize: autoPostSize, postCount: autoNP, footing: autoFDiam }
+  };
+}
+
+function estMaterials(p, c) {
+  const items = [];
+  const bags = Math.ceil((Math.PI * (c.fDiam / 24) ** 2 * (c.fDepth / 12)) / 0.6) * c.nF;
+  items.push({ cat: "Foundation", item: "Concrete 80lb bags", qty: bags, cost: 6.5 });
+  items.push({ cat: "Foundation", item: `Sonotube ${c.fDiam}"`, qty: c.nF, cost: c.fDiam > 18 ? 28 : 18 });
+  items.push({ cat: "Foundation", item: "Post Base Hardware", qty: c.nF, cost: c.postSize === "6x6" ? 42 : 28 });
+  items.push({ cat: "Posts", item: `${c.postSize} PT Posts`, qty: c.totalPosts, cost: c.postSize === "6x6" ? 48 : 24 });
+  items.push({ cat: "Posts", item: "Post Cap Hardware", qty: c.totalPosts, cost: c.postSize === "6x6" ? 38 : 22 });
+  const plies = parseInt(c.beamSize[0]); const isLVL = c.beamSize.includes("LVL");
+  items.push({ cat: "Beam", item: isLVL ? "LVL 20'" : "PT Beam 20'", qty: Math.ceil(c.W / 20) * plies, cost: isLVL ? 95 : 55 });
+  if (c.attachment === "ledger") {
+    items.push({ cat: "Ledger", item: `${c.ledgerSize} PT Ledger`, qty: Math.ceil(c.W / 12), cost: 32 });
+    items.push({ cat: "Ledger", item: "LedgerLok Screws (box)", qty: Math.ceil(c.W / (16 / 12) * 2 / 50), cost: 85 });
+    items.push({ cat: "Ledger", item: "Flashing", qty: 1, cost: 55 });
+  }
+  const jL = Math.ceil(c.D);
+  items.push({ cat: "Framing", item: `${c.joistSize} Joists ${jL}'`, qty: c.nJ + 4, cost: jL <= 10 ? 22 : jL <= 12 ? 32 : 42 });
+  items.push({ cat: "Framing", item: "Rim Joists", qty: Math.ceil(c.W / 12) + 2, cost: 32 });
+  items.push({ cat: "Hardware", item: "Joist Hangers", qty: c.nJ * 2, cost: 6 });
+  items.push({ cat: "Hardware", item: "Hurricane Ties + Nails", qty: 1, cost: c.nJ * 2.75 + 50 });
+  const bds = Math.ceil(c.W / (5.5 / 12)) * 1.1;
+  if (p.deckingType === "composite") {
+    items.push({ cat: "Decking", item: `Composite ${Math.ceil(c.D + 2)}'`, qty: Math.ceil(bds), cost: c.D <= 10 ? 28 : 38 });
+    items.push({ cat: "Decking", item: "Hidden Fasteners", qty: 1, cost: 175 });
+  } else {
+    items.push({ cat: "Decking", item: `5/4x6 PT ${Math.ceil(c.D + 2)}'`, qty: Math.ceil(bds), cost: c.D <= 10 ? 12 : 18 });
+    items.push({ cat: "Decking", item: "Deck Screws 5lb", qty: Math.ceil(c.W * c.D / 50), cost: 32 });
+  }
+  const rP = Math.ceil(c.railLen / 6) + 1;
+  if (p.railType === "fortress") {
+    items.push({ cat: "Railing", item: "Fortress Panels", qty: Math.ceil(c.railLen / 7), cost: 80 });
+    items.push({ cat: "Railing", item: "Fortress Posts", qty: rP, cost: 45 });
+    items.push({ cat: "Railing", item: "Top Rail + Brackets", qty: Math.ceil(c.railLen / 7), cost: 52 });
+  } else {
+    items.push({ cat: "Railing", item: "Wood Rail Kit (8')", qty: Math.ceil(c.railLen / 8), cost: 85 });
+  }
+  items.push({ cat: "Misc", item: "Joist Tape + Misc", qty: 1, cost: 120 });
+  const sub = items.reduce((s, i) => s + i.qty * i.cost, 0);
+  return { items, sub, tax: sub * 0.08, cont: sub * 0.05, total: sub * 1.13 };
+}
+
+// ============================================================
+// PLAN VIEW SVG
+// ============================================================
+function PlanView({ p, c, mode }) {
+  const pad = 45; const sc = Math.min(420 / Math.max(c.W, 16), 18);
+  const sw = c.W * sc; const sd = c.D * sc; const bY = sd - 1.5 * sc;
+  const svgW = sw + pad * 2 + 40; const svgH = sd + pad * 2 + 80;
+  const jLines = []; if (mode === "framing") { const s = c.sp / 12 * sc; for (let x = s; x < sw - 1; x += s) jLines.push(x); }
+  return (
+    <svg viewBox={`0 0 ${svgW} ${svgH}`} style={{ width: "100%", height: "auto" }}>
+      <rect x={pad} y={pad - 50} width={sw} height={50} fill="#e8e6e0" stroke="#444" strokeWidth="1.2" rx="1" />
+      <text x={pad + sw / 2} y={pad - 25} textAnchor="middle" style={{ fontSize: 8, fill: "#999", fontFamily: "monospace", fontWeight: 600, letterSpacing: "1px" }}>EXISTING HOUSE</text>
+      <rect x={pad} y={pad} width={sw} height={sd} fill={mode === "framing" ? "#fcfaf5" : "#efe5d5"} stroke="#333" strokeWidth="2" rx="1" />
+      {mode === "plan" && Array.from({ length: Math.ceil(sd / (5.5 / 12 * sc)) }, (_, i) => i * 5.5 / 12 * sc).filter(y => y <= sd).map((y, i) => (
+        <line key={i} x1={pad} y1={pad + y} x2={pad + sw} y2={pad + y} stroke="#c9ad7a" strokeWidth="0.3" />
+      ))}
+      {c.attachment === "ledger" && <><line x1={pad} y1={pad} x2={pad + sw} y2={pad} stroke="#2e7d32" strokeWidth="3.5" />
+        <text x={pad + sw / 2} y={pad - 5} textAnchor="middle" style={{ fontSize: 5, fill: "#2e7d32", fontWeight: 700, fontFamily: "monospace" }}>LEDGER</text></>}
+      {mode === "framing" && <>
+        {jLines.map((x, i) => <line key={i} x1={pad + x} y1={pad + 1} x2={pad + x} y2={pad + bY} stroke="#bbb" strokeWidth="0.4" />)}
+        <line x1={pad + 1 * sc} y1={pad + bY} x2={pad + sw - 1 * sc} y2={pad + bY} stroke="#c4960a" strokeWidth="4" strokeLinecap="round" />
+        <text x={pad + sw / 2} y={pad + bY - 6} textAnchor="middle" style={{ fontSize: 5.5, fill: "#9a7a00", fontWeight: 700, fontFamily: "monospace" }}>{c.beamSize.toUpperCase()}</text>
+        <text x={pad + sw / 2} y={pad + sd / 2 - 4} textAnchor="middle" style={{ fontSize: 7, fill: "#888", fontFamily: "monospace" }}>{c.joistSize} @ {c.sp}" O.C.</text>
+        {c.pp.map((px, i) => <g key={i}><circle cx={pad + px * sc} cy={pad + bY} r={4.5} fill="#c4a060" stroke="#444" strokeWidth="1" /><circle cx={pad + px * sc} cy={pad + bY} r={9} fill="none" stroke="#444" strokeWidth="0.4" strokeDasharray="2,2" /></g>)}
+      </>}
+      {mode === "plan" && <text x={pad + sw / 2} y={pad + sd / 2 + 3} textAnchor="middle" style={{ fontSize: 10, fill: "#666", fontFamily: "monospace", fontWeight: 700 }}>{c.area} S.F.</text>}
+      {[[pad, pad, pad, pad + sd], [pad, pad + sd, pad + sw, pad + sd], [pad + sw, pad, pad + sw, pad + sd]].map(([x1, y1, x2, y2], i) => (
+        <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#444" strokeWidth="3.5" />
+      ))}
+      {p.hasStairs && p.stairLocation === "front" && <g>
+        <rect x={pad + sw / 2 - 2 * sc} y={pad + sd + 1} width={4 * sc} height={16} fill="none" stroke="#444" strokeWidth="0.8" />
+        {[...Array(5)].map((_, i) => <line key={i} x1={pad + sw / 2 - 2 * sc} y1={pad + sd + 1 + i * 3.2} x2={pad + sw / 2 + 2 * sc} y2={pad + sd + 1 + i * 3.2} stroke="#aaa" strokeWidth="0.4" />)}
+        <text x={pad + sw / 2} y={pad + sd + 24} textAnchor="middle" style={{ fontSize: 5.5, fill: "#444", fontFamily: "monospace", fontWeight: 700 }}>DN</text>
+      </g>}
+      {p.hasStairs && p.stairLocation === "left" && <g>
+        <rect x={pad - 17} y={pad + sd - 4 * sc} width={16} height={4 * sc} fill="none" stroke="#444" strokeWidth="0.8" />
+        {[...Array(5)].map((_, i) => <line key={i} x1={pad - 17 + i * 3.2} y1={pad + sd - 4 * sc} x2={pad - 17 + i * 3.2} y2={pad + sd} stroke="#aaa" strokeWidth="0.4" />)}
+        <text x={pad - 9} y={pad + sd - 4 * sc - 3} textAnchor="middle" style={{ fontSize: 5.5, fill: "#444", fontFamily: "monospace", fontWeight: 700 }}>DN</text>
+      </g>}
+      {p.hasStairs && p.stairLocation === "right" && <g>
+        <rect x={pad + sw + 1} y={pad + sd - 4 * sc} width={16} height={4 * sc} fill="none" stroke="#444" strokeWidth="0.8" />
+        {[...Array(5)].map((_, i) => <line key={i} x1={pad + sw + 1 + i * 3.2} y1={pad + sd - 4 * sc} x2={pad + sw + 1 + i * 3.2} y2={pad + sd} stroke="#aaa" strokeWidth="0.4" />)}
+        <text x={pad + sw + 9} y={pad + sd - 4 * sc - 3} textAnchor="middle" style={{ fontSize: 5.5, fill: "#444", fontFamily: "monospace", fontWeight: 700 }}>DN</text>
+      </g>}
+      <line x1={pad} y1={pad + sd + 25} x2={pad + sw} y2={pad + sd + 25} stroke="#c62828" strokeWidth="0.6" />
+      <line x1={pad} y1={pad + sd + 22} x2={pad} y2={pad + sd + 28} stroke="#c62828" strokeWidth="0.6" />
+      <line x1={pad + sw} y1={pad + sd + 22} x2={pad + sw} y2={pad + sd + 28} stroke="#c62828" strokeWidth="0.6" />
+      <text x={pad + sw / 2} y={pad + sd + 37} textAnchor="middle" style={{ fontSize: 9, fill: "#c62828", fontWeight: 800, fontFamily: "'DM Mono', monospace" }}>{c.W}'-0"</text>
+      <line x1={pad + sw + 20} y1={pad} x2={pad + sw + 20} y2={pad + sd} stroke="#1565c0" strokeWidth="0.6" />
+      <line x1={pad + sw + 17} y1={pad} x2={pad + sw + 23} y2={pad} stroke="#1565c0" strokeWidth="0.6" />
+      <line x1={pad + sw + 17} y1={pad + sd} x2={pad + sw + 23} y2={pad + sd} stroke="#1565c0" strokeWidth="0.6" />
+      <text x={pad + sw + 32} y={pad + sd / 2 + 3} textAnchor="middle" style={{ fontSize: 9, fill: "#1565c0", fontWeight: 800, fontFamily: "'DM Mono', monospace" }} transform={`rotate(90, ${pad + sw + 32}, ${pad + sd / 2})`}>{c.D}'-0"</text>
+      <g transform={`translate(${svgW - 28}, 25)`}><line x1="0" y1="14" x2="0" y2="0" stroke="#444" strokeWidth="1.5" /><polygon points="-3.5,4 0,0 3.5,4" fill="#444" /><text x="0" y="-4" textAnchor="middle" style={{ fontSize: 7, fontWeight: 800, fill: "#444" }}>N</text></g>
+    </svg>
+  );
+}
+
+// ============================================================
+// ELEVATION SVG
+// ============================================================
+function ElevationView({ c, p }) {
+  const { W, D, H, beamSize, postSize, nP, pp, fDiam, fDepth } = c;
+  const pad = 40; const sY = Math.min(16, 250 / Math.max(H + 6, 10)); const sX = Math.min(14, 440 / Math.max(W + 10, 20));
+  const gnd = pad + (H + 4) * sY; const dY = gnd - H * sY; const rTop = dY - 3 * sY;
+  const dX = pad; const dSW = W * sX;
+  const hW = Math.min(W, 30) * sX; const hX = dX + (dSW - hW) / 2;
+  const fndH = (H + 1) * sY; const f1H = 8.5 * sY; const f2H = H > 6 ? 8 * sY : 0;
+  const wallH = fndH + f1H + f2H; const roofPk = 5 * sY; const hTop = gnd - wallH;
+  const svgW = dSW + pad * 2 + 60; const svgH = wallH + roofPk + pad + 30;
+  const bH = 1 * sY;
+  return (
+    <svg viewBox={`0 0 ${svgW} ${svgH}`} style={{ width: "100%", height: "auto" }}>
+      <rect x={hX} y={hTop} width={hW} height={fndH} fill="#c8c8c8" stroke="#444" strokeWidth="1" />
+      <rect x={hX} y={hTop + fndH} width={hW} height={f1H} fill="#e8e6e0" stroke="#444" strokeWidth="1" />
+      {f2H > 0 && <rect x={hX} y={hTop + fndH + f1H} width={hW} height={f2H} fill="#e8e6e0" stroke="#444" strokeWidth="1" />}
+      {[0.08, 0.42, 0.72].map((wx, i) => <rect key={i} x={hX + hW * wx} y={hTop + fndH + f1H * 0.2} width={hW * 0.12} height={f1H * 0.45} fill="#b0d4e8" stroke="#444" strokeWidth="0.5" rx="0.5" />)}
+      <polygon points={`${hX - 8},${hTop} ${hX + hW / 2},${hTop - roofPk} ${hX + hW + 8},${hTop}`} fill="#888" stroke="#444" strokeWidth="1.5" />
+      <text x={hX + hW / 2} y={hTop - roofPk / 3} textAnchor="middle" style={{ fontSize: 6, fill: "#aaa", fontFamily: "monospace" }}>EXISTING HOUSE</text>
+      <line x1={pad - 15} y1={gnd} x2={svgW - 15} y2={gnd} stroke="#444" strokeWidth="1" />
+      {Array.from({ length: Math.ceil((svgW - 30) / 3) }, (_, i) => <line key={i} x1={pad - 15 + i * 3} y1={gnd} x2={pad - 17 + i * 3} y2={gnd + 2} stroke="#aaa" strokeWidth="0.3" />)}
+      {pp.map((px, i) => { const sx = dX + px * sX; return (
+        <g key={i}>
+          <rect x={sx - 5} y={gnd} width={10} height={4} fill="#c8c8c8" stroke="#444" strokeWidth="0.5" />
+          <rect x={sx - 3.5} y={gnd - 2} width={7} height={2} fill="#888" stroke="#444" strokeWidth="0.4" />
+          <line x1={sx} y1={gnd - 2} x2={sx} y2={dY} stroke="#c4a060" strokeWidth={postSize === "6x6" ? 3 : 2} />
+        </g>
+      ); })}
+      <rect x={dX + 1 * sX} y={dY + 1} width={dSW - 2 * sX} height={bH * 0.7} fill="#c4960a" fillOpacity="0.85" stroke="#444" strokeWidth="0.8" rx="0.5" />
+      <line x1={dX} y1={dY} x2={dX + dSW} y2={dY} stroke="#6B5340" strokeWidth="2.5" />
+      <line x1={dX} y1={rTop} x2={dX + dSW} y2={rTop} stroke="#333" strokeWidth="2" />
+      <line x1={dX} y1={dY - 2} x2={dX + dSW} y2={dY - 2} stroke="#333" strokeWidth="0.8" />
+      {Array.from({ length: Math.ceil(W / 4) + 1 }, (_, i) => i * 4 * sX).filter(x => x <= dSW).map((x, i) => <line key={i} x1={dX + x} y1={dY} x2={dX + x} y2={rTop} stroke="#333" strokeWidth="1" />)}
+      {Array.from({ length: Math.ceil(W / (3.75 / 12)) }, (_, i) => i * 3.75 / 12 * sX).filter(x => x <= dSW).map((x, i) => <line key={i} x1={dX + x} y1={dY - 2} x2={dX + x} y2={rTop} stroke="#333" strokeWidth="0.12" opacity="0.5" />)}
+      <line x1={dX - 15} y1={gnd} x2={dX - 15} y2={dY} stroke="#1565c0" strokeWidth="0.5" />
+      <line x1={dX - 18} y1={gnd} x2={dX - 12} y2={gnd} stroke="#1565c0" strokeWidth="0.5" />
+      <line x1={dX - 18} y1={dY} x2={dX - 12} y2={dY} stroke="#1565c0" strokeWidth="0.5" />
+      <text x={dX - 22} y={(gnd + dY) / 2 + 2} textAnchor="middle" transform={`rotate(-90, ${dX - 22}, ${(gnd + dY) / 2})`} style={{ fontSize: 8, fill: "#1565c0", fontWeight: 800, fontFamily: "'DM Mono', monospace" }}>{Math.floor(H)}'-{Math.round((H % 1) * 12)}"</text>
+      <line x1={dX} y1={rTop - 10} x2={dX + dSW} y2={rTop - 10} stroke="#c62828" strokeWidth="0.5" />
+      <line x1={dX} y1={rTop - 13} x2={dX} y2={rTop - 7} stroke="#c62828" strokeWidth="0.5" />
+      <line x1={dX + dSW} y1={rTop - 13} x2={dX + dSW} y2={rTop - 7} stroke="#c62828" strokeWidth="0.5" />
+      <text x={dX + dSW / 2} y={rTop - 14} textAnchor="middle" style={{ fontSize: 8, fill: "#c62828", fontWeight: 800, fontFamily: "'DM Mono', monospace" }}>{W}'-0"</text>
+      <text x={dX + dSW + 10} y={rTop + 4} style={{ fontSize: 5, fill: "#333", fontFamily: "monospace" }}>36" GUARD RAIL</text>
+      <text x={dX + dSW + 10} y={dY + bH * 0.4 + 2} style={{ fontSize: 5, fill: "#333", fontFamily: "monospace" }}>{beamSize.toUpperCase()}</text>
+      <text x={dX + dSW + 10} y={(gnd + dY) / 2} style={{ fontSize: 5, fill: "#333", fontFamily: "monospace" }}>{postSize} POSTS ({nP})</text>
+      <text x={dX + dSW + 10} y={gnd + 4} style={{ fontSize: 5, fill: "#333", fontFamily: "monospace" }}>{fDiam}" Ø × {fDepth}" PIERS</text>
+    </svg>
+  );
+}
+
+// ============================================================
+// 3D PREVIEW
+// ============================================================
+function Deck3D({ c, p }) {
+  const ref = useRef(null); const frameRef = useRef(null);
+  const orbit = useRef({ theta: -0.6, phi: 0.5, dist: 0, drag: false, lx: 0, ly: 0 });
+  const { W, D, H, nP, pp, postSize, beamSize, joistSize, sp, fDiam } = c;
+
+  useEffect(() => {
+    const el = ref.current; if (!el) return;
+    const cW = el.clientWidth; const cH = el.clientHeight || 380;
+    const scene = new THREE.Scene(); scene.background = new THREE.Color(0xf5f2eb); scene.fog = new THREE.Fog(0xf5f2eb, 60, 120);
+    const cam = new THREE.PerspectiveCamera(45, cW / cH, 0.1, 200);
+    orbit.current.dist = Math.max(W, D, H * 2) * 1.8;
+    const ren = new THREE.WebGLRenderer({ antialias: true }); ren.setSize(cW, cH); ren.setPixelRatio(Math.min(devicePixelRatio, 2));
+    ren.shadowMap.enabled = true; ren.shadowMap.type = THREE.PCFSoftShadowMap;
+    el.innerHTML = ""; el.appendChild(ren.domElement);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+    const sun = new THREE.DirectionalLight(0xfff5e0, 0.8); sun.position.set(20, 30, 15); sun.castShadow = true;
+    sun.shadow.mapSize.set(1024, 1024); sun.shadow.camera.left = -40; sun.shadow.camera.right = 40; sun.shadow.camera.top = 40; sun.shadow.camera.bottom = -40;
+    scene.add(sun); const fill = new THREE.DirectionalLight(0xc0d0ff, 0.3); fill.position.set(-10, 15, -10); scene.add(fill);
+
+    const gnd = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), new THREE.MeshStandardMaterial({ color: 0xb8c9a0, roughness: 1 }));
+    gnd.rotation.x = -Math.PI / 2; gnd.receiveShadow = true; scene.add(gnd);
+    const grid = new THREE.GridHelper(80, 80, 0xa0b088, 0xa8b890); grid.position.y = 0.01; scene.add(grid);
+
+    const mats = {
+      concrete: new THREE.MeshStandardMaterial({ color: 0xb8b8b8, roughness: 0.9 }),
+      post: new THREE.MeshStandardMaterial({ color: 0xc4a060, roughness: 0.7 }),
+      beam: new THREE.MeshStandardMaterial({ color: 0xc4960a, roughness: 0.6 }),
+      joist: new THREE.MeshStandardMaterial({ color: 0xd4b87a, roughness: 0.7 }),
+      deck: new THREE.MeshStandardMaterial({ color: p.deckingType === "composite" ? 0x8B7355 : 0xc4a060, roughness: 0.6 }),
+      rail: new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.4, metalness: 0.3 }),
+      house: new THREE.MeshStandardMaterial({ color: 0xd8d4c8, roughness: 0.8 }),
+      roof: new THREE.MeshStandardMaterial({ color: 0x666666, roughness: 0.7 }),
+      win: new THREE.MeshStandardMaterial({ color: 0x90bcd4, roughness: 0.2 }),
+      metal: new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 0.3, metalness: 0.5 }),
+    };
+
+    const cx = -W / 2, cz = -D / 2;
+
+    // House
+    const hW = Math.min(W + 4, 35), hD = 14, hH = Math.max(H + 8, 12);
+    const hX = cx + (W - hW) / 2, hZ = cz - hD;
+    const house = new THREE.Mesh(new THREE.BoxGeometry(hW, hH, hD), mats.house);
+    house.position.set(hX + hW / 2, hH / 2, hZ + hD / 2); house.castShadow = true; scene.add(house);
+
+    // Roof
+    const ov = 1.5, rpk = 5;
+    const rx1 = hX - ov, rx2 = hX + hW + ov, rxM = hX + hW / 2;
+    const ry = hH, ryP = hH + rpk, rz1 = hZ - 1, rz2 = hZ + hD + 1;
+    const rv = new Float32Array([rx1,ry,rz2,rx2,ry,rz2,rxM,ryP,rz2, rx2,ry,rz1,rx1,ry,rz1,rxM,ryP,rz1, rx1,ry,rz1,rx1,ry,rz2,rxM,ryP,rz2,rx1,ry,rz1,rxM,ryP,rz2,rxM,ryP,rz1, rx2,ry,rz2,rx2,ry,rz1,rxM,ryP,rz1,rx2,ry,rz2,rxM,ryP,rz1,rxM,ryP,rz2, rx1,ry,rz1,rx2,ry,rz1,rx2,ry,rz2,rx1,ry,rz1,rx2,ry,rz2,rx1,ry,rz2]);
+    const rg = new THREE.BufferGeometry(); rg.setAttribute('position', new THREE.BufferAttribute(rv, 3)); rg.computeVertexNormals();
+    const roofM = new THREE.Mesh(rg, mats.roof); roofM.castShadow = true; scene.add(roofM);
+
+    // Windows + door
+    for (let wx = 0.2; wx < 0.9; wx += 0.3) { const w = new THREE.Mesh(new THREE.PlaneGeometry(3, 4), mats.win); w.position.set(hX + hW * wx, H + 5, hZ + hD + 0.05); scene.add(w); }
+    const dr = new THREE.Mesh(new THREE.PlaneGeometry(4, 6.5), mats.win); dr.position.set(cx + W / 2, H - 6.5 / 2 + 6.7, cz + 0.05); scene.add(dr);
+
+    // Piers
+    const pR = (fDiam / 12) / 2;
+    const pierG = new THREE.CylinderGeometry(pR, pR, 0.5, 16);
+    pp.forEach(px => { const pr = new THREE.Mesh(pierG, mats.concrete); pr.position.set(cx + px, 0.25, cz + D - 1.5); scene.add(pr); });
+
+    // Posts
+    const pD = postSize === "6x6" ? 5.5 / 12 : 3.5 / 12;
+    const postG = new THREE.BoxGeometry(pD, H, pD);
+    pp.forEach(px => { const po = new THREE.Mesh(postG, mats.post); po.position.set(cx + px, H / 2, cz + D - 1.5); po.castShadow = true; scene.add(po); });
+
+    // Post caps
+    const capG = new THREE.BoxGeometry(pD + 0.2, 0.15, pD + 0.2);
+    pp.forEach(px => { const ca = new THREE.Mesh(capG, mats.metal); ca.position.set(cx + px, H, cz + D - 1.5); scene.add(ca); });
+
+    // Beam
+    const bH2 = 11.875 / 12, bW2 = beamSize.includes("3") ? 5.25 / 12 : 3.5 / 12;
+    const bm = new THREE.Mesh(new THREE.BoxGeometry(W - 2, bH2, bW2), mats.beam);
+    bm.position.set(cx + W / 2, H - bH2 / 2 - 0.1, cz + D - 1.5); bm.castShadow = true; scene.add(bm);
+
+    // Ledger
+    const ld = new THREE.Mesh(new THREE.BoxGeometry(W, 9.25 / 12, 1.5 / 12), mats.joist);
+    ld.position.set(cx + W / 2, H - 0.4, cz + 0.06); scene.add(ld);
+
+    // Joists
+    const jH2 = 9.25 / 12, jW2 = 1.5 / 12, jLen = D - 1.5;
+    const jG = new THREE.BoxGeometry(jW2, jH2, jLen);
+    for (let x = sp / 12; x < W; x += sp / 12) { const j = new THREE.Mesh(jG, mats.joist); j.position.set(cx + x, H - jH2 / 2 - 0.1, cz + jLen / 2); scene.add(j); }
+
+    // Rim joists
+    scene.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(W, jH2, jW2), mats.joist), { position: new THREE.Vector3(cx + W / 2, H - jH2 / 2 - 0.1, cz + D) }));
+    [0, W].forEach(x => scene.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(jW2, jH2, D), mats.joist), { position: new THREE.Vector3(cx + x, H - jH2 / 2 - 0.1, cz + D / 2) })));
+
+    // Decking
+    const bdW = 5.5 / 12, bdH = 1 / 12;
+    const bdG = new THREE.BoxGeometry(bdW - 0.02, bdH, D + 0.1);
+    for (let x = bdW / 2; x < W; x += bdW) { const b = new THREE.Mesh(bdG, mats.deck); b.position.set(cx + x, H + bdH / 2, cz + D / 2); b.receiveShadow = true; scene.add(b); }
+
+    // Railing
+    const rH = 3, trY = H + bdH + rH, brY = H + bdH + 0.25;
+    [[new THREE.BoxGeometry(W, 0.1, 0.08), cx + W / 2, trY, cz + D], [new THREE.BoxGeometry(0.08, 0.1, D), cx, trY, cz + D / 2], [new THREE.BoxGeometry(0.08, 0.1, D), cx + W, trY, cz + D / 2]].forEach(([g, x, y, z]) => { const r = new THREE.Mesh(g, mats.rail); r.position.set(x, y, z); scene.add(r); });
+    [[new THREE.BoxGeometry(W, 0.06, 0.06), cx + W / 2, brY, cz + D], [new THREE.BoxGeometry(0.06, 0.06, D), cx, brY, cz + D / 2], [new THREE.BoxGeometry(0.06, 0.06, D), cx + W, brY, cz + D / 2]].forEach(([g, x, y, z]) => { const r = new THREE.Mesh(g, mats.rail); r.position.set(x, y, z); scene.add(r); });
+
+    const balG = new THREE.BoxGeometry(0.04, rH - 0.3, 0.04);
+    for (let x = 0; x < W; x += 3.75 / 12) { const b = new THREE.Mesh(balG, mats.rail); b.position.set(cx + x, H + bdH + rH / 2 + 0.1, cz + D); scene.add(b); }
+    for (let z = 0; z < D; z += 3.75 / 12) { [cx, cx + W].forEach(x => { const b = new THREE.Mesh(balG, mats.rail); b.position.set(x, H + bdH + rH / 2 + 0.1, cz + z); scene.add(b); }); }
+    const crnG = new THREE.BoxGeometry(0.2, rH + 0.2, 0.2);
+    [[cx, cz], [cx + W, cz], [cx, cz + D], [cx + W, cz + D]].forEach(([x, z]) => { const cp = new THREE.Mesh(crnG, mats.rail); cp.position.set(x, H + bdH + rH / 2, z); scene.add(cp); });
+
+    // Controls
+    const cv = ren.domElement;
+    const onD = e => { orbit.current.drag = true; const t = e.touches ? e.touches[0] : e; orbit.current.lx = t.clientX; orbit.current.ly = t.clientY; };
+    const onM = e => { if (!orbit.current.drag) return; const t = e.touches ? e.touches[0] : e; orbit.current.theta -= (t.clientX - orbit.current.lx) * 0.005; orbit.current.phi = Math.max(0.1, Math.min(1.4, orbit.current.phi - (t.clientY - orbit.current.ly) * 0.005)); orbit.current.lx = t.clientX; orbit.current.ly = t.clientY; };
+    const onU = () => { orbit.current.drag = false; };
+    const onW = e => { orbit.current.dist = Math.max(8, Math.min(80, orbit.current.dist + e.deltaY * 0.03)); };
+    cv.addEventListener("mousedown", onD); cv.addEventListener("mousemove", onM); cv.addEventListener("mouseup", onU); cv.addEventListener("mouseleave", onU); cv.addEventListener("wheel", onW);
+    cv.addEventListener("touchstart", onD, { passive: true }); cv.addEventListener("touchmove", onM, { passive: true }); cv.addEventListener("touchend", onU);
+
+    const lookY = H / 2 + 1;
+    const anim = () => { frameRef.current = requestAnimationFrame(anim); const o = orbit.current; cam.position.set(o.dist * Math.sin(o.phi) * Math.cos(o.theta), o.dist * Math.cos(o.phi) + lookY, o.dist * Math.sin(o.phi) * Math.sin(o.theta)); cam.lookAt(0, lookY, 0); ren.render(scene, cam); };
+    anim();
+
+    return () => { cancelAnimationFrame(frameRef.current); cv.removeEventListener("mousedown", onD); cv.removeEventListener("mousemove", onM); cv.removeEventListener("mouseup", onU); cv.removeEventListener("mouseleave", onU); cv.removeEventListener("wheel", onW); cv.removeEventListener("touchstart", onD); cv.removeEventListener("touchmove", onM); cv.removeEventListener("touchend", onU); ren.dispose(); };
+  }, [W, D, H, nP, pp, postSize, beamSize, sp, fDiam, p.deckingType]);
+
+  return <div ref={ref} style={{ width: "100%", height: 380, borderRadius: 6, overflow: "hidden" }} />;
+}
+
+// ============================================================
+// PRODUCTS
+// ============================================================
+const products = [
+  { id: "deck", name: "Decks", icon: "⬜", active: true, desc: "Attached & freestanding decks" },
+  { id: "pergola", name: "Pergolas", icon: "☰", desc: "Patio covers & shade structures" },
+  { id: "fence", name: "Fences", icon: "▮▮▮", desc: "Privacy, picket & iron fences" },
+  { id: "shed", name: "Sheds", icon: "⌂", desc: "Storage sheds under 200 SF" },
+  { id: "garage", name: "Garages", icon: "⊞", desc: "Detached 1-2 car garages" },
+  { id: "porch", name: "Porches", icon: "▦", desc: "Screened & 3-season rooms" },
+];
+
+// ============================================================
+// MAIN APP
+// ============================================================
+const App = function SimpleBlueprints() {
+  const [page, setPage] = useState("home");
+  const [step, setStep] = useState(0);
+  const [view, setView] = useState("plan");
+  const [planMode, setPlanMode] = useState("plan");
+  const [p, setP] = useState({ width: 20, depth: 12, height: 4, attachment: "ledger", hasStairs: true, stairLocation: "front", joistSpacing: 16, deckingType: "composite", railType: "fortress", snowLoad: "moderate", frostZone: "cold" });
+  const u = (k, v) => setP(prev => ({ ...prev, [k]: v }));
+  const c = useMemo(() => calcStructure(p), [p]);
+  const m = useMemo(() => estMaterials(p, c), [p, c]);
+  const [genStatus, setGenStatus] = useState("idle"); // idle | generating | done | error
+  const [genError, setGenError] = useState("");
+
+  const API = "https://simpleblueprints-production.up.railway.app";
+
+  const generateBlueprint = async () => {
+    setGenStatus("generating"); setGenError("");
+    try {
+      const res = await fetch(`${API}/api/generate-test`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(p),
+      });
+      if (!res.ok) throw new Error(`Server error: ${res.status}`);
+      const data = await res.json();
+      if (data.download_url) {
+        window.open(`${API}${data.download_url}`, "_blank");
+        setGenStatus("done");
+      } else {
+        throw new Error("No download URL returned");
+      }
+    } catch (e) {
+      setGenError(e.message);
+      setGenStatus("error");
+    }
+  };
+
+  const steps = [{ t: "Size & Shape", i: "📐" }, { t: "Structure", i: "🏗️" }, { t: "Finishes", i: "🪵" }, { t: "Review", i: "📋" }];
+  const mono = "'DM Mono', 'SF Mono', monospace"; const sans = "'DM Sans', system-ui, sans-serif";
+  const br = { dk: "#1a1f16", gn: "#3d5a2e", cr: "#faf8f3", wr: "#f2ece0", ac: "#c4960a", tx: "#2c3024", mu: "#7a8068", bd: "#ddd8cc", rd: "#c0392b", bl: "#2471a3" };
+
+  const Label = ({ children }) => <label style={{ display: "block", fontSize: 10, fontWeight: 700, color: br.mu, marginBottom: 4, fontFamily: mono, letterSpacing: "1px", textTransform: "uppercase" }}>{children}</label>;
+  const Slider = ({ label, value, min, max, step: s = 1, field }) => (
+    <div style={{ marginBottom: 16 }}><Label>{label}</Label>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <input type="range" min={min} max={max} step={s} value={value} onChange={e => u(field, Number(e.target.value))} style={{ flex: 1, accentColor: br.gn, height: 6 }} />
+        <span style={{ fontFamily: mono, fontSize: 18, fontWeight: 800, color: br.tx, minWidth: 50, textAlign: "right" }}>{value}'</span>
+      </div>
+    </div>
+  );
+  const Chips = ({ label, field, opts }) => (
+    <div style={{ marginBottom: 16 }}><Label>{label}</Label>
+      <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+        {opts.map(([v, t]) => <button key={v} onClick={() => u(field, v)} style={{ padding: "7px 14px", borderRadius: 6, fontSize: 11, fontFamily: mono, cursor: "pointer", border: p[field] === v ? `2px solid ${br.gn}` : `1px solid ${br.bd}`, background: p[field] === v ? br.gn : "#fff", color: p[field] === v ? "#fff" : br.tx, fontWeight: p[field] === v ? 700 : 400, transition: "all 0.15s" }}>{t}</button>)}
+      </div>
+    </div>
+  );
+  const Spec = ({ l, v, color }) => <div style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", borderBottom: `1px solid ${br.wr}` }}><span style={{ fontSize: 11, color: br.mu, fontFamily: mono }}>{l}</span><span style={{ fontSize: 11, fontWeight: 700, color: color || br.tx, fontFamily: mono }}>{v}</span></div>;
+
+  // HOME
+  if (page === "home") return (
+    <div style={{ minHeight: "100vh", background: br.cr }}>
+      <nav style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 32px", borderBottom: `1px solid ${br.bd}` }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ width: 28, height: 28, background: br.gn, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center" }}><span style={{ color: "#fff", fontSize: 14, fontWeight: 900 }}>SB</span></div>
+          <span style={{ fontFamily: mono, fontSize: 15, fontWeight: 800, color: br.dk, letterSpacing: "0.5px" }}>simpleblueprints</span>
+          <span style={{ fontSize: 10, color: br.ac, fontWeight: 700, fontFamily: mono, border: `1px solid ${br.ac}`, padding: "1px 6px", borderRadius: 3, marginLeft: 4 }}>BETA</span>
+        </div>
+        <div style={{ display: "flex", gap: 24, alignItems: "center" }}>
+          <a style={{ fontSize: 12, color: br.mu, fontFamily: mono, cursor: "pointer" }}>How It Works</a>
+          <a style={{ fontSize: 12, color: br.mu, fontFamily: mono, cursor: "pointer" }}>Pricing</a>
+          <button style={{ padding: "8px 18px", background: br.gn, color: "#fff", border: "none", borderRadius: 6, fontSize: 12, fontFamily: mono, fontWeight: 700, cursor: "pointer" }}>Sign In</button>
+        </div>
+      </nav>
+      <div style={{ maxWidth: 900, margin: "0 auto", padding: "80px 32px 50px", textAlign: "center" }}>
+        <div style={{ fontSize: 11, fontFamily: mono, color: br.gn, fontWeight: 700, letterSpacing: "3px", textTransform: "uppercase", marginBottom: 16 }}>Permit-Ready Plans in Minutes</div>
+        <h1 style={{ fontFamily: sans, fontSize: 52, fontWeight: 900, color: br.dk, lineHeight: 1.1, margin: "0 0 20px", letterSpacing: "-1px" }}>Simple structures.<br />Simple blueprints.</h1>
+        <p style={{ fontFamily: sans, fontSize: 18, color: br.mu, maxWidth: 560, margin: "0 auto 40px", lineHeight: 1.6 }}>Configure your project, get IRC-compliant structural calculations, and download a professional drawing set. No architect required.</p>
+        <div style={{ display: "flex", gap: 32, justifyContent: "center", marginBottom: 60, flexWrap: "wrap" }}>
+          {[["01", "Configure", "Set dimensions, materials, and location"], ["02", "Calculate", "Auto-sized joists, beams, posts & footings"], ["03", "Download", "4-sheet PDF blueprint + material list"]].map(([n, t, d]) => (
+            <div key={n} style={{ textAlign: "center", maxWidth: 180 }}><div style={{ fontFamily: mono, fontSize: 28, fontWeight: 900, color: br.gn, marginBottom: 4 }}>{n}</div><div style={{ fontFamily: sans, fontSize: 16, fontWeight: 700, color: br.dk, marginBottom: 4 }}>{t}</div><div style={{ fontFamily: sans, fontSize: 13, color: br.mu, lineHeight: 1.5 }}>{d}</div></div>
+          ))}
+        </div>
+      </div>
+      <div style={{ maxWidth: 900, margin: "0 auto", padding: "0 32px 80px" }}>
+        <div style={{ fontSize: 11, fontFamily: mono, color: br.mu, fontWeight: 700, letterSpacing: "2px", textTransform: "uppercase", marginBottom: 20, textAlign: "center" }}>Choose Your Project</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))", gap: 14 }}>
+          {products.map(pr => (
+            <button key={pr.id} onClick={() => pr.active && setPage("wizard")} style={{ padding: "24px 20px", background: "#fff", border: pr.active ? `2px solid ${br.gn}` : `1px solid ${br.bd}`, borderRadius: 10, cursor: pr.active ? "pointer" : "default", textAlign: "left", opacity: pr.active ? 1 : 0.55, position: "relative" }}>
+              {!pr.active && <span style={{ position: "absolute", top: 10, right: 10, fontSize: 8, fontFamily: mono, color: br.ac, fontWeight: 700, background: "#fef9e7", padding: "2px 8px", borderRadius: 3 }}>COMING SOON</span>}
+              <div style={{ fontSize: 24, marginBottom: 8 }}>{pr.icon}</div>
+              <div style={{ fontFamily: sans, fontSize: 16, fontWeight: 700, color: br.dk }}>{pr.name}</div>
+              <div style={{ fontFamily: sans, fontSize: 12, color: br.mu, marginTop: 2 }}>{pr.desc}</div>
+              {pr.active && <div style={{ marginTop: 12, fontSize: 11, fontFamily: mono, color: br.gn, fontWeight: 700 }}>Start Building →</div>}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div style={{ borderTop: `1px solid ${br.bd}`, padding: "20px 32px", textAlign: "center" }}><span style={{ fontSize: 10, fontFamily: mono, color: br.mu }}>© 2026 SimpleBlueprints.com · Plans for reference — verify with local building department</span></div>
+    </div>
+  );
+
+  // WIZARD
+  const views = [["plan", "Plan"], ["elevation", "Elevation"], ["3d", "3D View"]];
+  return (
+    <div style={{ minHeight: "100vh", background: br.cr }}>
+      <nav style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 24px", borderBottom: `1px solid ${br.bd}`, background: "#fff" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }} onClick={() => setPage("home")}>
+          <div style={{ width: 24, height: 24, background: br.gn, borderRadius: 5, display: "flex", alignItems: "center", justifyContent: "center" }}><span style={{ color: "#fff", fontSize: 11, fontWeight: 900 }}>SB</span></div>
+          <span style={{ fontFamily: mono, fontSize: 13, fontWeight: 800, color: br.dk }}>simpleblueprints</span>
+        </div>
+        <div style={{ display: "flex", gap: 1 }}>
+          {steps.map((s, i) => <button key={i} onClick={() => setStep(i)} style={{ padding: "7px 16px", fontSize: 10, cursor: "pointer", border: "none", fontFamily: mono, background: step === i ? br.gn : "transparent", color: step === i ? "#fff" : br.mu, borderRadius: i === 0 ? "5px 0 0 5px" : i === 3 ? "0 5px 5px 0" : 0, fontWeight: step === i ? 700 : 400, letterSpacing: "0.5px" }}>{s.i} {s.t}</button>)}
+        </div>
+        <div style={{ fontSize: 11, fontFamily: mono, color: br.mu }}>Deck Blueprint</div>
+      </nav>
+      <div style={{ height: 3, background: br.wr }}><div style={{ height: "100%", background: br.gn, width: `${((step + 1) / 4) * 100}%`, transition: "width 0.3s" }} /></div>
+
+      <div style={{ maxWidth: 1180, margin: "0 auto", padding: "20px", display: "flex", gap: 20, flexWrap: "wrap" }}>
+        {/* LEFT: INPUTS */}
+        <div style={{ flex: "1 1 320px", minWidth: 290 }}>
+          <div style={{ background: "#fff", borderRadius: 10, padding: 22, border: `1px solid ${br.bd}`, boxShadow: "0 1px 8px rgba(0,0,0,0.04)" }}>
+            <h2 style={{ margin: "0 0 18px", fontSize: 15, fontWeight: 800, color: br.dk, fontFamily: sans, borderBottom: `2px solid ${br.gn}`, paddingBottom: 8 }}>{steps[step].i} {steps[step].t}</h2>
+
+            {step === 0 && <>
+              <Slider label="Width (along house)" value={p.width} min={8} max={50} field="width" />
+              <Slider label="Depth (from house)" value={p.depth} min={6} max={24} field="depth" />
+              <Slider label="Height above grade" value={p.height} min={1} max={14} field="height" />
+              <Chips label="Attachment" field="attachment" opts={[["ledger", "Ledger Board"], ["freestanding", "Freestanding"]]} />
+              <Chips label="Stairs" field="hasStairs" opts={[[true, "Yes"], [false, "No"]]} />
+              {p.hasStairs && <Chips label="Stair location" field="stairLocation" opts={[["front", "Front"], ["left", "Left"], ["right", "Right"]]} />}
+            </>}
+            {step === 1 && <>
+              <Chips label="Joist spacing" field="joistSpacing" opts={[[12, '12" O.C.'], [16, '16" O.C.'], [24, '24" O.C.']]} />
+              <Chips label="Snow load" field="snowLoad" opts={[["none", "None"], ["light", "Light"], ["moderate", "Moderate"], ["heavy", "Heavy"]]} />
+              <Chips label="Frost zone" field="frostZone" opts={[["warm", '12"'], ["moderate", '24"'], ["cold", '36"'], ["severe", '48"']]} />
+
+              {/* Override section */}
+              <div style={{ marginTop: 16, padding: 14, background: br.wr, borderRadius: 8, border: `1px solid ${br.bd}` }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: br.gn, fontFamily: mono, letterSpacing: "1px", textTransform: "uppercase" }}>Structural Members</div>
+                  <div style={{ fontSize: 8, color: br.mu, fontFamily: mono }}>AUTO = IRC recommended</div>
+                </div>
+
+                {/* Joist override */}
+                {(() => { const isOver = !!p.overJoist; const val = isOver ? p.overJoist : c.auto.joist; return (
+                  <div style={{ marginBottom: 10 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                      <span style={{ fontSize: 10, color: br.mu, fontFamily: mono, fontWeight: 700 }}>JOISTS</span>
+                      <button onClick={() => u("overJoist", isOver ? null : c.auto.joist)} style={{ fontSize: 8, fontFamily: mono, padding: "2px 8px", borderRadius: 3, cursor: "pointer", border: `1px solid ${isOver ? br.ac : br.bd}`, background: isOver ? "#fef9e7" : "#fff", color: isOver ? br.ac : br.mu, fontWeight: 700 }}>{isOver ? "MANUAL ✎" : "AUTO ✓"}</button>
+                    </div>
+                    <div style={{ display: "flex", gap: 4 }}>
+                      {["2x6", "2x8", "2x10", "2x12"].map(sz => (
+                        <button key={sz} onClick={() => isOver && u("overJoist", sz)} style={{
+                          flex: 1, padding: "6px 4px", fontSize: 10, fontFamily: mono, cursor: isOver ? "pointer" : "default",
+                          border: val === sz ? `2px solid ${isOver ? br.ac : br.gn}` : `1px solid ${br.bd}`,
+                          background: val === sz ? (isOver ? "#fef9e7" : "#edf5e8") : (isOver ? "#fff" : "#fafafa"),
+                          color: val === sz ? (isOver ? br.ac : br.gn) : (isOver ? br.tx : "#ccc"),
+                          borderRadius: 5, fontWeight: val === sz ? 700 : 400, opacity: isOver ? 1 : 0.7,
+                          textAlign: "center", position: "relative",
+                        }}>
+                          {sz}
+                          {!isOver && sz === c.auto.joist && <div style={{ fontSize: 6, color: br.gn, marginTop: 1 }}>REC</div>}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ); })()}
+
+                {/* Beam override */}
+                {(() => { const isOver = !!p.overBeam; const val = isOver ? p.overBeam : c.auto.beam; const opts = ["2-ply 2x10", "3-ply 2x10", "3-ply 2x12", "3-ply LVL 1.75x12"]; return (
+                  <div style={{ marginBottom: 10 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                      <span style={{ fontSize: 10, color: br.mu, fontFamily: mono, fontWeight: 700 }}>BEAM</span>
+                      <button onClick={() => u("overBeam", isOver ? null : c.auto.beam)} style={{ fontSize: 8, fontFamily: mono, padding: "2px 8px", borderRadius: 3, cursor: "pointer", border: `1px solid ${isOver ? br.ac : br.bd}`, background: isOver ? "#fef9e7" : "#fff", color: isOver ? br.ac : br.mu, fontWeight: 700 }}>{isOver ? "MANUAL ✎" : "AUTO ✓"}</button>
+                    </div>
+                    <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                      {opts.map(sz => { const short = sz.replace("1.75x12", "LVL").replace("-ply ", "×"); return (
+                        <button key={sz} onClick={() => isOver && u("overBeam", sz)} style={{
+                          flex: "1 1 auto", padding: "6px 6px", fontSize: 9, fontFamily: mono, cursor: isOver ? "pointer" : "default",
+                          border: val === sz ? `2px solid ${isOver ? br.ac : br.gn}` : `1px solid ${br.bd}`,
+                          background: val === sz ? (isOver ? "#fef9e7" : "#edf5e8") : (isOver ? "#fff" : "#fafafa"),
+                          color: val === sz ? (isOver ? br.ac : br.gn) : (isOver ? br.tx : "#ccc"),
+                          borderRadius: 5, fontWeight: val === sz ? 700 : 400, opacity: isOver ? 1 : 0.7, textAlign: "center",
+                        }}>
+                          {short}
+                          {!isOver && sz === c.auto.beam && <div style={{ fontSize: 6, color: br.gn, marginTop: 1 }}>REC</div>}
+                        </button>
+                      ); })}
+                    </div>
+                  </div>
+                ); })()}
+
+                {/* Post size override */}
+                {(() => { const isOver = !!p.overPostSize; const val = isOver ? p.overPostSize : c.auto.postSize; return (
+                  <div style={{ marginBottom: 10 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                      <span style={{ fontSize: 10, color: br.mu, fontFamily: mono, fontWeight: 700 }}>POST SIZE</span>
+                      <button onClick={() => u("overPostSize", isOver ? null : c.auto.postSize)} style={{ fontSize: 8, fontFamily: mono, padding: "2px 8px", borderRadius: 3, cursor: "pointer", border: `1px solid ${isOver ? br.ac : br.bd}`, background: isOver ? "#fef9e7" : "#fff", color: isOver ? br.ac : br.mu, fontWeight: 700 }}>{isOver ? "MANUAL ✎" : "AUTO ✓"}</button>
+                    </div>
+                    <div style={{ display: "flex", gap: 4 }}>
+                      {["4x4", "6x6"].map(sz => (
+                        <button key={sz} onClick={() => isOver && u("overPostSize", sz)} style={{
+                          flex: 1, padding: "6px 4px", fontSize: 10, fontFamily: mono, cursor: isOver ? "pointer" : "default",
+                          border: val === sz ? `2px solid ${isOver ? br.ac : br.gn}` : `1px solid ${br.bd}`,
+                          background: val === sz ? (isOver ? "#fef9e7" : "#edf5e8") : (isOver ? "#fff" : "#fafafa"),
+                          color: val === sz ? (isOver ? br.ac : br.gn) : (isOver ? br.tx : "#ccc"),
+                          borderRadius: 5, fontWeight: val === sz ? 700 : 400, opacity: isOver ? 1 : 0.7, textAlign: "center",
+                        }}>
+                          {sz}
+                          {!isOver && sz === c.auto.postSize && <div style={{ fontSize: 6, color: br.gn, marginTop: 1 }}>REC</div>}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ); })()}
+
+                {/* Post count override */}
+                {(() => { const isOver = !!p.overPostCount; const val = isOver ? p.overPostCount : c.auto.postCount; return (
+                  <div style={{ marginBottom: 10 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                      <span style={{ fontSize: 10, color: br.mu, fontFamily: mono, fontWeight: 700 }}>POST COUNT</span>
+                      <button onClick={() => u("overPostCount", isOver ? null : c.auto.postCount)} style={{ fontSize: 8, fontFamily: mono, padding: "2px 8px", borderRadius: 3, cursor: "pointer", border: `1px solid ${isOver ? br.ac : br.bd}`, background: isOver ? "#fef9e7" : "#fff", color: isOver ? br.ac : br.mu, fontWeight: 700 }}>{isOver ? "MANUAL ✎" : "AUTO ✓"}</button>
+                    </div>
+                    <div style={{ display: "flex", gap: 4 }}>
+                      {[2, 3, 4, 5, 6].map(n => (
+                        <button key={n} onClick={() => isOver && u("overPostCount", n)} style={{
+                          flex: 1, padding: "6px 4px", fontSize: 10, fontFamily: mono, cursor: isOver ? "pointer" : "default",
+                          border: val === n ? `2px solid ${isOver ? br.ac : br.gn}` : `1px solid ${br.bd}`,
+                          background: val === n ? (isOver ? "#fef9e7" : "#edf5e8") : (isOver ? "#fff" : "#fafafa"),
+                          color: val === n ? (isOver ? br.ac : br.gn) : (isOver ? br.tx : "#ccc"),
+                          borderRadius: 5, fontWeight: val === n ? 700 : 400, opacity: isOver ? 1 : 0.7, textAlign: "center",
+                        }}>
+                          {n}
+                          {!isOver && n === c.auto.postCount && <div style={{ fontSize: 6, color: br.gn, marginTop: 1 }}>REC</div>}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ); })()}
+
+                {/* Footing override */}
+                {(() => { const isOver = !!p.overFooting; const val = isOver ? p.overFooting : c.auto.footing; return (
+                  <div style={{ marginBottom: 6 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                      <span style={{ fontSize: 10, color: br.mu, fontFamily: mono, fontWeight: 700 }}>FOOTING DIA.</span>
+                      <button onClick={() => u("overFooting", isOver ? null : c.auto.footing)} style={{ fontSize: 8, fontFamily: mono, padding: "2px 8px", borderRadius: 3, cursor: "pointer", border: `1px solid ${isOver ? br.ac : br.bd}`, background: isOver ? "#fef9e7" : "#fff", color: isOver ? br.ac : br.mu, fontWeight: 700 }}>{isOver ? "MANUAL ✎" : "AUTO ✓"}</button>
+                    </div>
+                    <div style={{ display: "flex", gap: 4 }}>
+                      {[12, 16, 18, 21, 24, 30].map(d => (
+                        <button key={d} onClick={() => isOver && u("overFooting", d)} style={{
+                          flex: 1, padding: "6px 2px", fontSize: 9, fontFamily: mono, cursor: isOver ? "pointer" : "default",
+                          border: val === d ? `2px solid ${isOver ? br.ac : br.gn}` : `1px solid ${br.bd}`,
+                          background: val === d ? (isOver ? "#fef9e7" : "#edf5e8") : (isOver ? "#fff" : "#fafafa"),
+                          color: val === d ? (isOver ? br.ac : br.gn) : (isOver ? br.tx : "#ccc"),
+                          borderRadius: 5, fontWeight: val === d ? 700 : 400, opacity: isOver ? 1 : 0.7, textAlign: "center",
+                        }}>
+                          {d}"
+                          {!isOver && d === c.auto.footing && <div style={{ fontSize: 6, color: br.gn, marginTop: 1 }}>REC</div>}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ); })()}
+
+                <div style={{ height: 1, background: br.bd, margin: "10px 0" }} />
+                <Spec l="Joist Span" v={`${c.jSpan}'`} /><Spec l="Beam Span" v={`${c.bSpan}'`} /><Spec l="Total Load" v={`${c.TL} PSF`} color={br.rd} />
+                {c.warnings.map((w, i) => <div key={i} style={{ fontSize: 10, color: br.rd, marginTop: 4, fontFamily: mono }}>⚠️ {w}</div>)}
+              </div>
+            </>}
+            {step === 2 && <>
+              <Chips label="Decking" field="deckingType" opts={[["composite", "Composite (Trex)"], ["pt_lumber", "Pressure Treated"]]} />
+              <Chips label="Railing" field="railType" opts={[["fortress", "Fortress Iron"], ["wood", "Wood"]]} />
+              <div style={{ marginTop: 16, padding: 14, background: br.wr, borderRadius: 8, border: `1px solid ${br.bd}` }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: br.gn, marginBottom: 6, fontFamily: mono, letterSpacing: "1px", textTransform: "uppercase" }}>Cost Breakdown</div>
+                {["Foundation", "Posts", "Beam", "Ledger", "Framing", "Hardware", "Decking", "Railing", "Misc"].map(cat => { const t = m.items.filter(i => i.cat === cat).reduce((s, i) => s + i.qty * i.cost, 0); return t > 0 ? <Spec key={cat} l={cat} v={`$${t.toFixed(0)}`} /> : null; })}
+                <div style={{ height: 2, background: br.gn, margin: "8px 0", opacity: 0.3 }} />
+                <Spec l="Subtotal" v={`$${m.sub.toFixed(0)}`} /><Spec l="Tax + Contingency" v={`$${(m.tax + m.cont).toFixed(0)}`} /><Spec l="TOTAL" v={`$${m.total.toFixed(0)}`} color={br.gn} />
+              </div>
+            </>}
+            {step === 3 && <>
+              {/* BLUEPRINT PREVIEW */}
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: br.gn, fontFamily: mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 8 }}>Blueprint Preview</div>
+                <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 }}>
+                  {/* Sheet A-1: Plan */}
+                  <div style={{ flex: "0 0 auto", width: 200, background: "#fff", border: `1px solid ${br.bd}`, borderRadius: 6, overflow: "hidden", position: "relative" }}>
+                    <div style={{ padding: "4px 8px", background: br.wr, borderBottom: `1px solid ${br.bd}` }}>
+                      <span style={{ fontSize: 7, fontFamily: mono, fontWeight: 700, color: br.mu }}>SHEET A-1 — DECK PLAN</span>
+                    </div>
+                    <div style={{ padding: 4, height: 130 }}>
+                      <svg viewBox="0 0 200 120" style={{ width: "100%", height: "100%" }}>
+                        <rect x="30" y="5" width={Math.min(140, c.W * 3.5)} height={15} fill="#e8e6e0" stroke="#888" strokeWidth="0.5" />
+                        <text x={30 + Math.min(140, c.W * 3.5) / 2} y="14" textAnchor="middle" style={{ fontSize: 4, fill: "#aaa" }}>HOUSE</text>
+                        <rect x="30" y="20" width={Math.min(140, c.W * 3.5)} height={Math.min(80, c.D * 5)} fill="#efe5d5" stroke="#333" strokeWidth="0.8" />
+                        {c.attachment === "ledger" && <line x1="30" y1="20" x2={30 + Math.min(140, c.W * 3.5)} y2="20" stroke="#2e7d32" strokeWidth="1.5" />}
+                        {Array.from({ length: Math.min(20, Math.ceil(c.W / (c.sp / 12))) }, (_, i) => {
+                          const x = 30 + (i + 1) * Math.min(140, c.W * 3.5) / Math.ceil(c.W / (c.sp / 12));
+                          return x < 30 + Math.min(140, c.W * 3.5) ? <line key={i} x1={x} y1="21" x2={x} y2={20 + Math.min(80, c.D * 5) - 8} stroke="#ddd" strokeWidth="0.2" /> : null;
+                        })}
+                        <line x1="32" y1={20 + Math.min(80, c.D * 5) - 8} x2={28 + Math.min(140, c.W * 3.5)} y2={20 + Math.min(80, c.D * 5) - 8} stroke="#c4960a" strokeWidth="1.5" />
+                        {c.pp.map((px, i) => <circle key={i} cx={30 + (px / c.W) * Math.min(140, c.W * 3.5)} cy={20 + Math.min(80, c.D * 5) - 8} r="2" fill="#c4a060" stroke="#444" strokeWidth="0.3" />)}
+                        <text x={30 + Math.min(140, c.W * 3.5) / 2} y={20 + Math.min(80, c.D * 5) / 2} textAnchor="middle" style={{ fontSize: 5, fill: "#888" }}>{c.joistSize} @ {c.sp}" O.C.</text>
+                        <text x={30 + Math.min(140, c.W * 3.5) / 2} y={20 + Math.min(80, c.D * 5) + 8} textAnchor="middle" style={{ fontSize: 5, fill: "#c62828", fontWeight: 700 }}>{c.W}'-0"</text>
+                      </svg>
+                    </div>
+                    <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
+                      <span style={{ fontSize: 22, fontWeight: 900, color: "rgba(61,90,46,0.08)", fontFamily: mono, transform: "rotate(-20deg)", letterSpacing: 4 }}>PREVIEW</span>
+                    </div>
+                  </div>
+
+                  {/* Sheet A-2: Elevation */}
+                  <div style={{ flex: "0 0 auto", width: 200, background: "#fff", border: `1px solid ${br.bd}`, borderRadius: 6, overflow: "hidden", position: "relative" }}>
+                    <div style={{ padding: "4px 8px", background: br.wr, borderBottom: `1px solid ${br.bd}` }}>
+                      <span style={{ fontSize: 7, fontFamily: mono, fontWeight: 700, color: br.mu }}>SHEET A-2 — ELEVATIONS</span>
+                    </div>
+                    <div style={{ padding: 4, height: 130 }}>
+                      <svg viewBox="0 0 200 120" style={{ width: "100%", height: "100%" }}>
+                        {/* Mini south elevation */}
+                        <line x1="15" y1="85" x2="185" y2="85" stroke="#444" strokeWidth="0.5" />
+                        {(() => { const dw = Math.min(150, c.W * 3.5); const dx = (200 - dw) / 2; const hSc = Math.min(4, 50 / c.H); const dy = 85 - c.H * hSc; return (<>
+                          <rect x={dx} y="15" width={dw} height={70} fill="#e8e6e0" stroke="#888" strokeWidth="0.3" />
+                          <polygon points={`${dx - 3},15 ${dx + dw / 2},5 ${dx + dw + 3},15`} fill="#888" stroke="#444" strokeWidth="0.3" />
+                          {c.pp.map((px, i) => <line key={i} x1={dx + (px / c.W) * dw} y1="85" x2={dx + (px / c.W) * dw} y2={dy} stroke="#c4a060" strokeWidth="1" />)}
+                          <rect x={dx + 2} y={dy + 1} width={dw - 4} height={3} fill="#c4960a" fillOpacity="0.8" stroke="#444" strokeWidth="0.2" />
+                          <line x1={dx} y1={dy} x2={dx + dw} y2={dy} stroke="#6B5340" strokeWidth="1.5" />
+                          <line x1={dx} y1={dy - c.H * hSc * 0.4} x2={dx + dw} y2={dy - c.H * hSc * 0.4} stroke="#333" strokeWidth="0.8" />
+                          <text x={dx + dw + 4} y={(85 + dy) / 2 + 1} style={{ fontSize: 5, fill: "#1565c0", fontWeight: 700 }}>{c.H}'</text>
+                          <text x={dx + dw / 2} y="97" textAnchor="middle" style={{ fontSize: 5, fill: "#c62828", fontWeight: 700 }}>{c.W}'-0"</text>
+                        </>); })()}
+                      </svg>
+                    </div>
+                    <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
+                      <span style={{ fontSize: 22, fontWeight: 900, color: "rgba(61,90,46,0.08)", fontFamily: mono, transform: "rotate(-20deg)", letterSpacing: 4 }}>PREVIEW</span>
+                    </div>
+                  </div>
+
+                  {/* Sheet A-3: Details */}
+                  <div style={{ flex: "0 0 auto", width: 200, background: "#fff", border: `1px solid ${br.bd}`, borderRadius: 6, overflow: "hidden", position: "relative" }}>
+                    <div style={{ padding: "4px 8px", background: br.wr, borderBottom: `1px solid ${br.bd}` }}>
+                      <span style={{ fontSize: 7, fontFamily: mono, fontWeight: 700, color: br.mu }}>SHEET A-3 — DETAILS</span>
+                    </div>
+                    <div style={{ padding: 8, height: 130, display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "1fr 1fr", gap: 4 }}>
+                      {[
+                        { t: "LEDGER DETAIL", lines: [[10, 30, 10, 80], [10, 30, 60, 30], [20, 30, 20, 80], [30, 35, 30, 75], [40, 35, 40, 75]] },
+                        { t: "FOOTING DETAIL", lines: [[25, 20, 25, 70], [45, 20, 45, 70], [25, 70, 45, 70], [30, 15, 40, 15], [30, 15, 30, 20], [40, 15, 40, 20]] },
+                        { t: "GUARD RAIL", lines: [[5, 65, 65, 65], [5, 15, 65, 15], [5, 15, 5, 65], [65, 15, 65, 65]] },
+                        { t: "POST / BEAM", lines: [[25, 80, 25, 30], [45, 80, 45, 30], [10, 30, 60, 30], [10, 25, 60, 25]] },
+                      ].map((detail, di) => (
+                        <div key={di} style={{ background: "#fcfcfa", border: `0.5px solid ${br.bd}`, borderRadius: 3, position: "relative", overflow: "hidden" }}>
+                          <svg viewBox="0 0 70 90" style={{ width: "100%", height: "100%" }}>
+                            {detail.lines.map(([x1, y1, x2, y2], li) => <line key={li} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#bbb" strokeWidth="0.5" />)}
+                            <text x="35" y="87" textAnchor="middle" style={{ fontSize: 4.5, fill: "#aaa", fontWeight: 600 }}>{detail.t}</text>
+                          </svg>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
+                      <span style={{ fontSize: 22, fontWeight: 900, color: "rgba(61,90,46,0.08)", fontFamily: mono, transform: "rotate(-20deg)", letterSpacing: 4 }}>PREVIEW</span>
+                    </div>
+                  </div>
+                </div>
+                <div style={{ textAlign: "center", marginTop: 6 }}>
+                  <span style={{ fontSize: 8, color: br.mu, fontFamily: mono }}>3 sheets included · Full resolution PDF after purchase</span>
+                </div>
+              </div>
+
+              {/* Summary + Structure */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+                <div style={{ padding: 12, background: br.wr, borderRadius: 8, border: `1px solid ${br.bd}` }}>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: br.gn, marginBottom: 6, fontFamily: mono, letterSpacing: "1px", textTransform: "uppercase" }}>Project</div>
+                  <Spec l="Size" v={`${c.W}'×${c.D}' (${c.area} SF)`} /><Spec l="Height" v={`${c.H}'`} /><Spec l="Attach" v={c.attachment === "ledger" ? "Ledger" : "Free"} /><Spec l="Stairs" v={p.hasStairs ? p.stairLocation : "None"} /><Spec l="Deck" v={p.deckingType === "composite" ? "Composite" : "PT"} /><Spec l="Rail" v={p.railType === "fortress" ? "Fortress" : "Wood"} />
+                </div>
+                <div style={{ padding: 12, background: br.wr, borderRadius: 8, border: `1px solid ${br.bd}` }}>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: br.gn, marginBottom: 6, fontFamily: mono, letterSpacing: "1px", textTransform: "uppercase" }}>Structure</div>
+                  <Spec l="Joists" v={`${c.joistSize}@${c.sp}"`} /><Spec l="Beam" v={c.beamSize.replace("3-ply ","3×").replace("2-ply ","2×")} /><Spec l="Posts" v={`${c.postSize}×${c.nP}`} /><Spec l="Footings" v={`${c.fDiam}"Ø×${c.nF}`} /><Spec l="Load" v={`${c.TL} PSF`} color={br.rd} />
+                  {c.warnings.length > 0 && <div style={{ fontSize: 8, color: br.rd, marginTop: 4, fontFamily: mono }}>⚠️ {c.warnings.length} warning{c.warnings.length > 1 ? "s" : ""}</div>}
+                </div>
+              </div>
+
+              {/* Price + CTA */}
+              <div style={{ padding: 16, background: "#e8f5e9", borderRadius: 8, border: "1px solid #c8e6c9", textAlign: "center", marginBottom: 10 }}>
+                <div style={{ fontSize: 10, fontFamily: mono, color: br.gn, fontWeight: 700, letterSpacing: "1px", textTransform: "uppercase" }}>Estimated Materials</div>
+                <div style={{ fontSize: 36, fontWeight: 900, color: br.gn, fontFamily: mono }}>${m.total.toFixed(0)}</div>
+                <div style={{ fontSize: 10, color: "#66bb6a", fontFamily: mono }}>Includes tax + 5% contingency</div>
+              </div>
+
+              <div style={{ background: br.dk, borderRadius: 10, padding: 20, textAlign: "center", marginBottom: 10 }}>
+                <div style={{ fontSize: 10, fontFamily: mono, color: "rgba(255,255,255,0.5)", letterSpacing: "2px", textTransform: "uppercase", marginBottom: 6 }}>Your Blueprint Package</div>
+                <div style={{ display: "flex", justifyContent: "center", gap: 16, marginBottom: 12, flexWrap: "wrap" }}>
+                  {["Plan View", "Framing Plan", "Elevations", "Details", "Material List"].map(s => (
+                    <div key={s} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      <span style={{ color: "#66bb6a", fontSize: 11 }}>✓</span>
+                      <span style={{ fontSize: 10, fontFamily: mono, color: "rgba(255,255,255,0.8)" }}>{s}</span>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  onClick={generateBlueprint}
+                  disabled={genStatus === "generating"}
+                  style={{ padding: "14px 40px", background: genStatus === "generating" ? "#555" : genStatus === "done" ? "#2e7d32" : br.gn, color: "#fff", border: "none", borderRadius: 8, fontSize: 16, fontWeight: 800, cursor: genStatus === "generating" ? "wait" : "pointer", fontFamily: mono, letterSpacing: "1px", boxShadow: "0 4px 20px rgba(61,90,46,0.4)", transition: "all 0.2s" }}>
+                  {genStatus === "generating" ? "Generating PDF..." : genStatus === "done" ? "✓ Download Complete — Generate Again?" : "Generate Blueprint — FREE BETA"}
+                </button>
+                {genStatus === "error" && <div style={{ fontSize: 10, color: "#f44336", fontFamily: mono, marginTop: 8 }}>Error: {genError}</div>}
+                <div style={{ fontSize: 8, color: "rgba(255,255,255,0.4)", fontFamily: mono, marginTop: 8 }}>
+                  {genStatus === "done" ? "PDF opened in new tab · Check your downloads" : "Instant PDF download · Print-ready quality · Permit-office format"}
+                </div>
+              </div>
+            </>}
+
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 20 }}>
+              <button onClick={() => step > 0 ? setStep(step - 1) : setPage("home")} style={{ padding: "9px 18px", border: `1px solid ${br.bd}`, borderRadius: 6, background: "transparent", color: br.mu, cursor: "pointer", fontFamily: mono, fontSize: 11, fontWeight: 600 }}>← {step > 0 ? "Back" : "Home"}</button>
+              {step < 3 && <button onClick={() => setStep(step + 1)} style={{ padding: "9px 18px", border: "none", borderRadius: 6, background: br.gn, color: "#fff", cursor: "pointer", fontFamily: mono, fontSize: 11, fontWeight: 700 }}>Next →</button>}
+            </div>
+          </div>
+        </div>
+
+        {/* RIGHT: PREVIEW */}
+        <div style={{ flex: "1 1 500px", minWidth: 360 }}>
+          <div style={{ background: "#fff", borderRadius: 10, padding: 18, border: `1px solid ${br.bd}`, boxShadow: "0 1px 8px rgba(0,0,0,0.04)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <h3 style={{ margin: 0, fontSize: 12, fontWeight: 700, color: br.dk, fontFamily: mono, letterSpacing: "1px", textTransform: "uppercase" }}>Preview</h3>
+              <div style={{ display: "flex", gap: 1 }}>
+                {views.map(([id, label], i) => <button key={id} onClick={() => setView(id)} style={{ padding: "5px 12px", fontSize: 10, cursor: "pointer", fontFamily: mono, border: view === id ? `1px solid ${br.gn}` : `1px solid ${br.bd}`, background: view === id ? br.gn : "transparent", color: view === id ? "#fff" : br.mu, borderRadius: i === 0 ? "4px 0 0 4px" : i === views.length - 1 ? "0 4px 4px 0" : 0, fontWeight: view === id ? 700 : 400 }}>{label}</button>)}
+              </div>
+            </div>
+
+            <div style={{ background: view === "3d" ? "transparent" : br.cr, border: view === "3d" ? "none" : `1px solid ${br.bd}`, borderRadius: 6, padding: view === "3d" ? 0 : 12, minHeight: 320 }}>
+              {view === "plan" && <>
+                <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
+                  {[["plan", "Deck Plan"], ["framing", "Framing"]].map(([id, label]) => <button key={id} onClick={() => setPlanMode(id)} style={{ padding: "4px 10px", fontSize: 9, fontFamily: mono, cursor: "pointer", border: planMode === id ? `1px solid ${br.gn}` : `1px solid ${br.bd}`, background: planMode === id ? br.gn : "transparent", color: planMode === id ? "#fff" : br.mu, borderRadius: 4, fontWeight: planMode === id ? 700 : 400 }}>{label}</button>)}
+                </div>
+                <PlanView p={p} c={c} mode={planMode} />
+              </>}
+              {view === "elevation" && <ElevationView c={c} p={p} />}
+              {view === "3d" && <Deck3D c={c} p={p} />}
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, marginTop: 12 }}>
+              {[["Area", `${c.area} SF`, br.dk], ["Joists", c.joistSize, br.bl], ["Beam", c.beamSize.replace("3-ply ", "3×").replace("2-ply ", "2×"), br.ac], ["Posts", `${c.postSize}×${c.nP}`, "#8B6508"], ["Footings", `${c.fDiam}"Ø`, "#777"], ["Est. Cost", `$${m.total.toFixed(0)}`, br.gn]].map(([l, v, cl]) => (
+                <div key={l} style={{ padding: "8px 10px", background: br.cr, borderRadius: 6, border: `1px solid ${br.bd}`, textAlign: "center" }}>
+                  <div style={{ fontSize: 8, color: br.mu, fontFamily: mono, textTransform: "uppercase", letterSpacing: "0.5px" }}>{l}</div>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: cl, fontFamily: mono, marginTop: 1 }}>{v}</div>
+                </div>
+              ))}
+            </div>
+
+            {step >= 2 && <div style={{ marginTop: 14 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: br.mu, fontFamily: mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 6 }}>Materials</div>
+              <div style={{ maxHeight: 200, overflowY: "auto", borderRadius: 6, border: `1px solid ${br.bd}` }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: mono, fontSize: 10 }}>
+                  <thead><tr style={{ background: br.wr }}><th style={{ textAlign: "left", padding: "5px 8px", color: br.mu, fontSize: 8 }}>ITEM</th><th style={{ textAlign: "center", padding: "5px 8px", color: br.mu, fontSize: 8 }}>QTY</th><th style={{ textAlign: "right", padding: "5px 8px", color: br.mu, fontSize: 8 }}>EXT</th></tr></thead>
+                  <tbody>{m.items.map((it, i) => <tr key={i} style={{ borderBottom: `1px solid ${br.wr}` }}><td style={{ padding: "4px 8px", color: br.tx }}>{it.item}</td><td style={{ padding: "4px 8px", textAlign: "center", color: br.bl, fontWeight: 700 }}>{it.qty}</td><td style={{ padding: "4px 8px", textAlign: "right", color: br.dk }}>${(it.qty * it.cost).toFixed(0)}</td></tr>)}</tbody>
+                </table>
+              </div>
+            </div>}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
+</script>
+</body>
+</html>

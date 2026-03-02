@@ -261,9 +261,14 @@ async def generate_test(params: DeckParams):
 
 
 # ============================================================
-# SERVE FRONTEND (in production, Next.js handles this)
+# SERVE FRONTEND
 # ============================================================
-# For now, serve a simple redirect to show the API is running
+from pathlib import Path as _Path
+_STATIC_DIR = _Path(__file__).parent.parent / "static"
+
 @app.get("/")
 async def root():
+    index_path = _STATIC_DIR / "index.html"
+    if index_path.exists():
+        return FileResponse(str(index_path), media_type="text/html")
     return {"message": "SimpleBlueprints API is running", "docs": "/docs"}
