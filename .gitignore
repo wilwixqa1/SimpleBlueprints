@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.env
+/tmp/
+*.pdf
+node_modules/
+.next/
+.vercel/
