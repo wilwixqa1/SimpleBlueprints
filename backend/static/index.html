@@ -507,7 +507,7 @@ function ElevationView({ c, p }) {
   const risePerRiser = st ? (gnd - dY) / st.nRisers : 0;
   const treadPx = st ? (st.tread / 12) * sX : 0;
   const stairRunPx = st ? st.nTreads * treadPx : 0;
-  const leftOverhang = (hasSt && p.stairLocation === "left") ? stairRunPx + 25 : 0;
+  const leftOverhang = (hasSt && p.stairLocation === "left") ? stairRunPx + pad + 15 : 0;
   const stairFootprintH = hasSt && isFront ? st.nTreads * treadPx + 20 : 0;
   const svgW = dSW + pad * 2 + 70 + leftOverhang;
   const svgH = wallH + roofPk + pad + 30 + stairFootprintH;
