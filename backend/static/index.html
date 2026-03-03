@@ -1511,22 +1511,22 @@ const App = function SimpleBlueprints() {
                 {/* BEAM TYPE */}
                 <div style={{ marginBottom: 8 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                    <span style={{ fontSize: 9, fontFamily: "mono", letterSpacing: 1, color: br.mu, fontWeight: 700 }}>BEAM TYPE</span>
+                    <span style={{ fontSize: 9, fontFamily: mono, letterSpacing: 1, color: br.mu, fontWeight: 700 }}>BEAM TYPE</span>
                   </div>
                   <div style={{ display: "flex", gap: 8 }}>
                     {["dropped", "flush"].map(bt => (
                       <button key={bt} onClick={() => u("beamType", bt)} style={{
-                        flex: 1, padding: "6px 4px", fontSize: 11, fontFamily: "mono",
+                        flex: 1, padding: "6px 4px", fontSize: 11, fontFamily: mono,
                         cursor: "pointer", borderRadius: 4,
-                        border: `1px solid ${params.beamType === bt ? br.ac : br.bd}`,
-                        background: params.beamType === bt ? br.ac : "#fff",
-                        color: params.beamType === bt ? "#fff" : br.mu,
-                        fontWeight: params.beamType === bt ? 700 : 400,
+                        border: `1px solid ${p.beamType === bt ? br.ac : br.bd}`,
+                        background: p.beamType === bt ? br.ac : "#fff",
+                        color: p.beamType === bt ? "#fff" : br.mu,
+                        fontWeight: p.beamType === bt ? 700 : 400,
                         textTransform: "capitalize"
                       }}>{bt === "dropped" ? "Dropped" : "Flush"}</button>
                     ))}
                   </div>
-                  {params.beamType === "flush" && (
+                  {p.beamType === "flush" && (
                     <div style={{ fontSize: 9, color: br.mu, marginTop: 4, fontStyle: "italic" }}>
                       Beam sits inline with joists — requires LUS joist hangers
                     </div>
