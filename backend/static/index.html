@@ -91,7 +91,7 @@ function calcStructure(p) {
     const nStringers = p.numStringers || 3;
     const nR = Math.ceil(H * 12 / 7.5); const aR = H * 12 / nR;
     const tR = (nR - 1) * 10.5;
-    const stairGeom = computeStairGeometry(p.stairTemplate || "straight", H, stairW, nStringers);
+    const stairGeom = computeStairGeometry({ template: p.stairTemplate || "straight", height: H, stairWidth: stairW, numStringers: nStringers, runSplit: p.stairRunSplit || null, landingDepth: p.stairLandingDepth || null, stairGap: p.stairGap != null ? p.stairGap : 0.5 });
     stairs = {
       nRisers: nR, nTreads: nR - 1, rise: +aR.toFixed(2), tread: 10.5,
       runFt: +(tR / 12).toFixed(1),
@@ -143,7 +143,21 @@ function calcStructure(p) {
 // All coords in feet. Origin (0,0) = stair exit on deck edge.
 // +Y = away from house, +X = right (facing away from house)
 // ============================================================
-function computeStairGeometry(template, height, stairWidth, numStringers) {
+// STEP-A-PARAMETRIC-PATCHED
+function computeStairGeometry(params) {
+  var p;
+  if (typeof params === "object" && params !== null && !Array.isArray(params)) {
+    p = params;
+  } else {
+    p = { template: arguments[0], height: arguments[1], stairWidth: arguments[2], numStringers: arguments[3] };
+  }
+  var template = p.template || "straight";
+  var height = p.height;
+  var stairWidth = p.stairWidth;
+  var numStringers = p.numStringers;
+  var runSplit = (p.runSplit != null) ? p.runSplit : null;
+  var landingDepthOvr = (p.landingDepth != null) ? p.landingDepth : null;
+  var stairGap = (p.stairGap != null) ? p.stairGap : 0.5;
   if (height <= 0.5) return null;
   const sw = stairWidth || 4;
   const ns = numStringers || 3;
@@ -151,7 +165,25 @@ function computeStairGeometry(template, height, stairWidth, numStringers) {
   const totalRisers = Math.ceil(totalRiseIn / 7.5);
   const riseIn = totalRiseIn / totalRisers;
   const treadIn = 10.5;
-  const gap = 0.5;
+  const gap = stairGap;
+  function splitRisers(nRuns) {
+    if (nRuns === 1) return [totalRisers];
+    if (nRuns === 2) {
+      const ratio = (runSplit != null && !Array.isArray(runSplit)) ? runSplit : 0.55;
+      const r1 = Math.ceil(totalRisers * ratio);
+      return [r1, totalRisers - r1];
+    }
+    if (nRuns === 3) {
+      const ratios = Array.isArray(runSplit) ? runSplit : [0.4, 0.3];
+      const r1 = Math.ceil(totalRisers * ratios[0]);
+      const r2 = Math.ceil(totalRisers * ratios[1]);
+      return [r1, r2, totalRisers - r1 - r2];
+    }
+    return [totalRisers];
+  }
+  function getLandingDepth() {
+    return landingDepthOvr != null ? landingDepthOvr : Math.max(sw, 4);
+  }
   function makeRun(risers) {
     const treads = Math.max(risers - 1, 1);
     const runFt = +(treads * treadIn / 12).toFixed(1);
@@ -163,43 +195,43 @@ function computeStairGeometry(template, height, stairWidth, numStringers) {
     runs.push({ ...run, rect: { x: -sw/2, y: 0, w: sw, h: run.runFt }, treadAxis: "h", downDir: "+y" });
   }
   else if (template === "wideLanding") {
-    const r1n = Math.ceil(totalRisers * 0.6), r2n = totalRisers - r1n;
+    const [r1n, r2n] = splitRisers(2);
     const run1 = makeRun(r1n), run2 = makeRun(r2n);
-    const platW = sw + 2, platD = Math.max(sw, 4);
+    const platW = sw + 2, platD = getLandingDepth();
     runs.push({ ...run1, rect: { x: -sw/2, y: 0, w: sw, h: run1.runFt }, treadAxis: "h", downDir: "+y" });
     const ly = run1.runFt;
     landings.push({ rect: { x: -platW/2, y: ly, w: platW, h: platD }, posts: [[-platW/2, ly], [platW/2, ly], [-platW/2, ly+platD], [platW/2, ly+platD]] });
     runs.push({ ...run2, rect: { x: -sw/2, y: ly+platD, w: sw, h: run2.runFt }, treadAxis: "h", downDir: "+y" });
   }
   else if (template === "lLeft") {
-    const r1n = Math.ceil(totalRisers * 0.55), r2n = totalRisers - r1n;
-    const run1 = makeRun(r1n), run2 = makeRun(r2n), lD = Math.max(sw, 4);
+    const [r1n, r2n] = splitRisers(2);
+    const run1 = makeRun(r1n), run2 = makeRun(r2n), lD = getLandingDepth();
     runs.push({ ...run1, rect: { x: -sw/2, y: 0, w: sw, h: run1.runFt }, treadAxis: "h", downDir: "+y" });
     const ly = run1.runFt, landW = sw + run2.runFt, lx = -sw/2 - run2.runFt;
     landings.push({ rect: { x: lx, y: ly, w: landW, h: lD }, posts: [[lx, ly], [lx+landW, ly], [lx, ly+lD], [lx+landW, ly+lD]] });
     runs.push({ ...run2, rect: { x: lx, y: ly + (lD-sw)/2, w: run2.runFt, h: sw }, treadAxis: "w", downDir: "-x" });
   }
   else if (template === "lRight") {
-    const r1n = Math.ceil(totalRisers * 0.55), r2n = totalRisers - r1n;
-    const run1 = makeRun(r1n), run2 = makeRun(r2n), lD = Math.max(sw, 4);
+    const [r1n, r2n] = splitRisers(2);
+    const run1 = makeRun(r1n), run2 = makeRun(r2n), lD = getLandingDepth();
     runs.push({ ...run1, rect: { x: -sw/2, y: 0, w: sw, h: run1.runFt }, treadAxis: "h", downDir: "+y" });
     const ly = run1.runFt, lx = -sw/2, landW = sw + run2.runFt;
     landings.push({ rect: { x: lx, y: ly, w: landW, h: lD }, posts: [[lx, ly], [lx+landW, ly], [lx, ly+lD], [lx+landW, ly+lD]] });
     runs.push({ ...run2, rect: { x: sw/2, y: ly + (lD-sw)/2, w: run2.runFt, h: sw }, treadAxis: "w", downDir: "+x" });
   }
   else if (template === "switchback") {
-    const r1n = Math.ceil(totalRisers * 0.55), r2n = totalRisers - r1n;
+    const [r1n, r2n] = splitRisers(2);
     const run1 = makeRun(r1n), run2 = makeRun(r2n);
-    const maxRun = Math.max(run1.runFt, run2.runFt), lD = Math.max(sw, 4), totalW = sw * 2 + gap;
+    const maxRun = Math.max(run1.runFt, run2.runFt), lD = getLandingDepth(), totalW = sw * 2 + gap;
     runs.push({ ...run1, rect: { x: gap/2, y: 0, w: sw, h: run1.runFt }, treadAxis: "h", downDir: "+y" });
     const ly = maxRun;
     landings.push({ rect: { x: -sw - gap/2, y: ly, w: totalW, h: lD }, posts: [[-sw-gap/2, ly], [sw+gap/2, ly], [-sw-gap/2, ly+lD], [sw+gap/2, ly+lD]] });
     runs.push({ ...run2, rect: { x: -sw - gap/2, y: ly + lD - run2.runFt, w: sw, h: run2.runFt }, treadAxis: "h", downDir: "-y" });
   }
   else if (template === "wrapAround") {
-    const r1n = Math.ceil(totalRisers * 0.4), r2n = Math.ceil(totalRisers * 0.3), r3n = totalRisers - r1n - r2n;
+    const [r1n, r2n, r3n] = splitRisers(3);
     const run1 = makeRun(r1n), run2 = makeRun(r2n), run3 = makeRun(r3n);
-    const lD = Math.max(sw, 4), totalW = sw * 2 + gap;
+    const lD = getLandingDepth(), totalW = sw * 2 + gap;
     runs.push({ ...run1, rect: { x: gap/2, y: 0, w: sw, h: run1.runFt }, treadAxis: "h", downDir: "+y" });
     const l1y = run1.runFt;
     landings.push({ rect: { x: -sw-gap/2, y: l1y, w: totalW, h: lD }, posts: [[-sw-gap/2, l1y], [sw+gap/2, l1y], [-sw-gap/2, l1y+lD], [sw+gap/2, l1y+lD]] });
@@ -213,7 +245,8 @@ function computeStairGeometry(template, height, stairWidth, numStringers) {
   return { template, runs, landings, totalRisers, riseIn, stairWidth: sw,
     bbox: { minX, minY, maxX, maxY, w: maxX-minX, h: maxY-minY },
     totalStringers: runs.reduce((s,r) => s + r.nStringers, 0),
-    totalLandingPosts: landings.reduce((s,l) => s + l.posts.length, 0) };
+    totalLandingPosts: landings.reduce((s,l) => s + l.posts.length, 0),
+    params: p };
 }
 
 function estMaterials(p, c) {
@@ -365,7 +398,7 @@ function PlanView({ p, c, mode, u }) {
 
       {/* Multi-segment stairs */}
       {p.hasStairs && c.stairs && (() => {
-        const stairGeom = computeStairGeometry(p.stairTemplate || "straight", p.height, p.stairWidth || 4, p.numStringers || 3);
+        const stairGeom = computeStairGeometry({ template: p.stairTemplate || "straight", height: p.height, stairWidth: p.stairWidth || 4, numStringers: p.numStringers || 3, runSplit: p.stairRunSplit || null, landingDepth: p.stairLandingDepth || null, stairGap: p.stairGap != null ? p.stairGap : 0.5 });
         if (!stairGeom) return null;
         const exitSide = p.stairLocation || "front";
         let ox, oy;
@@ -788,7 +821,7 @@ const App = function SimpleBlueprints() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [view, setView] = useState("plan");
   const [planMode, setPlanMode] = useState("plan");
-  const [p, setP] = useState({ width: 20, depth: 12, height: 4, houseWidth: 40, houseDepth: 30, attachment: "ledger", hasStairs: true, stairLocation: "front", stairWidth: 4, numStringers: 3, hasLanding: false, joistSpacing: 16, deckingType: "composite", railType: "fortress", snowLoad: "moderate", frostZone: "cold", lotWidth: 80, lotDepth: 120, setbackFront: 25, setbackSide: 5, setbackRear: 20, houseOffsetSide: 20, deckOffset: 0, stairOffset: 0, beamType: "dropped", stairTemplate: "straight" });
+  const [p, setP] = useState({ width: 20, depth: 12, height: 4, houseWidth: 40, houseDepth: 30, attachment: "ledger", hasStairs: true, stairLocation: "front", stairWidth: 4, numStringers: 3, hasLanding: false, joistSpacing: 16, deckingType: "composite", railType: "fortress", snowLoad: "moderate", frostZone: "cold", lotWidth: 80, lotDepth: 120, setbackFront: 25, setbackSide: 5, setbackRear: 20, houseOffsetSide: 20, deckOffset: 0, stairOffset: 0, beamType: "dropped", stairTemplate: "straight", stairRunSplit: null, stairLandingDepth: null, stairLandingWidth: null, stairGap: 0.5, stairRotation: 0 });
   const u = (k, v) => setP(prev => {
     const next = { ...prev, [k]: v };
     // Reset stairOffset when stair location changes
