@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SimpleBlueprints â Permit-Ready Deck Plans in Minutes</title>
+<title>SimpleBlueprints — Permit-Ready Deck Plans in Minutes</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%233d5a2e'/><text x='16' y='22' text-anchor='middle' fill='white' font-size='16' font-weight='900' font-family='monospace'>SB</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,700;0,9..40,900;1,9..40,400&display=swap" rel="stylesheet">
@@ -99,23 +99,23 @@ function calcStructure(p) {
   if (H > 10) warnings.push("Height >10'. Lateral bracing by engineer recommended.");
   if (area > 500) warnings.push("Area >500 SF. Check local permit requirements.");
 
-  // Override warnings â warn if user picked something smaller than auto
+  // Override warnings — warn if user picked something smaller than auto
   const joistRank = { "2x6": 0, "2x8": 1, "2x10": 2, "2x12": 3 };
   if (p.overJoist && (joistRank[p.overJoist] || 0) < (joistRank[autoJoist] || 0)) {
-    warnings.push(`â¬ Joist override (${p.overJoist}) is smaller than recommended (${autoJoist}). May not meet code.`);
+    warnings.push(`⬇ Joist override (${p.overJoist}) is smaller than recommended (${autoJoist}). May not meet code.`);
   }
   const beamRank = { "2-ply 2x8": 0, "2-ply 2x10": 1, "2-ply 2x12": 2, "3-ply 2x10": 3, "3-ply 2x12": 4, "3-ply LVL 1.75x12": 5 };
   if (p.overBeam && (beamRank[p.overBeam] || 0) < (beamRank[autoBeam] || 0)) {
-    warnings.push(`â¬ Beam override (${p.overBeam}) is smaller than recommended (${autoBeam}). May not meet code.`);
+    warnings.push(`⬇ Beam override (${p.overBeam}) is smaller than recommended (${autoBeam}). May not meet code.`);
   }
   if (p.overPostSize === "4x4" && autoPostSize === "6x6") {
-    warnings.push(`â¬ Post override (4x4) is smaller than recommended (6x6). May not meet code.`);
+    warnings.push(`⬇ Post override (4x4) is smaller than recommended (6x6). May not meet code.`);
   }
   if (p.overFooting && p.overFooting < autoFDiam) {
-    warnings.push(`â¬ Footing override (${p.overFooting}") is smaller than recommended (${autoFDiam}"). May not meet code.`);
+    warnings.push(`⬇ Footing override (${p.overFooting}") is smaller than recommended (${autoFDiam}"). May not meet code.`);
   }
   if (p.overPostCount && p.overPostCount < autoNP) {
-    warnings.push(`â¬ Fewer posts (${p.overPostCount}) than recommended (${autoNP}). May not meet code.`);
+    warnings.push(`⬇ Fewer posts (${p.overPostCount}) than recommended (${autoNP}). May not meet code.`);
   }
 
   return { W, D, H, area, LL, DL, TL, joistSize, sp, jSpan: +jSpan.toFixed(1), nJ, beamSize, bSpan: +bSpan.toFixed(1), postSize, nP, totalPosts, pp, fDiam, fDepth, nF: totalPosts, ledgerSize: joistSize, railLen: +railLen.toFixed(1), stairs, warnings, attachment,
@@ -124,11 +124,10 @@ function calcStructure(p) {
 }
 
 
-
 // ============================================================
 // STAIR GEOMETRY ENGINE — Multi-segment stair templates
-// All coords in feet. Origin (0,0) = stair exit point on deck edge.
-// +Y = away from house, +X = right (when facing away from house)
+// All coords in feet. Origin (0,0) = stair exit on deck edge.
+// +Y = away from house, +X = right (facing away from house)
 // ============================================================
 function computeStairGeometry(template, height, stairWidth, numStringers) {
   if (height <= 0.5) return null;
@@ -139,113 +138,68 @@ function computeStairGeometry(template, height, stairWidth, numStringers) {
   const riseIn = totalRiseIn / totalRisers;
   const treadIn = 10.5;
   const gap = 0.5;
-
   function makeRun(risers) {
     const treads = Math.max(risers - 1, 1);
     const runFt = +(treads * treadIn / 12).toFixed(1);
     return { risers, treads, runFt, nStringers: ns };
   }
-
-  let runs = [];
-  let landings = [];
-
+  let runs = [], landings = [];
   if (template === "straight") {
     const run = makeRun(totalRisers);
     runs.push({ ...run, rect: { x: -sw/2, y: 0, w: sw, h: run.runFt }, treadAxis: "h", downDir: "+y" });
   }
-
   else if (template === "wideLanding") {
-    const r1n = Math.ceil(totalRisers * 0.6);
-    const r2n = totalRisers - r1n;
-    const run1 = makeRun(r1n);
-    const run2 = makeRun(r2n);
+    const r1n = Math.ceil(totalRisers * 0.6), r2n = totalRisers - r1n;
+    const run1 = makeRun(r1n), run2 = makeRun(r2n);
     const platW = sw + 2, platD = Math.max(sw, 4);
     runs.push({ ...run1, rect: { x: -sw/2, y: 0, w: sw, h: run1.runFt }, treadAxis: "h", downDir: "+y" });
     const ly = run1.runFt;
-    landings.push({ rect: { x: -platW/2, y: ly, w: platW, h: platD },
-      posts: [[-platW/2, ly], [platW/2, ly], [-platW/2, ly+platD], [platW/2, ly+platD]] });
+    landings.push({ rect: { x: -platW/2, y: ly, w: platW, h: platD }, posts: [[-platW/2, ly], [platW/2, ly], [-platW/2, ly+platD], [platW/2, ly+platD]] });
     runs.push({ ...run2, rect: { x: -sw/2, y: ly+platD, w: sw, h: run2.runFt }, treadAxis: "h", downDir: "+y" });
   }
-
   else if (template === "lLeft") {
-    const r1n = Math.ceil(totalRisers * 0.55);
-    const r2n = totalRisers - r1n;
-    const run1 = makeRun(r1n);
-    const run2 = makeRun(r2n);
-    const lD = Math.max(sw, 4);
+    const r1n = Math.ceil(totalRisers * 0.55), r2n = totalRisers - r1n;
+    const run1 = makeRun(r1n), run2 = makeRun(r2n), lD = Math.max(sw, 4);
     runs.push({ ...run1, rect: { x: -sw/2, y: 0, w: sw, h: run1.runFt }, treadAxis: "h", downDir: "+y" });
-    const ly = run1.runFt;
-    const landW = sw + run2.runFt;
-    const lx = -sw/2 - run2.runFt;
-    landings.push({ rect: { x: lx, y: ly, w: landW, h: lD },
-      posts: [[lx, ly], [lx+landW, ly], [lx, ly+lD], [lx+landW, ly+lD]] });
+    const ly = run1.runFt, landW = sw + run2.runFt, lx = -sw/2 - run2.runFt;
+    landings.push({ rect: { x: lx, y: ly, w: landW, h: lD }, posts: [[lx, ly], [lx+landW, ly], [lx, ly+lD], [lx+landW, ly+lD]] });
     runs.push({ ...run2, rect: { x: lx, y: ly + (lD-sw)/2, w: run2.runFt, h: sw }, treadAxis: "w", downDir: "-x" });
   }
-
   else if (template === "lRight") {
-    const r1n = Math.ceil(totalRisers * 0.55);
-    const r2n = totalRisers - r1n;
-    const run1 = makeRun(r1n);
-    const run2 = makeRun(r2n);
-    const lD = Math.max(sw, 4);
+    const r1n = Math.ceil(totalRisers * 0.55), r2n = totalRisers - r1n;
+    const run1 = makeRun(r1n), run2 = makeRun(r2n), lD = Math.max(sw, 4);
     runs.push({ ...run1, rect: { x: -sw/2, y: 0, w: sw, h: run1.runFt }, treadAxis: "h", downDir: "+y" });
-    const ly = run1.runFt;
-    const lx = -sw/2;
-    const landW = sw + run2.runFt;
-    landings.push({ rect: { x: lx, y: ly, w: landW, h: lD },
-      posts: [[lx, ly], [lx+landW, ly], [lx, ly+lD], [lx+landW, ly+lD]] });
+    const ly = run1.runFt, lx = -sw/2, landW = sw + run2.runFt;
+    landings.push({ rect: { x: lx, y: ly, w: landW, h: lD }, posts: [[lx, ly], [lx+landW, ly], [lx, ly+lD], [lx+landW, ly+lD]] });
     runs.push({ ...run2, rect: { x: sw/2, y: ly + (lD-sw)/2, w: run2.runFt, h: sw }, treadAxis: "w", downDir: "+x" });
   }
-
   else if (template === "switchback") {
-    const r1n = Math.ceil(totalRisers * 0.55);
-    const r2n = totalRisers - r1n;
-    const run1 = makeRun(r1n);
-    const run2 = makeRun(r2n);
-    const maxRun = Math.max(run1.runFt, run2.runFt);
-    const lD = Math.max(sw, 4);
-    const totalW = sw * 2 + gap;
+    const r1n = Math.ceil(totalRisers * 0.55), r2n = totalRisers - r1n;
+    const run1 = makeRun(r1n), run2 = makeRun(r2n);
+    const maxRun = Math.max(run1.runFt, run2.runFt), lD = Math.max(sw, 4), totalW = sw * 2 + gap;
     runs.push({ ...run1, rect: { x: gap/2, y: 0, w: sw, h: run1.runFt }, treadAxis: "h", downDir: "+y" });
     const ly = maxRun;
-    landings.push({ rect: { x: -sw - gap/2, y: ly, w: totalW, h: lD },
-      posts: [[-sw-gap/2, ly], [sw+gap/2, ly], [-sw-gap/2, ly+lD], [sw+gap/2, ly+lD]] });
+    landings.push({ rect: { x: -sw - gap/2, y: ly, w: totalW, h: lD }, posts: [[-sw-gap/2, ly], [sw+gap/2, ly], [-sw-gap/2, ly+lD], [sw+gap/2, ly+lD]] });
     runs.push({ ...run2, rect: { x: -sw - gap/2, y: ly + lD - run2.runFt, w: sw, h: run2.runFt }, treadAxis: "h", downDir: "-y" });
   }
-
   else if (template === "wrapAround") {
-    const r1n = Math.ceil(totalRisers * 0.4);
-    const r2n = Math.ceil(totalRisers * 0.3);
-    const r3n = totalRisers - r1n - r2n;
-    const run1 = makeRun(r1n);
-    const run2 = makeRun(r2n);
-    const run3 = makeRun(r3n);
-    const lD = Math.max(sw, 4);
-    const totalW = sw * 2 + gap;
+    const r1n = Math.ceil(totalRisers * 0.4), r2n = Math.ceil(totalRisers * 0.3), r3n = totalRisers - r1n - r2n;
+    const run1 = makeRun(r1n), run2 = makeRun(r2n), run3 = makeRun(r3n);
+    const lD = Math.max(sw, 4), totalW = sw * 2 + gap;
     runs.push({ ...run1, rect: { x: gap/2, y: 0, w: sw, h: run1.runFt }, treadAxis: "h", downDir: "+y" });
     const l1y = run1.runFt;
-    landings.push({ rect: { x: -sw-gap/2, y: l1y, w: totalW, h: lD },
-      posts: [[-sw-gap/2, l1y], [sw+gap/2, l1y], [-sw-gap/2, l1y+lD], [sw+gap/2, l1y+lD]] });
+    landings.push({ rect: { x: -sw-gap/2, y: l1y, w: totalW, h: lD }, posts: [[-sw-gap/2, l1y], [sw+gap/2, l1y], [-sw-gap/2, l1y+lD], [sw+gap/2, l1y+lD]] });
     runs.push({ ...run2, rect: { x: -sw-gap/2, y: l1y + lD - run2.runFt, w: sw, h: run2.runFt }, treadAxis: "h", downDir: "-y" });
-    const l2y = l1y + lD - run2.runFt - lD;
-    const l2x = -sw - gap/2 - run3.runFt;
-    landings.push({ rect: { x: l2x, y: l2y, w: sw + run3.runFt + gap/2, h: lD },
-      posts: [[l2x, l2y], [-gap/2, l2y], [l2x, l2y+lD], [-gap/2, l2y+lD]] });
+    const l2y = l1y + lD - run2.runFt - lD, l2x = -sw - gap/2 - run3.runFt;
+    landings.push({ rect: { x: l2x, y: l2y, w: sw + run3.runFt + gap/2, h: lD }, posts: [[l2x, l2y], [-gap/2, l2y], [l2x, l2y+lD], [-gap/2, l2y+lD]] });
     runs.push({ ...run3, rect: { x: l2x, y: l2y + (lD-sw)/2, w: run3.runFt, h: sw }, treadAxis: "w", downDir: "-x" });
   }
-
-  // Bounding box
   let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity;
-  [...runs, ...landings].forEach(item => {
-    const r = item.rect;
-    minX = Math.min(minX, r.x); minY = Math.min(minY, r.y);
-    maxX = Math.max(maxX, r.x + r.w); maxY = Math.max(maxY, r.y + r.h);
-  });
-
+  [...runs, ...landings].forEach(item => { const r = item.rect; minX = Math.min(minX, r.x); minY = Math.min(minY, r.y); maxX = Math.max(maxX, r.x + r.w); maxY = Math.max(maxY, r.y + r.h); });
   return { template, runs, landings, totalRisers, riseIn, stairWidth: sw,
     bbox: { minX, minY, maxX, maxY, w: maxX-minX, h: maxY-minY },
     totalStringers: runs.reduce((s,r) => s + r.nStringers, 0),
-    totalLandingPosts: landings.reduce((s,l) => s + l.posts.length, 0),
-  };
+    totalLandingPosts: landings.reduce((s,l) => s + l.posts.length, 0) };
 }
 
 function estMaterials(p, c) {
@@ -357,7 +311,7 @@ function PlanView({ p, c, mode, u }) {
       {/* Deck drag handle */}
       {u && mode === "plan" && <g style={{ cursor: "ew-resize" }} onPointerDown={e => onPointerDown(e, "deck")}>
         <rect x={dx + sw / 2 - 15} y={pad - 3} width={30} height={6} rx={3} fill="#3d5a2e" opacity="0.7" />
-        <text x={dx + sw / 2} y={pad + 1} textAnchor="middle" style={{ fontSize: 4, fill: "#fff", fontFamily: "monospace", fontWeight: 700, pointerEvents: "none" }}>â DRAG âº</text>
+        <text x={dx + sw / 2} y={pad + 1} textAnchor="middle" style={{ fontSize: 4, fill: "#fff", fontFamily: "monospace", fontWeight: 700, pointerEvents: "none" }}>◄ DRAG ►</text>
       </g>}
 
       {mode === "plan" && Array.from({ length: Math.ceil(sd / (5.5 / 12 * sc)) }, (_, i) => i * 5.5 / 12 * sc).filter(y => y <= sd).map((y, i) => (
@@ -377,59 +331,79 @@ function PlanView({ p, c, mode, u }) {
         <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#444" strokeWidth="3.5" />
       ))}
 
-      {/* Front stairs */}
-      {p.hasStairs && c.stairs && p.stairLocation === "front" && (() => {
-        const st = c.stairs; const stW = st.width * sc; const stH = st.runFt * sc;
-        const sx = dx + sw / 2 - stW / 2 + stairOffPx; const sy = pad + sd + 1;
-        const tStep = stH / Math.max(st.nTreads, 1);
-        return <g>
-          <rect x={sx} y={sy} width={stW} height={stH} fill="none" stroke="#444" strokeWidth="0.8" />
-          {[...Array(st.nTreads + 1)].map((_, i) => <line key={i} x1={sx} y1={sy + i * tStep} x2={sx + stW} y2={sy + i * tStep} stroke="#aaa" strokeWidth="0.4" />)}
-          {[...Array(st.nStringers)].map((_, i) => { const ssx = st.nStringers > 1 ? sx + i * stW / (st.nStringers - 1) : sx + stW / 2; return <line key={`s${i}`} x1={ssx} y1={sy} x2={ssx} y2={sy + stH} stroke="#999" strokeWidth="0.3" strokeDasharray="2,2" />; })}
-          <text x={sx + stW / 2} y={sy + stH / 2 + 2} textAnchor="middle" style={{ fontSize: 5.5, fill: "#444", fontFamily: "monospace", fontWeight: 700 }}>DN</text>
-          {st.hasLanding && <rect x={sx - 2} y={sy + stH + 1} width={stW + 4} height={18} fill="#e8e8e0" stroke="#444" strokeWidth="0.5" strokeDasharray="3,2" />}
-          <text x={sx + stW + 4} y={sy + stH / 2} style={{ fontSize: 4, fill: "#666", fontFamily: "monospace" }}>{st.nStringers}Ã2Ã12</text>
-          {/* Stair drag handle */}
-          {u && mode === "plan" && <g style={{ cursor: "ew-resize" }} onPointerDown={e => onPointerDown(e, "stair")}>
-            <rect x={sx + stW / 2 - 12} y={sy + stH + (st.hasLanding ? 20 : 2)} width={24} height={6} rx={3} fill="#c62828" opacity="0.7" />
-            <text x={sx + stW / 2} y={sy + stH + (st.hasLanding ? 24 : 6)} textAnchor="middle" style={{ fontSize: 3.5, fill: "#fff", fontFamily: "monospace", fontWeight: 700, pointerEvents: "none" }}>â âº</text>
-          </g>}
-        </g>;
+      {/* Multi-segment stairs */}
+      {p.hasStairs && c.stairs && (() => {
+        const stairGeom = computeStairGeometry(p.stairTemplate || "straight", p.height, p.stairWidth || 4, p.numStringers || 3);
+        if (!stairGeom) return null;
+        const exitSide = p.stairLocation || "front";
+        let ox, oy;
+        if (exitSide === "front") { ox = dx + sw / 2 + stairOffPx; oy = pad + sd + 1; }
+        else if (exitSide === "left") { ox = dx; oy = pad + sd / 2 + stairOffPx; }
+        else { ox = dx + sw; oy = pad + sd / 2 + stairOffPx; }
+        function txRect(r) {
+          if (exitSide === "front") return { x: ox + r.x*sc, y: oy + r.y*sc, w: r.w*sc, h: r.h*sc };
+          if (exitSide === "left")  return { x: ox - (r.y+r.h)*sc, y: oy + r.x*sc, w: r.h*sc, h: r.w*sc };
+          return { x: ox + r.y*sc, y: oy + r.x*sc, w: r.h*sc, h: r.w*sc };
+        }
+        function txPt(px2, py2) {
+          if (exitSide === "front") return [ox + px2*sc, oy + py2*sc];
+          if (exitSide === "left")  return [ox - py2*sc, oy + px2*sc];
+          return [ox + py2*sc, oy + px2*sc];
+        }
+        function treadInfo(run) {
+          const tr = txRect(run.rect);
+          if (exitSide === "front") return run.treadAxis === "h" ? { along: "y", span: "x", rect: tr } : { along: "x", span: "y", rect: tr };
+          return run.treadAxis === "h" ? { along: "x", span: "y", rect: tr } : { along: "y", span: "x", rect: tr };
+        }
+        function transformDir(dd) {
+          if (exitSide === "left") { if(dd==="+y")return"-x";if(dd==="-y")return"+x";if(dd==="+x")return"+y";if(dd==="-x")return"-y"; }
+          if (exitSide === "right") { if(dd==="+y")return"+x";if(dd==="-y")return"-x";if(dd==="+x")return"-y";if(dd==="-x")return"+y"; }
+          return dd;
+        }
+        const els = [];
+        stairGeom.runs.forEach((run, ri) => {
+          const tr = txRect(run.rect);
+          els.push(<rect key={"run"+ri} x={tr.x} y={tr.y} width={tr.w} height={tr.h} fill="#faf8f3" stroke="#444" strokeWidth="0.8" />);
+          const ti = treadInfo(run);
+          const n = run.treads;
+          if (ti.along === "y") {
+            const stp = tr.h / Math.max(n, 1);
+            for (let i = 0; i <= n; i++) els.push(<line key={"t"+ri+"_"+i} x1={tr.x} y1={tr.y+i*stp} x2={tr.x+tr.w} y2={tr.y+i*stp} stroke="#aaa" strokeWidth="0.5" />);
+            for (let si = 0; si < run.nStringers; si++) { const f = run.nStringers>1?si/(run.nStringers-1):0.5; els.push(<line key={"s"+ri+"_"+si} x1={tr.x+f*tr.w} y1={tr.y} x2={tr.x+f*tr.w} y2={tr.y+tr.h} stroke="#999" strokeWidth="0.3" strokeDasharray="2,2" />); }
+          } else {
+            const stp = tr.w / Math.max(n, 1);
+            for (let i = 0; i <= n; i++) els.push(<line key={"t"+ri+"_"+i} x1={tr.x+i*stp} y1={tr.y} x2={tr.x+i*stp} y2={tr.y+tr.h} stroke="#aaa" strokeWidth="0.5" />);
+            for (let si = 0; si < run.nStringers; si++) { const f = run.nStringers>1?si/(run.nStringers-1):0.5; els.push(<line key={"s"+ri+"_"+si} x1={tr.x} y1={tr.y+f*tr.h} x2={tr.x+tr.w} y2={tr.y+f*tr.h} stroke="#999" strokeWidth="0.3" strokeDasharray="2,2" />); }
+          }
+          const cx2=tr.x+tr.w/2, cy2=tr.y+tr.h/2;
+          els.push(<text key={"dn"+ri} x={cx2} y={cy2-1} textAnchor="middle" style={{ fontSize: 5.5, fill: "#444", fontFamily: "monospace", fontWeight: 700 }}>DN</text>);
+          const dd = transformDir(run.downDir), as2 = 3, ay2 = cy2 + 4;
+          if (dd==="+y") els.push(<polygon key={"ar"+ri} points={(cx2-as2)+","+ay2+" "+cx2+","+(ay2+as2)+" "+(cx2+as2)+","+ay2} fill="#666" />);
+          else if (dd==="-y") els.push(<polygon key={"ar"+ri} points={(cx2-as2)+","+ay2+" "+cx2+","+(ay2-as2)+" "+(cx2+as2)+","+ay2} fill="#666" />);
+          else if (dd==="+x") els.push(<polygon key={"ar"+ri} points={(cx2+2)+","+(cy2-as2)+" "+(cx2+2+as2)+","+cy2+" "+(cx2+2)+","+(cy2+as2)} fill="#666" />);
+          else if (dd==="-x") els.push(<polygon key={"ar"+ri} points={(cx2-2)+","+(cy2-as2)+" "+(cx2-2-as2)+","+cy2+" "+(cx2-2)+","+(cy2+as2)} fill="#666" />);
+        });
+        stairGeom.landings.forEach((landing, li) => {
+          const tr = txRect(landing.rect);
+          els.push(<rect key={"land"+li} x={tr.x} y={tr.y} width={tr.w} height={tr.h} fill="#e8e6d8" stroke="#444" strokeWidth="1" strokeDasharray="4,2" />);
+          els.push(<text key={"ltxt"+li} x={tr.x+tr.w/2} y={tr.y+tr.h/2+2} textAnchor="middle" style={{ fontSize: 5, fill: "#666", fontFamily: "monospace", fontWeight: 600 }}>LANDING</text>);
+          landing.posts.forEach((pt, pi) => {
+            const [px2, py2] = txPt(pt[0], pt[1]);
+            els.push(<circle key={"lp"+li+"_"+pi} cx={px2} cy={py2} r={2.5} fill="#c4a060" stroke="#444" strokeWidth="0.6" />);
+            els.push(<circle key={"lpo"+li+"_"+pi} cx={px2} cy={py2} r={5.5} fill="none" stroke="#444" strokeWidth="0.3" strokeDasharray="1.5,1.5" />);
+          });
+        });
+        const names = { straight:"Straight", lLeft:"L-Left", lRight:"L-Right", switchback:"Switchback", wrapAround:"Wrap-Around", wideLanding:"Platform" };
+        const labelPt = txPt(0, stairGeom.bbox.maxY + 2);
+        els.push(<text key="stlbl" x={labelPt[0]} y={labelPt[1]} textAnchor="middle" style={{ fontSize: 5.5, fill: "#7a8068", fontFamily: "monospace", fontWeight: 600 }}>{names[stairGeom.template]} \u00B7 {stairGeom.totalRisers} risers \u00B7 {stairGeom.stairWidth}\u0027 wide \u00B7 {stairGeom.runs.length} run{stairGeom.runs.length>1?"s":""}</text>);
+        if (u && mode === "plan") {
+          const hPt = txPt(0, stairGeom.bbox.maxY + 4);
+          const isV = exitSide !== "front";
+          els.push(<g key="dh" style={{ cursor: isV ? "ns-resize" : "ew-resize" }} onPointerDown={e => onPointerDown(e, "stair")}>{isV ? <rect x={hPt[0]-3} y={hPt[1]-12} width={6} height={24} rx={3} fill="#c62828" opacity="0.7" /> : <rect x={hPt[0]-12} y={hPt[1]} width={24} height={6} rx={3} fill="#c62828" opacity="0.7" />}</g>);
+        }
+        return <g>{els}</g>;
       })()}
 
-      {/* Left stairs */}
-      {p.hasStairs && c.stairs && p.stairLocation === "left" && (() => {
-        const st = c.stairs; const stW = st.width * sc; const stH = st.runFt * sc;
-        const sx = dx - stH - 1; const sy = pad + sd / 2 - stW / 2 + stairOffPx;
-        const tStep = stH / Math.max(st.nTreads, 1);
-        return <g>
-          <rect x={sx} y={sy} width={stH} height={stW} fill="none" stroke="#444" strokeWidth="0.8" />
-          {[...Array(st.nTreads + 1)].map((_, i) => <line key={i} x1={sx + stH - i * tStep} y1={sy} x2={sx + stH - i * tStep} y2={sy + stW} stroke="#aaa" strokeWidth="0.4" />)}
-          {[...Array(st.nStringers)].map((_, i) => { const ssy = st.nStringers > 1 ? sy + i * stW / (st.nStringers - 1) : sy + stW / 2; return <line key={`s${i}`} x1={sx} y1={ssy} x2={sx + stH} y2={ssy} stroke="#999" strokeWidth="0.3" strokeDasharray="2,2" />; })}
-          <text x={sx + stH / 2} y={sy + stW / 2 + 2} textAnchor="middle" style={{ fontSize: 5.5, fill: "#444", fontFamily: "monospace", fontWeight: 700 }}>DN</text>
-          {st.hasLanding && <rect x={sx - 19} y={sy - 2} width={18} height={stW + 4} fill="#e8e8e0" stroke="#444" strokeWidth="0.5" strokeDasharray="3,2" />}
-          {u && mode === "plan" && <g style={{ cursor: "ns-resize" }} onPointerDown={e => onPointerDown(e, "stair")}>
-            <rect x={sx + stH / 2 - 3} y={sy + stW / 2 - 12} width={6} height={24} rx={3} fill="#c62828" opacity="0.7" />
-          </g>}
-        </g>;
-      })()}
-
-      {/* Right stairs */}
-      {p.hasStairs && c.stairs && p.stairLocation === "right" && (() => {
-        const st = c.stairs; const stW = st.width * sc; const stH = st.runFt * sc;
-        const sx = dx + sw + 1; const sy = pad + sd / 2 - stW / 2 + stairOffPx;
-        const tStep = stH / Math.max(st.nTreads, 1);
-        return <g>
-          <rect x={sx} y={sy} width={stH} height={stW} fill="none" stroke="#444" strokeWidth="0.8" />
-          {[...Array(st.nTreads + 1)].map((_, i) => <line key={i} x1={sx + i * tStep} y1={sy} x2={sx + i * tStep} y2={sy + stW} stroke="#aaa" strokeWidth="0.4" />)}
-          {[...Array(st.nStringers)].map((_, i) => { const ssy = st.nStringers > 1 ? sy + i * stW / (st.nStringers - 1) : sy + stW / 2; return <line key={`s${i}`} x1={sx} y1={ssy} x2={sx + stH} y2={ssy} stroke="#999" strokeWidth="0.3" strokeDasharray="2,2" />; })}
-          <text x={sx + stH / 2} y={sy + stW / 2 + 2} textAnchor="middle" style={{ fontSize: 5.5, fill: "#444", fontFamily: "monospace", fontWeight: 700 }}>DN</text>
-          {st.hasLanding && <rect x={sx + stH + 1} y={sy - 2} width={18} height={stW + 4} fill="#e8e8e0" stroke="#444" strokeWidth="0.5" strokeDasharray="3,2" />}
-          {u && mode === "plan" && <g style={{ cursor: "ns-resize" }} onPointerDown={e => onPointerDown(e, "stair")}>
-            <rect x={sx + stH / 2 - 3} y={sy + stW / 2 - 12} width={6} height={24} rx={3} fill="#c62828" opacity="0.7" />
-          </g>}
-        </g>;
-      })()}
       <line x1={pad} y1={pad + sd + 25} x2={pad + sw} y2={pad + sd + 25} stroke="#c62828" strokeWidth="0.6" />
       <line x1={pad} y1={pad + sd + 22} x2={pad} y2={pad + sd + 28} stroke="#c62828" strokeWidth="0.6" />
       <line x1={pad + sw} y1={pad + sd + 22} x2={pad + sw} y2={pad + sd + 28} stroke="#c62828" strokeWidth="0.6" />
@@ -490,7 +464,7 @@ function ElevationView({ c, p }) {
       <text x={dX + dSW + 10} y={rTop + 4} style={{ fontSize: 5, fill: "#333", fontFamily: "monospace" }}>36" GUARD RAIL</text>
       <text x={dX + dSW + 10} y={dY + bH * 0.4 + 2} style={{ fontSize: 5, fill: "#333", fontFamily: "monospace" }}>{beamSize.toUpperCase()}</text>
       <text x={dX + dSW + 10} y={(gnd + dY) / 2} style={{ fontSize: 5, fill: "#333", fontFamily: "monospace" }}>{postSize} POSTS ({nP})</text>
-      <text x={dX + dSW + 10} y={gnd + 4} style={{ fontSize: 5, fill: "#333", fontFamily: "monospace" }}>{fDiam}" Ã Ã {fDepth}" PIERS</text>
+      <text x={dX + dSW + 10} y={gnd + 4} style={{ fontSize: 5, fill: "#333", fontFamily: "monospace" }}>{fDiam}" Ø × {fDepth}" PIERS</text>
       {p.hasStairs && c.stairs && (() => {
         const st = c.stairs; const stRun = st.runFt * sX; const stW = st.width * sX;
         const topY = dY; const botY = gnd;
@@ -507,7 +481,7 @@ function ElevationView({ c, p }) {
               const ty = topY + (i + 1) * (botY - topY) / st.nRisers;
               return <line key={i} x1={stairX - stW / 2} y1={ty} x2={stairX + stW / 2} y2={ty} stroke="#aaa" strokeWidth="0.4" />;
             })}
-            <text x={stairX} y={botY + 10} textAnchor="middle" style={{ fontSize: 4.5, fill: "#666", fontFamily: "monospace" }}>{st.nStringers}Ã2Ã12 STRINGERS</text>
+            <text x={stairX} y={botY + 10} textAnchor="middle" style={{ fontSize: 4.5, fill: "#666", fontFamily: "monospace" }}>{st.nStringers}×2×12 STRINGERS</text>
             {st.hasLanding && <rect x={stairX - stW / 2 - 3} y={botY} width={stW + 6} height={3} fill="#e8e8e0" stroke="#444" strokeWidth="0.4" />}
           </g>;
         } else {
@@ -526,7 +500,7 @@ function ElevationView({ c, p }) {
                 <line x1={tx} y1={ty} x2={tx} y2={ty - (botY - topY) / st.nRisers} stroke="#aaa" strokeWidth="0.3" />
               </g>;
             })}
-            <text x={startX + dir * stRun / 2} y={botY + 10} textAnchor="middle" style={{ fontSize: 4.5, fill: "#666", fontFamily: "monospace" }}>{st.nStringers}Ã2Ã12 STRINGERS</text>
+            <text x={startX + dir * stRun / 2} y={botY + 10} textAnchor="middle" style={{ fontSize: 4.5, fill: "#666", fontFamily: "monospace" }}>{st.nStringers}×2×12 STRINGERS</text>
             {st.hasLanding && <rect x={Math.min(startX + dir * stRun, startX + dir * (stRun + 15))} y={botY} width={15} height={3} fill="#e8e8e0" stroke="#444" strokeWidth="0.4" />}
           </g>;
         }
@@ -667,12 +641,12 @@ function Deck3D({ c, p }) {
 // PRODUCTS
 // ============================================================
 const products = [
-  { id: "deck", name: "Decks", icon: "â¬", active: true, desc: "Attached & freestanding decks" },
-  { id: "pergola", name: "Pergolas", icon: "â°", desc: "Patio covers & shade structures" },
-  { id: "fence", name: "Fences", icon: "â®â®â®", desc: "Privacy, picket & iron fences" },
-  { id: "shed", name: "Sheds", icon: "â", desc: "Storage sheds under 200 SF" },
-  { id: "garage", name: "Garages", icon: "â", desc: "Detached 1-2 car garages" },
-  { id: "porch", name: "Porches", icon: "â¦", desc: "Screened & 3-season rooms" },
+  { id: "deck", name: "Decks", icon: "⬜", active: true, desc: "Attached & freestanding decks" },
+  { id: "pergola", name: "Pergolas", icon: "☰", desc: "Patio covers & shade structures" },
+  { id: "fence", name: "Fences", icon: "▮▮▮", desc: "Privacy, picket & iron fences" },
+  { id: "shed", name: "Sheds", icon: "⌂", desc: "Storage sheds under 200 SF" },
+  { id: "garage", name: "Garages", icon: "⊞", desc: "Detached 1-2 car garages" },
+  { id: "porch", name: "Porches", icon: "▦", desc: "Screened & 3-season rooms" },
 ];
 
 // ============================================================
@@ -895,7 +869,7 @@ const App = function SimpleBlueprints() {
     } catch (e) { console.warn("Feedback error:", e); setFeedbackDone(true); }
   };
 
-  const steps = [{ t: "Size & Shape", i: "ð" }, { t: "Structure", i: "ðï¸" }, { t: "Finishes", i: "ðªµ" }, { t: "Review", i: "ð" }];
+  const steps = [{ t: "Size & Shape", i: "📐" }, { t: "Structure", i: "🏗️" }, { t: "Finishes", i: "🪵" }, { t: "Review", i: "📋" }];
   const mono = "'DM Mono', 'SF Mono', monospace"; const sans = "'DM Sans', system-ui, sans-serif";
   const br = { dk: "#1a1f16", gn: "#3d5a2e", cr: "#faf8f3", wr: "#f2ece0", ac: "#c4960a", tx: "#2c3024", mu: "#7a8068", bd: "#ddd8cc", rd: "#c0392b", bl: "#2471a3" };
 
@@ -920,7 +894,7 @@ const App = function SimpleBlueprints() {
             <input type="number" min={min} max={max} step={s} value={draft} onChange={e => setDraft(e.target.value)} onBlur={commit} onKeyDown={e => e.key === "Enter" && commit()} autoFocus
               style={{ width: 60, fontFamily: mono, fontSize: 16, fontWeight: 800, color: br.tx, textAlign: "right", border: `2px solid ${br.gn}`, borderRadius: 4, padding: "2px 4px", outline: "none", background: "#fff" }} />
           ) : (
-            <span onClick={() => setEditing(true)} style={{ fontFamily: mono, fontSize: 18, fontWeight: 800, color: br.tx, minWidth: 58, textAlign: "center", cursor: "text", background: "#f0ede4", borderRadius: 5, padding: "2px 8px", border: `1px solid ${br.bd}`, display: "inline-flex", alignItems: "center", gap: 4 }}>{value}{unit}<span style={{ fontSize: 10, color: br.mu, opacity: 0.6 }}>â</span></span>
+            <span onClick={() => setEditing(true)} style={{ fontFamily: mono, fontSize: 18, fontWeight: 800, color: br.tx, minWidth: 58, textAlign: "center", cursor: "text", background: "#f0ede4", borderRadius: 5, padding: "2px 8px", border: `1px solid ${br.bd}`, display: "inline-flex", alignItems: "center", gap: 4 }}>{value}{unit}<span style={{ fontSize: 10, color: br.mu, opacity: 0.6 }}>✎</span></span>
           )}
         </div>
       </div>
@@ -964,12 +938,12 @@ const App = function SimpleBlueprints() {
               <div style={{ fontSize: 24, marginBottom: 8 }}>{pr.icon}</div>
               <div style={{ fontFamily: sans, fontSize: 16, fontWeight: 700, color: br.dk }}>{pr.name}</div>
               <div style={{ fontFamily: sans, fontSize: 12, color: br.mu, marginTop: 2 }}>{pr.desc}</div>
-              {pr.active && <div style={{ marginTop: 12, fontSize: 11, fontFamily: mono, color: br.gn, fontWeight: 700 }}>Start Building â</div>}
+              {pr.active && <div style={{ marginTop: 12, fontSize: 11, fontFamily: mono, color: br.gn, fontWeight: 700 }}>Start Building →</div>}
             </button>
           ))}
         </div>
       </div>
-      <div style={{ borderTop: `1px solid ${br.bd}`, padding: "20px 32px", textAlign: "center" }}><span style={{ fontSize: 10, fontFamily: mono, color: br.mu }}>Â© 2026 SimpleBlueprints.com Â· Plans for reference â verify with local building department</span></div>
+      <div style={{ borderTop: `1px solid ${br.bd}`, padding: "20px 32px", textAlign: "center" }}><span style={{ fontSize: 10, fontFamily: mono, color: br.mu }}>© 2026 SimpleBlueprints.com · Plans for reference — verify with local building department</span></div>
     </div>
   );
 
@@ -1018,16 +992,16 @@ const App = function SimpleBlueprints() {
                   <Label>Stair Template</Label>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 5 }}>
                     {[
-                      ["straight", "Straight", "↓"],
-                      ["lLeft", "L-Left", "↓←"],
-                      ["lRight", "L-Right", "↓→"],
-                      ["switchback", "Switchback", "↓↑"],
-                      ["wrapAround", "Wrap", "↓←↑"],
-                      ["wideLanding", "Platform", "↓■↓"],
+                      ["straight", "Straight", "\u2193"],
+                      ["lLeft", "L-Left", "\u2193\u2190"],
+                      ["lRight", "L-Right", "\u2193\u2192"],
+                      ["switchback", "U-Turn", "\u2193\u2191"],
+                      ["wrapAround", "Wrap", "\u2193\u2190\u2191"],
+                      ["wideLanding", "Platform", "\u2193\u25A0\u2193"],
                     ].map(([key, name, icon]) => (
                       <button key={key} onClick={() => u("stairTemplate", key)} style={{
                         padding: "10px 4px", borderRadius: 6, cursor: "pointer", textAlign: "center",
-                        border: p.stairTemplate === key ? `2px solid ${br.gn}` : `1px solid ${br.bd}`,
+                        border: p.stairTemplate === key ? "2px solid " + br.gn : "1px solid " + br.bd,
                         background: p.stairTemplate === key ? "#edf5e8" : "#fff",
                         fontFamily: mono, transition: "all 0.15s",
                       }}>
@@ -1043,7 +1017,7 @@ const App = function SimpleBlueprints() {
 
               <button onClick={() => setShowAdvanced(!showAdvanced)} style={{ width: "100%", padding: "8px 14px", marginBottom: 12, background: "none", border: `1px solid ${br.bd}`, borderRadius: 6, cursor: "pointer", fontSize: 10, fontFamily: mono, color: br.mu, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span>Positioning (drag in preview or set here)</span>
-                <span style={{ transform: showAdvanced ? "rotate(180deg)" : "none", transition: "0.2s" }}>â¾</span>
+                <span style={{ transform: showAdvanced ? "rotate(180deg)" : "none", transition: "0.2s" }}>▾</span>
               </button>
               {showAdvanced && <div style={{ padding: 14, background: br.wr, borderRadius: 8, border: `1px solid ${br.bd}`, marginBottom: 12 }}>
                 <Slider label="Deck offset from center" value={p.deckOffset} min={-Math.floor(p.houseWidth / 2)} max={Math.floor(p.houseWidth / 2)} field="deckOffset" unit="'" />
@@ -1083,13 +1057,13 @@ const App = function SimpleBlueprints() {
                     }} />
                     {sitePlanFile ? (
                       <div>
-                        <div style={{ fontSize: 20, marginBottom: 6 }}>â</div>
+                        <div style={{ fontSize: 20, marginBottom: 6 }}>✓</div>
                         <div style={{ fontSize: 11, fontFamily: mono, color: br.gn, fontWeight: 700 }}>{sitePlanFile.name}</div>
-                        <div style={{ fontSize: 9, fontFamily: mono, color: br.mu, marginTop: 4 }}>{(sitePlanFile.size / 1024).toFixed(0)} KB Â· Click to change</div>
+                        <div style={{ fontSize: 9, fontFamily: mono, color: br.mu, marginTop: 4 }}>{(sitePlanFile.size / 1024).toFixed(0)} KB · Click to change</div>
                       </div>
                     ) : (
                       <div>
-                        <div style={{ fontSize: 24, marginBottom: 6 }}>ð</div>
+                        <div style={{ fontSize: 24, marginBottom: 6 }}>📄</div>
                         <div style={{ fontSize: 11, fontFamily: mono, color: br.tx, fontWeight: 600 }}>Click to upload your survey</div>
                         <div style={{ fontSize: 9, fontFamily: mono, color: br.mu, marginTop: 4 }}>PDF, PNG, or JPG</div>
                       </div>
@@ -1115,7 +1089,7 @@ const App = function SimpleBlueprints() {
                   <div style={{ marginBottom: 10 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                       <span style={{ fontSize: 10, color: br.mu, fontFamily: mono, fontWeight: 700 }}>JOISTS</span>
-                      <button onClick={() => u("overJoist", isOver ? null : c.auto.joist)} style={{ fontSize: 8, fontFamily: mono, padding: "2px 8px", borderRadius: 3, cursor: "pointer", border: `1px solid ${isOver ? br.ac : br.bd}`, background: isOver ? "#fef9e7" : "#fff", color: isOver ? br.ac : br.mu, fontWeight: 700 }}>{isOver ? "MANUAL â" : "AUTO â"}</button>
+                      <button onClick={() => u("overJoist", isOver ? null : c.auto.joist)} style={{ fontSize: 8, fontFamily: mono, padding: "2px 8px", borderRadius: 3, cursor: "pointer", border: `1px solid ${isOver ? br.ac : br.bd}`, background: isOver ? "#fef9e7" : "#fff", color: isOver ? br.ac : br.mu, fontWeight: 700 }}>{isOver ? "MANUAL ✎" : "AUTO ✓"}</button>
                     </div>
                     <div style={{ display: "flex", gap: 4 }}>
                       {["2x6", "2x8", "2x10", "2x12"].map(sz => (
@@ -1140,10 +1114,10 @@ const App = function SimpleBlueprints() {
                   <div style={{ marginBottom: 10 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                       <span style={{ fontSize: 10, color: br.mu, fontFamily: mono, fontWeight: 700 }}>BEAM</span>
-                      <button onClick={() => u("overBeam", isOver ? null : c.auto.beam)} style={{ fontSize: 8, fontFamily: mono, padding: "2px 8px", borderRadius: 3, cursor: "pointer", border: `1px solid ${isOver ? br.ac : br.bd}`, background: isOver ? "#fef9e7" : "#fff", color: isOver ? br.ac : br.mu, fontWeight: 700 }}>{isOver ? "MANUAL â" : "AUTO â"}</button>
+                      <button onClick={() => u("overBeam", isOver ? null : c.auto.beam)} style={{ fontSize: 8, fontFamily: mono, padding: "2px 8px", borderRadius: 3, cursor: "pointer", border: `1px solid ${isOver ? br.ac : br.bd}`, background: isOver ? "#fef9e7" : "#fff", color: isOver ? br.ac : br.mu, fontWeight: 700 }}>{isOver ? "MANUAL ✎" : "AUTO ✓"}</button>
                     </div>
                     <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                      {opts.map(sz => { const short = sz.replace("1.75x12", "LVL").replace("-ply ", "Ã"); return (
+                      {opts.map(sz => { const short = sz.replace("1.75x12", "LVL").replace("-ply ", "×"); return (
                         <button key={sz} onClick={() => isOver && u("overBeam", sz)} style={{
                           flex: "1 1 auto", padding: "6px 6px", fontSize: 9, fontFamily: mono, cursor: isOver ? "pointer" : "default",
                           border: val === sz ? `2px solid ${isOver ? br.ac : br.gn}` : `1px solid ${br.bd}`,
@@ -1164,7 +1138,7 @@ const App = function SimpleBlueprints() {
                   <div style={{ marginBottom: 10 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                       <span style={{ fontSize: 10, color: br.mu, fontFamily: mono, fontWeight: 700 }}>POST SIZE</span>
-                      <button onClick={() => u("overPostSize", isOver ? null : c.auto.postSize)} style={{ fontSize: 8, fontFamily: mono, padding: "2px 8px", borderRadius: 3, cursor: "pointer", border: `1px solid ${isOver ? br.ac : br.bd}`, background: isOver ? "#fef9e7" : "#fff", color: isOver ? br.ac : br.mu, fontWeight: 700 }}>{isOver ? "MANUAL â" : "AUTO â"}</button>
+                      <button onClick={() => u("overPostSize", isOver ? null : c.auto.postSize)} style={{ fontSize: 8, fontFamily: mono, padding: "2px 8px", borderRadius: 3, cursor: "pointer", border: `1px solid ${isOver ? br.ac : br.bd}`, background: isOver ? "#fef9e7" : "#fff", color: isOver ? br.ac : br.mu, fontWeight: 700 }}>{isOver ? "MANUAL ✎" : "AUTO ✓"}</button>
                     </div>
                     <div style={{ display: "flex", gap: 4 }}>
                       {["4x4", "6x6"].map(sz => (
@@ -1188,7 +1162,7 @@ const App = function SimpleBlueprints() {
                   <div style={{ marginBottom: 10 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                       <span style={{ fontSize: 10, color: br.mu, fontFamily: mono, fontWeight: 700 }}>POST COUNT</span>
-                      <button onClick={() => u("overPostCount", isOver ? null : c.auto.postCount)} style={{ fontSize: 8, fontFamily: mono, padding: "2px 8px", borderRadius: 3, cursor: "pointer", border: `1px solid ${isOver ? br.ac : br.bd}`, background: isOver ? "#fef9e7" : "#fff", color: isOver ? br.ac : br.mu, fontWeight: 700 }}>{isOver ? "MANUAL â" : "AUTO â"}</button>
+                      <button onClick={() => u("overPostCount", isOver ? null : c.auto.postCount)} style={{ fontSize: 8, fontFamily: mono, padding: "2px 8px", borderRadius: 3, cursor: "pointer", border: `1px solid ${isOver ? br.ac : br.bd}`, background: isOver ? "#fef9e7" : "#fff", color: isOver ? br.ac : br.mu, fontWeight: 700 }}>{isOver ? "MANUAL ✎" : "AUTO ✓"}</button>
                     </div>
                     <div style={{ display: "flex", gap: 4 }}>
                       {[2, 3, 4, 5, 6].map(n => (
@@ -1212,7 +1186,7 @@ const App = function SimpleBlueprints() {
                   <div style={{ marginBottom: 6 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                       <span style={{ fontSize: 10, color: br.mu, fontFamily: mono, fontWeight: 700 }}>FOOTING DIA.</span>
-                      <button onClick={() => u("overFooting", isOver ? null : c.auto.footing)} style={{ fontSize: 8, fontFamily: mono, padding: "2px 8px", borderRadius: 3, cursor: "pointer", border: `1px solid ${isOver ? br.ac : br.bd}`, background: isOver ? "#fef9e7" : "#fff", color: isOver ? br.ac : br.mu, fontWeight: 700 }}>{isOver ? "MANUAL â" : "AUTO â"}</button>
+                      <button onClick={() => u("overFooting", isOver ? null : c.auto.footing)} style={{ fontSize: 8, fontFamily: mono, padding: "2px 8px", borderRadius: 3, cursor: "pointer", border: `1px solid ${isOver ? br.ac : br.bd}`, background: isOver ? "#fef9e7" : "#fff", color: isOver ? br.ac : br.mu, fontWeight: 700 }}>{isOver ? "MANUAL ✎" : "AUTO ✓"}</button>
                     </div>
                     <div style={{ display: "flex", gap: 4 }}>
                       {[12, 16, 18, 21, 24, 30].map(d => (
@@ -1233,7 +1207,7 @@ const App = function SimpleBlueprints() {
 
                 <div style={{ height: 1, background: br.bd, margin: "10px 0" }} />
                 <Spec l="Joist Span" v={`${c.jSpan}'`} /><Spec l="Beam Span" v={`${c.bSpan}'`} /><Spec l="Total Load" v={`${c.TL} PSF`} color={br.rd} />
-                {c.warnings.map((w, i) => <div key={i} style={{ fontSize: 10, color: br.rd, marginTop: 4, fontFamily: mono }}>â ï¸ {w}</div>)}
+                {c.warnings.map((w, i) => <div key={i} style={{ fontSize: 10, color: br.rd, marginTop: 4, fontFamily: mono }}>⚠️ {w}</div>)}
               </div>
             </>}
             {step === 2 && <>
@@ -1254,7 +1228,7 @@ const App = function SimpleBlueprints() {
                   {/* Sheet A-1: Plan */}
                   <div style={{ flex: "0 0 auto", width: 200, background: "#fff", border: `1px solid ${br.bd}`, borderRadius: 6, overflow: "hidden", position: "relative" }}>
                     <div style={{ padding: "4px 8px", background: br.wr, borderBottom: `1px solid ${br.bd}` }}>
-                      <span style={{ fontSize: 7, fontFamily: mono, fontWeight: 700, color: br.mu }}>SHEET A-1 â DECK PLAN</span>
+                      <span style={{ fontSize: 7, fontFamily: mono, fontWeight: 700, color: br.mu }}>SHEET A-1 — DECK PLAN</span>
                     </div>
                     <div style={{ padding: 4, height: 130 }}>
                       <svg viewBox="0 0 200 120" style={{ width: "100%", height: "100%" }}>
@@ -1280,7 +1254,7 @@ const App = function SimpleBlueprints() {
                   {/* Sheet A-2: Elevation */}
                   <div style={{ flex: "0 0 auto", width: 200, background: "#fff", border: `1px solid ${br.bd}`, borderRadius: 6, overflow: "hidden", position: "relative" }}>
                     <div style={{ padding: "4px 8px", background: br.wr, borderBottom: `1px solid ${br.bd}` }}>
-                      <span style={{ fontSize: 7, fontFamily: mono, fontWeight: 700, color: br.mu }}>SHEET A-2 â ELEVATIONS</span>
+                      <span style={{ fontSize: 7, fontFamily: mono, fontWeight: 700, color: br.mu }}>SHEET A-2 — ELEVATIONS</span>
                     </div>
                     <div style={{ padding: 4, height: 130 }}>
                       <svg viewBox="0 0 200 120" style={{ width: "100%", height: "100%" }}>
@@ -1306,7 +1280,7 @@ const App = function SimpleBlueprints() {
                   {/* Sheet A-3: Details */}
                   <div style={{ flex: "0 0 auto", width: 200, background: "#fff", border: `1px solid ${br.bd}`, borderRadius: 6, overflow: "hidden", position: "relative" }}>
                     <div style={{ padding: "4px 8px", background: br.wr, borderBottom: `1px solid ${br.bd}` }}>
-                      <span style={{ fontSize: 7, fontFamily: mono, fontWeight: 700, color: br.mu }}>SHEET A-3 â DETAILS</span>
+                      <span style={{ fontSize: 7, fontFamily: mono, fontWeight: 700, color: br.mu }}>SHEET A-3 — DETAILS</span>
                     </div>
                     <div style={{ padding: 8, height: 130, display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "1fr 1fr", gap: 4 }}>
                       {[
@@ -1329,7 +1303,7 @@ const App = function SimpleBlueprints() {
                   </div>
                 </div>
                 <div style={{ textAlign: "center", marginTop: 6 }}>
-                  <span style={{ fontSize: 8, color: br.mu, fontFamily: mono }}>4 sheets included Â· Plan Â· Elevations Â· Details Â· Materials</span>
+                  <span style={{ fontSize: 8, color: br.mu, fontFamily: mono }}>4 sheets included · Plan · Elevations · Details · Materials</span>
                 </div>
               </div>
 
@@ -1337,12 +1311,12 @@ const App = function SimpleBlueprints() {
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10, marginBottom: 14 }}>
                 <div style={{ padding: 12, background: br.wr, borderRadius: 8, border: `1px solid ${br.bd}` }}>
                   <div style={{ fontSize: 9, fontWeight: 700, color: br.gn, marginBottom: 6, fontFamily: mono, letterSpacing: "1px", textTransform: "uppercase" }}>Project</div>
-                  <Spec l="Size" v={`${c.W}'Ã${c.D}' (${c.area} SF)`} /><Spec l="Height" v={`${c.H}'`} /><Spec l="Attach" v={c.attachment === "ledger" ? "Ledger" : "Free"} /><Spec l="Stairs" v={p.hasStairs ? `${p.stairLocation} ${p.stairWidth || 4}' Â· ${p.numStringers || 3} stringers${p.hasLanding ? " Â· landing" : ""}` : "None"} /><Spec l="Deck" v={p.deckingType === "composite" ? "Composite" : "PT"} /><Spec l="Rail" v={p.railType === "fortress" ? "Fortress" : "Wood"} />
+                  <Spec l="Size" v={`${c.W}'×${c.D}' (${c.area} SF)`} /><Spec l="Height" v={`${c.H}'`} /><Spec l="Attach" v={c.attachment === "ledger" ? "Ledger" : "Free"} /><Spec l="Stairs" v={p.hasStairs ? `${p.stairLocation} ${p.stairWidth || 4}' · ${p.numStringers || 3} stringers${p.hasLanding ? " · landing" : ""}` : "None"} /><Spec l="Deck" v={p.deckingType === "composite" ? "Composite" : "PT"} /><Spec l="Rail" v={p.railType === "fortress" ? "Fortress" : "Wood"} />
                 </div>
                 <div style={{ padding: 12, background: br.wr, borderRadius: 8, border: `1px solid ${br.bd}` }}>
                   <div style={{ fontSize: 9, fontWeight: 700, color: br.gn, marginBottom: 6, fontFamily: mono, letterSpacing: "1px", textTransform: "uppercase" }}>Structure</div>
-                  <Spec l="Joists" v={`${c.joistSize}@${c.sp}"`} /><Spec l="Beam" v={c.beamSize.replace("3-ply ","3Ã").replace("2-ply ","2Ã")} /><Spec l="Posts" v={`${c.postSize}Ã${c.nP}`} /><Spec l="Footings" v={`${c.fDiam}"ÃÃ${c.nF}`} /><Spec l="Load" v={`${c.TL} PSF`} color={br.rd} />
-                  {c.warnings.length > 0 && <div style={{ fontSize: 8, color: br.rd, marginTop: 4, fontFamily: mono }}>â ï¸ {c.warnings.length} warning{c.warnings.length > 1 ? "s" : ""}</div>}
+                  <Spec l="Joists" v={`${c.joistSize}@${c.sp}"`} /><Spec l="Beam" v={c.beamSize.replace("3-ply ","3×").replace("2-ply ","2×")} /><Spec l="Posts" v={`${c.postSize}×${c.nP}`} /><Spec l="Footings" v={`${c.fDiam}"Ø×${c.nF}`} /><Spec l="Load" v={`${c.TL} PSF`} color={br.rd} />
+                  {c.warnings.length > 0 && <div style={{ fontSize: 8, color: br.rd, marginTop: 4, fontFamily: mono }}>⚠️ {c.warnings.length} warning{c.warnings.length > 1 ? "s" : ""}</div>}
                 </div>
               </div>
 
@@ -1437,7 +1411,7 @@ const App = function SimpleBlueprints() {
                 <div style={{ display: "flex", justifyContent: "center", gap: 16, marginBottom: 12, flexWrap: "wrap" }}>
                   {["Plan View", "Framing Plan", "Elevations", "Details", "Material List"].map(s => (
                     <div key={s} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                      <span style={{ color: "#66bb6a", fontSize: 11 }}>â</span>
+                      <span style={{ color: "#66bb6a", fontSize: 11 }}>✓</span>
                       <span style={{ fontSize: 10, fontFamily: mono, color: "rgba(255,255,255,0.8)" }}>{s}</span>
                     </div>
                   ))}
@@ -1447,11 +1421,11 @@ const App = function SimpleBlueprints() {
                   onClick={generateBlueprint}
                   disabled={genStatus === "generating" || (isProduction && !feedbackDone)}
                   style={{ padding: "14px 40px", background: genStatus === "generating" ? "#555" : genStatus === "done" ? "#2e7d32" : br.gn, color: "#fff", border: "none", borderRadius: 8, fontSize: 16, fontWeight: 800, cursor: genStatus === "generating" ? "wait" : "pointer", fontFamily: mono, letterSpacing: "1px", boxShadow: "0 4px 20px rgba(61,90,46,0.4)", transition: "all 0.2s" }}>
-                  {genStatus === "generating" ? "Generating PDF..." : genStatus === "done" ? "â Download Complete â Generate Again?" : "Generate Blueprint â FREE BETA"}
+                  {genStatus === "generating" ? "Generating PDF..." : genStatus === "done" ? "✓ Download Complete — Generate Again?" : "Generate Blueprint — FREE BETA"}
                 </button>
                 {genStatus === "error" && <div style={{ fontSize: 10, color: "#f44336", fontFamily: mono, marginTop: 8 }}>Error: {genError}</div>}
                 <div style={{ fontSize: 8, color: "rgba(255,255,255,0.4)", fontFamily: mono, marginTop: 8 }}>
-                  {genStatus === "done" ? "PDF opened in new tab Â· Check your downloads" : "Instant PDF download Â· Print-ready quality Â· Permit-office format"}
+                  {genStatus === "done" ? "PDF opened in new tab · Check your downloads" : "Instant PDF download · Print-ready quality · Permit-office format"}
                 </div>
                 </> : <div style={{ textAlign: "center" }}>
                   <div style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", fontFamily: mono, marginBottom: 12 }}>Sign in to generate your blueprint</div>
@@ -1464,8 +1438,8 @@ const App = function SimpleBlueprints() {
             </>}
 
             <div style={{ display: "flex", justifyContent: "space-between", marginTop: 20 }}>
-              <button onClick={() => step > 0 ? setStep(step - 1) : setPage("home")} style={{ padding: "9px 18px", border: `1px solid ${br.bd}`, borderRadius: 6, background: "transparent", color: br.mu, cursor: "pointer", fontFamily: mono, fontSize: 11, fontWeight: 600 }}>â {step > 0 ? "Back" : "Home"}</button>
-              {step < 3 && <button onClick={() => setStep(step + 1)} style={{ padding: "9px 18px", border: "none", borderRadius: 6, background: br.gn, color: "#fff", cursor: "pointer", fontFamily: mono, fontSize: 11, fontWeight: 700 }}>Next â</button>}
+              <button onClick={() => step > 0 ? setStep(step - 1) : setPage("home")} style={{ padding: "9px 18px", border: `1px solid ${br.bd}`, borderRadius: 6, background: "transparent", color: br.mu, cursor: "pointer", fontFamily: mono, fontSize: 11, fontWeight: 600 }}>← {step > 0 ? "Back" : "Home"}</button>
+              {step < 3 && <button onClick={() => setStep(step + 1)} style={{ padding: "9px 18px", border: "none", borderRadius: 6, background: br.gn, color: "#fff", cursor: "pointer", fontFamily: mono, fontSize: 11, fontWeight: 700 }}>Next →</button>}
             </div>
           </div>
         </div>
@@ -1487,7 +1461,7 @@ const App = function SimpleBlueprints() {
                 </div>
                 <PlanView p={p} c={c} mode={planMode} u={u} />
                 {planMode === "plan" && <div style={{ textAlign: "center", fontSize: 9, color: br.mu, fontFamily: mono, marginTop: 4, opacity: 0.7 }}>
-                  Drag the <span style={{ color: "#3d5a2e", fontWeight: 700 }}>green</span> handle to slide the deck Â· Drag the <span style={{ color: "#c62828", fontWeight: 700 }}>red</span> handle to move stairs
+                  Drag the <span style={{ color: "#3d5a2e", fontWeight: 700 }}>green</span> handle to slide the deck · Drag the <span style={{ color: "#c62828", fontWeight: 700 }}>red</span> handle to move stairs
                 </div>}
               </>}
               {view === "elevation" && <ElevationView c={c} p={p} />}
@@ -1495,7 +1469,7 @@ const App = function SimpleBlueprints() {
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, marginTop: 12 }}>
-              {[["Area", `${c.area} SF`, br.dk], ["Joists", c.joistSize, br.bl], ["Beam", c.beamSize.replace("3-ply ", "3Ã").replace("2-ply ", "2Ã"), br.ac], ["Posts", `${c.postSize}Ã${c.nP}`, "#8B6508"], ["Footings", `${c.fDiam}"Ã`, "#777"], ["Est. Cost", `$${m.total.toFixed(0)}`, br.gn]].map(([l, v, cl]) => (
+              {[["Area", `${c.area} SF`, br.dk], ["Joists", c.joistSize, br.bl], ["Beam", c.beamSize.replace("3-ply ", "3×").replace("2-ply ", "2×"), br.ac], ["Posts", `${c.postSize}×${c.nP}`, "#8B6508"], ["Footings", `${c.fDiam}"Ø`, "#777"], ["Est. Cost", `$${m.total.toFixed(0)}`, br.gn]].map(([l, v, cl]) => (
                 <div key={l} style={{ padding: "8px 10px", background: br.cr, borderRadius: 6, border: `1px solid ${br.bd}`, textAlign: "center" }}>
                   <div style={{ fontSize: 8, color: br.mu, fontFamily: mono, textTransform: "uppercase", letterSpacing: "0.5px" }}>{l}</div>
                   <div style={{ fontSize: 11, fontWeight: 800, color: cl, fontFamily: mono, marginTop: 1 }}>{v}</div>
