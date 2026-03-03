@@ -559,7 +559,7 @@ const App = function SimpleBlueprints() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [view, setView] = useState("plan");
   const [planMode, setPlanMode] = useState("plan");
-  const [p, setP] = useState({ width: 20, depth: 12, height: 4, houseWidth: 40, houseDepth: 30, attachment: "ledger", hasStairs: true, stairLocation: "front", stairWidth: 4, numStringers: 3, hasLanding: false, joistSpacing: 16, deckingType: "composite", railType: "fortress", snowLoad: "moderate", frostZone: "cold", lotWidth: 80, lotDepth: 120, setbackFront: 25, setbackSide: 5, setbackRear: 20, houseOffsetSide: 20, deckOffset: 0, stairOffset: 0 });
+  const [p, setP] = useState({ width: 20, depth: 12, height: 4, houseWidth: 40, houseDepth: 30, attachment: "ledger", hasStairs: true, stairLocation: "front", stairWidth: 4, numStringers: 3, hasLanding: false, joistSpacing: 16, deckingType: "composite", railType: "fortress", snowLoad: "moderate", frostZone: "cold", lotWidth: 80, lotDepth: 120, setbackFront: 25, setbackSide: 5, setbackRear: 20, houseOffsetSide: 20, deckOffset: 0, stairOffset: 0, beamType: "dropped" });
   const u = (k, v) => setP(prev => {
     const next = { ...prev, [k]: v };
     // Reset stairOffset when stair location changes
@@ -589,10 +589,13 @@ const App = function SimpleBlueprints() {
   const [genStatus, setGenStatus] = useState("idle");
   const [info, setInfo] = useState({ owner: "", address: "", city: "", state: "", zip: "", lot: "", contractor: "" });
   const setI = (f, v) => setInfo(prev => ({ ...prev, [f]: v }));
-  const [sitePlanMode, setSitePlanMode] = useState("generate");
+  const [sitePlanMode, setSitePlanMode] = useState("upload");
   const [sitePlanFile, setSitePlanFile] = useState(null);
   const [sitePlanB64, setSitePlanB64] = useState(null);
   const [genError, setGenError] = useState("");
+  const [feedbackDone, setFeedbackDone] = useState(false);
+  const [feedback, setFeedback] = useState({ role: "", source: "", price: "", feedback: "", email: "" });
+  const isProduction = typeof window !== 'undefined' && window.location.hostname.includes("simpleblueprints.xyz");
   const [user, setUser] = useState(null); // { id, email, name, picture, email_opt_in }
   const [authLoading, setAuthLoading] = useState(true);
 
@@ -755,6 +758,18 @@ const App = function SimpleBlueprints() {
     }
   };
 
+  const submitFeedback = async () => {
+    try {
+      await fetch(`${API}/api/feedback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(feedback),
+      });
+      setFeedbackDone(true);
+    } catch (e) { console.warn("Feedback error:", e); setFeedbackDone(true); }
+  };
+
   const steps = [{ t: "Size & Shape", i: "📐" }, { t: "Structure", i: "🏗️" }, { t: "Finishes", i: "🪵" }, { t: "Review", i: "📋" }];
   const mono = "'DM Mono', 'SF Mono', monospace"; const sans = "'DM Sans', system-ui, sans-serif";
   const br = { dk: "#1a1f16", gn: "#3d5a2e", cr: "#faf8f3", wr: "#f2ece0", ac: "#c4960a", tx: "#2c3024", mu: "#7a8068", bd: "#ddd8cc", rd: "#c0392b", bl: "#2471a3" };
@@ -810,7 +825,7 @@ const App = function SimpleBlueprints() {
         <h1 style={{ fontFamily: sans, fontSize: "clamp(28px, 6vw, 52px)", fontWeight: 900, color: br.dk, lineHeight: 1.1, margin: "0 0 20px", letterSpacing: "-1px" }}>Simple structures.<br />Simple blueprints.</h1>
         <p style={{ fontFamily: sans, fontSize: "clamp(14px, 2.5vw, 18px)", color: br.mu, maxWidth: 560, margin: "0 auto 40px", lineHeight: 1.6 }}>Configure your project, get IRC-compliant structural calculations, and download a professional drawing set. No architect required.</p>
         <div style={{ display: "flex", gap: 32, justifyContent: "center", marginBottom: 60, flexWrap: "wrap" }}>
-          {[["01", "Configure", "Set dimensions, materials, and location"], ["02", "Calculate", "Auto-sized joists, beams, posts & footings"], ["03", "Download", "4-sheet PDF blueprint + material list"]].map(([n, t, d]) => (
+          {[["01", "Configure", "Set dimensions, materials, and location"], ["02", "Calculate", "Auto-sized joists, beams, posts & footings"], ["03", "Download", "6-sheet PDF blueprint set + material list"]].map(([n, t, d]) => (
             <div key={n} style={{ textAlign: "center", maxWidth: 180 }}><div style={{ fontFamily: mono, fontSize: 28, fontWeight: 900, color: br.gn, marginBottom: 4 }}>{n}</div><div style={{ fontFamily: sans, fontSize: 16, fontWeight: 700, color: br.dk, marginBottom: 4 }}>{t}</div><div style={{ fontFamily: sans, fontSize: 13, color: br.mu, lineHeight: 1.5 }}>{d}</div></div>
           ))}
         </div>
@@ -1220,6 +1235,45 @@ const App = function SimpleBlueprints() {
                 </div>
               </div>
 
+
+              {/* Feedback Form (production domain only) */}
+              {isProduction && !feedbackDone && <div style={{ padding: 16, background: "#fff8e1", borderRadius: 8, border: "1px solid #ffe082", marginBottom: 14 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: "#f57f17", fontFamily: mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 8 }}>Quick Feedback <span style={{ fontWeight: 400, color: "#ffa000", fontSize: 8 }}>(helps us build what you need)</span></div>
+                <div style={{ marginBottom: 8 }}>
+                  <label style={{ fontSize: 9, color: br.mu, fontFamily: mono, display: "block", marginBottom: 2 }}>I am a...</label>
+                  <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                    {[["diy", "DIY Homeowner"], ["contractor", "Contractor"], ["designer", "Designer"], ["other", "Other"]].map(([v, t]) => (
+                      <button key={v} onClick={() => setFeedback(f => ({...f, role: v}))} style={{ padding: "5px 12px", borderRadius: 5, fontSize: 10, fontFamily: mono, cursor: "pointer", border: feedback.role === v ? "2px solid #f57f17" : "1px solid " + br.bd, background: feedback.role === v ? "#fff3e0" : "#fff", color: feedback.role === v ? "#e65100" : br.tx, fontWeight: feedback.role === v ? 700 : 400 }}>{t}</button>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ marginBottom: 8 }}>
+                  <label style={{ fontSize: 9, color: br.mu, fontFamily: mono, display: "block", marginBottom: 2 }}>How did you find us?</label>
+                  <input value={feedback.source} onChange={e => setFeedback(f => ({...f, source: e.target.value}))} placeholder="Google, Reddit, friend, etc." style={{ width: "100%", padding: "6px 10px", border: "1px solid " + br.bd, borderRadius: 5, fontSize: 11, fontFamily: mono, color: br.tx, background: "#fff", outline: "none" }} />
+                </div>
+                <div style={{ marginBottom: 8 }}>
+                  <label style={{ fontSize: 9, color: br.mu, fontFamily: mono, display: "block", marginBottom: 2 }}>What would you pay for this?</label>
+                  <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                    {[["$0", "$0"], ["$25-49", "$25\u201349"], ["$50-99", "$50\u201399"], ["$100+", "$100+"]].map(([v, t]) => (
+                      <button key={v} onClick={() => setFeedback(f => ({...f, price: v}))} style={{ padding: "5px 12px", borderRadius: 5, fontSize: 10, fontFamily: mono, cursor: "pointer", border: feedback.price === v ? "2px solid #f57f17" : "1px solid " + br.bd, background: feedback.price === v ? "#fff3e0" : "#fff", color: feedback.price === v ? "#e65100" : br.tx, fontWeight: feedback.price === v ? 700 : 400 }}>{t}</button>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ marginBottom: 8 }}>
+                  <label style={{ fontSize: 9, color: br.mu, fontFamily: mono, display: "block", marginBottom: 2 }}>Anything confusing or missing? <span style={{ color: "#bbb" }}>(optional)</span></label>
+                  <textarea value={feedback.feedback} onChange={e => setFeedback(f => ({...f, feedback: e.target.value}))} placeholder="Your thoughts..." rows={2} style={{ width: "100%", padding: "6px 10px", border: "1px solid " + br.bd, borderRadius: 5, fontSize: 11, fontFamily: mono, color: br.tx, background: "#fff", outline: "none", resize: "vertical" }} />
+                </div>
+                <div style={{ marginBottom: 10 }}>
+                  <label style={{ fontSize: 9, color: br.mu, fontFamily: mono, display: "block", marginBottom: 2 }}>Email <span style={{ color: "#bbb" }}>(optional \u2014 for launch notification)</span></label>
+                  <input type="email" value={feedback.email} onChange={e => setFeedback(f => ({...f, email: e.target.value}))} placeholder="you@example.com" style={{ width: "100%", padding: "6px 10px", border: "1px solid " + br.bd, borderRadius: 5, fontSize: 11, fontFamily: mono, color: br.tx, background: "#fff", outline: "none" }} />
+                </div>
+                <button onClick={submitFeedback} disabled={!feedback.role || !feedback.price} style={{ padding: "8px 20px", background: !feedback.role || !feedback.price ? "#ccc" : "#f57f17", border: "none", borderRadius: 6, color: "#fff", fontSize: 11, fontWeight: 700, cursor: !feedback.role || !feedback.price ? "default" : "pointer", fontFamily: mono }}>Submit Feedback</button>
+                <span style={{ fontSize: 8, color: "#bbb", fontFamily: mono, marginLeft: 8 }}>Required to generate on this domain</span>
+              </div>}
+              {isProduction && feedbackDone && <div style={{ padding: 10, background: "#e8f5e9", borderRadius: 8, border: "1px solid #c8e6c9", marginBottom: 14, textAlign: "center" }}>
+                <span style={{ fontSize: 11, color: "#2e7d32", fontFamily: mono, fontWeight: 700 }}>\u2713 Thanks for your feedback!</span>
+              </div>}
+
               {/* Price + CTA */}
               <div style={{ padding: 16, background: "#e8f5e9", borderRadius: 8, border: "1px solid #c8e6c9", textAlign: "center", marginBottom: 10 }}>
                 <div style={{ fontSize: 10, fontFamily: mono, color: br.gn, fontWeight: 700, letterSpacing: "1px", textTransform: "uppercase" }}>Estimated Materials</div>
@@ -1240,7 +1294,7 @@ const App = function SimpleBlueprints() {
                 {user ? <>
                 <button
                   onClick={generateBlueprint}
-                  disabled={genStatus === "generating"}
+                  disabled={genStatus === "generating" || (isProduction && !feedbackDone)}
                   style={{ padding: "14px 40px", background: genStatus === "generating" ? "#555" : genStatus === "done" ? "#2e7d32" : br.gn, color: "#fff", border: "none", borderRadius: 8, fontSize: 16, fontWeight: 800, cursor: genStatus === "generating" ? "wait" : "pointer", fontFamily: mono, letterSpacing: "1px", boxShadow: "0 4px 20px rgba(61,90,46,0.4)", transition: "all 0.2s" }}>
                   {genStatus === "generating" ? "Generating PDF..." : genStatus === "done" ? "✓ Download Complete — Generate Again?" : "Generate Blueprint — FREE BETA"}
                 </button>
