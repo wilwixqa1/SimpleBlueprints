@@ -503,10 +503,10 @@ function ElevationView({ c, p }) {
   const isSide = p.stairLocation === "left" || p.stairLocation === "right";
   const risePerRiser = st ? (gnd - dY) / st.nRisers : 0;
   const treadPx = st ? (st.tread / 12) * sX : 0;
-
-  // For front stairs, the stair extends below/in front of deck - need extra SVG height
+  const stairRunPx = st ? st.nTreads * treadPx : 0;
+  const leftOverhang = (hasSt && p.stairLocation === "left") ? stairRunPx + 25 : 0;
   const stairFootprintH = hasSt && isFront ? st.nTreads * treadPx + 20 : 0;
-  const svgW = dSW + pad * 2 + 70;
+  const svgW = dSW + pad * 2 + 70 + leftOverhang;
   const svgH = wallH + roofPk + pad + 30 + stairFootprintH;
 
   // Helper: draw one run as stepped profile (front view = steps going downward in Y, spreading in X from center)
@@ -670,7 +670,7 @@ function ElevationView({ c, p }) {
   }
 
   return (
-    <svg viewBox={"0 0 " + svgW + " " + svgH} style={{ width: "100%", height: "auto" }}>
+    <svg viewBox={(-leftOverhang) + " 0 " + svgW + " " + svgH} style={{ width: "100%", height: "auto" }}>
       {/* House */}
       <rect x={hX} y={hTop} width={hW} height={fndH} fill="#c8c8c8" stroke="#444" strokeWidth="1" />
       <rect x={hX} y={hTop} width={hW} height={f1H} fill="#e8e6e0" stroke="#444" strokeWidth="1" />
