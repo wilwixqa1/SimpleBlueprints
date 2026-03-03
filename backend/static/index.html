@@ -91,7 +91,21 @@ function calcStructure(p) {
     const nStringers = p.numStringers || 3;
     const nR = Math.ceil(H * 12 / 7.5); const aR = H * 12 / nR;
     const tR = (nR - 1) * 10.5;
-    stairs = { nRisers: nR, nTreads: nR - 1, rise: +aR.toFixed(2), tread: 10.5, runFt: +(tR / 12).toFixed(1), stringerFt: +(Math.sqrt((H * 12) ** 2 + tR ** 2) / 12 + 1).toFixed(1), width: stairW, nStringers, hasLanding: !!p.hasLanding, location: p.stairLocation || "front" };
+    const stairGeom = computeStairGeometry(p.stairTemplate || "straight", H, stairW, nStringers);
+    stairs = {
+      nRisers: nR, nTreads: nR - 1, rise: +aR.toFixed(2), tread: 10.5,
+      runFt: +(tR / 12).toFixed(1),
+      stringerFt: +(Math.sqrt((H * 12) ** 2 + tR ** 2) / 12 + 1).toFixed(1),
+      width: stairW, nStringers,
+      hasLanding: stairGeom ? stairGeom.landings.length > 0 : !!p.hasLanding,
+      location: p.stairLocation || "front",
+      template: p.stairTemplate || "straight",
+      stairGeom: stairGeom,
+      totalLandingPosts: stairGeom ? stairGeom.totalLandingPosts : 0,
+      totalStringers: stairGeom ? stairGeom.totalStringers : nStringers,
+      numRuns: stairGeom ? stairGeom.runs.length : 1,
+      numLandings: stairGeom ? stairGeom.landings.length : 0,
+    };
   }
   const warnings = [];
   const maxSpan = (table["2x12"] || {})[sp] || 0;
@@ -237,6 +251,24 @@ function estMaterials(p, c) {
     items.push({ cat: "Railing", item: "Top Rail + Brackets", qty: Math.ceil(c.railLen / 7), cost: 52 });
   } else {
     items.push({ cat: "Railing", item: "Wood Rail Kit (8')", qty: Math.ceil(c.railLen / 8), cost: 85 });
+  }
+  // Stair materials
+  if (c.stairs) {
+    const st = c.stairs;
+    // Stringers for all runs
+    items.push({ cat: "Stairs", item: "2x12 Stair Stringers " + st.stringerFt + "\u0027", qty: st.totalStringers, cost: st.stringerFt <= 8 ? 22 : st.stringerFt <= 12 ? 35 : 48 });
+    // Treads
+    items.push({ cat: "Stairs", item: "5/4x12 PT Treads", qty: st.nTreads * Math.ceil(st.width / 1), cost: 18 });
+    // Stringer hardware
+    items.push({ cat: "Stairs", item: "Stair Stringer Brackets", qty: st.totalStringers, cost: 8 });
+    // Landing materials (if multi-segment)
+    if (st.numLandings > 0) {
+      items.push({ cat: "Stairs", item: "Landing Posts " + c.postSize, qty: st.totalLandingPosts, cost: c.postSize === "6x6" ? 48 : 24 });
+      items.push({ cat: "Stairs", item: "Landing Post Bases", qty: st.totalLandingPosts, cost: c.postSize === "6x6" ? 42 : 28 });
+      items.push({ cat: "Stairs", item: "Landing Footings " + c.fDiam + "\u0022", qty: st.totalLandingPosts, cost: c.fDiam > 18 ? 28 : 18 });
+      items.push({ cat: "Stairs", item: "Landing Framing Lumber", qty: st.numLandings * 4, cost: 22 });
+      items.push({ cat: "Stairs", item: "Landing Decking", qty: st.numLandings * Math.ceil(st.width + 2), cost: p.deckingType === "composite" ? 28 : 12 });
+    }
   }
   items.push({ cat: "Misc", item: "Joist Tape + Misc", qty: 1, cost: 120 });
   const sub = items.reduce((s, i) => s + i.qty * i.cost, 0);
