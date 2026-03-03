@@ -291,3 +291,27 @@ def get_stats() -> dict:
                 "last_login": r["last_login"], "generations": r["gen_count"],
             } for r in user_list],
         }
+
+
+def store_feedback(feedback: dict):
+    """Store user feedback in the feedback table."""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS feedback (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER,
+            role TEXT,
+            source TEXT,
+            price TEXT,
+            feedback_text TEXT,
+            email TEXT,
+            created_at TIMESTAMP DEFAULT NOW()
+        )
+    """)
+    cur.execute(
+        "INSERT INTO feedback (user_id, role, source, price, feedback_text, email) VALUES (%s, %s, %s, %s, %s, %s)",
+        (feedback.get("user_id"), feedback.get("role", ""), feedback.get("source", ""),
+         feedback.get("price", ""), feedback.get("feedback", ""), feedback.get("email", ""))
+    )
+    conn.commit()
