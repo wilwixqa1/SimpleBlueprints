@@ -256,7 +256,7 @@ function estMaterials(p, c) {
   if (c.stairs) {
     const st = c.stairs;
     // Stringers for all runs
-    items.push({ cat: "Stairs", item: "2x12 Stair Stringers " + st.stringerFt + "\u0027", qty: st.totalStringers, cost: st.stringerFt <= 8 ? 22 : st.stringerFt <= 12 ? 35 : 48 });
+    items.push({ cat: "Stairs", item: "2x12 Stair Stringers " + st.stringerFt + "'", qty: st.totalStringers, cost: st.stringerFt <= 8 ? 22 : st.stringerFt <= 12 ? 35 : 48 });
     // Treads
     items.push({ cat: "Stairs", item: "5/4x12 PT Treads", qty: st.nTreads * Math.ceil(st.width / 1), cost: 18 });
     // Stringer hardware
@@ -265,7 +265,7 @@ function estMaterials(p, c) {
     if (st.numLandings > 0) {
       items.push({ cat: "Stairs", item: "Landing Posts " + c.postSize, qty: st.totalLandingPosts, cost: c.postSize === "6x6" ? 48 : 24 });
       items.push({ cat: "Stairs", item: "Landing Post Bases", qty: st.totalLandingPosts, cost: c.postSize === "6x6" ? 42 : 28 });
-      items.push({ cat: "Stairs", item: "Landing Footings " + c.fDiam + "\u0022", qty: st.totalLandingPosts, cost: c.fDiam > 18 ? 28 : 18 });
+      items.push({ cat: "Stairs", item: "Landing Footings " + c.fDiam + """, qty: st.totalLandingPosts, cost: c.fDiam > 18 ? 28 : 18 });
       items.push({ cat: "Stairs", item: "Landing Framing Lumber", qty: st.numLandings * 4, cost: 22 });
       items.push({ cat: "Stairs", item: "Landing Decking", qty: st.numLandings * Math.ceil(st.width + 2), cost: p.deckingType === "composite" ? 28 : 12 });
     }
@@ -427,7 +427,7 @@ function PlanView({ p, c, mode, u }) {
         });
         const names = { straight:"Straight", lLeft:"L-Left", lRight:"L-Right", switchback:"Switchback", wrapAround:"Wrap-Around", wideLanding:"Platform" };
         const labelPt = txPt(0, stairGeom.bbox.maxY + 2);
-        els.push(<text key="stlbl" x={labelPt[0]} y={labelPt[1]} textAnchor="middle" style={{ fontSize: 5.5, fill: "#7a8068", fontFamily: "monospace", fontWeight: 600 }}>{names[stairGeom.template]} \u00B7 {stairGeom.totalRisers} risers \u00B7 {stairGeom.stairWidth}\u0027 wide \u00B7 {stairGeom.runs.length} run{stairGeom.runs.length>1?"s":""}</text>);
+        els.push(<text key="stlbl" x={labelPt[0]} y={labelPt[1]} textAnchor="middle" style={{ fontSize: 5.5, fill: "#7a8068", fontFamily: "monospace", fontWeight: 600 }}>{names[stairGeom.template]} · {stairGeom.totalRisers} risers · {stairGeom.stairWidth}' wide · {stairGeom.runs.length} run{stairGeom.runs.length>1?"s":""}</text>);
         if (u && mode === "plan") {
           const hPt = txPt(0, stairGeom.bbox.maxY + 4);
           const isV = exitSide !== "front";
@@ -501,102 +501,139 @@ function ElevationView({ c, p }) {
       {p.hasStairs && c.stairs && (() => {
         const st = c.stairs;
         const geom = st.stairGeom;
-        const topY = dY; const botY = gnd;
+        const topY = dY;
+        const botY = gnd;
         const totalH = botY - topY;
         const showSide = p.stairLocation === "left" || p.stairLocation === "right";
+        const els = [];
+        const risePerRiser = totalH / st.nRisers;
+        const treadPx = (st.tread / 12) * sX;
 
         if (!showSide) {
-          /* FRONT elevation: show stair width head-on */
+          /* ---- FRONT ELEVATION ---- */
           const stW = st.width * sX;
-          const stairCx = dX + dSW / 2;
-          const els = [];
-          /* Simple front view: vertical lines for stringers, horizontal for treads */
-          els.push(<line key="sl" x1={stairCx - stW/2} y1={topY} x2={stairCx - stW/2} y2={botY} stroke="#444" strokeWidth="0.8" />);
-          els.push(<line key="sr" x1={stairCx + stW/2} y1={topY} x2={stairCx + stW/2} y2={botY} stroke="#444" strokeWidth="0.8" />);
-          /* Treads as horizontal lines, spaced by rise */
-          for (var i = 0; i <= st.nTreads; i++) {
-            var ty = topY + (i + 1) * totalH / st.nRisers;
-            if (ty <= botY) els.push(<line key={"ft"+i} x1={stairCx - stW/2} y1={ty} x2={stairCx + stW/2} y2={ty} stroke="#aaa" strokeWidth="0.4" />);
-          }
-          /* Landing platforms if multi-segment */
-          if (geom && geom.landings.length > 0) {
-            var risersPerRun = geom.runs.map(function(r) { return r.risers; });
-            var risersSoFar = 0;
-            for (var ri = 0; ri < geom.runs.length - 1; ri++) {
-              risersSoFar += risersPerRun[ri];
-              var landY = topY + (risersSoFar / st.nRisers) * totalH;
-              var platW = stW + 8;
-              els.push(<rect key={"elev_land"+ri} x={stairCx - platW/2} y={landY - 1.5} width={platW} height={3} fill="#e8e6d8" stroke="#444" strokeWidth="0.5" strokeDasharray="3,2" />);
-              els.push(<text key={"elev_ltxt"+ri} x={stairCx} y={landY + 1} textAnchor="middle" style={{ fontSize: 3.5, fill: "#888", fontFamily: "monospace" }}>LANDING</text>);
+          const cx = dX + dSW / 2;
+
+          if (!geom || geom.runs.length <= 1) {
+            /* Single run straight stairs - simple front view */
+            els.push(<line key="fl" x1={cx - stW/2} y1={topY} x2={cx - stW/2} y2={botY} stroke="#444" strokeWidth="0.8" />);
+            els.push(<line key="fr" x1={cx + stW/2} y1={topY} x2={cx + stW/2} y2={botY} stroke="#444" strokeWidth="0.8" />);
+            for (var i = 1; i <= st.nTreads; i++) {
+              var ty = topY + i * risePerRiser;
+              els.push(<line key={"ft"+i} x1={cx - stW/2} y1={ty} x2={cx + stW/2} y2={ty} stroke="#aaa" strokeWidth="0.4" />);
+            }
+          } else {
+            /* Multi-run: show landing platform(s) at intermediate heights */
+            var risersDrawn = 0;
+            for (var ri = 0; ri < geom.runs.length; ri++) {
+              var run = geom.runs[ri];
+              var runTopY = topY + risersDrawn * risePerRiser;
+              var runBotY = topY + (risersDrawn + run.risers) * risePerRiser;
+              /* Stringer outlines for this run */
+              els.push(<line key={"fl"+ri} x1={cx - stW/2} y1={runTopY} x2={cx - stW/2} y2={runBotY} stroke="#444" strokeWidth="0.8" />);
+              els.push(<line key={"fr"+ri} x1={cx + stW/2} y1={runTopY} x2={cx + stW/2} y2={runBotY} stroke="#444" strokeWidth="0.8" />);
+              /* Treads */
+              for (var ti = 1; ti <= run.risers; ti++) {
+                var tty = runTopY + ti * risePerRiser;
+                els.push(<line key={"ft"+ri+"_"+ti} x1={cx - stW/2} y1={tty} x2={cx + stW/2} y2={tty} stroke="#aaa" strokeWidth="0.4" />);
+              }
+              risersDrawn += run.risers;
+              /* Landing between runs */
+              if (ri < geom.runs.length - 1) {
+                var landY = topY + risersDrawn * risePerRiser;
+                var platW = stW + 10;
+                els.push(<rect key={"eland"+ri} x={cx - platW/2} y={landY - 2} width={platW} height={4} fill="#e8e6d8" stroke="#444" strokeWidth="0.6" strokeDasharray="3,2" />);
+                els.push(<text key={"eltxt"+ri} x={cx} y={landY + 1} textAnchor="middle" style={{ fontSize: 3.5, fill: "#888", fontFamily: "monospace" }}>LANDING</text>);
+                /* Landing posts */
+                els.push(<line key={"elp1_"+ri} x1={cx - platW/2} y1={landY} x2={cx - platW/2} y2={botY} stroke="#c4a060" strokeWidth="1" />);
+                els.push(<line key={"elp2_"+ri} x1={cx + platW/2} y1={landY} x2={cx + platW/2} y2={botY} stroke="#c4a060" strokeWidth="1" />);
+                /* Landing post footings */
+                els.push(<rect key={"elpf1_"+ri} x={cx - platW/2 - 3} y={botY} width={6} height={3} fill="#c8c8c8" stroke="#444" strokeWidth="0.3" />);
+                els.push(<rect key={"elpf2_"+ri} x={cx + platW/2 - 3} y={botY} width={6} height={3} fill="#c8c8c8" stroke="#444" strokeWidth="0.3" />);
+              }
             }
           }
-          /* Label */
-          els.push(<text key="stlabel" x={stairCx} y={botY + 10} textAnchor="middle" style={{ fontSize: 4.5, fill: "#666", fontFamily: "monospace" }}>{st.totalStringers}\u00D72\u00D712 STRINGERS \u00B7 {st.numRuns} RUN{st.numRuns > 1 ? "S" : ""}</text>);
-          return <g>{els}</g>;
+          els.push(<text key="stlbl" x={cx} y={botY + 10} textAnchor="middle" style={{ fontSize: 4.5, fill: "#666", fontFamily: "monospace" }}>{st.totalStringers}×2×12 STRINGERS · {st.numRuns} RUN{st.numRuns > 1 ? "S" : ""}</text>);
+
         } else {
-          /* SIDE elevation: show staircase profile */
+          /* ---- SIDE ELEVATION ---- */
           const dir = p.stairLocation === "right" ? 1 : -1;
           const startX = p.stairLocation === "right" ? dX + dSW : dX;
-          const els = [];
 
-          if (geom && geom.runs.length > 0) {
-            /* Walk through runs, accumulating height */
+          if (!geom || geom.runs.length <= 1) {
+            /* Single run - draw stepped profile */
+            var curX = startX;
+            var curY = topY;
+            for (var i = 0; i < st.nRisers; i++) {
+              var nextY = curY + risePerRiser;
+              /* Riser (vertical line) */
+              els.push(<line key={"r"+i} x1={curX} y1={curY} x2={curX} y2={nextY} stroke="#444" strokeWidth="0.6" />);
+              /* Tread (horizontal line) */
+              if (i < st.nTreads) {
+                els.push(<line key={"t"+i} x1={curX} y1={nextY} x2={curX + dir * treadPx} y2={nextY} stroke="#444" strokeWidth="0.6" />);
+                curX += dir * treadPx;
+              }
+              curY = nextY;
+            }
+            /* Stringer line underneath */
+            els.push(<line key="str" x1={startX} y1={topY} x2={curX} y2={botY} stroke="#666" strokeWidth="0.4" strokeDasharray="2,2" />);
+          } else {
+            /* Multi-run - draw each run as stepped profile with landings */
             var risersDrawn = 0;
-            var currentX = startX;
-            var risePerRiser = totalH / st.nRisers;
-            var treadPx = (st.tread / 12) * sX;
+            var curX = startX;
+            var runDir = dir; /* first run goes away from house */
 
             for (var ri = 0; ri < geom.runs.length; ri++) {
               var run = geom.runs[ri];
               var runStartY = topY + risersDrawn * risePerRiser;
+              var runX = curX;
 
-              /* Draw each tread/riser step in this run */
+              /* Draw each step in this run */
               for (var ti = 0; ti < run.risers; ti++) {
                 var stepTop = runStartY + ti * risePerRiser;
                 var stepBot = runStartY + (ti + 1) * risePerRiser;
-                var stepX = currentX + dir * ti * treadPx;
-                /* Riser (vertical) */
-                els.push(<line key={"r"+ri+"_"+ti} x1={stepX} y1={stepTop} x2={stepX} y2={stepBot} stroke="#aaa" strokeWidth="0.3" />);
-                /* Tread (horizontal) */
+                /* Riser */
+                els.push(<line key={"r"+ri+"_"+ti} x1={runX} y1={stepTop} x2={runX} y2={stepBot} stroke="#444" strokeWidth="0.6" />);
+                /* Tread */
                 if (ti < run.treads) {
-                  els.push(<line key={"tr"+ri+"_"+ti} x1={stepX} y1={stepBot} x2={stepX + dir * treadPx} y2={stepBot} stroke="#aaa" strokeWidth="0.4" />);
+                  els.push(<line key={"t"+ri+"_"+ti} x1={runX} y1={stepBot} x2={runX + runDir * treadPx} y2={stepBot} stroke="#444" strokeWidth="0.6" />);
+                  runX += runDir * treadPx;
                 }
               }
 
-              /* Stringer line for this run */
-              var runEndX = currentX + dir * run.treads * treadPx;
-              var runEndY = runStartY + run.risers * risePerRiser;
-              els.push(<line key={"str"+ri} x1={currentX} y1={runStartY} x2={runEndX} y2={runEndY} stroke="#444" strokeWidth="1" />);
-              /* Second stringer offset */
-              els.push(<line key={"str2"+ri} x1={currentX + dir * 2} y1={runStartY} x2={runEndX + dir * 2} y2={runEndY} stroke="#444" strokeWidth="0.5" />);
-
               risersDrawn += run.risers;
 
-              /* Landing platform between runs */
-              if (ri < geom.runs.length - 1 && geom.landings.length > ri) {
+              /* Landing between runs */
+              if (ri < geom.runs.length - 1) {
                 var landY = topY + risersDrawn * risePerRiser;
-                var landW = 15;
-                var landX = Math.min(runEndX, runEndX + dir * landW);
-                if (dir < 0) landX = runEndX;
-                els.push(<rect key={"eland"+ri} x={Math.min(runEndX, runEndX + dir * landW)} y={landY - 2} width={landW} height={4} fill="#e8e6d8" stroke="#444" strokeWidth="0.5" strokeDasharray="3,2" />);
-                els.push(<text key={"eltxt"+ri} x={runEndX + dir * landW / 2} y={landY + 1} textAnchor="middle" style={{ fontSize: 3, fill: "#888", fontFamily: "monospace" }}>LANDING</text>);
-                /* For switchback/wrap, next run goes back the other direction */
-                /* Keep currentX at the landing position for simplicity */
-                currentX = runEndX;
+                var landW = Math.max(treadPx * 3, 12);
+                var landX1 = Math.min(runX, runX + runDir * landW);
+                var landX2 = Math.max(runX, runX + runDir * landW);
+                /* Landing platform */
+                els.push(<rect key={"land"+ri} x={landX1} y={landY - 1.5} width={landX2 - landX1} height={3} fill="#e8e6d8" stroke="#444" strokeWidth="0.6" />);
+                els.push(<text key={"ltxt"+ri} x={(landX1+landX2)/2} y={landY + 0.8} textAnchor="middle" style={{ fontSize: 3, fill: "#888", fontFamily: "monospace" }}>LANDING</text>);
+                /* Landing posts going down to ground */
+                els.push(<line key={"lp1_"+ri} x1={landX1 + 2} y1={landY + 1.5} x2={landX1 + 2} y2={botY} stroke="#c4a060" strokeWidth="1.5" />);
+                els.push(<line key={"lp2_"+ri} x1={landX2 - 2} y1={landY + 1.5} x2={landX2 - 2} y2={botY} stroke="#c4a060" strokeWidth="1.5" />);
+                /* Landing post footings */
+                els.push(<rect key={"lpf1_"+ri} x={landX1 - 1} y={botY} width={6} height={3} fill="#c8c8c8" stroke="#444" strokeWidth="0.3" />);
+                els.push(<rect key={"lpf2_"+ri} x={landX2 - 5} y={botY} width={6} height={3} fill="#c8c8c8" stroke="#444" strokeWidth="0.3" />);
+
+                /* For switchback: reverse direction. For L/wrap: keep same dir but offset */
+                var tmpl = st.template || "straight";
+                if (tmpl === "switchback" || tmpl === "wrapAround") {
+                  runDir = -runDir;
+                  curX = runX; /* stay at same X, go back */
+                } else {
+                  curX = runX + runDir * landW * 0.3;
+                }
               }
             }
-          } else {
-            /* Fallback: single stringer line */
-            var stRun = st.runFt * sX;
-            els.push(<line key="fs1" x1={startX} y1={topY} x2={startX + dir * stRun} y2={botY} stroke="#444" strokeWidth="1" />);
-            els.push(<line key="fs2" x1={startX + dir * 2} y1={topY} x2={startX + dir * (stRun + 2)} y2={botY} stroke="#444" strokeWidth="0.5" />);
           }
-
-          /* Label */
-          var labelX = startX + dir * (st.runFt * sX / 2);
-          els.push(<text key="elbl" x={labelX} y={botY + 10} textAnchor="middle" style={{ fontSize: 4.5, fill: "#666", fontFamily: "monospace" }}>{st.totalStringers}\u00D72\u00D712 STRINGERS \u00B7 {st.numRuns} RUN{st.numRuns > 1 ? "S" : ""}</text>);
-          return <g>{els}</g>;
+          var labelX = startX + dir * Math.abs(st.runFt * sX) / 2;
+          els.push(<text key="stlbl" x={labelX} y={botY + 10} textAnchor="middle" style={{ fontSize: 4.5, fill: "#666", fontFamily: "monospace" }}>{st.totalStringers}×2×12 STRINGERS · {st.numRuns} RUN{st.numRuns > 1 ? "S" : ""}</text>);
         }
+        return <g>{els}</g>;
       })()}
     </svg>
   );
