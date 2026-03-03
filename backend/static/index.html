@@ -499,8 +499,11 @@ function ElevationView({ c, p }) {
   const hasSt = p.hasStairs && c.stairs;
   const st = hasSt ? c.stairs : null;
   const geom = st ? st.stairGeom : null;
-  const isFront = p.stairLocation === "front";
-  const isSide = p.stairLocation === "left" || p.stairLocation === "right";
+  const lshapeTemplates = ["lLeft","lRight"];
+  const forceSide = hasSt && lshapeTemplates.includes(p.stairTemplate);
+  const isFront = !forceSide && p.stairLocation === "front";
+  const isSide = forceSide || p.stairLocation === "left" || p.stairLocation === "right";
+  const effectiveSideDir = forceSide ? "right" : p.stairLocation;
   const risePerRiser = st ? (gnd - dY) / st.nRisers : 0;
   const treadPx = st ? (st.tread / 12) * sX : 0;
   const stairRunPx = st ? st.nTreads * treadPx : 0;
@@ -605,8 +608,8 @@ function ElevationView({ c, p }) {
 
     } else {
       // SIDE ELEVATION - proper stepped profile
-      const dir = p.stairLocation === "right" ? 1 : -1;
-      const startX = p.stairLocation === "right" ? dX + dSW : dX;
+      const dir = effectiveSideDir === "right" ? 1 : -1;
+      const startX = effectiveSideDir === "right" ? dX + dSW : dX;
 
       if (!geom || geom.runs.length <= 1) {
         // Single run stepped profile
@@ -730,6 +733,75 @@ function ElevationView({ c, p }) {
       <text x={dX+dSW+10} y={(gnd+dY)/2+1} style={{ fontSize: 5, fill: "#333", fontFamily: "monospace" }}>{postSize} POSTS ({nP})</text>
       <line x1={dX+dSW} y1={gnd} x2={dX+dSW+9} y2={gnd+4} stroke="#999" strokeWidth="0.4" />
       <text x={dX+dSW+10} y={gnd+5} style={{ fontSize: 5, fill: "#333", fontFamily: "monospace" }}>{fDiam}" Ø x {fDepth}" PIERS</text>
+      {/* View label */}
+      {(() => {
+        const lbl = isFront ? "FRONT ELEVATION" : (effectiveSideDir === "right" ? "RIGHT SIDE ELEVATION" : "LEFT SIDE ELEVATION");
+        return <text x={dX + dSW/2} y={svgH - 6} textAnchor="middle" style={{ fontSize: 6, fill: "#555", fontFamily: "monospace", fontWeight: 800, letterSpacing: 1 }}>{lbl}</text>;
+      })()}
+
+      {/* Plan-view stair thumbnail inset - bottom right corner */}
+      {hasSt && (() => {
+        const tw = 80; const th = 60;
+        const tx = svgW - tw - 8; const ty = svgH - th - 8;
+        const tsc = Math.min((tw - 16) / Math.max(W, 1), (th - 16) / Math.max(D + (st.nTreads * st.tread/12), 1));
+        const tdW = W * tsc; const tdD = D * tsc;
+        const tox = tx + (tw - tdW) / 2; const toy = ty + 8;
+        const stW2 = st.width * tsc;
+        const treadD = (st.tread / 12) * tsc;
+        const tmpl = p.stairTemplate || "straight";
+        const stairEls2 = [];
+
+        // Deck rectangle
+        stairEls2.push(<rect key="td" x={tox} y={toy} width={tdW} height={tdD} fill="#e8f4e8" stroke="#444" strokeWidth="0.8" />);
+        // House line at top
+        stairEls2.push(<line key="th" x1={tox} y1={toy} x2={tox+tdW} y2={toy} stroke="#888" strokeWidth="1.5" />);
+
+        const loc = p.stairLocation;
+        const stCx = tox + tdW/2 + (p.stairOffset||0)*tsc;
+        const stLeft = stCx - stW2/2; const stRight = stCx + stW2/2;
+        const nT = st.nTreads;
+        const runD = nT * treadD;
+
+        if (tmpl === "straight" || tmpl === "wideLanding") {
+          if (loc === "front") {
+            for (var i=0;i<=nT;i++) stairEls2.push(<line key={"tt"+i} x1={stLeft} y1={toy+tdD+i*treadD} x2={stRight} y2={toy+tdD+i*treadD} stroke="#666" strokeWidth="0.5" />);
+            stairEls2.push(<rect key="tsbox" x={stLeft} y={toy+tdD} width={stW2} height={runD} fill="none" stroke="#444" strokeWidth="0.7" />);
+          } else if (loc === "right") {
+            for (var i=0;i<=nT;i++) stairEls2.push(<line key={"tt"+i} x1={tox+tdW+i*treadD} y1={toy+tdD/2-stW2/2} x2={tox+tdW+i*treadD} y2={toy+tdD/2+stW2/2} stroke="#666" strokeWidth="0.5" />);
+            stairEls2.push(<rect key="tsbox" x={tox+tdW} y={toy+tdD/2-stW2/2} width={runD} height={stW2} fill="none" stroke="#444" strokeWidth="0.7" />);
+          } else {
+            for (var i=0;i<=nT;i++) stairEls2.push(<line key={"tt"+i} x1={tox-i*treadD} y1={toy+tdD/2-stW2/2} x2={tox-i*treadD} y2={toy+tdD/2+stW2/2} stroke="#666" strokeWidth="0.5" />);
+            stairEls2.push(<rect key="tsbox" x={tox-runD} y={toy+tdD/2-stW2/2} width={runD} height={stW2} fill="none" stroke="#444" strokeWidth="0.7" />);
+          }
+        } else if (tmpl === "lLeft") {
+          const r1D = Math.round(nT*0.55)*treadD; const r2D = (nT-Math.round(nT*0.55))*treadD;
+          stairEls2.push(<rect key="r1" x={stLeft} y={toy+tdD} width={stW2} height={r1D} fill="none" stroke="#444" strokeWidth="0.7" />);
+          stairEls2.push(<rect key="land" x={stLeft-stW2} y={toy+tdD+r1D-stW2} width={stW2} height={stW2} fill="#ddd" stroke="#444" strokeWidth="0.6" strokeDasharray="2,1" />);
+          stairEls2.push(<rect key="r2" x={stLeft-stW2} y={toy+tdD+r1D-stW2-r2D} width={stW2} height={r2D} fill="none" stroke="#444" strokeWidth="0.7" />);
+        } else if (tmpl === "lRight") {
+          const r1D = Math.round(nT*0.55)*treadD; const r2D = (nT-Math.round(nT*0.55))*treadD;
+          stairEls2.push(<rect key="r1" x={stLeft} y={toy+tdD} width={stW2} height={r1D} fill="none" stroke="#444" strokeWidth="0.7" />);
+          stairEls2.push(<rect key="land" x={stRight} y={toy+tdD+r1D-stW2} width={stW2} height={stW2} fill="#ddd" stroke="#444" strokeWidth="0.6" strokeDasharray="2,1" />);
+          stairEls2.push(<rect key="r2" x={stRight} y={toy+tdD+r1D-stW2-r2D} width={stW2} height={r2D} fill="none" stroke="#444" strokeWidth="0.7" />);
+        } else if (tmpl === "switchback" || tmpl === "uTurn") {
+          const r1D = Math.round(nT*0.5)*treadD; const r2D = (nT-Math.round(nT*0.5))*treadD;
+          stairEls2.push(<rect key="r1" x={stLeft} y={toy+tdD} width={stW2} height={r1D} fill="none" stroke="#444" strokeWidth="0.7" />);
+          stairEls2.push(<rect key="land" x={stLeft} y={toy+tdD+r1D} width={stW2*2+4} height={stW2} fill="#ddd" stroke="#444" strokeWidth="0.6" strokeDasharray="2,1" />);
+          stairEls2.push(<rect key="r2" x={stRight+4} y={toy+tdD+r1D} width={stW2} height={r2D} fill="none" stroke="#444" strokeWidth="0.7" />);
+        } else if (tmpl === "wrapAround") {
+          stairEls2.push(<rect key="r1" x={stLeft} y={toy+tdD} width={stW2} height={runD*0.4} fill="none" stroke="#444" strokeWidth="0.7" />);
+          stairEls2.push(<rect key="r2" x={stLeft-stW2} y={toy+tdD} width={stW2} height={runD*0.35} fill="none" stroke="#444" strokeWidth="0.7" />);
+          stairEls2.push(<rect key="r3" x={stLeft+stW2} y={toy+tdD} width={stW2} height={runD*0.25} fill="none" stroke="#444" strokeWidth="0.7" />);
+        }
+
+        return (
+          <g>
+            <rect x={tx} y={ty} width={tw} height={th} fill="white" stroke="#aaa" strokeWidth="0.8" rx="2" />
+            {stairEls2}
+            <text x={tx+tw/2} y={ty+th-2} textAnchor="middle" style={{ fontSize: 4, fill: "#888", fontFamily: "monospace" }}>PLAN VIEW</text>
+          </g>
+        );
+      })()}
     </svg>
   );
 }
