@@ -1,6 +1,6 @@
 """
-SimpleBlueprints — Structural Calculation Engine
-Production version — mirrors frontend calcStructure() exactly
+SimpleBlueprints â Structural Calculation Engine
+Production version â mirrors frontend calcStructure() exactly
 """
 
 import math
@@ -41,6 +41,9 @@ def calculate_structure(params):
     joist_spacing = params["joistSpacing"]
     snow = SNOW_LOADS.get(params["snowLoad"], 0)
     frost = FROST_DEPTHS.get(params["frostZone"], 30)
+
+    # Beam type: "dropped" (default, below joists) or "flush" (inline with joists)
+    beam_type = params.get("beamType", "dropped")
 
     area = width * depth
     DL = 15 if params["deckingType"] == "composite" else 12
@@ -140,6 +143,9 @@ def calculate_structure(params):
             "location": stair_loc,
         }
 
+    # Joist hanger count for flush beams
+    joist_hangers_for_beam = num_joists * 2 if beam_type == "flush" else 0
+
     warnings = []
     max_span_available = joist_spans.get("2x12", {}).get(joist_spacing, 0)
     if joist_span > max_span_available:
@@ -151,7 +157,7 @@ def calculate_structure(params):
 
     return {
         "width": width, "depth": depth, "height": height, "area": round(area, 1),
-        "attachment": attachment, "LL": LL, "DL": DL, "TL": TL,
+        "attachment": attachment, "beam_type": beam_type, "LL": LL, "DL": DL, "TL": TL,
         "joist_size": joist_size, "joist_spacing": joist_spacing,
         "joist_span": round(joist_span, 1), "num_joists": num_joists,
         "beam_size": beam_size, "beam_span": round(beam_span, 1),
@@ -161,6 +167,7 @@ def calculate_structure(params):
         "num_footings": total_posts, "ledger_size": ledger_size,
         "rail_length": round(rail_length, 1), "rail_height": 36,
         "stairs": stair_info, "warnings": warnings,
+        "joist_hangers_for_beam": joist_hangers_for_beam,
         "auto": {
             "joist": auto_joist, "beam": auto_beam,
             "post_size": auto_post_size, "post_count": auto_np,
