@@ -92,6 +92,7 @@ class DeckParams(BaseModel):
     overPostSize: Optional[str] = None; overPostCount: Optional[int] = None
     overFooting: Optional[int] = None
     projectInfo: Optional[dict] = None; coverImage: Optional[str] = None
+    beamType: str = "dropped"
     sitePlanMode: Optional[str] = "generate"; sitePlanFile: Optional[str] = None
 
 
@@ -131,7 +132,7 @@ def generate_blueprint_pdf(params: dict) -> tuple[str, dict]:
 
     with PdfPages(str(output_path)) as pdf:
         fig0 = plt.figure(figsize=(14, 8.5)); fig0.set_facecolor('white')
-        draw_cover_sheet(fig0, params, calc, cover_img)
+        draw_cover_sheet(fig0, params, calc, pi, cover_img)
         pdf.savefig(fig0, dpi=200); plt.close(fig0)
 
         for sheet_num, sheet_name, draw_fn in sheets:
@@ -283,6 +284,39 @@ async def check_payment(session_id: str):
                 return {"status":"paid","download_url":f"/api/download/{file_id}","calc":calc}
         return {"status":"pending"}
     except Exception as e: return {"status":"error","message":str(e)}
+
+
+# ============================================================
+# FEEDBACK
+# ============================================================
+@app.post("/api/feedback")
+async def submit_feedback(request: Request):
+    """Collect user feedback before PDF generation (production domain only)."""
+    try:
+        body = await request.json()
+        feedback_data = {
+            "role": body.get("role", ""),
+            "source": body.get("source", ""),
+            "price": body.get("price", ""),
+            "feedback": body.get("feedback", ""),
+            "email": body.get("email", ""),
+        }
+        user_id = get_current_user_id(request)
+        if user_id:
+            feedback_data["user_id"] = user_id
+        # Store feedback - try database first, fall back to file
+        try:
+            from app.database import store_feedback
+            store_feedback(feedback_data)
+        except Exception as db_err:
+            print(f"DB feedback error: {db_err}")
+            feedback_path = Path("/tmp/feedback.jsonl")
+            with open(feedback_path, "a") as f:
+                f.write(json.dumps({**feedback_data, "timestamp": time.time()}) + "\n")
+        return {"ok": True}
+    except Exception as e:
+        print(f"Feedback error: {e}")
+        return {"ok": False, "error": str(e)}
 
 
 # ============================================================
