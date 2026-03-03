@@ -128,8 +128,20 @@ def draw_south_elevation(ax, params, calc):
 
     # === BEAM ===
     beam_h = 1.0  # visual height
-    ax.add_patch(patches.Rectangle((deck_x + 1, deck_top - beam_h - 0.1), W - 2, beam_h,
-                 fc=BRAND["beam"], ec=BRAND["dark"], lw=0.8, alpha=0.85))
+    beam_type = calc.get("beam_type", "dropped")
+    if beam_type == "flush":
+        # Flush beam: inline with joists, top of beam = deck_top, posts reach deck underside
+        beam_y = deck_top - beam_h
+        ax.add_patch(patches.Rectangle((deck_x + 1, beam_y), W - 2, beam_h,
+                     fc=BRAND["beam"], ec=BRAND["dark"], lw=0.8, alpha=0.85))
+        # Re-draw posts to reach joist bottom (deck_top - joist_h)
+        for px in calc["post_positions"]:
+            sx = deck_x + px
+            ax.plot([sx, sx], [ground_y + 0.2, deck_top - beam_h], color=BRAND["post"], lw=2)
+    else:
+        # Dropped beam: sits below joists, posts reach beam bottom
+        ax.add_patch(patches.Rectangle((deck_x + 1, deck_top - beam_h - 0.1), W - 2, beam_h,
+                     fc=BRAND["beam"], ec=BRAND["dark"], lw=0.8, alpha=0.85))
 
     # === JOISTS (visible as small rectangles from front) ===
     joist_sp = calc["joist_spacing"] / 12
@@ -195,7 +207,7 @@ def draw_south_elevation(ax, params, calc):
 
     ax.text(lbl_x, rail_top - 0.3, f'{calc["rail_height"]}" GUARD RAIL SYSTEM', **lbl_kw)
     ax.text(lbl_x, deck_top - beam_h / 2 - 0.2, f'{calc["beam_size"].upper()}', **lbl_kw)
-    ax.text(lbl_x, deck_top - beam_h / 2 - 0.8, 'DROPPED BEAM', **lbl_kw)
+    ax.text(lbl_x, deck_top - beam_h / 2 - 0.8, 'FLUSH BEAM' if beam_type == 'flush' else 'DROPPED BEAM', **lbl_kw)
     ax.text(lbl_x, H * 0.4, f'{calc["post_size"]} PT POSTS', **lbl_kw)
     ax.text(lbl_x, H * 0.4 - 0.6, f'SIMPSON HARDWARE', **lbl_kw)
     ax.text(lbl_x, H * 0.4 - 1.2, f'({calc["num_posts"]}) PLCS', **lbl_kw)
@@ -265,8 +277,13 @@ def draw_north_elevation(ax, params, calc):
 
     # === BEAM ===
     beam_h = 1.0
-    ax.add_patch(patches.Rectangle((deck_start_x, deck_top - beam_h - 0.1), D - 0.5, beam_h,
-                 fc=BRAND["beam"], ec=BRAND["dark"], lw=0.8, alpha=0.85))
+    beam_type_side = calc.get("beam_type", "dropped")
+    if beam_type_side == "flush":
+        ax.add_patch(patches.Rectangle((deck_start_x, deck_top - beam_h), D - 0.5, beam_h,
+                     fc=BRAND["beam"], ec=BRAND["dark"], lw=0.8, alpha=0.85))
+    else:
+        ax.add_patch(patches.Rectangle((deck_start_x, deck_top - beam_h - 0.1), D - 0.5, beam_h,
+                     fc=BRAND["beam"], ec=BRAND["dark"], lw=0.8, alpha=0.85))
 
     # === LEDGER CONNECTION ===
     if attachment == "ledger":
