@@ -1507,6 +1507,31 @@ const App = function SimpleBlueprints() {
                   </div>
                 ); })()}
 
+                
+                {/* BEAM TYPE */}
+                <div style={{ marginBottom: 8 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                    <span style={{ fontSize: 9, fontFamily: "mono", letterSpacing: 1, color: br.mu, fontWeight: 700 }}>BEAM TYPE</span>
+                  </div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    {["dropped", "flush"].map(bt => (
+                      <button key={bt} onClick={() => u("beamType", bt)} style={{
+                        flex: 1, padding: "6px 4px", fontSize: 11, fontFamily: "mono",
+                        cursor: "pointer", borderRadius: 4,
+                        border: `1px solid ${params.beamType === bt ? br.ac : br.bd}`,
+                        background: params.beamType === bt ? br.ac : "#fff",
+                        color: params.beamType === bt ? "#fff" : br.mu,
+                        fontWeight: params.beamType === bt ? 700 : 400,
+                        textTransform: "capitalize"
+                      }}>{bt === "dropped" ? "Dropped" : "Flush"}</button>
+                    ))}
+                  </div>
+                  {params.beamType === "flush" && (
+                    <div style={{ fontSize: 9, color: br.mu, marginTop: 4, fontStyle: "italic" }}>
+                      Beam sits inline with joists — requires LUS joist hangers
+                    </div>
+                  )}
+                </div>
                 <div style={{ height: 1, background: br.bd, margin: "10px 0" }} />
                 <Spec l="Joist Span" v={`${c.jSpan}'`} /><Spec l="Beam Span" v={`${c.bSpan}'`} /><Spec l="Total Load" v={`${c.TL} PSF`} color={br.rd} />
                 {c.warnings.map((w, i) => <div key={i} style={{ fontSize: 10, color: br.rd, marginTop: 4, fontFamily: mono }}>⚠️ {w}</div>)}
