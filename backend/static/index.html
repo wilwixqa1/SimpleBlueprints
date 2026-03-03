@@ -91,7 +91,7 @@ function calcStructure(p) {
     const nStringers = p.numStringers || 3;
     const nR = Math.ceil(H * 12 / 7.5); const aR = H * 12 / nR;
     const tR = (nR - 1) * 10.5;
-    const stairGeom = computeStairGeometry({ template: p.stairTemplate || "straight", height: H, stairWidth: stairW, numStringers: nStringers, runSplit: p.stairRunSplit || null, landingDepth: p.stairLandingDepth || null, stairGap: p.stairGap != null ? p.stairGap : 0.5 });
+    const stairGeom = computeStairGeometry({ template: p.stairTemplate || "straight", height: H, stairWidth: stairW, numStringers: nStringers, runSplit: p.stairRunSplit ? p.stairRunSplit/100 : null, landingDepth: p.stairLandingDepth || null, stairGap: p.stairGap != null ? p.stairGap : 0.5 });
     stairs = {
       nRisers: nR, nTreads: nR - 1, rise: +aR.toFixed(2), tread: 10.5,
       runFt: +(tR / 12).toFixed(1),
@@ -398,7 +398,7 @@ function PlanView({ p, c, mode, u }) {
 
       {/* Multi-segment stairs */}
       {p.hasStairs && c.stairs && (() => {
-        const stairGeom = computeStairGeometry({ template: p.stairTemplate || "straight", height: p.height, stairWidth: p.stairWidth || 4, numStringers: p.numStringers || 3, runSplit: p.stairRunSplit || null, landingDepth: p.stairLandingDepth || null, stairGap: p.stairGap != null ? p.stairGap : 0.5 });
+        const stairGeom = computeStairGeometry({ template: p.stairTemplate || "straight", height: p.height, stairWidth: p.stairWidth || 4, numStringers: p.numStringers || 3, runSplit: p.stairRunSplit ? p.stairRunSplit/100 : null, landingDepth: p.stairLandingDepth || null, stairGap: p.stairGap != null ? p.stairGap : 0.5 });
         if (!stairGeom) return null;
         const exitSide = p.stairLocation || "front";
         let ox, oy;
@@ -1185,6 +1185,14 @@ const App = function SimpleBlueprints() {
               {showAdvanced && <div style={{ padding: 14, background: br.wr, borderRadius: 8, border: `1px solid ${br.bd}`, marginBottom: 12 }}>
                 <Slider label="Deck offset from center" value={p.deckOffset} min={-Math.floor(p.houseWidth / 2)} max={Math.floor(p.houseWidth / 2)} field="deckOffset" unit="'" />
                 {p.hasStairs && <Slider label="Stair offset from center" value={p.stairOffset} min={-Math.floor((p.stairLocation === "front" ? (p.width - (p.stairWidth || 4)) : (p.depth - (p.stairWidth || 4))) / 2)} max={Math.floor((p.stairLocation === "front" ? (p.width - (p.stairWidth || 4)) : (p.depth - (p.stairWidth || 4))) / 2)} field="stairOffset" unit="'" />}
+              {/* STEP-B-ADVANCED-UI-PATCHED */}
+              {["lLeft","lRight","switchback","wrapAround","wideLanding"].includes(p.stairTemplate) && p.hasStairs && (<>
+                <Slider label="Run Split (1st run %)" value={p.stairRunSplit!=null?p.stairRunSplit:55} min={30} max={70} step={5} field="stairRunSplit" unit="%" />
+                <Slider label="Landing Depth" value={p.stairLandingDepth!=null?p.stairLandingDepth:Math.max(p.stairWidth||4,4)} min={3} max={8} step={0.5} field="stairLandingDepth" unit="'" />
+              </>)}
+              {["switchback","wrapAround"].includes(p.stairTemplate) && p.hasStairs && (
+                <Slider label="Gap Between Runs" value={p.stairGap!=null?p.stairGap:0.5} min={0} max={2} step={0.5} field="stairGap" unit="'" />
+              )}
               </div>}
 
               <div style={{ marginTop: 16, padding: 14, background: br.wr, borderRadius: 8, border: `1px solid ${br.bd}` }}>
