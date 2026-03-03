@@ -4,6 +4,7 @@ Professional cover page with 3D rendering and project information
 """
 
 import io
+import json
 import base64
 from datetime import date
 from PIL import Image
@@ -32,6 +33,14 @@ def format_feet_inches(feet):
 def draw_cover_sheet(fig, params, calc, project_info=None, cover_image_b64=None):
     """Draw Sheet A-0: Cover page with 3D rendering and project details."""
     pi = project_info or {}
+    # FIX: projectInfo may arrive as a JSON string instead of dict
+    if isinstance(pi, str):
+        try:
+            pi = json.loads(pi)
+        except (json.JSONDecodeError, TypeError):
+            pi = {}
+    pi = pi or {}
+
     W = calc["width"]
     D = calc["depth"]
     H = calc["height"]
@@ -76,12 +85,10 @@ def draw_cover_sheet(fig, params, calc, project_info=None, cover_image_b64=None)
             ax.imshow(img_array,
                       extent=[img_x_left, img_x_right, img_y_bot, img_y_top],
                       aspect='auto', zorder=2)
-            # Border around image
             ax.add_patch(patches.Rectangle(
                 (img_x_left, img_y_bot), img_x_right - img_x_left, img_y_top - img_y_bot,
                 fill=False, ec=BRAND["dark"], lw=1, zorder=3))
         except Exception as e:
-            # Fallback: gray placeholder
             ax.add_patch(patches.Rectangle(
                 (img_x_left, img_y_bot), img_x_right - img_x_left, img_y_top - img_y_bot,
                 fc='#f0ede4', ec=BRAND["dark"], lw=1))
@@ -112,8 +119,8 @@ def draw_cover_sheet(fig, params, calc, project_info=None, cover_image_b64=None)
     ax.text(7, info_y - 2.2, "PROJECT INFORMATION", fontsize=7, fontweight='bold',
             fontfamily='monospace', color='white')
 
-    owner = pi.get("owner", "—")
-    address = pi.get("address", "—")
+    owner = pi.get("owner", "\u2014")
+    address = pi.get("address", "\u2014")
     city = pi.get("city", "")
     state = pi.get("state", "")
     zip_code = pi.get("zip", "")
@@ -125,10 +132,10 @@ def draw_cover_sheet(fig, params, calc, project_info=None, cover_image_b64=None)
         city_line += f" {zip_code}" if city_line else zip_code
 
     details = [
-        ("OWNER", owner.upper() if owner != "—" else "—"),
-        ("ADDRESS", address.upper() if address != "—" else "—"),
-        ("CITY / STATE / ZIP", city_line.upper() if city_line else "—"),
-        ("LOT / PARCEL", lot.upper() if lot else "—"),
+        ("OWNER", owner.upper() if owner != "\u2014" else "\u2014"),
+        ("ADDRESS", address.upper() if address != "\u2014" else "\u2014"),
+        ("CITY / STATE / ZIP", city_line.upper() if city_line else "\u2014"),
+        ("LOT / PARCEL", lot.upper() if lot else "\u2014"),
         ("CONTRACTOR", contractor.upper()),
         ("DATE", today.upper()),
     ]
@@ -157,16 +164,16 @@ def draw_cover_sheet(fig, params, calc, project_info=None, cover_image_b64=None)
     stair_desc = "None"
     if params.get("hasStairs") and calc.get("stairs"):
         st = calc["stairs"]
-        stair_desc = f'{st.get("location","front").upper()} — {st["width"]}\' WIDE, {st["num_stringers"]} STRINGERS'
+        stair_desc = f'{st.get("location","front").upper()} \u2014 {st["width"]}\' WIDE, {st["num_stringers"]} STRINGERS'
 
     specs = [
-        ("DECK SIZE", f'{format_feet_inches(W)} × {format_feet_inches(D)}  ({calc["area"]} SF)'),
+        ("DECK SIZE", f'{format_feet_inches(W)} \u00d7 {format_feet_inches(D)}  ({calc["area"]} SF)'),
         ("HEIGHT", f'{format_feet_inches(H)} ABOVE GRADE'),
         ("ATTACHMENT", attachment.upper()),
         ("JOISTS", f'{calc["joist_size"]} @ {calc["joist_spacing"]}" O.C.'),
         ("BEAM", calc["beam_size"].upper()),
         ("POSTS", f'{calc["post_size"]}  ({calc["total_posts"]} TOTAL)'),
-        ("FOOTINGS", f'{calc["footing_diam"]}" Ø × {calc["footing_depth"]}" DEEP  ({calc["num_footings"]})'),
+        ("FOOTINGS", f'{calc["footing_diam"]}" \u00d8 \u00d7 {calc["footing_depth"]}" DEEP  ({calc["num_footings"]})'),
         ("STAIRS", stair_desc),
     ]
 
