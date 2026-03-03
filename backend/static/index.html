@@ -491,51 +491,75 @@ function ElevationView({ c, p }) {
   const gnd = pad + (H + 4) * sY; const dY = gnd - H * sY; const rTop = dY - 3 * sY;
   const dX = pad; const dSW = W * sX;
   const hW = p.houseWidth * sX; const hX = dX + (dSW - hW) / 2 - (p.deckOffset || 0) * sX;
-  const fndH = (H + 1) * sY; const f1H = 8.5 * sY; const f2H = H > 6 ? 8 * sY : 0;
+  const fndH = (H + 1) * sY; const f1H = 0.5 * sY; const f2H = 6.7 * sY; const f3 = 0;
   const wallH = fndH + f1H + f2H; const roofPk = 5 * sY; const hTop = gnd - wallH;
   const svgW = dSW + pad * 2 + 60; const svgH = wallH + roofPk + pad + 30;
   const bH = 1 * sY;
+
   return (
-    <svg viewBox={`0 0 ${svgW} ${svgH}`} style={{ width: "100%", height: "auto" }}>
+    <svg viewBox={"0 0 " + svgW + " " + svgH} style={{ width: "100%", height: "auto" }}>
+      {/* House */}
       <rect x={hX} y={hTop} width={hW} height={fndH} fill="#c8c8c8" stroke="#444" strokeWidth="1" />
-      <rect x={hX} y={hTop + fndH} width={hW} height={f1H} fill="#e8e6e0" stroke="#444" strokeWidth="1" />
+      <rect x={hX} y={hTop} width={hW} height={f1H} fill="#e8e6e0" stroke="#444" strokeWidth="1" />
       {f2H > 0 && <rect x={hX} y={hTop + fndH + f1H} width={hW} height={f2H} fill="#e8e6e0" stroke="#444" strokeWidth="1" />}
-      {[0.08, 0.42, 0.72].map((wx, i) => <rect key={i} x={hX + hW * wx} y={hTop + fndH + f1H * 0.2} width={hW * 0.12} height={f1H * 0.45} fill="#b0d4e8" stroke="#444" strokeWidth="0.5" rx="0.5" />)}
-      <polygon points={`${hX - 8},${hTop} ${hX + hW / 2},${hTop - roofPk} ${hX + hW + 8},${hTop}`} fill="#888" stroke="#444" strokeWidth="1.5" />
+      {[0.08,0.42,0.72].map((wx,i) => <rect key={i} x={hX + hW * wx} y={hTop + fndH + f1H * 0.2} height={f1H * 0.45} width={hW * 0.12} fill="#b0d4e8" stroke="#444" strokeWidth="0.5" rx="0.5" />)}
+      <polygon points={hX+","+hTop+" "+(hX+hW/2)+","+(hTop-roofPk)+" "+(hX+hW)+","+hTop} fill="#888" stroke="#444" strokeWidth="1.5" />
       <text x={hX + hW / 2} y={hTop - roofPk / 3} textAnchor="middle" style={{ fontSize: 6, fill: "#aaa", fontFamily: "monospace" }}>EXISTING HOUSE</text>
-      <line x1={pad - 15} y1={gnd} x2={svgW - 15} y2={gnd} stroke="#444" strokeWidth="1" />
-      {Array.from({ length: Math.ceil((svgW - 30) / 3) }, (_, i) => <line key={i} x1={pad - 15 + i * 3} y1={gnd} x2={pad - 17 + i * 3} y2={gnd + 2} stroke="#aaa" strokeWidth="0.3" />)}
-      {pp.map((px, i) => { const sx = dX + px * sX; return (
-        <g key={i}>
-          <rect x={sx - 5} y={gnd} width={10} height={4} fill="#c8c8c8" stroke="#444" strokeWidth="0.5" />
-          <rect x={sx - 3.5} y={gnd - 2} width={7} height={2} fill="#888" stroke="#444" strokeWidth="0.4" />
-          <line x1={sx} y1={gnd - 2} x2={sx} y2={dY} stroke="#c4a060" strokeWidth={postSize === "6x6" ? 3 : 2} />
-        </g>
-      ); })}
-      <rect x={dX + 1 * sX} y={dY + 1} width={dSW - 2 * sX} height={bH * 0.7} fill="#c4960a" fillOpacity="0.85" stroke="#444" strokeWidth="0.8" rx="0.5" />
-      <line x1={dX} y1={dY} x2={dX + dSW} y2={dY} stroke="#6B5340" strokeWidth="2.5" />
-      <line x1={dX} y1={rTop} x2={dX + dSW} y2={rTop} stroke="#333" strokeWidth="2" />
-      <line x1={dX} y1={dY - 2} x2={dX + dSW} y2={dY - 2} stroke="#333" strokeWidth="0.8" />
-      {Array.from({ length: Math.ceil(W / 4) + 1 }, (_, i) => i * 4 * sX).filter(x => x <= dSW).map((x, i) => <line key={i} x1={dX + x} y1={dY} x2={dX + x} y2={rTop} stroke="#333" strokeWidth="1" />)}
-      {Array.from({ length: Math.ceil(W / (3.75 / 12)) }, (_, i) => i * 3.75 / 12 * sX).filter(x => x <= dSW).map((x, i) => <line key={i} x1={dX + x} y1={dY - 2} x2={dX + x} y2={rTop} stroke="#333" strokeWidth="0.12" opacity="0.5" />)}
-      <line x1={dX - 15} y1={gnd} x2={dX - 15} y2={dY} stroke="#1565c0" strokeWidth="0.5" />
-      <line x1={dX - 18} y1={gnd} x2={dX - 12} y2={gnd} stroke="#1565c0" strokeWidth="0.5" />
-      <line x1={dX - 18} y1={dY} x2={dX - 12} y2={dY} stroke="#1565c0" strokeWidth="0.5" />
-      <text x={dX - 22} y={(gnd + dY) / 2 + 2} textAnchor="middle" transform={`rotate(-90, ${dX - 22}, ${(gnd + dY) / 2})`} style={{ fontSize: 8, fill: "#1565c0", fontWeight: 800, fontFamily: "'DM Mono', monospace" }}>{Math.floor(H)}'-{Math.round((H % 1) * 12)}"</text>
-      <line x1={dX} y1={rTop - 10} x2={dX + dSW} y2={rTop - 10} stroke="#c62828" strokeWidth="0.5" />
-      <line x1={dX} y1={rTop - 13} x2={dX} y2={rTop - 7} stroke="#c62828" strokeWidth="0.5" />
-      <line x1={dX + dSW} y1={rTop - 13} x2={dX + dSW} y2={rTop - 7} stroke="#c62828" strokeWidth="0.5" />
-      <text x={dX + dSW / 2} y={rTop - 14} textAnchor="middle" style={{ fontSize: 8, fill: "#c62828", fontWeight: 800, fontFamily: "'DM Mono', monospace" }}>{W}'-0"</text>
-      <text x={dX + dSW + 10} y={rTop + 4} style={{ fontSize: 5, fill: "#333", fontFamily: "monospace" }}>36" GUARD RAIL</text>
-      <text x={dX + dSW + 10} y={dY + bH * 0.4 + 2} style={{ fontSize: 5, fill: "#333", fontFamily: "monospace" }}>{beamSize.toUpperCase()}</text>
-      <text x={dX + dSW + 10} y={(gnd + dY) / 2} style={{ fontSize: 5, fill: "#333", fontFamily: "monospace" }}>{postSize} POSTS ({nP})</text>
-      <text x={dX + dSW + 10} y={gnd + 4} style={{ fontSize: 5, fill: "#333", fontFamily: "monospace" }}>{fDiam}" Ø × {fDepth}" PIERS</text>
-      {/* Multi-segment elevation stairs */}
+
+      {/* Ground line */}
+      <line x1={pad-15} y1={gnd} x2={svgW-15} y2={gnd} stroke="#444" strokeWidth="1" />
+      {Array.from({ length: Math.ceil((svgW - 30) / 3) }, (_, i) => <line key={i} x1={pad-15+i*3} y1={gnd} x2={pad-17+i*3} y2={gnd+2} stroke="#aaa" strokeWidth="0.3" />)}
+
+      {/* Posts */}
+      {pp.map((px, i) => {
+        const sx = dX + px * sX;
+        return (
+          <g key={i}>
+            <rect x={sx-5} y={gnd} width={10} height={4} fill="#c8c8c8" stroke="#444" strokeWidth="0.5" />
+            <rect x={sx-3.5} y={gnd-2} width={7} height={2} fill="#888" strokeWidth="0.4" />
+            <line x1={sx} y1={gnd-2} x2={sx} y2={dY} stroke="#c4a060" strokeWidth={postSize==="6x6"?3:2} />
+          </g>
+        );
+      })}
+
+      {/* Deck surface + decking lines */}
+      <rect x={dX+1*sX} y={dY+1} width={dSW-2*sX} height={bH*0.7} fill="#c4960a" fillOpacity="0.85" stroke="#444" strokeWidth="0.8" rx="0.5" />
+      <line x1={dX} y1={dY} x2={dX+dSW} y2={dY} stroke="#685340" strokeWidth="2.5" />
+      <line x1={dX} y1={rTop} x2={dX+dSW} y2={rTop} stroke="#333" strokeWidth="2" />
+      <line x1={dX} y1={dY-2} x2={dX+dSW} y2={dY-2} stroke="#333" strokeWidth="0.8" />
+      {Array.from({ length: Math.ceil(W/4)+1 }, (_, i) => i*4*sX).filter(x => x <= dSW).map((x, i) => <line key={i} x1={dX+x} y1={dY-2} x2={dX+x} y2={rTop} stroke="#333" strokeWidth="1" />)}
+
+      {/* Beam */}
+      {Array.from({ length: Math.ceil(W/3.75/12) }, (_, i) => i*3.75/12*sX).filter(x => x <= dSW).map((x, i) => <line key={i} x1={dX+x} y1={dY-2} x2={dX+x} y2={rTop} stroke="#333" strokeWidth="0.12" opacity="0.5" />)}
+
+      {/* Dimension lines */}
+      <line x1={dX-18} y1={gnd} x2={dX-15} y2={gnd} stroke="#1565c0" strokeWidth="0.5" />
+      <line x1={dX-18} y1={dY} x2={dX-12} y2={dY} stroke="#1565c0" strokeWidth="0.5" />
+      <line x1={dX-18} y1={gnd} x2={dX-18} y2={dY} stroke="#1565c0" strokeWidth="0.5" />
+      <text x={dX-22} y={(gnd+dY)/2+2} textAnchor="middle" transform={"rotate(-90, "+(dX-22)+", "+((gnd+dY)/2)+")"} style={{ fontSize: 8, fill: "#1565c0", fontWeight: 800, fontFamily: "'DM Mono','SF Mono',monospace" }}>{Math.floor(H)}'-{Math.round((H%1)*12)}"</text>
+      <line x1={dX} y1={rTop-10} x2={dX+dSW} y2={rTop-10} stroke="#c62828" strokeWidth="0.5" />
+      <line x1={dX} y1={rTop-13} x2={dX} y2={rTop-7} stroke="#c62828" strokeWidth="0.5" />
+      <line x1={dX+dSW} y1={rTop-13} x2={dX+dSW} y2={rTop-7} stroke="#c62828" strokeWidth="0.5" />
+      <text x={dX+dSW/2} y={rTop-13} textAnchor="middle" style={{ fontSize: 8, fill: "#c62828", fontWeight: 800, fontFamily: "'DM Mono','SF Mono',monospace" }}>{W}'-0"</text>
+
+      {/* Callout labels - right side */}
+      <text x={dX+dSW+10} y={rTop+4} style={{ fontSize: 5, fill: "#333", fontFamily: "monospace" }}>36" GUARD RAIL</text>
+      <text x={dX+dSW+10} y={dY+bH*0.4+2} style={{ fontSize: 5, fill: "#333", fontFamily: "monospace" }}>{beamSize.toUpperCase()}</text>
+      <text x={dX+dSW+10} y={(gnd+dY)/2} style={{ fontSize: 5, fill: "#333", fontFamily: "monospace" }}>{postSize} POSTS ({nP})</text>
+      <text x={dX+dSW+10} y={gnd+4} style={{ fontSize: 5, fill: "#333", fontFamily: "monospace" }}>{fDiam}" Ø x {fDepth}" PIERS</text>
+
+      {/* Leader lines to callouts */}
+      <line x1={dX+dSW} y1={rTop+2} x2={dX+dSW+9} y2={rTop+4} stroke="#999" strokeWidth="0.4" />
+      <line x1={dX+dSW} y1={dY+bH*0.3} x2={dX+dSW+9} y2={dY+bH*0.4+2} stroke="#999" strokeWidth="0.4" />
+      <line x1={dX+dSW} y1={(gnd+dY)/2} x2={dX+dSW+9} y2={(gnd+dY)/2} stroke="#999" strokeWidth="0.4" />
+      <line x1={dX+dSW} y1={gnd} x2={dX+dSW+9} y2={gnd+4} stroke="#999" strokeWidth="0.4" />
+
+      {/* Stair elevation */}
       {p.hasStairs && c.stairs && (() => {
         const st = c.stairs;
         const geom = st.stairGeom;
-        const topY = dY;
         const botY = gnd;
+        const topY = dY;
         const totalH = botY - topY;
         const showSide = p.stairLocation === "left" || p.stairLocation === "right";
         const els = [];
@@ -543,128 +567,93 @@ function ElevationView({ c, p }) {
         const treadPx = (st.tread / 12) * sX;
 
         if (!showSide) {
-          /* ---- FRONT ELEVATION ---- */
+          /* FRONT ELEVATION */
           const stW = st.width * sX;
           const cx = dX + dSW / 2;
-
           if (!geom || geom.runs.length <= 1) {
-            /* Single run straight stairs - simple front view */
-            els.push(<line key="fl" x1={cx - stW/2} y1={topY} x2={cx - stW/2} y2={botY} stroke="#444" strokeWidth="0.8" />);
-            els.push(<line key="fr" x1={cx + stW/2} y1={topY} x2={cx + stW/2} y2={botY} stroke="#444" strokeWidth="0.8" />);
-            for (var i = 1; i <= st.nTreads; i++) {
+            /* Single run */
+            els.push(<line key="fl" x1={cx-stW/2} y1={topY} x2={cx-stW/2} y2={botY} stroke="#444" strokeWidth="0.8" />);
+            els.push(<line key="fr" x1={cx+stW/2} y1={topY} x2={cx+stW/2} y2={botY} stroke="#444" strokeWidth="0.8" />);
+            for (var i=1; i<=st.nTreads; i++) {
               var ty = topY + i * risePerRiser;
-              els.push(<line key={"ft"+i} x1={cx - stW/2} y1={ty} x2={cx + stW/2} y2={ty} stroke="#aaa" strokeWidth="0.4" />);
+              els.push(<line key={"ft"+i} x1={cx-stW/2} y1={ty} x2={cx+stW/2} y2={ty} stroke="#aaa" strokeWidth="0.4" />);
             }
           } else {
-            /* Multi-run: show landing platform(s) at intermediate heights */
+            /* Multi-run: show stringer outlines + landing */
             var risersDrawn = 0;
-            for (var ri = 0; ri < geom.runs.length; ri++) {
+            for (var ri=0; ri<geom.runs.length; ri++) {
               var run = geom.runs[ri];
               var runTopY = topY + risersDrawn * risePerRiser;
               var runBotY = topY + (risersDrawn + run.risers) * risePerRiser;
-              /* Stringer outlines for this run */
-              els.push(<line key={"fl"+ri} x1={cx - stW/2} y1={runTopY} x2={cx - stW/2} y2={runBotY} stroke="#444" strokeWidth="0.8" />);
-              els.push(<line key={"fr"+ri} x1={cx + stW/2} y1={runTopY} x2={cx + stW/2} y2={runBotY} stroke="#444" strokeWidth="0.8" />);
-              /* Treads */
-              for (var ti = 1; ti <= run.risers; ti++) {
+              els.push(<line key={"mfl"+ri} x1={cx-stW/2} y1={runTopY} x2={cx-stW/2} y2={runBotY} stroke="#444" strokeWidth="0.8" />);
+              els.push(<line key={"mfr"+ri} x1={cx+stW/2} y1={runTopY} x2={cx+stW/2} y2={runBotY} stroke="#444" strokeWidth="0.8" />);
+              for (var ti=1; ti<=run.risers; ti++) {
                 var tty = runTopY + ti * risePerRiser;
-                els.push(<line key={"ft"+ri+"_"+ti} x1={cx - stW/2} y1={tty} x2={cx + stW/2} y2={tty} stroke="#aaa" strokeWidth="0.4" />);
+                els.push(<line key={"mft"+ri+"_"+ti} x1={cx-stW/2} y1={tty} x2={cx+stW/2} y2={tty} stroke="#aaa" strokeWidth="0.4" />);
               }
               risersDrawn += run.risers;
-              /* Landing between runs */
-              if (ri < geom.runs.length - 1) {
+              if (ri < geom.runs.length-1) {
                 var landY = topY + risersDrawn * risePerRiser;
                 var platW = stW + 10;
-                els.push(<rect key={"eland"+ri} x={cx - platW/2} y={landY - 2} width={platW} height={4} fill="#e8e6d8" stroke="#444" strokeWidth="0.6" strokeDasharray="3,2" />);
-                els.push(<text key={"eltxt"+ri} x={cx} y={landY + 1} textAnchor="middle" style={{ fontSize: 3.5, fill: "#888", fontFamily: "monospace" }}>LANDING</text>);
-                /* Landing posts */
-                els.push(<line key={"elp1_"+ri} x1={cx - platW/2} y1={landY} x2={cx - platW/2} y2={botY} stroke="#c4a060" strokeWidth="1" />);
-                els.push(<line key={"elp2_"+ri} x1={cx + platW/2} y1={landY} x2={cx + platW/2} y2={botY} stroke="#c4a060" strokeWidth="1" />);
-                /* Landing post footings */
-                els.push(<rect key={"elpf1_"+ri} x={cx - platW/2 - 3} y={botY} width={6} height={3} fill="#c8c8c8" stroke="#444" strokeWidth="0.3" />);
-                els.push(<rect key={"elpf2_"+ri} x={cx + platW/2 - 3} y={botY} width={6} height={3} fill="#c8c8c8" stroke="#444" strokeWidth="0.3" />);
+                els.push(<rect key={"land"+ri} x={cx-platW/2} y={landY-2} width={platW} height={4} fill="#e8e6d8" stroke="#444" strokeWidth="0.6" strokeDasharray="3,2" />);
+                els.push(<text key={"landlbl"+ri} x={cx} y={landY+1} textAnchor="middle" style={{ fontSize: 3.5, fill: "#888", fontFamily: "monospace" }}>LANDING</text>);
+                els.push(<line key={"lp1"+ri} x1={cx-platW/2} y1={landY} x2={cx-platW/2} y2={botY} stroke="#c4a060" strokeWidth="1" />);
+                els.push(<line key={"lp2"+ri} x1={cx+platW/2} y1={landY} x2={cx+platW/2} y2={botY} stroke="#c4a060" strokeWidth="1" />);
+                els.push(<rect key={"elpf1"+ri} x={cx-platW/2-3} y={botY} width={6} height={3} fill="#c8c8c8" stroke="#444" strokeWidth="0.3" />);
+                els.push(<rect key={"elpf2"+ri} x={cx+platW/2-3} y={botY} width={6} height={3} fill="#c8c8c8" stroke="#444" strokeWidth="0.3" />);
               }
             }
           }
-          els.push(<text key="stlbl" x={cx} y={botY + 10} textAnchor="middle" style={{ fontSize: 4.5, fill: "#666", fontFamily: "monospace" }}>{st.totalStringers}×2×12 STRINGERS · {st.numRuns} RUN{st.numRuns > 1 ? "S" : ""}</text>);
+          els.push(<text key="stlbl" x={cx} y={botY+10} textAnchor="middle" style={{ fontSize: 4.5, fill: "#666", fontFamily: "monospace" }}>{st.totalStringers}x2x12 STRINGERS · {st.numRuns} RUN{st.numRuns > 1 ? "S" : ""}</text>);
 
         } else {
-          /* ---- SIDE ELEVATION ---- */
+          /* SIDE ELEVATION - stepped profile */
           const dir = p.stairLocation === "right" ? 1 : -1;
           const startX = p.stairLocation === "right" ? dX + dSW : dX;
-
           if (!geom || geom.runs.length <= 1) {
-            /* Single run - draw stepped profile */
             var curX = startX;
             var curY = topY;
-            for (var i = 0; i < st.nRisers; i++) {
+            var pts = [[curX, curY]];
+            for (var i=0; i<st.nRisers; i++) {
               var nextY = curY + risePerRiser;
-              /* Riser (vertical line) */
-              els.push(<line key={"r"+i} x1={curX} y1={curY} x2={curX} y2={nextY} stroke="#444" strokeWidth="0.6" />);
-              /* Tread (horizontal line) */
-              if (i < st.nTreads) {
-                els.push(<line key={"t"+i} x1={curX} y1={nextY} x2={curX + dir * treadPx} y2={nextY} stroke="#444" strokeWidth="0.6" />);
-                curX += dir * treadPx;
-              }
+              pts.push([curX, nextY]);
+              if (i < st.nTreads) { curX += dir * treadPx; pts.push([curX, nextY]); }
               curY = nextY;
             }
-            /* Stringer line underneath */
-            els.push(<line key="str" x1={startX} y1={topY} x2={curX} y2={botY} stroke="#666" strokeWidth="0.4" strokeDasharray="2,2" />);
+            var pStr = pts.map(p2 => p2[0]+","+p2[1]).join(" ");
+            els.push(<polyline key="stprofile" points={pStr} fill="none" stroke="#444" strokeWidth="0.8" />);
+            /* Stringer diagonal */
+            els.push(<line key="str" x1={startX} y1={topY} x2={curX} y2={botY} stroke="#666" strokeWidth="0.5" strokeDasharray="2,1" />);
           } else {
-            /* Multi-run - draw each run as stepped profile with landings */
-            var risersDrawn = 0;
-            var curX = startX;
-            var runDir = dir; /* first run goes away from house */
-
-            for (var ri = 0; ri < geom.runs.length; ri++) {
-              var run = geom.runs[ri];
-              var runStartY = topY + risersDrawn * risePerRiser;
-              var runX = curX;
-
-              /* Draw each step in this run */
-              for (var ti = 0; ti < run.risers; ti++) {
-                var stepTop = runStartY + ti * risePerRiser;
-                var stepBot = runStartY + (ti + 1) * risePerRiser;
-                /* Riser */
-                els.push(<line key={"r"+ri+"_"+ti} x1={runX} y1={stepTop} x2={runX} y2={stepBot} stroke="#444" strokeWidth="0.6" />);
-                /* Tread */
-                if (ti < run.treads) {
-                  els.push(<line key={"t"+ri+"_"+ti} x1={runX} y1={stepBot} x2={runX + runDir * treadPx} y2={stepBot} stroke="#444" strokeWidth="0.6" />);
-                  runX += runDir * treadPx;
-                }
+            /* Multi-run side profile */
+            var risersDrawn2 = 0;
+            var curX2 = startX;
+            var curDir = dir;
+            for (var ri=0; ri<geom.runs.length; ri++) {
+              var run2 = geom.runs[ri];
+              var runStartX = curX2;
+              var runStartY = topY + risersDrawn2 * risePerRiser;
+              var pts2 = [[runStartX, runStartY]];
+              for (var i=0; i<run2.risers; i++) {
+                var ny = runStartY + (i+1) * risePerRiser;
+                pts2.push([curX2, ny]);
+                if (i < run2.treads) { curX2 += curDir * treadPx; pts2.push([curX2, ny]); }
               }
-
-              risersDrawn += run.risers;
-
-              /* Landing between runs */
-              if (ri < geom.runs.length - 1) {
-                var landY = topY + risersDrawn * risePerRiser;
-                var landW = Math.max(treadPx * 3, 12);
-                var landX1 = Math.min(runX, runX + runDir * landW);
-                var landX2 = Math.max(runX, runX + runDir * landW);
-                /* Landing platform */
-                els.push(<rect key={"land"+ri} x={landX1} y={landY - 1.5} width={landX2 - landX1} height={3} fill="#e8e6d8" stroke="#444" strokeWidth="0.6" />);
-                els.push(<text key={"ltxt"+ri} x={(landX1+landX2)/2} y={landY + 0.8} textAnchor="middle" style={{ fontSize: 3, fill: "#888", fontFamily: "monospace" }}>LANDING</text>);
-                /* Landing posts going down to ground */
-                els.push(<line key={"lp1_"+ri} x1={landX1 + 2} y1={landY + 1.5} x2={landX1 + 2} y2={botY} stroke="#c4a060" strokeWidth="1.5" />);
-                els.push(<line key={"lp2_"+ri} x1={landX2 - 2} y1={landY + 1.5} x2={landX2 - 2} y2={botY} stroke="#c4a060" strokeWidth="1.5" />);
-                /* Landing post footings */
-                els.push(<rect key={"lpf1_"+ri} x={landX1 - 1} y={botY} width={6} height={3} fill="#c8c8c8" stroke="#444" strokeWidth="0.3" />);
-                els.push(<rect key={"lpf2_"+ri} x={landX2 - 5} y={botY} width={6} height={3} fill="#c8c8c8" stroke="#444" strokeWidth="0.3" />);
-
-                /* For switchback: reverse direction. For L/wrap: keep same dir but offset */
-                var tmpl = st.template || "straight";
-                if (tmpl === "switchback" || tmpl === "wrapAround") {
-                  runDir = -runDir;
-                  curX = runX; /* stay at same X, go back */
-                } else {
-                  curX = runX + runDir * landW * 0.3;
-                }
+              var pStr2 = pts2.map(p2 => p2[0]+","+p2[1]).join(" ");
+              els.push(<polyline key={"run"+ri} points={pStr2} fill="none" stroke="#444" strokeWidth="0.8" />);
+              risersDrawn2 += run2.risers;
+              if (ri < geom.runs.length-1) {
+                var landingY2 = topY + risersDrawn2 * risePerRiser;
+                var ldepth = (st.landingDepth||4) * sX;
+                els.push(<rect key={"slp"+ri} x={Math.min(curX2, curX2+curDir*ldepth)} y={landingY2-2} width={ldepth} height={4} fill="#e8e6d8" stroke="#444" strokeWidth="0.6" strokeDasharray="3,2" />);
+                els.push(<line key={"slpost"+ri} x1={curX2+curDir*ldepth/2} y1={landingY2} x2={curX2+curDir*ldepth/2} y2={botY} stroke="#c4a060" strokeWidth="1" />);
+                els.push(<rect key={"slpf"+ri} x={curX2+curDir*ldepth/2-3} y={botY} width={6} height={3} fill="#c8c8c8" stroke="#444" strokeWidth="0.3" />);
+                curX2 += curDir * ldepth;
+                curDir = -curDir;
               }
             }
           }
-          var labelX = startX + dir * Math.abs(st.runFt * sX) / 2;
-          els.push(<text key="stlbl" x={labelX} y={botY + 10} textAnchor="middle" style={{ fontSize: 4.5, fill: "#666", fontFamily: "monospace" }}>{st.totalStringers}×2×12 STRINGERS · {st.numRuns} RUN{st.numRuns > 1 ? "S" : ""}</text>);
+          els.push(<text key="stlbl" x={startX + dir*20} y={botY+10} textAnchor="middle" style={{ fontSize: 4.5, fill: "#666", fontFamily: "monospace" }}>{st.totalStringers}x2x12 STRINGERS · {st.numRuns} RUN{st.numRuns > 1 ? "S" : ""}</text>);
         }
         return <g>{els}</g>;
       })()}
@@ -672,9 +661,6 @@ function ElevationView({ c, p }) {
   );
 }
 
-// ============================================================
-// 3D PREVIEW
-// ============================================================
 function Deck3D({ c, p }) {
   const ref = useRef(null); const frameRef = useRef(null);
   const orbit = useRef({ theta: -0.6, phi: 0.5, dist: 0, drag: false, lx: 0, ly: 0 });
