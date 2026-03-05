@@ -197,10 +197,15 @@ def draw_guard_rail_detail(ax, params, calc):
     draw_dimension_v(ax, -0.5, 0, rail_visual_h + 0.4,
                      f'{calc["rail_height"]}" MIN.', offset=-1.5, color=BRAND["red"], fontsize=5)
 
-    # 4" sphere test
+    # 4" sphere test — always centered between two balusters, vertically centered in open rail space
     sphere_r = 0.35
-    ax.add_patch(plt.Circle((7, 3.2), sphere_r, fc='none', ec=BRAND["red"], lw=0.8, ls='--'))
-    ax.text(7.8, 3.0, '< 4" MUST NOT ALLOW\nPASSAGE OF 4" SPHERE',
+    baluster_start = 1.5
+    baluster_spacing = 0.9
+    baluster_w = 0.15
+    sphere_cx = baluster_start + baluster_spacing / 2 + baluster_w / 2  # midpoint between first two balusters
+    sphere_cy = (1.05 + rail_visual_h) / 2  # midpoint of open vertical space
+    ax.add_patch(plt.Circle((sphere_cx, sphere_cy), sphere_r, fc='none', ec=BRAND["red"], lw=0.8, ls='--'))
+    ax.text(sphere_cx + 0.5, sphere_cy - 0.2, '< 4" MUST NOT ALLOW\nPASSAGE OF 4" SPHERE',
             fontsize=4, color=BRAND["red"])
 
 
