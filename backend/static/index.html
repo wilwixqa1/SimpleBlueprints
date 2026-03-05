@@ -703,8 +703,11 @@ function ElevationView({ c, p }) {
         );
       })}
 
-      {/* Beam */}
-      <rect x={dX+1*sX} y={dY+1} width={dSW-2*sX} height={bH*0.7} fill="#c4960a" fillOpacity="0.85" stroke="#444" strokeWidth="0.8" rx="0.5" />
+      {/* Beam — position depends on beamType */}
+      { p.beamType === 'flush'
+        ? <rect x={dX+1*sX} y={rTop} width={dSW-2*sX} height={dY-rTop} fill="#c4960a" fillOpacity="0.85" stroke="#444" strokeWidth="0.8" rx="0.5" />
+        : <rect x={dX+1*sX} y={dY+1} width={dSW-2*sX} height={bH*0.7} fill="#c4960a" fillOpacity="0.85" stroke="#444" strokeWidth="0.8" rx="0.5" />
+      }
       {/* Deck surface */}
       <line x1={dX} y1={dY} x2={dX+dSW} y2={dY} stroke="#685340" strokeWidth="2.5" />
       <line x1={dX} y1={rTop} x2={dX+dSW} y2={rTop} stroke="#333" strokeWidth="2" />
