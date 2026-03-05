@@ -158,63 +158,83 @@ def draw_south_elevation(ax, params, calc):
     rail_h = calc["rail_height"] / 12  # convert inches to feet
     rail_top = deck_top + rail_h
 
-    ax.plot([deck_x, deck_x + W], [rail_top, rail_top], color=BRAND["rail"], lw=2)
-    ax.plot([deck_x, deck_x + W], [deck_top + 0.25, deck_top + 0.25], color=BRAND["rail"], lw=0.8)
+    # Compute stair opening if front stairs exist
+    has_front_stairs = params.get("hasStairs") and params.get("stairLocation") == "front" and calc.get("stairs")
+    if has_front_stairs:
+        _sw = calc["stairs"].get("width", 4)
+        _stair_x = deck_x + W / 2 - _sw / 2 + params.get("stairOffset", 0)
+        stair_open_l = _stair_x
+        stair_open_r = _stair_x + _sw
+    else:
+        stair_open_l = stair_open_r = None
 
-    # Rail posts
+    # Top rail — split around stair opening
+    if stair_open_l is not None:
+        ax.plot([deck_x, stair_open_l], [rail_top, rail_top], color=BRAND["rail"], lw=2)
+        ax.plot([stair_open_r, deck_x + W], [rail_top, rail_top], color=BRAND["rail"], lw=2)
+        ax.plot([deck_x, stair_open_l], [deck_top + 0.25, deck_top + 0.25], color=BRAND["rail"], lw=0.8)
+        ax.plot([stair_open_r, deck_x + W], [deck_top + 0.25, deck_top + 0.25], color=BRAND["rail"], lw=0.8)
+    else:
+        ax.plot([deck_x, deck_x + W], [rail_top, rail_top], color=BRAND["rail"], lw=2)
+        ax.plot([deck_x, deck_x + W], [deck_top + 0.25, deck_top + 0.25], color=BRAND["rail"], lw=0.8)
+
+    # Rail posts — skip ones inside stair opening
     for rpx in np.arange(0, W + 0.1, 4):
-        ax.plot([deck_x + rpx, deck_x + rpx], [deck_top, rail_top], color=BRAND["rail"], lw=1)
+        px_abs = deck_x + rpx
+        if stair_open_l is not None and stair_open_l < px_abs < stair_open_r:
+            continue
+        ax.plot([px_abs, px_abs], [deck_top, rail_top], color=BRAND["rail"], lw=1)
 
-    # Balusters
+    # Balusters — skip ones inside stair opening
     for bx in np.arange(0, W, 3.75 / 12):
-        ax.plot([deck_x + bx, deck_x + bx], [deck_top + 0.25, rail_top],
+        bx_abs = deck_x + bx
+        if stair_open_l is not None and stair_open_l < bx_abs < stair_open_r:
+            continue
+        ax.plot([bx_abs, bx_abs], [deck_top + 0.25, rail_top],
                 color=BRAND["rail"], lw=0.12, alpha=0.5)
 
-    # === STAIRS (if front) - seen head-on, show stepped profile ===
+    # === STAIRS (if front) - head-on view: stepped silhouette below deck edge ===
     if params.get("hasStairs") and params.get("stairLocation") == "front" and calc.get("stairs"):
         stair = calc["stairs"]
         sw = stair.get("width", 4)
         stair_x = deck_x + W / 2 - sw / 2 + params.get("stairOffset", 0)
         rise_per = stair["actual_rise"] / 12  # feet per step
         n_risers = stair["num_risers"]
+        rail_h = calc["rail_height"] / 12
 
-        # Front elevation: stairs descend from deck_top to ground_y
-        # Draw filled stair silhouette + individual tread lines
-        run_per = stair.get("run", 10.5) / 12  # tread run in feet
-        total_run = n_risers * run_per
+        # White fill behind stair area to mask posts/beam (stairs are in front of structure)
+        ax.add_patch(patches.Rectangle((stair_x, ground_y), sw, deck_top,
+                     fc='white', ec='none', zorder=5))
 
-        # Filled stair body (light fill so it reads as solid structure)
-        stair_pts_x = [stair_x, stair_x + sw]
-        stair_pts_y = [deck_top, deck_top]
-        # Build stepped right edge (visual only - shows depth)
-        for i in range(n_risers):
-            stair_pts_x += [stair_x + sw, stair_x + sw]
-            stair_pts_y += [deck_top - i * rise_per, deck_top - (i + 1) * rise_per]
-        stair_pts_x += [stair_x, stair_x]
-        stair_pts_y += [ground_y, deck_top]
-        ax.fill(stair_pts_x, stair_pts_y, fc='#f0ede8', ec=BRAND["dark"], lw=0.6, zorder=2)
-
-        # Tread lines across full width
+        # Tread lines — each step down from deck_top
         for i in range(n_risers + 1):
             ty = deck_top - i * rise_per
-            ax.plot([stair_x, stair_x + sw], [ty, ty], color=BRAND["dark"], lw=0.7, zorder=3)
+            ax.plot([stair_x, stair_x + sw], [ty, ty],
+                    color=BRAND["dark"], lw=0.8, zorder=6)
 
-        # Left and right stringer outlines
-        ax.plot([stair_x, stair_x], [deck_top, ground_y], color=BRAND["dark"], lw=0.8, zorder=3)
-        ax.plot([stair_x + sw, stair_x + sw], [deck_top, ground_y], color=BRAND["dark"], lw=0.8, zorder=3)
+        # Left and right stringer lines (vertical sides)
+        ax.plot([stair_x, stair_x], [ground_y, deck_top],
+                color=BRAND["dark"], lw=1.0, zorder=6)
+        ax.plot([stair_x + sw, stair_x + sw], [ground_y, deck_top],
+                color=BRAND["dark"], lw=1.0, zorder=6)
 
-        # Landing pad at grade if applicable
-        if stair.get("has_landing"):
-            ax.add_patch(patches.Rectangle((stair_x - 0.3, ground_y - 0.1), sw + 0.6, 0.15,
-                         fc='#e8e8e0', ec=BRAND["dark"], lw=0.4))
+        # Ground tread
+        ax.plot([stair_x, stair_x + sw], [ground_y, ground_y],
+                color=BRAND["dark"], lw=0.8, zorder=6)
 
-        # Stair handrails: diagonal lines from deck_top down to ground at 36" height above each stringer
-        rail_h = 3.0  # 36" in feet
-        ax.plot([stair_x, stair_x], [deck_top + rail_h, ground_y + rail_h],
-                color=BRAND["dark"], lw=0.5, ls='--', zorder=3)
-        ax.plot([stair_x + sw, stair_x + sw], [deck_top + rail_h, ground_y + rail_h],
-                color=BRAND["dark"], lw=0.5, ls='--', zorder=3)
+        # Stair handrails: diagonal, parallel to stair slope, at 36" above stringer
+        # In front elevation they appear as vertical lines alongside the stair
+        ax.plot([stair_x, stair_x], [ground_y + rail_h, deck_top + rail_h],
+                color=BRAND["rail"], lw=0.8, zorder=6)
+        ax.plot([stair_x + sw, stair_x + sw], [ground_y + rail_h, deck_top + rail_h],
+                color=BRAND["rail"], lw=0.8, zorder=6)
+        # Top rail cap connecting to deck rail
+        ax.plot([stair_x, stair_x + sw], [deck_top + rail_h, deck_top + rail_h],
+                color=BRAND["rail"], lw=1.0, zorder=6)
 
+        # Landing pad at grade
+        ax.add_patch(patches.Rectangle((stair_x - 0.2, ground_y - 0.12), sw + 0.4, 0.12,
+                     fc='#e0ddd8', ec=BRAND["dark"], lw=0.4, zorder=6))
     # === LABELS ===
     lbl_x = deck_x + W + 1.5
     lbl_kw = dict(fontsize=4.5, fontfamily='monospace', color=BRAND["dark"])
