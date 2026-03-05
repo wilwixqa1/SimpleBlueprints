@@ -178,14 +178,14 @@ def draw_south_elevation(ax, params, calc):
         rise_per = stair["actual_rise"] / 12  # feet per step
         n_risers = stair["num_risers"]
 
-        # Draw stepped profile: horizontal treads + vertical risers
+        # Draw stepped profile: stairs descend from deck_top down to ground
         for i in range(n_risers):
-            ty = deck_top + i * rise_per
+            ty = deck_top - i * rise_per  # each step down from deck level
             # Tread (horizontal line)
             ax.plot([stair_x, stair_x + sw], [ty, ty], color=BRAND["dark"], lw=0.8)
             # Riser (vertical line down to next tread)
-            ax.plot([stair_x, stair_x], [ty, ty + rise_per], color=BRAND["dark"], lw=0.5)
-            ax.plot([stair_x + sw, stair_x + sw], [ty, ty + rise_per], color=BRAND["dark"], lw=0.5)
+            ax.plot([stair_x, stair_x], [ty, ty - rise_per], color=BRAND["dark"], lw=0.5)
+            ax.plot([stair_x + sw, stair_x + sw], [ty, ty - rise_per], color=BRAND["dark"], lw=0.5)
 
         # Bottom tread at ground
         ax.plot([stair_x, stair_x + sw], [ground_y, ground_y], color=BRAND["dark"], lw=0.8)
