@@ -95,7 +95,7 @@ def estimate_materials(params, calc):
         st = calc["stairs"]
         items.append({"cat": "Stairs", "item": f'2×12 Stringers {st["stringer_length_ft"]}\'', "qty": st["num_stringers"], "cost": 38})
         items.append({"cat": "Stairs", "item": "Stair Treads 2×12", "qty": st["num_treads"], "cost": 18})
-        items.append({"cat": "Stairs", "item": "Stair Brackets", "qty": st["num_stringers"] * st["num_treads"], "cost": 3.50})
+        items.append({"cat": "Stairs", "item": "Stair Stringer Brackets", "qty": st["num_stringers"], "cost": 8})
         if st.get("has_landing"):
             items.append({"cat": "Stairs", "item": "Landing Pad Concrete", "qty": 2, "cost": 6.50})
 
