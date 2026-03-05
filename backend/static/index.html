@@ -703,9 +703,9 @@ function ElevationView({ c, p }) {
         );
       })}
 
-      {/* Beam — dropped=solid rect, flush=dashed hidden line per blueprint convention */}
+      {/* Beam — dropped=solid rect below deck, flush=single dashed hidden line at beam bottom per IRC blueprint convention */}
       { p.beamType === 'flush'
-        ? <rect x={dX+1*sX} y={rTop} width={dSW-2*sX} height={dY-rTop} fill="none" stroke="#c4960a" strokeWidth="1" strokeDasharray="6,3" rx="0.5" />
+        ? <line x1={dX+1*sX} y1={dY} x2={dX+dSW-1*sX} y2={dY} stroke="#c4960a" strokeWidth="1.2" strokeDasharray="8,4" />
         : <rect x={dX+1*sX} y={dY+1} width={dSW-2*sX} height={bH*0.7} fill="#c4960a" fillOpacity="0.85" stroke="#444" strokeWidth="0.8" rx="0.5" />
       }
       {/* Deck surface */}
@@ -735,7 +735,7 @@ function ElevationView({ c, p }) {
       <line x1={dX+dSW} y1={rTop+2} x2={dX+dSW+9} y2={rTop+4} stroke="#999" strokeWidth="0.4" />
       <text x={dX+dSW+10} y={rTop+5} style={{ fontSize: 5, fill: "#333", fontFamily: "monospace" }}>36" GUARD RAIL</text>
       <line x1={dX+dSW} y1={dY+bH*0.3} x2={dX+dSW+9} y2={dY+bH*0.4+2} stroke="#999" strokeWidth="0.4" />
-      <text x={dX+dSW+10} y={dY+bH*0.4+3} style={{ fontSize: 5, fill: "#333", fontFamily: "monospace" }}>{beamSize.toUpperCase()}{p.beamType === 'flush' ? ' (FLUSH)' : ''}</text>
+      <text x={dX+dSW+10} y={dY+bH*0.4+3} style={{ fontSize: 5, fill: "#333", fontFamily: "monospace" }}>{p.beamType === 'flush' ? beamSize.toUpperCase() + ' FLUSH BEAM' : beamSize.toUpperCase()}</text>
       <line x1={dX+dSW} y1={(gnd+dY)/2} x2={dX+dSW+9} y2={(gnd+dY)/2} stroke="#999" strokeWidth="0.4" />
       <text x={dX+dSW+10} y={(gnd+dY)/2+1} style={{ fontSize: 5, fill: "#333", fontFamily: "monospace" }}>{postSize} POSTS ({nP})</text>
       <line x1={dX+dSW} y1={gnd} x2={dX+dSW+9} y2={gnd+4} stroke="#999" strokeWidth="0.4" />
