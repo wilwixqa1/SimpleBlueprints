@@ -132,8 +132,9 @@ def draw_south_elevation(ax, params, calc):
     if beam_type == "flush":
         # Flush beam: inline with joists, top of beam = deck_top, posts reach deck underside
         beam_y = deck_top - beam_h
-        ax.add_patch(patches.Rectangle((deck_x + 1, beam_y), W - 2, beam_h,
-                     fc=BRAND["beam"], ec=BRAND["dark"], lw=0.8, alpha=0.85))
+        # Flush beam: single dashed hidden line at deck_top per IRC blueprint convention
+        ax.plot([deck_x + 1, deck_x + W - 1], [deck_top, deck_top],
+                color=BRAND["beam"], lw=1.2, linestyle=(0, (8, 4)), zorder=4)
         # Re-draw posts to reach joist bottom (deck_top - joist_h)
         for px in calc["post_positions"]:
             sx = deck_x + px
