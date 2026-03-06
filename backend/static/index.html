@@ -528,25 +528,28 @@ function PlanView({ p, c, mode, u }) {
         const stairGeom = computeStairGeometry({ template: p.stairTemplate || "straight", height: p.height, stairWidth: p.stairWidth || 4, numStringers: p.numStringers || 3, runSplit: p.stairRunSplit ? p.stairRunSplit/100 : null, landingDepth: p.stairLandingDepth || null, stairGap: p.stairGap != null ? p.stairGap : 0.5 });
         if (!stairGeom) return null;
         const placement = getStairPlacement(p, c);
-        const exitSide = placement.angle === 90 ? "right" : placement.angle === 270 ? "left" : "front";
+        const exitSide = placement.angle === 90 ? "right" : placement.angle === 270 ? "left" : placement.angle === 180 ? "back" : "front";
         const ox = dx + placement.anchorX * sc;
-        const oy = pad + placement.anchorY * sc + (exitSide === "front" ? 1 : 0);
+        const oy = pad + placement.anchorY * sc + (exitSide === "front" ? 1 : exitSide === "back" ? -1 : 0);
         function txRect(r) {
           if (exitSide === "front") return { x: ox + r.x*sc, y: oy + r.y*sc, w: r.w*sc, h: r.h*sc };
+          if (exitSide === "back")  return { x: ox - (r.x+r.w)*sc, y: oy - (r.y+r.h)*sc, w: r.w*sc, h: r.h*sc };
           if (exitSide === "left")  return { x: ox - (r.y+r.h)*sc, y: oy + r.x*sc, w: r.h*sc, h: r.w*sc };
           return { x: ox + r.y*sc, y: oy + r.x*sc, w: r.h*sc, h: r.w*sc };
         }
         function txPt(px2, py2) {
           if (exitSide === "front") return [ox + px2*sc, oy + py2*sc];
+          if (exitSide === "back")  return [ox - px2*sc, oy - py2*sc];
           if (exitSide === "left")  return [ox - py2*sc, oy + px2*sc];
           return [ox + py2*sc, oy + px2*sc];
         }
         function treadInfo(run) {
           const tr = txRect(run.rect);
-          if (exitSide === "front") return run.treadAxis === "h" ? { along: "y", span: "x", rect: tr } : { along: "x", span: "y", rect: tr };
+          if (exitSide === "front" || exitSide === "back") return run.treadAxis === "h" ? { along: "y", span: "x", rect: tr } : { along: "x", span: "y", rect: tr };
           return run.treadAxis === "h" ? { along: "x", span: "y", rect: tr } : { along: "y", span: "x", rect: tr };
         }
         function transformDir(dd) {
+          if (exitSide === "back") { if(dd==="+y")return"-y";if(dd==="-y")return"+y";if(dd==="+x")return"-x";if(dd==="-x")return"+x"; }
           if (exitSide === "left") { if(dd==="+y")return"-x";if(dd==="-y")return"+x";if(dd==="+x")return"+y";if(dd==="-x")return"-y"; }
           if (exitSide === "right") { if(dd==="+y")return"+x";if(dd==="-y")return"-x";if(dd==="+x")return"-y";if(dd==="-x")return"+y"; }
           return dd;
