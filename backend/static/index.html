@@ -313,6 +313,42 @@ function estMaterials(p, c) {
 }
 
 // ============================================================
+// STAIR PLACEMENT — parametric anchor + angle
+// ============================================================
+function getStairPlacement(p, c) {
+  // If new parametric coords are set, use them directly
+  if (p.stairAnchorX != null && p.stairAnchorY != null && p.stairAngle != null) {
+    return { anchorX: p.stairAnchorX, anchorY: p.stairAnchorY, angle: p.stairAngle };
+  }
+  // Otherwise derive from legacy stairLocation + stairOffset
+  const W = c.W, D = c.D;
+  const off = p.stairOffset || 0;
+  const loc = p.stairLocation || "front";
+  if (loc === "front") return { anchorX: W / 2 + off, anchorY: D, angle: 0 };
+  if (loc === "right") return { anchorX: W, anchorY: D / 2 + off, angle: 90 };
+  if (loc === "left")  return { anchorX: 0, anchorY: D / 2 + off, angle: 270 };
+  return { anchorX: W / 2, anchorY: D, angle: 0 };
+}
+
+// Snap anchor to nearest deck edge if within threshold (returns {anchorX, anchorY, angle, snapped})
+function snapStairToEdge(ax, ay, W, D, threshold) {
+  const th = threshold || 1.0;
+  const edges = [
+    { dist: Math.abs(ay - D), anchorX: ax, anchorY: D, angle: 0, edge: "front" },
+    { dist: Math.abs(ax - W), anchorX: W, anchorY: ay, angle: 90, edge: "right" },
+    { dist: Math.abs(ay),     anchorX: ax, anchorY: 0, angle: 180, edge: "back" },
+    { dist: Math.abs(ax),     anchorX: 0, anchorY: ay, angle: 270, edge: "left" },
+  ];
+  edges.sort((a, b) => a.dist - b.dist);
+  const nearest = edges[0];
+  if (nearest.dist <= th) {
+    return { anchorX: nearest.anchorX, anchorY: nearest.anchorY, angle: nearest.angle, snapped: true, edge: nearest.edge };
+  }
+  // Free placement — keep current angle or default to 0
+  return { anchorX: ax, anchorY: ay, angle: null, snapped: false, edge: null };
+}
+
+// ============================================================
 // PLAN VIEW SVG
 // ============================================================
 function PlanView({ p, c, mode, u }) {
@@ -365,7 +401,42 @@ function PlanView({ p, c, mode, u }) {
     window.addEventListener("pointerup", onUp);
   };
 
-  // Stair offset in pixels
+  // Stair anchor drag (2D free placement with edge snap)
+  const onStairDragStart = (e) => {
+    e.preventDefault(); e.stopPropagation();
+    const svg = svgRef.current; if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    const svgScale = svgW / rect.width;
+    const pl = getStairPlacement(p, c);
+    dragRef.current = { type: "stairAnchor", startX: e.clientX, startY: e.clientY, svgScale,
+      startAnchorX: pl.anchorX, startAnchorY: pl.anchorY, startAngle: pl.angle };
+
+    const onMove = (ev) => {
+      if (!dragRef.current || dragRef.current.type !== "stairAnchor") return;
+      const deltaXpx = (ev.clientX - dragRef.current.startX) * dragRef.current.svgScale;
+      const deltaYpx = (ev.clientY - dragRef.current.startY) * dragRef.current.svgScale;
+      const deltaXft = deltaXpx / sc;
+      const deltaYft = deltaYpx / sc;
+      let newAX = dragRef.current.startAnchorX + deltaXft;
+      let newAY = dragRef.current.startAnchorY + deltaYft;
+      // Clamp to deck bounds (with small margin for edge placement)
+      newAX = Math.max(-0.5, Math.min(c.W + 0.5, newAX));
+      newAY = Math.max(-0.5, Math.min(c.D + 0.5, newAY));
+      // Snap to edge
+      const snap = snapStairToEdge(newAX, newAY, c.W, c.D, 1.0);
+      const finalAX = Math.round(snap.anchorX * 2) / 2;  // round to 0.5ft
+      const finalAY = Math.round(snap.anchorY * 2) / 2;
+      const finalAngle = snap.snapped ? snap.angle : (dragRef.current.startAngle || 0);
+      u("stairAnchorX", finalAX);
+      u("stairAnchorY", finalAY);
+      u("stairAngle", finalAngle);
+    };
+    const onUp = () => { dragRef.current = null; window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp); };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
+
+  // Stair offset in pixels (legacy, used when anchor params not set)
   const stairOffPx = (p.stairOffset || 0) * sc;
 
   return (
@@ -404,11 +475,10 @@ function PlanView({ p, c, mode, u }) {
       {p.hasStairs && c.stairs && (() => {
         const stairGeom = computeStairGeometry({ template: p.stairTemplate || "straight", height: p.height, stairWidth: p.stairWidth || 4, numStringers: p.numStringers || 3, runSplit: p.stairRunSplit ? p.stairRunSplit/100 : null, landingDepth: p.stairLandingDepth || null, stairGap: p.stairGap != null ? p.stairGap : 0.5 });
         if (!stairGeom) return null;
-        const exitSide = p.stairLocation || "front";
-        let ox, oy;
-        if (exitSide === "front") { ox = dx + sw / 2 + stairOffPx; oy = pad + sd + 1; }
-        else if (exitSide === "left") { ox = dx; oy = pad + sd / 2 + stairOffPx; }
-        else { ox = dx + sw; oy = pad + sd / 2 + stairOffPx; }
+        const placement = getStairPlacement(p, c);
+        const exitSide = placement.angle === 90 ? "right" : placement.angle === 270 ? "left" : "front";
+        const ox = dx + placement.anchorX * sc;
+        const oy = pad + placement.anchorY * sc + (exitSide === "front" ? 1 : 0);
         function txRect(r) {
           if (exitSide === "front") return { x: ox + r.x*sc, y: oy + r.y*sc, w: r.w*sc, h: r.h*sc };
           if (exitSide === "left")  return { x: ox - (r.y+r.h)*sc, y: oy + r.x*sc, w: r.h*sc, h: r.w*sc };
@@ -466,9 +536,15 @@ function PlanView({ p, c, mode, u }) {
         const labelPt = txPt(0, stairGeom.bbox.maxY + 2);
         els.push(<text key="stlbl" x={labelPt[0]} y={labelPt[1]} textAnchor="middle" style={{ fontSize: 5.5, fill: "#7a8068", fontFamily: "monospace", fontWeight: 600 }}>{names[stairGeom.template]} · {stairGeom.totalRisers} risers · {stairGeom.stairWidth}' wide · {stairGeom.runs.length} run{stairGeom.runs.length>1?"s":""}</text>);
         if (u && mode === "plan") {
-          const hPt = txPt(0, stairGeom.bbox.maxY + 4);
-          const isV = exitSide !== "front";
-          els.push(<g key="dh" style={{ cursor: isV ? "ns-resize" : "ew-resize" }} onPointerDown={e => onPointerDown(e, "stair")}>{isV ? <rect x={hPt[0]-3} y={hPt[1]-12} width={6} height={24} rx={3} fill="#c62828" opacity="0.7" /> : <rect x={hPt[0]-12} y={hPt[1]} width={24} height={6} rx={3} fill="#c62828" opacity="0.7" />}</g>);
+          // Invisible overlay on stair bounding box for drag
+          const bb = stairGeom.bbox;
+          const bbRect = txRect({ x: bb.minX - 0.5, y: bb.minY - 0.5, w: bb.w + 1, h: bb.h + 1 });
+          els.unshift(<rect key="dragOverlay" x={bbRect.x} y={bbRect.y} width={bbRect.w} height={bbRect.h}
+            fill="transparent" stroke="none" style={{ cursor: "move" }}
+            onPointerDown={e => onStairDragStart(e)} />);
+          // Small move icon at anchor point
+          els.push(<circle key="anchorDot" cx={ox} cy={oy} r={4} fill="#c62828" opacity="0.6" style={{ cursor: "move", pointerEvents: "none" }} />);
+          els.push(<circle key="anchorRing" cx={ox} cy={oy} r={7} fill="none" stroke="#c62828" strokeWidth="1" opacity="0.4" strokeDasharray="2,2" style={{ pointerEvents: "none" }} />);
         }
         return <g>{els}</g>;
       })()}
@@ -959,11 +1035,13 @@ const App = function SimpleBlueprints() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [view, setView] = useState("plan");
   const [planMode, setPlanMode] = useState("plan");
-  const [p, setP] = useState({ width: 20, depth: 12, height: 4, houseWidth: 40, houseDepth: 30, attachment: "ledger", hasStairs: true, stairLocation: "front", stairWidth: 4, numStringers: 3, hasLanding: false, joistSpacing: 16, deckingType: "composite", railType: "fortress", snowLoad: "moderate", frostZone: "cold", lotWidth: 80, lotDepth: 120, setbackFront: 25, setbackSide: 5, setbackRear: 20, houseOffsetSide: 20, deckOffset: 0, stairOffset: 0, beamType: "dropped", stairTemplate: "straight", stairRunSplit: null, stairLandingDepth: null, stairLandingWidth: null, stairGap: 0.5, stairRotation: 0 });
+  const [p, setP] = useState({ width: 20, depth: 12, height: 4, houseWidth: 40, houseDepth: 30, attachment: "ledger", hasStairs: true, stairLocation: "front", stairWidth: 4, numStringers: 3, hasLanding: false, joistSpacing: 16, deckingType: "composite", railType: "fortress", snowLoad: "moderate", frostZone: "cold", lotWidth: 80, lotDepth: 120, setbackFront: 25, setbackSide: 5, setbackRear: 20, houseOffsetSide: 20, deckOffset: 0, stairOffset: 0, beamType: "dropped", stairTemplate: "straight", stairRunSplit: null, stairLandingDepth: null, stairLandingWidth: null, stairGap: 0.5, stairRotation: 0, stairAnchorX: null, stairAnchorY: null, stairAngle: null });
   const u = (k, v) => setP(prev => {
     const next = { ...prev, [k]: v };
     // Reset stairOffset when stair location changes
-    if (k === "stairLocation") next.stairOffset = 0;
+    if (k === "stairLocation") { next.stairOffset = 0; next.stairAnchorX = null; next.stairAnchorY = null; next.stairAngle = null; }
+    // When anchor params are set, clear legacy offset to avoid conflict
+    if (k === "stairAnchorX" || k === "stairAnchorY" || k === "stairAngle") { /* anchor mode active */ }
     // Clamp deckOffset when house or deck width changes
     if (k === "houseWidth" || k === "width") {
       const maxOff = Math.floor(next.houseWidth / 2);
@@ -1322,7 +1400,13 @@ const App = function SimpleBlueprints() {
               </button>
               {showAdvanced && <div style={{ padding: 14, background: br.wr, borderRadius: 8, border: `1px solid ${br.bd}`, marginBottom: 12 }}>
                 <Slider label="Deck offset from center" value={p.deckOffset} min={-Math.floor(p.houseWidth / 2)} max={Math.floor(p.houseWidth / 2)} field="deckOffset" unit="'" />
-                {p.hasStairs && <Slider label="Stair offset from center" value={p.stairOffset} min={-Math.floor((p.stairLocation === "front" ? (p.width - (p.stairWidth || 4)) : (p.depth - (p.stairWidth || 4))) / 2)} max={Math.floor((p.stairLocation === "front" ? (p.width - (p.stairWidth || 4)) : (p.depth - (p.stairWidth || 4))) / 2)} field="stairOffset" unit="'" />}
+                {p.hasStairs && p.stairAnchorX == null && <Slider label="Stair offset from center" value={p.stairOffset} min={-Math.floor((p.stairLocation === "front" ? (p.width - (p.stairWidth || 4)) : (p.depth - (p.stairWidth || 4))) / 2)} max={Math.floor((p.stairLocation === "front" ? (p.width - (p.stairWidth || 4)) : (p.depth - (p.stairWidth || 4))) / 2)} field="stairOffset" unit="'" />}
+                {p.hasStairs && p.stairAnchorX != null && <>
+                  <Slider label="Stair anchor X (from left)" value={p.stairAnchorX} min={0} max={p.width} step={0.5} field="stairAnchorX" unit="'" />
+                  <Slider label="Stair anchor Y (from house)" value={p.stairAnchorY} min={0} max={p.depth} step={0.5} field="stairAnchorY" unit="'" />
+                  <Slider label="Stair angle" value={p.stairAngle} min={0} max={270} step={90} field="stairAngle" unit="°" />
+                  <button onClick={() => { u("stairAnchorX", null); u("stairAnchorY", null); u("stairAngle", null); }} style={{ padding: "5px 12px", fontSize: 9, fontFamily: "'DM Mono', monospace", color: "#c62828", background: "none", border: "1px solid #c62828", borderRadius: 4, cursor: "pointer", marginBottom: 8 }}>Reset to edge mode</button>
+                </>}
               {/* STEP-B-ADVANCED-UI-PATCHED */}
               {["lLeft","lRight","switchback","wrapAround","wideLanding"].includes(p.stairTemplate) && p.hasStairs && (<>
                 <Slider label="Run Split (1st run %)" value={p.stairRunSplit!=null?p.stairRunSplit:55} min={30} max={70} step={5} field="stairRunSplit" unit="%" />
@@ -1795,7 +1879,7 @@ const App = function SimpleBlueprints() {
                 </div>
                 <PlanView p={p} c={c} mode={planMode} u={u} />
                 {planMode === "plan" && <div style={{ textAlign: "center", fontSize: 9, color: br.mu, fontFamily: mono, marginTop: 4, opacity: 0.7 }}>
-                  Drag the <span style={{ color: "#3d5a2e", fontWeight: 700 }}>green</span> handle to slide the deck · Drag the <span style={{ color: "#c62828", fontWeight: 700 }}>red</span> handle to move stairs
+                  Drag the <span style={{ color: "#3d5a2e", fontWeight: 700 }}>green</span> handle to slide the deck · Drag the <span style={{ color: "#c62828", fontWeight: 700 }}>stairs</span> to reposition (snaps to edges)
                 </div>}
               </>}
               {view === "elevation" && <ElevationView c={c} p={p} />}
