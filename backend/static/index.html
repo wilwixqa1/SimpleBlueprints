@@ -369,6 +369,7 @@ function PlanView({ p, c, mode, u }) {
   const svgRef = useRef(null);
   const [stairSelected, setStairSelected] = useState(false);
   const [rotPreview, setRotPreview] = useState(null); // degrees during drag, null when idle
+  const rotAngleRef = useRef(null); // tracks live angle during drag (avoids stale closure)
 
   const onPointerDown = (e, type) => {
     e.preventDefault(); e.stopPropagation();
@@ -461,19 +462,21 @@ function PlanView({ p, c, mode, u }) {
       ) * 180 / Math.PI;
       const delta = mouseAngle - dr.startMouseAngle;
       const rawAngle = ((dr.startAngle + delta) % 360 + 360) % 360;
+      rotAngleRef.current = rawAngle;
       setRotPreview(rawAngle);
     };
     const onUp = () => {
       if (dragRef.current && dragRef.current.type === "rotate") {
-        const raw = rotPreview != null ? rotPreview : pl.angle;
+        const raw = rotAngleRef.current != null ? rotAngleRef.current : dragRef.current.startAngle;
         const snaps = [0, 90, 180, 270, 360];
         let best = 0, bestDist = 999;
-        for (const s of snaps) { let d = Math.abs(raw - s); if (d < bestDist) { bestDist = d; best = s % 360; } }
+        for (const s of snaps) { const dd = Math.abs(raw - s); if (dd < bestDist) { bestDist = dd; best = s % 360; } }
         const dr = dragRef.current;
         u("stairAnchorX", dr.anchorX);
         u("stairAnchorY", dr.anchorY);
         u("stairAngle", best);
       }
+      rotAngleRef.current = null;
       setRotPreview(null);
       dragRef.current = null;
       window.removeEventListener("pointermove", onMove);
@@ -489,6 +492,7 @@ function PlanView({ p, c, mode, u }) {
   return (
     <svg ref={svgRef} viewBox={`0 0 ${svgW} ${svgH}`} style={{ width: "100%", height: "auto" }}
       onClick={() => setStairSelected(false)}>
+      <defs><filter id="rotShadow" x="-40%" y="-40%" width="180%" height="180%"><feDropShadow dx="0" dy="1" stdDeviation="1.5" floodColor="#000" floodOpacity="0.15" /></filter></defs>
       {/* House */}
       <rect x={hx} y={pad - 50} width={hw} height={50} fill="#e8e6e0" stroke="#444" strokeWidth="1.2" rx="1" />
       <text x={houseCx} y={pad - 25} textAnchor="middle" style={{ fontSize: 8, fill: "#999", fontFamily: "monospace", fontWeight: 600, letterSpacing: "1px" }}>EXISTING HOUSE</text>
@@ -605,25 +609,27 @@ function PlanView({ p, c, mode, u }) {
           if (stairSelected) {
             const curAngle = placement.angle;
             const dirLabels = { 0: "Front", 90: "Right", 180: "Back", 270: "Left" };
-            const rHx = bbRect.x + bbRect.w + 6;
-            const rHy = bbRect.y - 6;
+            const rHx = hcx;
+            const stemLen = 10;
+            const rHy = bbRect.y - stemLen - 7;
             const hr = 7;
-            // Stem from stair corner to handle
-            els.push(<line key="rotStem" x1={bbRect.x + bbRect.w} y1={bbRect.y}
-              x2={rHx} y2={rHy} stroke="#ccc" strokeWidth="0.6" style={{ pointerEvents: "none" }} />);
-            // Handle circle with rotate icon
+            // Vertical stem from stair top-center to handle
+            els.push(<line key="rotStem" x1={hcx} y1={bbRect.y - 1}
+              x2={rHx} y2={rHy + hr} stroke="#bbb" strokeWidth="0.7" style={{ pointerEvents: "none" }} />);
+            // Handle circle with clean rotate arrow
             els.push(<g key="rotHandle" style={{ cursor: "grab" }}
-              onPointerDown={e => onRotateDragStart(e, hcx, hcy)}>
-              <circle cx={rHx} cy={rHy} r={hr + 2} fill="white" stroke="#3d5a2e" strokeWidth="1.2" />
-              <path d={"M " + (rHx - 3.5) + " " + (rHy + 0.5) +
-                " A 3.5 3.5 0 1 1 " + (rHx + 0.5) + " " + (rHy - 3.5)}
-                fill="none" stroke="#3d5a2e" strokeWidth="1.4" strokeLinecap="round" />
-              <polygon points={(rHx + 0.5) + "," + (rHy - 5.5) + " " + (rHx + 3) + "," + (rHy - 2.5) + " " + (rHx - 1.5) + "," + (rHy - 2.5)}
+              onPointerDown={e => { e.stopPropagation(); onRotateDragStart(e, hcx, hcy); }}>
+              <circle cx={rHx} cy={rHy} r={hr} fill="white" stroke="#3d5a2e" strokeWidth="1.5"
+                filter="url(#rotShadow)" />
+              <path d={"M " + (rHx - 3) + " " + (rHy + 1) +
+                " A 3.5 3.5 0 1 1 " + (rHx + 1) + " " + (rHy - 3)}
+                fill="none" stroke="#3d5a2e" strokeWidth="1.5" strokeLinecap="round" />
+              <polygon points={(rHx + 1) + "," + (rHy - 5) + " " + (rHx + 3.2) + "," + (rHy - 2.2) + " " + (rHx - 1) + "," + (rHy - 2.2)}
                 fill="#3d5a2e" />
             </g>);
-            // Direction label
-            els.push(<text key="rotDir" x={rHx} y={rHy + hr + 8} textAnchor="middle"
-              style={{ fontSize: 4, fill: "#888", fontFamily: "monospace", pointerEvents: "none" }}>{dirLabels[curAngle] || ""}</text>);
+            // Direction label above handle
+            els.push(<text key="rotDir" x={rHx} y={rHy - hr - 2} textAnchor="middle"
+              style={{ fontSize: 4.5, fill: "#666", fontFamily: "monospace", fontWeight: 600, pointerEvents: "none" }}>{dirLabels[curAngle] || ""}</text>);
           }
         }
         // Wrap in <g> with rotation preview transform
