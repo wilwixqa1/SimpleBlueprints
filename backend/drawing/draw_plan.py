@@ -15,6 +15,7 @@ import numpy as np
 
 # Import our calculation engine
 from .calc_engine import calculate_structure
+from .stair_utils import get_stair_placement, get_stair_exit_side
 
 # ============================================================
 # DRAWING CONSTANTS
@@ -243,12 +244,13 @@ def draw_plan_and_framing(fig, params, calc):
             n_treads = st["num_treads"]
             n_stringers = st["num_stringers"]
             has_landing = st.get("has_landing", False)
-            stair_loc = st.get("location", params.get("stairLocation", "front"))
+            placement = get_stair_placement(params, {"width": W, "depth": D})
+            stair_loc = get_stair_exit_side(placement["angle"])
             landing_depth = 3 if has_landing else 0
             tread_step = stair_run / max(n_treads, 1)
 
             if stair_loc == "front":
-                sx = W / 2 - sw_ft / 2 + params.get("stairOffset", 0)
+                sx = placement["anchor_x"] - sw_ft / 2
                 sy = D
                 # Stringer outlines
                 ax.plot([sx, sx], [sy, sy + stair_run], color=BRAND["dark"], lw=1.0)
@@ -282,7 +284,7 @@ def draw_plan_and_framing(fig, params, calc):
 
             elif stair_loc == "left":
                 sx = -stair_run
-                sy = D / 2 - sw_ft / 2 + params.get("stairOffset", 0)
+                sy = placement["anchor_y"] - sw_ft / 2
                 ax.plot([sx, 0], [sy, sy], color=BRAND["dark"], lw=1.0)
                 ax.plot([sx, 0], [sy + sw_ft, sy + sw_ft], color=BRAND["dark"], lw=1.0)
                 for i in range(n_treads + 1):
@@ -308,7 +310,7 @@ def draw_plan_and_framing(fig, params, calc):
 
             elif stair_loc == "right":
                 sx = W
-                sy = D / 2 - sw_ft / 2 + params.get("stairOffset", 0)
+                sy = placement["anchor_y"] - sw_ft / 2
                 ax.plot([sx, sx + stair_run], [sy, sy], color=BRAND["dark"], lw=1.0)
                 ax.plot([sx, sx + stair_run], [sy + sw_ft, sy + sw_ft], color=BRAND["dark"], lw=1.0)
                 for i in range(n_treads + 1):
