@@ -367,6 +367,8 @@ function PlanView({ p, c, mode, u }) {
   // Drag state
   const dragRef = useRef(null);
   const svgRef = useRef(null);
+  const [stairSelected, setStairSelected] = useState(false);
+  const [rotPreview, setRotPreview] = useState(null); // degrees during drag, null when idle
 
   const onPointerDown = (e, type) => {
     e.preventDefault(); e.stopPropagation();
@@ -436,18 +438,19 @@ function PlanView({ p, c, mode, u }) {
     window.addEventListener("pointerup", onUp);
   };
 
-  // Rotation drag handler — drag the handle in a circle to rotate
+  // Rotation drag handler — smooth live preview, snaps on release
   const onRotateDragStart = (e, centerX, centerY) => {
     e.preventDefault(); e.stopPropagation();
     const svg = svgRef.current; if (!svg) return;
     const rect = svg.getBoundingClientRect();
-    const svgScale = svgW / rect.width;
+    const svgScaleR = svgW / rect.width;
     const pl = getStairPlacement(p, c);
-    dragRef.current = { type: "rotate", centerX, centerY, svgScale, rect,
-      startAngle: pl.angle, startMouseAngle: Math.atan2(
-        (e.clientY - rect.top) * svgScale - centerY,
-        (e.clientX - rect.left) * svgScale - centerX
-      ) * 180 / Math.PI };
+    const startMouseAngle = Math.atan2(
+      (e.clientY - rect.top) * svgScaleR - centerY,
+      (e.clientX - rect.left) * svgScaleR - centerX
+    ) * 180 / Math.PI;
+    dragRef.current = { type: "rotate", centerX, centerY, svgScale: svgScaleR, rect,
+      startAngle: pl.angle, startMouseAngle, anchorX: pl.anchorX, anchorY: pl.anchorY };
 
     const onMove = (ev) => {
       if (!dragRef.current || dragRef.current.type !== "rotate") return;
@@ -457,21 +460,25 @@ function PlanView({ p, c, mode, u }) {
         (ev.clientX - dr.rect.left) * dr.svgScale - dr.centerX
       ) * 180 / Math.PI;
       const delta = mouseAngle - dr.startMouseAngle;
-      let rawAngle = (dr.startAngle + delta + 360) % 360;
-      // Snap to nearest 90° when within 20°
-      const snaps = [0, 90, 180, 270];
-      let snapped = rawAngle;
-      for (const s of snaps) {
-        let diff = Math.abs(rawAngle - s);
-        if (diff > 180) diff = 360 - diff;
-        if (diff < 20) { snapped = s; break; }
-      }
-      const pl2 = getStairPlacement(p, c);
-      u("stairAnchorX", pl2.anchorX);
-      u("stairAnchorY", pl2.anchorY);
-      u("stairAngle", snapped);
+      const rawAngle = ((dr.startAngle + delta) % 360 + 360) % 360;
+      setRotPreview(rawAngle);
     };
-    const onUp = () => { dragRef.current = null; window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp); };
+    const onUp = () => {
+      if (dragRef.current && dragRef.current.type === "rotate") {
+        const raw = rotPreview != null ? rotPreview : pl.angle;
+        const snaps = [0, 90, 180, 270, 360];
+        let best = 0, bestDist = 999;
+        for (const s of snaps) { let d = Math.abs(raw - s); if (d < bestDist) { bestDist = d; best = s % 360; } }
+        const dr = dragRef.current;
+        u("stairAnchorX", dr.anchorX);
+        u("stairAnchorY", dr.anchorY);
+        u("stairAngle", best);
+      }
+      setRotPreview(null);
+      dragRef.current = null;
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
   };
@@ -480,7 +487,8 @@ function PlanView({ p, c, mode, u }) {
   const stairOffPx = (p.stairOffset || 0) * sc;
 
   return (
-    <svg ref={svgRef} viewBox={`0 0 ${svgW} ${svgH}`} style={{ width: "100%", height: "auto" }}>
+    <svg ref={svgRef} viewBox={`0 0 ${svgW} ${svgH}`} style={{ width: "100%", height: "auto" }}
+      onClick={() => setStairSelected(false)}>
       {/* House */}
       <rect x={hx} y={pad - 50} width={hw} height={50} fill="#e8e6e0" stroke="#444" strokeWidth="1.2" rx="1" />
       <text x={houseCx} y={pad - 25} textAnchor="middle" style={{ fontSize: 8, fill: "#999", fontFamily: "monospace", fontWeight: 600, letterSpacing: "1px" }}>EXISTING HOUSE</text>
@@ -581,43 +589,48 @@ function PlanView({ p, c, mode, u }) {
           const hcx = bbRect.x + bbRect.w / 2;
           const hcy = bbRect.y + bbRect.h / 2;
 
-          // Invisible drag surface over entire stair area
-          els.push(<rect key="dragZone" x={bbRect.x} y={bbRect.y} width={bbRect.w} height={bbRect.h}
-            fill="transparent" stroke="none" style={{ cursor: "move" }}
-            onPointerDown={e => onStairDragStart(e)} />);
+          // Entire stair area is draggable — click selects, drag moves
+          els.push(<rect key="dragZone" x={bbRect.x - 3} y={bbRect.y - 3} width={bbRect.w + 6} height={bbRect.h + 6}
+            fill="transparent" stroke={stairSelected ? "#3d5a2e" : "none"}
+            strokeWidth={stairSelected ? "1.2" : "0"} strokeDasharray={stairSelected ? "3,2" : "none"}
+            rx="2" style={{ cursor: "move" }}
+            onPointerDown={e => {
+              e.stopPropagation();
+              setStairSelected(true);
+              onStairDragStart(e);
+            }}
+            onClick={e => e.stopPropagation()} />);
 
-          // MOVE pill — this is also a drag handle
-          els.push(<g key="moveBtn" style={{ cursor: "move" }} onPointerDown={e => onStairDragStart(e)}>
-            <rect x={hcx - 22} y={hcy - 10} width={44} height={20} rx={10}
-              fill="#c62828" opacity="0.9" stroke="#fff" strokeWidth="1" />
-            <text x={hcx} y={hcy + 3.5} textAnchor="middle"
-              style={{ fontSize: 7, fill: "#fff", fontFamily: "monospace", fontWeight: 700, letterSpacing: "0.5px", pointerEvents: "none" }}>✥ MOVE</text>
-          </g>);
-
-          // Drag-to-rotate handle — positioned above stair group, connected by stem
-          const curAngle = placement.angle;
-          const dirLabels = { 0: "Front", 90: "Right", 180: "Back", 270: "Left" };
-          const rotX = hcx;
-          const rotY = bbRect.y - 18;
-          const handleR = 8;
-          // Stem line from stair top to handle
-          els.push(<line key="rotStem" x1={hcx} y1={bbRect.y} x2={rotX} y2={rotY + handleR}
-            stroke="#bbb" strokeWidth="0.8" style={{ pointerEvents: "none" }} />);
-          // Rotate handle circle with arrow icon
-          els.push(<g key="rotHandle" style={{ cursor: "grab" }}
-            onPointerDown={e => onRotateDragStart(e, hcx, hcy)}>
-            <circle cx={rotX} cy={rotY} r={handleR} fill="white" stroke="#3d5a2e" strokeWidth="1.5" />
-            <path d={"M " + (rotX - 4) + " " + (rotY + 1) +
-              " A 4 4 0 1 1 " + (rotX + 1) + " " + (rotY - 4)}
-              fill="none" stroke="#3d5a2e" strokeWidth="1.5" strokeLinecap="round" />
-            <polygon points={(rotX + 1) + "," + (rotY - 6) + " " + (rotX + 3.5) + "," + (rotY - 3) + " " + (rotX - 1) + "," + (rotY - 3)}
-              fill="#3d5a2e" />
-          </g>);
-          // Direction label
-          els.push(<text key="rotDir" x={rotX} y={rotY - handleR - 3} textAnchor="middle"
-            style={{ fontSize: 4.5, fill: "#888", fontFamily: "monospace", pointerEvents: "none" }}>{dirLabels[curAngle] || ""}</text>);
+          // Rotate handle — only shows when selected
+          if (stairSelected) {
+            const curAngle = placement.angle;
+            const dirLabels = { 0: "Front", 90: "Right", 180: "Back", 270: "Left" };
+            const rHx = bbRect.x + bbRect.w + 6;
+            const rHy = bbRect.y - 6;
+            const hr = 7;
+            // Stem from stair corner to handle
+            els.push(<line key="rotStem" x1={bbRect.x + bbRect.w} y1={bbRect.y}
+              x2={rHx} y2={rHy} stroke="#ccc" strokeWidth="0.6" style={{ pointerEvents: "none" }} />);
+            // Handle circle with rotate icon
+            els.push(<g key="rotHandle" style={{ cursor: "grab" }}
+              onPointerDown={e => onRotateDragStart(e, hcx, hcy)}>
+              <circle cx={rHx} cy={rHy} r={hr + 2} fill="white" stroke="#3d5a2e" strokeWidth="1.2" />
+              <path d={"M " + (rHx - 3.5) + " " + (rHy + 0.5) +
+                " A 3.5 3.5 0 1 1 " + (rHx + 0.5) + " " + (rHy - 3.5)}
+                fill="none" stroke="#3d5a2e" strokeWidth="1.4" strokeLinecap="round" />
+              <polygon points={(rHx + 0.5) + "," + (rHy - 5.5) + " " + (rHx + 3) + "," + (rHy - 2.5) + " " + (rHx - 1.5) + "," + (rHy - 2.5)}
+                fill="#3d5a2e" />
+            </g>);
+            // Direction label
+            els.push(<text key="rotDir" x={rHx} y={rHy + hr + 8} textAnchor="middle"
+              style={{ fontSize: 4, fill: "#888", fontFamily: "monospace", pointerEvents: "none" }}>{dirLabels[curAngle] || ""}</text>);
+          }
         }
-        return <g>{els}</g>;
+        // Wrap in <g> with rotation preview transform
+        const previewRot = rotPreview != null ? rotPreview - (placement ? placement.angle : 0) : 0;
+        const pivotX = (() => { const pl3 = getStairPlacement(p, c); return dx + pl3.anchorX * sc; })();
+        const pivotY = (() => { const pl3 = getStairPlacement(p, c); return pad + pl3.anchorY * sc; })();
+        return <g transform={previewRot !== 0 ? "rotate(" + previewRot + " " + pivotX + " " + pivotY + ")" : undefined}>{els}</g>;
       })()}
 
       <line x1={pad} y1={pad + sd + 25} x2={pad + sw} y2={pad + sd + 25} stroke="#c62828" strokeWidth="0.6" />
@@ -1950,7 +1963,7 @@ const App = function SimpleBlueprints() {
                 </div>
                 <PlanView p={p} c={c} mode={planMode} u={u} />
                 {planMode === "plan" && <div style={{ textAlign: "center", fontSize: 9, color: br.mu, fontFamily: mono, marginTop: 4, opacity: 0.7 }}>
-                  Drag the <span style={{ color: "#3d5a2e", fontWeight: 700 }}>green</span> handle to slide the deck · Drag the <span style={{ color: "#c62828", fontWeight: 700 }}>stairs</span> to reposition (snaps to edges)
+                  Drag the <span style={{ color: "#3d5a2e", fontWeight: 700 }}>green</span> handle to slide the deck · Click <span style={{ color: "#c62828", fontWeight: 700 }}>stairs</span> to select, drag to move, grab <span style={{ color: "#3d5a2e", fontWeight: 700 }}>↻</span> to rotate
                 </div>}
               </>}
               {view === "elevation" && <ElevationView c={c} p={p} />}
