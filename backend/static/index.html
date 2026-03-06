@@ -536,15 +536,44 @@ function PlanView({ p, c, mode, u }) {
         const labelPt = txPt(0, stairGeom.bbox.maxY + 2);
         els.push(<text key="stlbl" x={labelPt[0]} y={labelPt[1]} textAnchor="middle" style={{ fontSize: 5.5, fill: "#7a8068", fontFamily: "monospace", fontWeight: 600 }}>{names[stairGeom.template]} · {stairGeom.totalRisers} risers · {stairGeom.stairWidth}' wide · {stairGeom.runs.length} run{stairGeom.runs.length>1?"s":""}</text>);
         if (u && mode === "plan") {
-          // Invisible overlay on stair bounding box for drag
+          // Drag overlay on stair bounding box
           const bb = stairGeom.bbox;
           const bbRect = txRect({ x: bb.minX - 0.5, y: bb.minY - 0.5, w: bb.w + 1, h: bb.h + 1 });
-          els.unshift(<rect key="dragOverlay" x={bbRect.x} y={bbRect.y} width={bbRect.w} height={bbRect.h}
-            fill="transparent" stroke="none" style={{ cursor: "move" }}
+          // Highlight border when hoverable
+          els.unshift(<rect key="dragOverlay" x={bbRect.x - 2} y={bbRect.y - 2} width={bbRect.w + 4} height={bbRect.h + 4}
+            fill="rgba(198,40,40,0.04)" stroke="#c62828" strokeWidth="1" strokeDasharray="4,3" rx="3"
+            style={{ cursor: "move" }}
             onPointerDown={e => onStairDragStart(e)} />);
-          // Small move icon at anchor point
-          els.push(<circle key="anchorDot" cx={ox} cy={oy} r={4} fill="#c62828" opacity="0.6" style={{ cursor: "move", pointerEvents: "none" }} />);
-          els.push(<circle key="anchorRing" cx={ox} cy={oy} r={7} fill="none" stroke="#c62828" strokeWidth="1" opacity="0.4" strokeDasharray="2,2" style={{ pointerEvents: "none" }} />);
+
+          // Centered move handle pill
+          const hcx = bbRect.x + bbRect.w / 2;
+          const hcy = bbRect.y + bbRect.h / 2;
+          els.push(<rect key="moveHandle" x={hcx - 18} y={hcy - 8} width={36} height={16} rx={8}
+            fill="#c62828" opacity="0.85" style={{ cursor: "move", pointerEvents: "none" }} />);
+          els.push(<text key="moveLabel" x={hcx} y={hcy + 3} textAnchor="middle"
+            style={{ fontSize: 6, fill: "#fff", fontFamily: "monospace", fontWeight: 700, pointerEvents: "none", letterSpacing: "0.5px" }}>MOVE</text>);
+
+          // Rotation buttons — show after anchor is set (dragged at least once)
+          if (p.stairAnchorX != null) {
+            const rotY = bbRect.y + bbRect.h + 10;
+            const rotCx = bbRect.x + bbRect.w / 2;
+            const angles = [0, 90, 180, 270];
+            const labels = ["↓", "→", "↑", "←"];
+            const angleTips = ["Front", "Right", "Back", "Left"];
+            const curAngle = placement.angle;
+            angles.forEach((a, ai) => {
+              const bx = rotCx - 36 + ai * 19;
+              const isActive = curAngle === a;
+              els.push(<rect key={"rotBg"+ai} x={bx} y={rotY} width={16} height={14} rx={3}
+                fill={isActive ? "#c62828" : "#fff"} stroke="#c62828" strokeWidth={isActive ? 1.5 : 0.8}
+                style={{ cursor: "pointer" }}
+                onClick={e => { e.stopPropagation(); u("stairAngle", a); }} />);
+              els.push(<text key={"rotArr"+ai} x={bx + 8} y={rotY + 9} textAnchor="middle"
+                style={{ fontSize: 7, fill: isActive ? "#fff" : "#c62828", fontWeight: 700, pointerEvents: "none" }}>{labels[ai]}</text>);
+            });
+            els.push(<text key="rotLabel" x={rotCx} y={rotY + 22} textAnchor="middle"
+              style={{ fontSize: 4.5, fill: "#999", fontFamily: "monospace" }}>ROTATE</text>);
+          }
         }
         return <g>{els}</g>;
       })()}
