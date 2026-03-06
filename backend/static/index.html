@@ -382,7 +382,7 @@ function PlanView({ p, c, mode, u }) {
 
     const onMove = (ev) => {
       if (!dragRef.current) return;
-      const loc = p.stairLocation;
+      const loc = _exitSide;
       // Deck always drags X. Stairs drag X for front, Y for left/right
       const isVertical = dragRef.current.type === "stair" && loc !== "front";
       const delta = isVertical
@@ -695,10 +695,12 @@ function ElevationView({ c, p }) {
   const st = hasSt ? c.stairs : null;
   const geom = st ? st.stairGeom : null;
   const lshapeTemplates = ["lLeft","lRight"];
+    const _pl = hasSt ? getStairPlacement(p, c) : { anchorX: 0, anchorY: 0, angle: 0 };
+    const _exitSide = _pl.angle === 90 ? "right" : _pl.angle === 270 ? "left" : _pl.angle === 180 ? "back" : "front";
   const forceSide = hasSt && lshapeTemplates.includes(p.stairTemplate);
-  const isFront = !forceSide && p.stairLocation === "front";
-  const isSide = forceSide || p.stairLocation === "left" || p.stairLocation === "right";
-  const effectiveSideDir = forceSide ? "right" : p.stairLocation;
+  const isFront = !forceSide && _exitSide === "front";
+  const isSide = forceSide || _exitSide === "left" || _exitSide === "right";
+  const effectiveSideDir = forceSide ? "right" : _exitSide;
   const risePerRiser = st ? (gnd - dY) / st.nRisers : 0;
   const treadPx = st ? (st.tread / 12) * sX : 0;
   const stairRunPx = st ? st.nTreads * treadPx : 0;
@@ -729,7 +731,7 @@ function ElevationView({ c, p }) {
   const stairEls = [];
   if (hasSt) {
     const stW = st.width * sX;
-    const cx = dX + dSW / 2 + (p.stairOffset || 0) * sX;
+    const cx = dX + _pl.anchorX * sX;
 
     if (isFront) {
       // FRONT ELEVATION: Draw stair as stepped side-profile silhouette centered on deck
@@ -955,7 +957,7 @@ function ElevationView({ c, p }) {
         stairEls2.push(<line key="th" x1={tox} y1={toy} x2={tox+tdW} y2={toy} stroke="#888" strokeWidth="1.5" />);
 
         const loc = p.stairLocation;
-        const stCx = tox + tdW/2 + (p.stairOffset||0)*tsc;
+        const stCx = tox + (_pl.anchorX / c.W) * tdW;
         const stLeft = stCx - stW2/2; const stRight = stCx + stW2/2;
         const nT = st.nTreads;
         const runD = nT * treadD;
