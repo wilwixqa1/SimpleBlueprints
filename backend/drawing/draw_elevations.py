@@ -362,10 +362,10 @@ def draw_north_elevation(ax, params, calc):
             # Right stairs: extend past the far edge of deck
             # Left stairs: extend before the near edge of deck
             if stair_loc == "right":
-                sx = deck_start_x + D
+                sx = deck_start_x + _n_placement["anchor_y"]
                 direction = 1
             else:
-                sx = deck_start_x
+                sx = deck_start_x + _n_placement["anchor_y"]
                 direction = -1
             
             rise = stair["actual_rise"] / 12
@@ -395,8 +395,8 @@ def draw_north_elevation(ax, params, calc):
                     color=BRAND["dark"], lw=0.4, ls='--')
 
         elif stair_loc == "front":
-            # Front stairs in side view: profile stepping down from front edge
-            sx = deck_start_x + D
+            # Front stairs in side view: profile stepping down from anchor position
+            sx = deck_start_x + _n_placement["anchor_y"]
             rise = stair["actual_rise"] / 12
             run = stair["tread_depth"] / 12
             n_treads = stair["num_treads"]
