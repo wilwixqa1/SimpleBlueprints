@@ -680,331 +680,191 @@ function PlanView({ p, c, mode, u }) {
 // ============================================================
 // ELEVATION SVG
 // ============================================================
+
 function ElevationView({ c, p }) {
   const { W, D, H, beamSize, postSize, nP, pp, fDiam, fDepth } = c;
-  const pad = 40; const sY = Math.min(16, 250 / Math.max(H + 6, 10)); const sX = Math.min(14, 440 / Math.max(W + 10, 20));
-  const gnd = pad + (H + 4) * sY; const dY = gnd - H * sY; const rTop = dY - 3 * sY;
-  const dX = pad; const dSW = W * sX;
-  const hW = p.houseWidth * sX; const hX = dX + (dSW - hW) / 2 - (p.deckOffset || 0) * sX;
-  const fndH = (H + 1) * sY; const f1H = 0.5 * sY; const f2H = 6.7 * sY;
-  const wallH = fndH + f1H + f2H; const roofPk = 5 * sY; const hTop = gnd - wallH;
-  const bH = 1 * sY;
-
-  // Stair geometry
+  // 2x2 grid of 4 elevations: South (top-left), North (top-right), East (bottom-left), West (bottom-right)
   const hasSt = p.hasStairs && c.stairs;
   const st = hasSt ? c.stairs : null;
-  const geom = st ? st.stairGeom : null;
-  const lshapeTemplates = ["lLeft","lRight"];
-    const _pl = hasSt ? getStairPlacement(p, c) : { anchorX: 0, anchorY: 0, angle: 0 };
-    const _exitSide = _pl.angle === 90 ? "right" : _pl.angle === 270 ? "left" : _pl.angle === 180 ? "back" : "front";
-  const forceSide = hasSt && lshapeTemplates.includes(p.stairTemplate);
-  const isFront = !forceSide && _exitSide === "front";
-  const isSide = forceSide || _exitSide === "left" || _exitSide === "right";
-  const effectiveSideDir = forceSide ? "right" : _exitSide;
-  const risePerRiser = st ? (gnd - dY) / st.nRisers : 0;
-  const treadPx = st ? (st.tread / 12) * sX : 0;
-  const stairRunPx = st ? st.nTreads * treadPx : 0;
-  const leftOverhang = (hasSt && p.stairLocation === "left") ? stairRunPx + pad + 15 : 0;
-  const stairFootprintH = hasSt && isFront ? st.nTreads * treadPx + 20 : 0;
-  const svgW = dSW + pad * 2 + 70 + leftOverhang;
-  const svgH = wallH + roofPk + pad + 30 + stairFootprintH;
+  const _pl = hasSt ? getStairPlacement(p, c) : { anchorX: 0, anchorY: 0, angle: 0 };
+  const _exitSide = _pl.angle === 90 ? "right" : _pl.angle === 270 ? "left" : _pl.angle === 180 ? "back" : "front";
 
-  // Helper: draw one run as stepped profile (front view = steps going downward in Y, spreading in X from center)
-  function singleRunFrontProfile(cx, stW, topY, botY, nRisers, nTreads, rpp, tpx, keyPfx) {
-    const els = [];
-    // Left stringer outline
-    els.push(<line key={keyPfx+"sl"} x1={cx-stW/2} y1={topY} x2={cx-stW/2} y2={botY} stroke="#444" strokeWidth="0.8" />);
-    // Right stringer outline  
-    els.push(<line key={keyPfx+"sr"} x1={cx+stW/2} y1={topY} x2={cx+stW/2} y2={botY} stroke="#444" strokeWidth="0.8" />);
-    // Top connection
-    els.push(<line key={keyPfx+"st"} x1={cx-stW/2} y1={topY} x2={cx+stW/2} y2={topY} stroke="#444" strokeWidth="0.8" />);
-    // Bottom connection
-    els.push(<line key={keyPfx+"sb"} x1={cx-stW/2} y1={botY} x2={cx+stW/2} y2={botY} stroke="#444" strokeWidth="0.8" />);
-    // Tread lines (horizontal)
-    for (var i=1; i<=nTreads; i++) {
-      var ty = topY + i * rpp;
-      els.push(<line key={keyPfx+"t"+i} x1={cx-stW/2+1} y1={ty} x2={cx+stW/2-1} y2={ty} stroke="#888" strokeWidth="0.5" />);
-    }
-    return els;
+  // Stair view type matrix (matches backend stair_view_type)
+  function stairViewType(exitSide, viewDir) {
+    const M = {
+      "front,south":["treads",null],"right,south":["profile",1],"left,south":["profile",-1],"back,south":["hidden",null],
+      "front,north":["hidden",null],"right,north":["profile",-1],"left,north":["profile",1],"back,north":["treads",null],
+      "front,east":["profile",1],"right,east":["treads",null],"left,east":["hidden",null],"back,east":["profile",-1],
+      "front,west":["profile",-1],"right,west":["hidden",null],"left,west":["treads",null],"back,west":["profile",1],
+    };
+    return M[exitSide+","+viewDir] || ["hidden",null];
   }
 
-  const stairEls = [];
-  if (hasSt) {
-    const stW = st.width * sX;
-    const cx = dX + _pl.anchorX * sX;
+  // Mini elevation renderer
+  function MiniElev({ viewDir, label, showWidth }) {
+    // showWidth: true for S/N (deck width axis), false for E/W (deck depth axis)
+    const spanFt = showWidth ? W : D;
+    const pad = 25; const sX = Math.min(14, 200 / Math.max(spanFt + 6, 14));
+    const sY = Math.min(12, 100 / Math.max(H + 5, 8));
+    const dSW = spanFt * sX; const svgW = dSW + pad * 2 + 40; const svgH = (H + 5) * sY + pad + 35;
+    const gnd = pad + (H + 3) * sY; const dY = gnd - H * sY;
+    const dX = pad; const rTop = dY - 2.5 * sY; const bH = 0.8 * sY;
+    const isRear = viewDir === "north";
+    const isSide = viewDir === "east" || viewDir === "west";
 
-    if (isFront) {
-      // FRONT ELEVATION: Draw stair as stepped side-profile silhouette centered on deck
-      // The stair descends from dY down to gnd, and treads extend forward (downward in SVG = outward from house)
-      // We draw the RIGHT side stringer profile as a stepped silhouette
-      const stairLeft = cx - stW / 2;
-      const stairRight = cx + stW / 2;
+    // House dimensions
+    const hW = showWidth ? Math.min(spanFt, 30) * sX : 10 * sX;
+    const hX = showWidth ? dX + (dSW - hW) / 2 : (viewDir === "east" ? dX - hW - 2 : dX + dSW + 2);
+    const hH = (H + 1 + 7) * sY; const hTop = gnd - hH; const roofPk = 3.5 * sY;
 
-      if (!geom || geom.runs.length <= 1) {
-        // Single run - stepped profile on both sides
-        // Left profile
-        var lPts = [];
-        var ly = dY; var lx = stairLeft;
-        lPts.push([lx, ly]);
-        for (var i = 0; i < st.nRisers; i++) {
-          lPts.push([lx, ly + risePerRiser]);           // riser down
-          if (i < st.nTreads) lPts.push([lx + treadPx, ly + risePerRiser]); // tread out... wait
-          ly += risePerRiser;
-          // actually treads go forward (increase SVG Y for front view since forward = away from house)
+    // Stair info
+    const [svt, sdir] = hasSt ? stairViewType(_exitSide, viewDir) : ["hidden", null];
+    const stEls = [];
+    if (hasSt && svt !== "hidden") {
+      const stW = st.width * sX;
+      const risePerR = (gnd - dY) / st.nRisers;
+      const treadPx = (st.tread / 12) * sX;
+      if (svt === "treads") {
+        // Head-on tread view
+        let cx;
+        if (showWidth) {
+          const ax = isRear ? (W - _pl.anchorX) : _pl.anchorX;
+          cx = dX + ax * sX;
+        } else {
+          const ay = viewDir === "west" ? (D - _pl.anchorY) : _pl.anchorY;
+          cx = dX + ay * sX;
         }
-        // For FRONT elevation: riser = vertical line, tread = we see the tread face-on (horizontal line)
-        // So we just show stringer boxes + horizontal tread lines
-        stairEls.push(...singleRunFrontProfile(cx, stW, dY, gnd, st.nRisers, st.nTreads, risePerRiser, treadPx, "sr"));
-
-        // Stringer diagonal lines (shows the rake angle)
-        stairEls.push(<line key="strL" x1={stairLeft+1} y1={dY} x2={stairLeft+1} y2={gnd} stroke="#555" strokeWidth="1.2" />);
-        stairEls.push(<line key="strR" x1={stairRight-1} y1={dY} x2={stairRight-1} y2={gnd} stroke="#555" strokeWidth="1.2" />);
-
-        // Handrail lines
-        stairEls.push(<line key="hrL" x1={stairLeft-2} y1={dY-8} x2={stairLeft-2} y2={gnd-8} stroke="#666" strokeWidth="0.6" strokeDasharray="2,1" />);
-        stairEls.push(<line key="hrR" x1={stairRight+2} y1={dY-8} x2={stairRight+2} y2={gnd-8} stroke="#666" strokeWidth="0.6" strokeDasharray="2,1" />);
-
-        // Rise/run callout
-        stairEls.push(<text key="rrcall" x={cx+stW/2+6} y={dY + (gnd-dY)/2} style={{ fontSize: 4.5, fill: "#333", fontFamily: "monospace" }}>RISE: {Math.round(H/st.nRisers*12*10)/10}"</text>);
-        stairEls.push(<text key="rrcall2" x={cx+stW/2+6} y={dY + (gnd-dY)/2 + 7} style={{ fontSize: 4.5, fill: "#333", fontFamily: "monospace" }}>RUN: {st.tread}"</text>);
-
-      } else {
-        // Multi-run front elevation: show each run as a stringer box + landing platform
-        var risersDrawn = 0;
-        for (var ri = 0; ri < geom.runs.length; ri++) {
-          var run = geom.runs[ri];
-          var runTopY = dY + risersDrawn * risePerRiser;
-          var runBotY = dY + (risersDrawn + run.risers) * risePerRiser;
-          var platW = stW + 12;
-
-          // Stringer outlines for this run
-          stairEls.push(...singleRunFrontProfile(cx, stW, runTopY, runBotY, run.risers, run.treads, risePerRiser, treadPx, "r"+ri));
-
-          risersDrawn += run.risers;
-
-          if (ri < geom.runs.length - 1) {
-            // Landing platform between runs
-            var landY = dY + risersDrawn * risePerRiser;
-            stairEls.push(<rect key={"land"+ri} x={cx-platW/2} y={landY-3} width={platW} height={6} fill="#e8e6d8" stroke="#444" strokeWidth="0.8" />);
-            stairEls.push(<text key={"landlbl"+ri} x={cx} y={landY+1.5} textAnchor="middle" style={{ fontSize: 3.5, fill: "#555", fontFamily: "monospace" }}>LANDING</text>);
-            // Landing posts
-            stairEls.push(<line key={"lpl"+ri} x1={cx-platW/2+3} y1={landY+3} x2={cx-platW/2+3} y2={gnd} stroke="#c4a060" strokeWidth="1.5" />);
-            stairEls.push(<line key={"lpr"+ri} x1={cx+platW/2-3} y1={landY+3} x2={cx+platW/2-3} y2={gnd} stroke="#c4a060" strokeWidth="1.5" />);
-            // Landing footings
-            stairEls.push(<rect key={"lpfl"+ri} x={cx-platW/2} y={gnd} width={6} height={3} fill="#c8c8c8" stroke="#444" strokeWidth="0.3" />);
-            stairEls.push(<rect key={"lpfr"+ri} x={cx+platW/2-6} y={gnd} width={6} height={3} fill="#c8c8c8" stroke="#444" strokeWidth="0.3" />);
-          }
+        const sl = cx - stW/2, sr = cx + stW/2;
+        stEls.push(<rect key="tb" x={sl} y={dY} width={stW} height={gnd-dY} fill="white" stroke="none" />);
+        for (let i=0;i<=st.nRisers;i++) stEls.push(<line key={"tt"+i} x1={sl} y1={dY+i*risePerR} x2={sr} y2={dY+i*risePerR} stroke="#888" strokeWidth="0.4" />);
+        stEls.push(<line key="tl" x1={sl} y1={dY} x2={sl} y2={gnd} stroke="#444" strokeWidth="0.7" />);
+        stEls.push(<line key="tr" x1={sr} y1={dY} x2={sr} y2={gnd} stroke="#444" strokeWidth="0.7" />);
+        stEls.push(<line key="tb2" x1={sl} y1={gnd} x2={sr} y2={gnd} stroke="#444" strokeWidth="0.5" />);
+      } else if (svt === "profile") {
+        // Side profile
+        let sx;
+        if (showWidth) {
+          const ax = isRear ? (W - _pl.anchorX) : _pl.anchorX;
+          sx = dX + ax * sX;
+        } else {
+          const ay = viewDir === "west" ? (D - _pl.anchorY) : _pl.anchorY;
+          sx = dX + ay * sX;
         }
-        // Rise/run callout
-        stairEls.push(<text key="rrcall" x={cx+stW/2+6} y={dY+(gnd-dY)/2} style={{ fontSize: 4.5, fill: "#333", fontFamily: "monospace" }}>RISE: {Math.round(H/st.nRisers*12*10)/10}"</text>);
-        stairEls.push(<text key="rrcall2" x={cx+stW/2+6} y={dY+(gnd-dY)/2+7} style={{ fontSize: 4.5, fill: "#333", fontFamily: "monospace" }}>RUN: {st.tread}"</text>);
+        const dir = sdir;
+        const pts = [];
+        let rx = sx, ry = dY;
+        pts.push(rx+","+ry);
+        for (let i=0;i<st.nRisers;i++) {
+          const ny = ry + risePerR;
+          pts.push(rx+","+ny);
+          if (i < st.nTreads) { rx += dir * treadPx; pts.push(rx+","+ny); }
+          ry = ny;
+        }
+        stEls.push(<polyline key="prof" points={pts.join(" ")} fill="none" stroke="#444" strokeWidth="0.7" />);
+        stEls.push(<line key="pdiag" x1={sx} y1={dY} x2={rx} y2={gnd} stroke="#888" strokeWidth="0.4" strokeDasharray="2,1.5" />);
       }
-
-      // Stringer label
-      stairEls.push(<text key="stlbl" x={cx} y={gnd+10} textAnchor="middle" style={{ fontSize: 4.5, fill: "#666", fontFamily: "monospace" }}>{st.totalStringers}x2x12 STRINGERS · {st.numRuns} RUN{st.numRuns>1?"S":""}</text>);
-
-    } else {
-      // SIDE ELEVATION - proper stepped profile
-      const dir = effectiveSideDir === "right" ? 1 : -1;
-      const startX = effectiveSideDir === "right" ? dX + dSW : dX;
-
-      if (!geom || geom.runs.length <= 1) {
-        // Single run stepped profile
-        var pts = [];
-        var curX = startX; var curY = dY;
-        pts.push(curX + "," + curY);
-        for (var i = 0; i < st.nRisers; i++) {
-          var nextY = curY + risePerRiser;
-          pts.push(curX + "," + nextY);
-          if (i < st.nTreads) { curX += dir * treadPx; pts.push(curX + "," + nextY); }
-          curY = nextY;
-        }
-        stairEls.push(<polyline key="profile" points={pts.join(" ")} fill="none" stroke="#444" strokeWidth="1" />);
-        // Close the profile box
-        stairEls.push(<line key="profbot" x1={startX} y1={gnd} x2={curX} y2={gnd} stroke="#444" strokeWidth="0.8" />);
-        stairEls.push(<line key="profvert" x1={curX} y1={curY} x2={curX} y2={gnd} stroke="#444" strokeWidth="0.8" />);
-        // Stringer diagonal
-        stairEls.push(<line key="strdiag" x1={startX} y1={dY} x2={curX} y2={gnd} stroke="#888" strokeWidth="0.6" strokeDasharray="2,1.5" />);
-        // Handrail
-        stairEls.push(<line key="hr" x1={startX} y1={dY-8} x2={curX} y2={gnd-8} stroke="#666" strokeWidth="0.6" strokeDasharray="2,1" />);
-        stairEls.push(<line key="hrpost1" x1={startX} y1={dY} x2={startX} y2={dY-8} stroke="#666" strokeWidth="0.5" />);
-        stairEls.push(<line key="hrpost2" x1={curX} y1={gnd} x2={curX} y2={gnd-8} stroke="#666" strokeWidth="0.5" />);
-        // Rise/run callout
-        stairEls.push(<text key="rrcall" x={startX+dir*20} y={dY+(gnd-dY)*0.4} textAnchor="middle" style={{ fontSize: 4, fill: "#333", fontFamily: "monospace" }}>RISE: {Math.round(H/st.nRisers*12*10)/10}"</text>);
-        stairEls.push(<text key="rrcall2" x={startX+dir*20} y={dY+(gnd-dY)*0.4+6} textAnchor="middle" style={{ fontSize: 4, fill: "#333", fontFamily: "monospace" }}>RUN: {st.tread}"</text>);
-
-      } else {
-        // Multi-run side profile
-        var risersDrawn2 = 0;
-        var curX2 = startX; var curDir = dir;
-        for (var ri = 0; ri < geom.runs.length; ri++) {
-          var run2 = geom.runs[ri];
-          var runStartY2 = dY + risersDrawn2 * risePerRiser;
-          var pts2 = [curX2 + "," + runStartY2];
-          var rx = curX2; var ry = runStartY2;
-          for (var i = 0; i < run2.risers; i++) {
-            var ny2 = ry + risePerRiser;
-            pts2.push(rx + "," + ny2);
-            if (i < run2.treads) { rx += curDir * treadPx; pts2.push(rx + "," + ny2); }
-            ry = ny2;
-          }
-          stairEls.push(<polyline key={"run"+ri} points={pts2.join(" ")} fill="none" stroke="#444" strokeWidth="1" />);
-          risersDrawn2 += run2.risers;
-          if (ri < geom.runs.length - 1) {
-            var landingY3 = dY + risersDrawn2 * risePerRiser;
-            var ldepth = (geom.landingDepth || st.width || 4) * sX;
-            stairEls.push(<rect key={"slp"+ri} x={Math.min(rx, rx+curDir*ldepth)} y={landingY3-3} width={Math.abs(ldepth)} height={6} fill="#e8e6d8" stroke="#444" strokeWidth="0.8" />);
-            stairEls.push(<text key={"slbl"+ri} x={rx+curDir*ldepth/2} y={landingY3+1.5} textAnchor="middle" style={{ fontSize: 3.5, fill: "#555", fontFamily: "monospace" }}>LANDING</text>);
-            var postX3 = rx + curDir * ldepth / 2;
-            stairEls.push(<line key={"slpost"+ri} x1={postX3} y1={landingY3+3} x2={postX3} y2={gnd} stroke="#c4a060" strokeWidth="1.5" />);
-            stairEls.push(<rect key={"slpf"+ri} x={postX3-3} y={gnd} width={6} height={3} fill="#c8c8c8" stroke="#444" strokeWidth="0.3" />);
-            rx += curDir * ldepth;
-            curDir = -curDir;
-          }
-        }
-        // Close bottom
-        stairEls.push(<line key="profbot2" x1={startX} y1={gnd} x2={curX2} y2={gnd} stroke="#444" strokeWidth="0.5" strokeDasharray="2,1" />);
-      }
-      stairEls.push(<text key="stlbl" x={startX+dir*18} y={gnd+10} textAnchor="middle" style={{ fontSize: 4.5, fill: "#666", fontFamily: "monospace" }}>{st.totalStringers}x2x12 STRINGERS · {st.numRuns} RUN{st.numRuns>1?"S":""}</text>);
     }
+
+    // Posts for front/rear views
+    const postEls = [];
+    if (showWidth) {
+      const positions = isRear ? pp.map(px => W - px) : pp;
+      const alpha = isRear ? 0.35 : 1;
+      const dash = isRear ? "4,2" : "none";
+      positions.forEach((px, i) => {
+        const sx = dX + px * sX;
+        postEls.push(<line key={"p"+i} x1={sx} y1={dY} x2={sx} y2={gnd-1} stroke="#c4a060" strokeWidth={postSize==="6x6"?2:1.5} strokeOpacity={alpha} strokeDasharray={dash} />);
+        if (!isRear) {
+          postEls.push(<rect key={"pf"+i} x={sx-3} y={gnd} width={6} height={2.5} fill="#c8c8c8" stroke="#444" strokeWidth="0.3" />);
+        }
+      });
+    } else {
+      // Side view: single post at far end
+      const postX = viewDir === "west" ? dX + 1.5 * sX : dX + dSW - 1.5 * sX;
+      postEls.push(<line key="sp" x1={postX} y1={dY} x2={postX} y2={gnd-1} stroke="#c4a060" strokeWidth={postSize==="6x6"?2:1.5} />);
+      postEls.push(<rect key="spf" x={postX-3} y={gnd} width={6} height={2.5} fill="#c8c8c8" stroke="#444" strokeWidth="0.3" />);
+    }
+
+    return (
+      <div style={{ flex: "1 1 48%", minWidth: 200 }}>
+        <svg viewBox={`0 0 ${svgW} ${svgH}`} style={{ width: "100%", height: "auto", background: "#fcfcfa", borderRadius: 4, border: "1px solid #ddd8cc" }}>
+          {/* House */}
+          {showWidth ? <>
+            <rect x={hX} y={hTop} width={hW} height={hH} fill="#e8e6e0" stroke="#888" strokeWidth="0.5" />
+            <polygon points={`${hX-2},${hTop} ${hX+hW/2},${hTop-roofPk} ${hX+hW+2},${hTop}`} fill="#888" stroke="#444" strokeWidth="0.8" />
+            <text x={hX+hW/2} y={hTop-roofPk/3} textAnchor="middle" style={{ fontSize: 4, fill: "#aaa", fontFamily: "monospace" }}>HOUSE</text>
+          </> : <>
+            <rect x={hX} y={hTop} width={hW} height={hH} fill="#e8e6e0" stroke="#888" strokeWidth="0.5" />
+            <polygon points={`${hX-1},${hTop} ${hX+hW/2},${hTop-roofPk} ${hX+hW+1},${hTop}`} fill="#888" stroke="#444" strokeWidth="0.8" />
+            <text x={hX+hW/2} y={hTop-roofPk/3} textAnchor="middle" style={{ fontSize: 3.5, fill: "#aaa", fontFamily: "monospace" }}>HOUSE</text>
+          </>}
+
+          {/* Ground */}
+          <line x1={pad-10} y1={gnd} x2={svgW-10} y2={gnd} stroke="#444" strokeWidth="0.7" />
+          {Array.from({length:Math.ceil((svgW-20)/2.5)},(_,i)=><line key={i} x1={pad-10+i*2.5} y1={gnd} x2={pad-12+i*2.5} y2={gnd+1.5} stroke="#aaa" strokeWidth="0.2" />)}
+
+          {/* Posts */}
+          {postEls}
+
+          {/* Beam */}
+          {!isRear ? (
+            p.beamType === "flush"
+              ? <line x1={dX+1*sX} y1={dY} x2={dX+dSW-1*sX} y2={dY} stroke="#c4960a" strokeWidth="1" strokeDasharray="6,3" />
+              : <rect x={dX+1*sX} y={dY+0.5} width={dSW-2*sX} height={bH*0.6} fill="#c4960a" fillOpacity="0.8" stroke="#444" strokeWidth="0.4" rx="0.3" />
+          ) : (
+            <rect x={dX+1*sX} y={dY+0.5} width={dSW-2*sX} height={bH*0.6} fill="#c4960a" fillOpacity="0.25" stroke="#444" strokeWidth="0.3" />
+          )}
+
+          {/* Ledger (prominent in rear view, shown on side views) */}
+          {isRear && c.attachment === "ledger" && <>
+            <line x1={dX} y1={dY} x2={dX+dSW} y2={dY} stroke="#2e7d32" strokeWidth="2" />
+            <line x1={dX} y1={dY+bH*0.7} x2={dX+dSW} y2={dY+bH*0.7} stroke="#2e7d32" strokeWidth="1" strokeOpacity="0.5" />
+            <text x={dX+dSW/2} y={dY+bH*0.4} textAnchor="middle" style={{ fontSize: 3.5, fill: "#2e7d32", fontFamily: "monospace", fontWeight: 700 }}>LEDGER</text>
+          </>}
+          {isSide && c.attachment === "ledger" && (() => {
+            const lx = viewDir === "east" ? dX : dX + dSW;
+            return <line x1={lx} y1={dY-bH*0.3} x2={lx} y2={dY+bH*0.5} stroke="#2e7d32" strokeWidth="2" />;
+          })()}
+
+          {/* Deck surface */}
+          <line x1={dX} y1={dY} x2={dX+dSW} y2={dY} stroke="#6B5340" strokeWidth="1.8" />
+
+          {/* Rail */}
+          <line x1={dX} y1={rTop} x2={dX+dSW} y2={rTop} stroke="#333" strokeWidth={isRear ? 1 : 1.5} strokeOpacity={isRear ? 0.4 : 1} />
+          <line x1={dX} y1={dY-1.5} x2={dX+dSW} y2={dY-1.5} stroke="#333" strokeWidth="0.5" strokeOpacity={isRear ? 0.3 : 0.8} />
+
+          {/* Stairs */}
+          {stEls}
+
+          {/* Height dimension */}
+          <line x1={dX-8} y1={gnd} x2={dX-8} y2={dY} stroke="#1565c0" strokeWidth="0.4" />
+          <line x1={dX-10} y1={gnd} x2={dX-6} y2={gnd} stroke="#1565c0" strokeWidth="0.4" />
+          <line x1={dX-10} y1={dY} x2={dX-6} y2={dY} stroke="#1565c0" strokeWidth="0.4" />
+          <text x={dX-12} y={(gnd+dY)/2+2} textAnchor="middle" transform={`rotate(-90,${dX-12},${(gnd+dY)/2})`} style={{ fontSize: 5.5, fill: "#1565c0", fontWeight: 700, fontFamily: "monospace" }}>{Math.floor(H)}'-{Math.round((H%1)*12)}"</text>
+
+          {/* Width dimension */}
+          <line x1={dX} y1={rTop-6} x2={dX+dSW} y2={rTop-6} stroke="#c62828" strokeWidth="0.4" />
+          <line x1={dX} y1={rTop-8} x2={dX} y2={rTop-4} stroke="#c62828" strokeWidth="0.4" />
+          <line x1={dX+dSW} y1={rTop-8} x2={dX+dSW} y2={rTop-4} stroke="#c62828" strokeWidth="0.4" />
+          <text x={dX+dSW/2} y={rTop-9} textAnchor="middle" style={{ fontSize: 5.5, fill: "#c62828", fontWeight: 700, fontFamily: "monospace" }}>{spanFt}'-0"</text>
+
+          {/* View label */}
+          <text x={svgW/2} y={svgH-4} textAnchor="middle" style={{ fontSize: 5, fill: "#555", fontFamily: "monospace", fontWeight: 800, letterSpacing: 0.8 }}>{label}</text>
+        </svg>
+      </div>
+    );
   }
 
   return (
-    <svg viewBox={(-leftOverhang) + " 0 " + svgW + " " + svgH} style={{ width: "100%", height: "auto" }}>
-      {/* House */}
-      <rect x={hX} y={hTop} width={hW} height={fndH} fill="#c8c8c8" stroke="#444" strokeWidth="1" />
-      <rect x={hX} y={hTop} width={hW} height={f1H} fill="#e8e6e0" stroke="#444" strokeWidth="1" />
-      {f2H > 0 && <rect x={hX} y={hTop+fndH+f1H} width={hW} height={f2H} fill="#e8e6e0" stroke="#444" strokeWidth="1" />}
-      {[0.08,0.42,0.72].map((wx,i) => <rect key={i} x={hX+hW*wx} y={hTop+fndH+f1H*0.2} height={f1H*0.45} width={hW*0.12} fill="#b0d4e8" stroke="#444" strokeWidth="0.5" rx="0.5" />)}
-      <polygon points={hX+","+hTop+" "+(hX+hW/2)+","+(hTop-roofPk)+" "+(hX+hW)+","+hTop} fill="#888" stroke="#444" strokeWidth="1.5" />
-      <text x={hX+hW/2} y={hTop-roofPk/3} textAnchor="middle" style={{ fontSize: 6, fill: "#aaa", fontFamily: "monospace" }}>EXISTING HOUSE</text>
-
-      {/* Ground line + hatch */}
-      <line x1={pad-15} y1={gnd} x2={svgW-15} y2={gnd} stroke="#444" strokeWidth="1" />
-      {Array.from({ length: Math.ceil((svgW-30)/3) }, (_,i) => <line key={i} x1={pad-15+i*3} y1={gnd} x2={pad-17+i*3} y2={gnd+2} stroke="#aaa" strokeWidth="0.3" />)}
-
-      {/* Posts + pier footings */}
-      {pp.map((px, i) => {
-        const sx = dX + px * sX;
-        return (
-          <g key={i}>
-            <line x1={sx} y1={dY} x2={sx} y2={gnd-2} stroke="#c4a060" strokeWidth={postSize==="6x6"?3:2} />
-            <rect x={sx-3.5} y={gnd-2} width={7} height={2} fill="#888" stroke="#555" strokeWidth="0.4" />
-            <rect x={sx-5} y={gnd} width={10} height={4} fill="#c8c8c8" stroke="#444" strokeWidth="0.5" />
-            <line x1={sx} y1={gnd+4} x2={sx} y2={gnd+10} stroke="#888" strokeWidth="0.5" strokeDasharray="1.5,1" />
-          </g>
-        );
-      })}
-
-      {/* Beam — dropped=solid rect below deck, flush=single dashed hidden line at beam bottom per IRC blueprint convention */}
-      { p.beamType === 'flush'
-        ? <line x1={dX+1*sX} y1={dY} x2={dX+dSW-1*sX} y2={dY} stroke="#c4960a" strokeWidth="1.2" strokeDasharray="8,4" />
-        : <rect x={dX+1*sX} y={dY+1} width={dSW-2*sX} height={bH*0.7} fill="#c4960a" fillOpacity="0.85" stroke="#444" strokeWidth="0.8" rx="0.5" />
-      }
-      {/* Deck surface */}
-      <line x1={dX} y1={dY} x2={dX+dSW} y2={dY} stroke="#685340" strokeWidth="2.5" />
-      <line x1={dX} y1={rTop} x2={dX+dSW} y2={rTop} stroke="#333" strokeWidth="2" />
-      <line x1={dX} y1={dY-2} x2={dX+dSW} y2={dY-2} stroke="#333" strokeWidth="0.8" />
-      {Array.from({ length: Math.ceil(W/4)+1 }, (_,i) => i*4*sX).filter(x => x<=dSW).map((x,i) => <line key={i} x1={dX+x} y1={dY-2} x2={dX+x} y2={rTop} stroke="#333" strokeWidth="1" />)}
-
-      {/* Stair elements */}
-      {stairEls}
-
-      {/* Height dimension */}
-      <line x1={dX-18} y1={gnd} x2={dX-12} y2={gnd} stroke="#1565c0" strokeWidth="0.5" />
-      <line x1={dX-18} y1={dY} x2={dX-12} y2={dY} stroke="#1565c0" strokeWidth="0.5" />
-      <line x1={dX-18} y1={gnd} x2={dX-18} y2={dY} stroke="#1565c0" strokeWidth="0.5" />
-      <line x1={dX-19} y1={gnd} x2={dX-17} y2={gnd} stroke="#1565c0" strokeWidth="0.5" />
-      <line x1={dX-19} y1={dY} x2={dX-17} y2={dY} stroke="#1565c0" strokeWidth="0.5" />
-      <text x={dX-22} y={(gnd+dY)/2+2} textAnchor="middle" transform={"rotate(-90,"+(dX-22)+","+(gnd+dY)/2+")"} style={{ fontSize: 8, fill: "#1565c0", fontWeight: 800, fontFamily: "monospace" }}>{Math.floor(H)}'-{Math.round((H%1)*12)}"</text>
-
-      {/* Width dimension */}
-      <line x1={dX} y1={rTop-10} x2={dX+dSW} y2={rTop-10} stroke="#c62828" strokeWidth="0.5" />
-      <line x1={dX} y1={rTop-13} x2={dX} y2={rTop-7} stroke="#c62828" strokeWidth="0.5" />
-      <line x1={dX+dSW} y1={rTop-13} x2={dX+dSW} y2={rTop-7} stroke="#c62828" strokeWidth="0.5" />
-      <text x={dX+dSW/2} y={rTop-13} textAnchor="middle" style={{ fontSize: 8, fill: "#c62828", fontWeight: 800, fontFamily: "monospace" }}>{W}'-0"</text>
-
-      {/* Callout labels */}
-      <line x1={dX+dSW} y1={rTop+2} x2={dX+dSW+9} y2={rTop+4} stroke="#999" strokeWidth="0.4" />
-      <text x={dX+dSW+10} y={rTop+5} style={{ fontSize: 5, fill: "#333", fontFamily: "monospace" }}>36" GUARD RAIL</text>
-      <line x1={dX+dSW} y1={dY+bH*0.3} x2={dX+dSW+9} y2={dY+bH*0.4+2} stroke="#999" strokeWidth="0.4" />
-      <text x={dX+dSW+10} y={dY+bH*0.4+3} style={{ fontSize: 5, fill: "#333", fontFamily: "monospace" }}>{p.beamType === 'flush' ? beamSize.toUpperCase() + ' FLUSH BEAM' : beamSize.toUpperCase()}</text>
-      <line x1={dX+dSW} y1={(gnd+dY)/2} x2={dX+dSW+9} y2={(gnd+dY)/2} stroke="#999" strokeWidth="0.4" />
-      <text x={dX+dSW+10} y={(gnd+dY)/2+1} style={{ fontSize: 5, fill: "#333", fontFamily: "monospace" }}>{postSize} POSTS ({nP})</text>
-      <line x1={dX+dSW} y1={gnd} x2={dX+dSW+9} y2={gnd+4} stroke="#999" strokeWidth="0.4" />
-      <text x={dX+dSW+10} y={gnd+5} style={{ fontSize: 5, fill: "#333", fontFamily: "monospace" }}>{fDiam}" Ø x {fDepth}" PIERS</text>
-      {/* View label */}
-      {(() => {
-        const lbl = isFront ? "FRONT ELEVATION" : (effectiveSideDir === "right" ? "RIGHT SIDE ELEVATION" : "LEFT SIDE ELEVATION");
-        return <text x={dX + dSW/2} y={svgH - 6} textAnchor="middle" style={{ fontSize: 6, fill: "#555", fontFamily: "monospace", fontWeight: 800, letterSpacing: 1 }}>{lbl}</text>;
-      })()}
-
-      {/* Plan-view stair thumbnail inset - bottom right corner */}
-      {hasSt && (() => {
-        const tw = 80; const th = 60;
-        const tx = svgW - tw - 8; const ty = svgH - th - 8;
-        const tsc = Math.min((tw - 16) / Math.max(W, 1), (th - 16) / Math.max(D + (st.nTreads * st.tread/12), 1));
-        const tdW = W * tsc; const tdD = D * tsc;
-        const tox = tx + (tw - tdW) / 2; const toy = ty + 8;
-        const stW2 = st.width * tsc;
-        const treadD = (st.tread / 12) * tsc;
-        const tmpl = p.stairTemplate || "straight";
-        const stairEls2 = [];
-
-        // Deck rectangle
-        stairEls2.push(<rect key="td" x={tox} y={toy} width={tdW} height={tdD} fill="#e8f4e8" stroke="#444" strokeWidth="0.8" />);
-        // House line at top
-        stairEls2.push(<line key="th" x1={tox} y1={toy} x2={tox+tdW} y2={toy} stroke="#888" strokeWidth="1.5" />);
-
-        const loc = p.stairLocation;
-        const stCx = tox + (_pl.anchorX / c.W) * tdW;
-        const stLeft = stCx - stW2/2; const stRight = stCx + stW2/2;
-        const nT = st.nTreads;
-        const runD = nT * treadD;
-
-        if (tmpl === "straight" || tmpl === "wideLanding") {
-          if (loc === "front") {
-            for (var i=0;i<=nT;i++) stairEls2.push(<line key={"tt"+i} x1={stLeft} y1={toy+tdD+i*treadD} x2={stRight} y2={toy+tdD+i*treadD} stroke="#666" strokeWidth="0.5" />);
-            stairEls2.push(<rect key="tsbox" x={stLeft} y={toy+tdD} width={stW2} height={runD} fill="none" stroke="#444" strokeWidth="0.7" />);
-          } else if (loc === "right") {
-            for (var i=0;i<=nT;i++) stairEls2.push(<line key={"tt"+i} x1={tox+tdW+i*treadD} y1={toy+tdD/2-stW2/2} x2={tox+tdW+i*treadD} y2={toy+tdD/2+stW2/2} stroke="#666" strokeWidth="0.5" />);
-            stairEls2.push(<rect key="tsbox" x={tox+tdW} y={toy+tdD/2-stW2/2} width={runD} height={stW2} fill="none" stroke="#444" strokeWidth="0.7" />);
-          } else {
-            for (var i=0;i<=nT;i++) stairEls2.push(<line key={"tt"+i} x1={tox-i*treadD} y1={toy+tdD/2-stW2/2} x2={tox-i*treadD} y2={toy+tdD/2+stW2/2} stroke="#666" strokeWidth="0.5" />);
-            stairEls2.push(<rect key="tsbox" x={tox-runD} y={toy+tdD/2-stW2/2} width={runD} height={stW2} fill="none" stroke="#444" strokeWidth="0.7" />);
-          }
-        } else if (tmpl === "lLeft") {
-          const r1D = Math.round(nT*0.55)*treadD; const r2D = (nT-Math.round(nT*0.55))*treadD;
-          stairEls2.push(<rect key="r1" x={stLeft} y={toy+tdD} width={stW2} height={r1D} fill="none" stroke="#444" strokeWidth="0.7" />);
-          stairEls2.push(<rect key="land" x={stLeft-stW2} y={toy+tdD+r1D-stW2} width={stW2} height={stW2} fill="#ddd" stroke="#444" strokeWidth="0.6" strokeDasharray="2,1" />);
-          stairEls2.push(<rect key="r2" x={stLeft-stW2} y={toy+tdD+r1D-stW2-r2D} width={stW2} height={r2D} fill="none" stroke="#444" strokeWidth="0.7" />);
-        } else if (tmpl === "lRight") {
-          const r1D = Math.round(nT*0.55)*treadD; const r2D = (nT-Math.round(nT*0.55))*treadD;
-          stairEls2.push(<rect key="r1" x={stLeft} y={toy+tdD} width={stW2} height={r1D} fill="none" stroke="#444" strokeWidth="0.7" />);
-          stairEls2.push(<rect key="land" x={stRight} y={toy+tdD+r1D-stW2} width={stW2} height={stW2} fill="#ddd" stroke="#444" strokeWidth="0.6" strokeDasharray="2,1" />);
-          stairEls2.push(<rect key="r2" x={stRight} y={toy+tdD+r1D-stW2-r2D} width={stW2} height={r2D} fill="none" stroke="#444" strokeWidth="0.7" />);
-        } else if (tmpl === "switchback" || tmpl === "uTurn") {
-          const r1D = Math.round(nT*0.5)*treadD; const r2D = (nT-Math.round(nT*0.5))*treadD;
-          stairEls2.push(<rect key="r1" x={stLeft} y={toy+tdD} width={stW2} height={r1D} fill="none" stroke="#444" strokeWidth="0.7" />);
-          stairEls2.push(<rect key="land" x={stLeft} y={toy+tdD+r1D} width={stW2*2+4} height={stW2} fill="#ddd" stroke="#444" strokeWidth="0.6" strokeDasharray="2,1" />);
-          stairEls2.push(<rect key="r2" x={stRight+4} y={toy+tdD+r1D} width={stW2} height={r2D} fill="none" stroke="#444" strokeWidth="0.7" />);
-        } else if (tmpl === "wrapAround") {
-          stairEls2.push(<rect key="r1" x={stLeft} y={toy+tdD} width={stW2} height={runD*0.4} fill="none" stroke="#444" strokeWidth="0.7" />);
-          stairEls2.push(<rect key="r2" x={stLeft-stW2} y={toy+tdD} width={stW2} height={runD*0.35} fill="none" stroke="#444" strokeWidth="0.7" />);
-          stairEls2.push(<rect key="r3" x={stLeft+stW2} y={toy+tdD} width={stW2} height={runD*0.25} fill="none" stroke="#444" strokeWidth="0.7" />);
-        }
-
-        return (
-          <g>
-            <rect x={tx} y={ty} width={tw} height={th} fill="white" stroke="#aaa" strokeWidth="0.8" rx="2" />
-            {stairEls2}
-            <text x={tx+tw/2} y={ty+th-2} textAnchor="middle" style={{ fontSize: 4, fill: "#888", fontFamily: "monospace" }}>PLAN VIEW</text>
-          </g>
-        );
-      })()}
-    </svg>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+      <MiniElev viewDir="south" label="SOUTH ELEVATION" showWidth={true} />
+      <MiniElev viewDir="north" label="NORTH ELEVATION" showWidth={true} />
+      <MiniElev viewDir="east" label="EAST ELEVATION" showWidth={false} />
+      <MiniElev viewDir="west" label="WEST ELEVATION" showWidth={false} />
+    </div>
   );
 }
+
 
 function Deck3D({ c, p }) {
   const ref = useRef(null); const frameRef = useRef(null);
