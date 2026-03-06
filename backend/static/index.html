@@ -436,6 +436,46 @@ function PlanView({ p, c, mode, u }) {
     window.addEventListener("pointerup", onUp);
   };
 
+  // Rotation drag handler — drag the handle in a circle to rotate
+  const onRotateDragStart = (e, centerX, centerY) => {
+    e.preventDefault(); e.stopPropagation();
+    const svg = svgRef.current; if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    const svgScale = svgW / rect.width;
+    const pl = getStairPlacement(p, c);
+    dragRef.current = { type: "rotate", centerX, centerY, svgScale, rect,
+      startAngle: pl.angle, startMouseAngle: Math.atan2(
+        (e.clientY - rect.top) * svgScale - centerY,
+        (e.clientX - rect.left) * svgScale - centerX
+      ) * 180 / Math.PI };
+
+    const onMove = (ev) => {
+      if (!dragRef.current || dragRef.current.type !== "rotate") return;
+      const dr = dragRef.current;
+      const mouseAngle = Math.atan2(
+        (ev.clientY - dr.rect.top) * dr.svgScale - dr.centerY,
+        (ev.clientX - dr.rect.left) * dr.svgScale - dr.centerX
+      ) * 180 / Math.PI;
+      const delta = mouseAngle - dr.startMouseAngle;
+      let rawAngle = (dr.startAngle + delta + 360) % 360;
+      // Snap to nearest 90° when within 20°
+      const snaps = [0, 90, 180, 270];
+      let snapped = rawAngle;
+      for (const s of snaps) {
+        let diff = Math.abs(rawAngle - s);
+        if (diff > 180) diff = 360 - diff;
+        if (diff < 20) { snapped = s; break; }
+      }
+      const pl2 = getStairPlacement(p, c);
+      u("stairAnchorX", pl2.anchorX);
+      u("stairAnchorY", pl2.anchorY);
+      u("stairAngle", snapped);
+    };
+    const onUp = () => { dragRef.current = null; window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp); };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
+
   // Stair offset in pixels (legacy, used when anchor params not set)
   const stairOffPx = (p.stairOffset || 0) * sc;
 
@@ -554,28 +594,27 @@ function PlanView({ p, c, mode, u }) {
               style={{ fontSize: 7, fill: "#fff", fontFamily: "monospace", fontWeight: 700, letterSpacing: "0.5px", pointerEvents: "none" }}>✥ MOVE</text>
           </g>);
 
-          // Circular rotate handle — click to rotate 90° clockwise
+          // Drag-to-rotate handle — positioned above stair group, connected by stem
           const curAngle = placement.angle;
-          const rotX = bbRect.x + bbRect.w + 14;
-          const rotCy = hcy;
-          const rotR = 10;
-          const nextAngle = (curAngle + 90) % 360;
           const dirLabels = { 0: "Front", 90: "Right", 180: "Back", 270: "Left" };
-          // Arc path (270° arc = 3/4 circle, clockwise)
-          const arc = "M " + (rotX + rotR) + " " + rotCy +
-            " A " + rotR + " " + rotR + " 0 1 1 " + rotX + " " + (rotCy - rotR);
-          // Arrow head at end of arc
-          const ax = rotX, ay = rotCy - rotR;
-          const arrowPts = (ax - 3) + "," + (ay - 1) + " " + ax + "," + (ay - 5) + " " + (ax + 3) + "," + (ay - 1);
-          els.push(<g key="rotHandle" style={{ cursor: "pointer" }}
-            onClick={e => { e.stopPropagation(); u("stairAnchorX", placement.anchorX); u("stairAnchorY", placement.anchorY); u("stairAngle", nextAngle); }}>
-            <circle cx={rotX} cy={rotCy} r={rotR + 5} fill="white" opacity="0.85" />
-            <circle cx={rotX} cy={rotCy} r={rotR + 5} fill="none" stroke="#ccc" strokeWidth="0.5" />
-            <path d={arc} fill="none" stroke="#3d5a2e" strokeWidth="2.5" strokeLinecap="round" />
-            <polygon points={arrowPts} fill="#3d5a2e" />
+          const rotX = hcx;
+          const rotY = bbRect.y - 18;
+          const handleR = 8;
+          // Stem line from stair top to handle
+          els.push(<line key="rotStem" x1={hcx} y1={bbRect.y} x2={rotX} y2={rotY + handleR}
+            stroke="#bbb" strokeWidth="0.8" style={{ pointerEvents: "none" }} />);
+          // Rotate handle circle with arrow icon
+          els.push(<g key="rotHandle" style={{ cursor: "grab" }}
+            onPointerDown={e => onRotateDragStart(e, hcx, hcy)}>
+            <circle cx={rotX} cy={rotY} r={handleR} fill="white" stroke="#3d5a2e" strokeWidth="1.5" />
+            <path d={"M " + (rotX - 4) + " " + (rotY + 1) +
+              " A 4 4 0 1 1 " + (rotX + 1) + " " + (rotY - 4)}
+              fill="none" stroke="#3d5a2e" strokeWidth="1.5" strokeLinecap="round" />
+            <polygon points={(rotX + 1) + "," + (rotY - 6) + " " + (rotX + 3.5) + "," + (rotY - 3) + " " + (rotX - 1) + "," + (rotY - 3)}
+              fill="#3d5a2e" />
           </g>);
-          // Direction label below rotate handle
-          els.push(<text key="rotDir" x={rotX} y={rotCy + rotR + 10} textAnchor="middle"
+          // Direction label
+          els.push(<text key="rotDir" x={rotX} y={rotY - handleR - 3} textAnchor="middle"
             style={{ fontSize: 4.5, fill: "#888", fontFamily: "monospace", pointerEvents: "none" }}>{dirLabels[curAngle] || ""}</text>);
         }
         return <g>{els}</g>;
