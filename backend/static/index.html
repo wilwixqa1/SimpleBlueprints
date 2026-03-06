@@ -539,41 +539,45 @@ function PlanView({ p, c, mode, u }) {
           // Drag overlay on stair bounding box
           const bb = stairGeom.bbox;
           const bbRect = txRect({ x: bb.minX - 0.5, y: bb.minY - 0.5, w: bb.w + 1, h: bb.h + 1 });
-          // Highlight border when hoverable
+          // Highlight border
           els.unshift(<rect key="dragOverlay" x={bbRect.x - 2} y={bbRect.y - 2} width={bbRect.w + 4} height={bbRect.h + 4}
             fill="rgba(198,40,40,0.04)" stroke="#c62828" strokeWidth="1" strokeDasharray="4,3" rx="3"
             style={{ cursor: "move" }}
             onPointerDown={e => onStairDragStart(e)} />);
 
-          // Centered move handle pill
+          // MOVE pill centered on stair body (not anchor point)
           const hcx = bbRect.x + bbRect.w / 2;
           const hcy = bbRect.y + bbRect.h / 2;
-          els.push(<rect key="moveHandle" x={hcx - 18} y={hcy - 8} width={36} height={16} rx={8}
-            fill="#c62828" opacity="0.85" style={{ cursor: "move", pointerEvents: "none" }} />);
-          els.push(<text key="moveLabel" x={hcx} y={hcy + 3} textAnchor="middle"
-            style={{ fontSize: 6, fill: "#fff", fontFamily: "monospace", fontWeight: 700, pointerEvents: "none", letterSpacing: "0.5px" }}>MOVE</text>);
+          els.push(<g key="moveGroup" style={{ pointerEvents: "none" }}>
+            <rect x={hcx - 20} y={hcy - 9} width={40} height={18} rx={9} fill="#c62828" opacity="0.9" />
+            <text x={hcx} y={hcy + 3.5} textAnchor="middle" style={{ fontSize: 7, fill: "#fff", fontFamily: "monospace", fontWeight: 700, letterSpacing: "0.5px" }}>MOVE</text>
+          </g>);
 
-          // Rotation buttons — show after anchor is set (dragged at least once)
-          if (p.stairAnchorX != null) {
-            const rotY = bbRect.y + bbRect.h + 10;
-            const rotCx = bbRect.x + bbRect.w / 2;
-            const angles = [0, 90, 180, 270];
-            const labels = ["↓", "→", "↑", "←"];
-            const angleTips = ["Front", "Right", "Back", "Left"];
-            const curAngle = placement.angle;
-            angles.forEach((a, ai) => {
-              const bx = rotCx - 36 + ai * 19;
-              const isActive = curAngle === a;
-              els.push(<rect key={"rotBg"+ai} x={bx} y={rotY} width={16} height={14} rx={3}
-                fill={isActive ? "#c62828" : "#fff"} stroke="#c62828" strokeWidth={isActive ? 1.5 : 0.8}
-                style={{ cursor: "pointer" }}
-                onClick={e => { e.stopPropagation(); u("stairAngle", a); }} />);
-              els.push(<text key={"rotArr"+ai} x={bx + 8} y={rotY + 9} textAnchor="middle"
-                style={{ fontSize: 7, fill: isActive ? "#fff" : "#c62828", fontWeight: 700, pointerEvents: "none" }}>{labels[ai]}</text>);
-            });
-            els.push(<text key="rotLabel" x={rotCx} y={rotY + 22} textAnchor="middle"
-              style={{ fontSize: 4.5, fill: "#999", fontFamily: "monospace" }}>ROTATE</text>);
-          }
+          // Rotation buttons — always visible
+          const rotY = bbRect.y + bbRect.h + 8;
+          const rotCx = bbRect.x + bbRect.w / 2;
+          const curAngle = placement.angle;
+          const rotBtns = [
+            { a: 0,   lbl: "↓", tip: "Front" },
+            { a: 90,  lbl: "→", tip: "Right" },
+            { a: 180, lbl: "↑", tip: "Back" },
+            { a: 270, lbl: "←", tip: "Left" },
+          ];
+          // Background pill for rotate group
+          els.push(<rect key="rotBgPill" x={rotCx - 42} y={rotY - 2} width={84} height={20} rx={10}
+            fill="white" stroke="#ddd" strokeWidth="0.5" />);
+          rotBtns.forEach((btn, ai) => {
+            const bx = rotCx - 36 + ai * 19;
+            const isActive = curAngle === btn.a;
+            els.push(<rect key={"rotBg"+ai} x={bx} y={rotY} width={16} height={14} rx={4}
+              fill={isActive ? "#c62828" : "#f8f8f8"} stroke={isActive ? "#c62828" : "#ccc"} strokeWidth={isActive ? 1.5 : 0.6}
+              style={{ cursor: "pointer" }}
+              onClick={e => { e.stopPropagation(); u("stairAnchorX", placement.anchorX); u("stairAnchorY", placement.anchorY); u("stairAngle", btn.a); }} />);
+            els.push(<text key={"rotArr"+ai} x={bx + 8} y={rotY + 10} textAnchor="middle"
+              style={{ fontSize: 8, fill: isActive ? "#fff" : "#888", fontWeight: 700, pointerEvents: "none" }}>{btn.lbl}</text>);
+          });
+          els.push(<text key="rotLabel" x={rotCx} y={rotY + 24} textAnchor="middle"
+            style={{ fontSize: 4, fill: "#aaa", fontFamily: "monospace" }}>ROTATE</text>);
         }
         return <g>{els}</g>;
       })()}
