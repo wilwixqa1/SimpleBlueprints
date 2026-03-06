@@ -389,8 +389,43 @@ def draw_north_elevation(ax, params, calc):
             ax.plot([sx, end_x], [deck_top + rail_h_ft, ground_y + rail_h_ft],
                     color=BRAND["dark"], lw=0.4, ls='--')
 
+        elif stair_loc == "front":
+            # Front stairs in side view: profile stepping down from front edge
+            sx = deck_start_x + D
+            rise = stair["actual_rise"] / 12
+            run = stair["tread_depth"] / 12
+            n_treads = stair["num_treads"]
+
+            # Stepped profile (treads + risers)
+            for i in range(n_treads):
+                tx = sx + i * run
+                ty = deck_top - i * rise
+                ax.plot([tx, tx + run], [ty, ty], color=BRAND["dark"], lw=0.6, zorder=6)
+                next_ty = deck_top - (i + 1) * rise
+                ax.plot([tx + run, tx + run], [ty, next_ty], color=BRAND["dark"], lw=0.6, zorder=6)
+
+            end_x = sx + n_treads * run
+            ax.plot([end_x - run, end_x], [ground_y, ground_y], color=BRAND["dark"], lw=0.6, zorder=6)
+
+            # Stringer outline
+            ax.plot([sx, end_x], [deck_top, ground_y], color=BRAND["dark"], lw=0.8, zorder=6)
+
+            # Handrails (dashed)
+            rail_h_ft = calc["rail_height"] / 12
+            ax.plot([sx, end_x], [deck_top + rail_h_ft, ground_y + rail_h_ft],
+                    color=BRAND["dark"], lw=0.4, ls='--', zorder=6)
+
+            # Landing pad at grade
+            ax.add_patch(patches.Rectangle((end_x - 0.5, ground_y - 0.2), 1.0, 0.2,
+                         fc=BRAND["concrete"], ec=BRAND["dark"], lw=0.5, zorder=6))
+
     # === LABELS ===
-    lbl_x = deck_start_x + D + 2
+    # Push labels right if front stairs extend past deck edge
+    stair_ext = 0
+    if params.get("hasStairs") and params.get("stairLocation") == "front" and calc.get("stairs"):
+        _stair = calc["stairs"]
+        stair_ext = _stair["num_treads"] * (_stair["tread_depth"] / 12)
+    lbl_x = deck_start_x + D + max(2, stair_ext + 1.5)
     lbl_kw = dict(fontsize=4.5, fontfamily='monospace', color=BRAND["dark"])
 
     ax.text(lbl_x, rail_top - 0.3, f'{calc["rail_height"]}" GUARD RAIL', **lbl_kw)
