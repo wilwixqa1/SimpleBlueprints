@@ -15,6 +15,7 @@ import numpy as np
 
 from .calc_engine import calculate_structure
 from .draw_plan import BRAND, draw_dimension_h, draw_dimension_v, draw_scale_bar, format_feet_inches
+from .stair_utils import get_stair_placement, get_stair_exit_side
 
 
 def draw_grade_line(ax, x1, x2, y):
@@ -159,10 +160,13 @@ def draw_south_elevation(ax, params, calc):
     rail_top = deck_top + rail_h
 
     # Compute stair opening if front stairs exist
-    has_front_stairs = params.get("hasStairs") and params.get("stairLocation") == "front" and calc.get("stairs")
+    # Determine if stairs face front using placement helper
+    _placement = get_stair_placement(params, {"width": W, "depth": D})
+    _exit_side = get_stair_exit_side(_placement["angle"])
+    has_front_stairs = params.get("hasStairs") and _exit_side == "front" and calc.get("stairs")
     if has_front_stairs:
         _sw = calc["stairs"].get("width", 4)
-        _stair_x = deck_x + W / 2 - _sw / 2 + params.get("stairOffset", 0)
+        _stair_x = deck_x + _placement["anchor_x"] - _sw / 2
         stair_open_l = _stair_x
         stair_open_r = _stair_x + _sw
     else:
@@ -194,10 +198,10 @@ def draw_south_elevation(ax, params, calc):
                 color=BRAND["rail"], lw=0.12, alpha=0.5)
 
     # === STAIRS (if front) - head-on view: stepped silhouette below deck edge ===
-    if params.get("hasStairs") and params.get("stairLocation") == "front" and calc.get("stairs"):
+    if has_front_stairs:
         stair = calc["stairs"]
         sw = stair.get("width", 4)
-        stair_x = deck_x + W / 2 - sw / 2 + params.get("stairOffset", 0)
+        stair_x = deck_x + _placement["anchor_x"] - sw / 2
         rise_per = stair["actual_rise"] / 12  # feet per step
         n_risers = stair["num_risers"]
         rail_h = calc["rail_height"] / 12
@@ -350,7 +354,8 @@ def draw_north_elevation(ax, params, calc):
     # === STAIRS (if left or right — shown in side view) ===
     if params.get("hasStairs") and calc.get("stairs"):
         stair = calc["stairs"]
-        stair_loc = params.get("stairLocation", "front")
+        _n_placement = get_stair_placement(params, {"width": W, "depth": D})
+        stair_loc = get_stair_exit_side(_n_placement["angle"])
         
         if stair_loc in ("left", "right"):
             # In side view, stairs extend outward from the deck edge
@@ -424,7 +429,7 @@ def draw_north_elevation(ax, params, calc):
     # === LABELS ===
     # Push labels right if front stairs extend past deck edge
     stair_ext = 0
-    if params.get("hasStairs") and params.get("stairLocation") == "front" and calc.get("stairs"):
+    if params.get("hasStairs") and calc.get("stairs") and stair_loc == "front":
         _stair = calc["stairs"]
         stair_ext = _stair["num_treads"] * (_stair["tread_depth"] / 12)
     lbl_x = deck_start_x + D + max(2, stair_ext + 1.5)
