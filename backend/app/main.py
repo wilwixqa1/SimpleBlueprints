@@ -93,6 +93,8 @@ class DeckParams(BaseModel):
     overFooting: Optional[int] = None
     projectInfo: Optional[dict] = None; coverImage: Optional[str] = None
     beamType: str = "dropped"
+    stairAnchorX: Optional[float] = None; stairAnchorY: Optional[float] = None
+    stairAngle: Optional[float] = None
     sitePlanMode: Optional[str] = "generate"; sitePlanFile: Optional[str] = None
 
 
