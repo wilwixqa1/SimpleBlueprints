@@ -123,7 +123,8 @@ def draw_footing_detail(ax, params, calc):
     ax.add_patch(patches.Rectangle((3.5, 0), pier_width - 1, 0.5,
                  fc='#888', ec=BRAND["dark"], lw=0.8))
     post_base_name = "ABU66Z" if calc["post_size"] == "6x6" else "ABU44Z"
-    ax.text(10, 0.2, f"SIMPSON '{post_base_name}'\nPOST BASE", fontsize=4.5, color=BRAND["dark"])
+    ax.text(10, 0.5, f"SIMPSON '{post_base_name}'", fontsize=4.5, color=BRAND["dark"])
+    ax.text(10, -0.1, "POST BASE", fontsize=4.5, color=BRAND["dark"])
 
     # Post
     post_visual_w = 2.2 if calc["post_size"] == "6x6" else 1.5
