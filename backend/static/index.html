@@ -536,48 +536,43 @@ function PlanView({ p, c, mode, u }) {
         const labelPt = txPt(0, stairGeom.bbox.maxY + 2);
         els.push(<text key="stlbl" x={labelPt[0]} y={labelPt[1]} textAnchor="middle" style={{ fontSize: 5.5, fill: "#7a8068", fontFamily: "monospace", fontWeight: 600 }}>{names[stairGeom.template]} · {stairGeom.totalRisers} risers · {stairGeom.stairWidth}' wide · {stairGeom.runs.length} run{stairGeom.runs.length>1?"s":""}</text>);
         if (u && mode === "plan") {
-          // Drag overlay on stair bounding box
           const bb = stairGeom.bbox;
           const bbRect = txRect({ x: bb.minX - 0.5, y: bb.minY - 0.5, w: bb.w + 1, h: bb.h + 1 });
-          // Highlight border
-          els.unshift(<rect key="dragOverlay" x={bbRect.x - 2} y={bbRect.y - 2} width={bbRect.w + 4} height={bbRect.h + 4}
-            fill="rgba(198,40,40,0.04)" stroke="#c62828" strokeWidth="1" strokeDasharray="4,3" rx="3"
-            style={{ cursor: "move" }}
-            onPointerDown={e => onStairDragStart(e)} />);
-
-          // MOVE pill centered on stair body (not anchor point)
           const hcx = bbRect.x + bbRect.w / 2;
           const hcy = bbRect.y + bbRect.h / 2;
-          els.push(<g key="moveGroup" style={{ pointerEvents: "none" }}>
-            <rect x={hcx - 20} y={hcy - 9} width={40} height={18} rx={9} fill="#c62828" opacity="0.9" />
-            <text x={hcx} y={hcy + 3.5} textAnchor="middle" style={{ fontSize: 7, fill: "#fff", fontFamily: "monospace", fontWeight: 700, letterSpacing: "0.5px" }}>MOVE</text>
+
+          // Invisible drag surface over entire stair area
+          els.push(<rect key="dragZone" x={bbRect.x} y={bbRect.y} width={bbRect.w} height={bbRect.h}
+            fill="transparent" stroke="none" style={{ cursor: "move" }}
+            onPointerDown={e => onStairDragStart(e)} />);
+
+          // MOVE pill — this is also a drag handle
+          els.push(<g key="moveBtn" style={{ cursor: "move" }} onPointerDown={e => onStairDragStart(e)}>
+            <rect x={hcx - 22} y={hcy - 10} width={44} height={20} rx={10}
+              fill="#c62828" opacity="0.9" stroke="#fff" strokeWidth="1" />
+            <text x={hcx} y={hcy + 3.5} textAnchor="middle"
+              style={{ fontSize: 7, fill: "#fff", fontFamily: "monospace", fontWeight: 700, letterSpacing: "0.5px", pointerEvents: "none" }}>✥ MOVE</text>
           </g>);
 
-          // Rotation buttons — always visible
-          const rotY = bbRect.y + bbRect.h + 8;
-          const rotCx = bbRect.x + bbRect.w / 2;
+          // Rotate buttons below stairs
+          const rotY = bbRect.y + bbRect.h + 6;
+          const rotCx = hcx;
           const curAngle = placement.angle;
           const rotBtns = [
-            { a: 0,   lbl: "↓", tip: "Front" },
-            { a: 90,  lbl: "→", tip: "Right" },
-            { a: 180, lbl: "↑", tip: "Back" },
-            { a: 270, lbl: "←", tip: "Left" },
+            { a: 0, lbl: "↓" }, { a: 90, lbl: "→" },
+            { a: 180, lbl: "↑" }, { a: 270, lbl: "←" },
           ];
-          // Background pill for rotate group
-          els.push(<rect key="rotBgPill" x={rotCx - 42} y={rotY - 2} width={84} height={20} rx={10}
-            fill="white" stroke="#ddd" strokeWidth="0.5" />);
           rotBtns.forEach((btn, ai) => {
-            const bx = rotCx - 36 + ai * 19;
+            const bx = rotCx - 32 + ai * 17;
             const isActive = curAngle === btn.a;
-            els.push(<rect key={"rotBg"+ai} x={bx} y={rotY} width={16} height={14} rx={4}
-              fill={isActive ? "#c62828" : "#f8f8f8"} stroke={isActive ? "#c62828" : "#ccc"} strokeWidth={isActive ? 1.5 : 0.6}
-              style={{ cursor: "pointer" }}
-              onClick={e => { e.stopPropagation(); u("stairAnchorX", placement.anchorX); u("stairAnchorY", placement.anchorY); u("stairAngle", btn.a); }} />);
-            els.push(<text key={"rotArr"+ai} x={bx + 8} y={rotY + 10} textAnchor="middle"
-              style={{ fontSize: 8, fill: isActive ? "#fff" : "#888", fontWeight: 700, pointerEvents: "none" }}>{btn.lbl}</text>);
+            els.push(<g key={"rot"+ai} style={{ cursor: "pointer" }}
+              onClick={e => { e.stopPropagation(); u("stairAnchorX", placement.anchorX); u("stairAnchorY", placement.anchorY); u("stairAngle", btn.a); }}>
+              <rect x={bx} y={rotY} width={14} height={13} rx={3}
+                fill={isActive ? "#c62828" : "#fff"} stroke={isActive ? "#a02020" : "#ccc"} strokeWidth={isActive ? 1.2 : 0.6} />
+              <text x={bx + 7} y={rotY + 9.5} textAnchor="middle"
+                style={{ fontSize: 7.5, fill: isActive ? "#fff" : "#999", fontWeight: 700, pointerEvents: "none" }}>{btn.lbl}</text>
+            </g>);
           });
-          els.push(<text key="rotLabel" x={rotCx} y={rotY + 24} textAnchor="middle"
-            style={{ fontSize: 4, fill: "#aaa", fontFamily: "monospace" }}>ROTATE</text>);
         }
         return <g>{els}</g>;
       })()}
