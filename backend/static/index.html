@@ -440,7 +440,7 @@ function PlanView({ p, c, mode, u }) {
     window.addEventListener("pointerup", onUp);
   };
 
-  // Rotation drag handler — tracks cumulative rotation to avoid atan2 wraparound jumps
+  // Rotation drag handler — cumulative delta + rAF snap animation
   const onRotateDragStart = (e, centerX, centerY) => {
     e.preventDefault(); e.stopPropagation();
     const svg = svgRef.current; if (!svg) return;
@@ -454,59 +454,59 @@ function PlanView({ p, c, mode, u }) {
       (ev.clientY - rect.top) * svgScaleR - centerY,
       (ev.clientX - rect.left) * svgScaleR - centerX
     ) * 180 / Math.PI;
-    // Track cumulative rotation to handle atan2 -180/180 wraparound
     let prevMouseDeg = getMouseDeg(e);
-    let cumRotation = 0; // cumulative degrees rotated from start
+    let cumRotation = 0;
     dragRef.current = { type: "rotate", anchorX: pl.anchorX, anchorY: pl.anchorY, startAngle: pl.angle };
-    grp.style.transition = "none";
 
     const onMove = (ev) => {
       if (!dragRef.current || dragRef.current.type !== "rotate") return;
       const curDeg = getMouseDeg(ev);
-      // Compute incremental delta, wrap to -180..180 to avoid jumps
       let incr = curDeg - prevMouseDeg;
       if (incr > 180) incr -= 360;
       if (incr < -180) incr += 360;
       cumRotation += incr;
       prevMouseDeg = curDeg;
-      // Apply cumulative rotation directly to DOM
       grp.setAttribute("transform", "rotate(" + cumRotation + " " + pivX + " " + pivY + ")");
-      // Store the resulting absolute angle for snap calc on release
       rotAngleRef.current = ((dragRef.current.startAngle + cumRotation) % 360 + 360) % 360;
     };
     const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
       const dr = dragRef.current;
       if (dr && dr.type === "rotate") {
-        // Snap to nearest 90° using circular distance
         const raw = rotAngleRef.current != null ? rotAngleRef.current : dr.startAngle;
         const snaps = [0, 90, 180, 270];
         let best = 0, bestDist = 999;
-        for (const s of snaps) {
-          let d = Math.abs(raw - s);
-          if (d > 180) d = 360 - d; // circular distance
-          if (d < bestDist) { bestDist = d; best = s; }
-        }
-        // Compute shortest snap rotation from current cumulative position
+        for (const s of snaps) { let d = Math.abs(raw - s); if (d > 180) d = 360 - d; if (d < bestDist) { bestDist = d; best = s; } }
+        // rAF ease-out animation from current to snap
         let snapDelta = best - raw;
         if (snapDelta > 180) snapDelta -= 360;
         if (snapDelta < -180) snapDelta += 360;
-        const snapCum = cumRotation + snapDelta;
-        // Animate to snap position
-        grp.style.transition = "transform 0.2s ease-out";
-        grp.setAttribute("transform", "rotate(" + snapCum + " " + pivX + " " + pivY + ")");
-        setTimeout(() => {
-          grp.style.transition = "none";
-          grp.removeAttribute("transform");
-          u("stairAnchorX", dr.anchorX);
-          u("stairAnchorY", dr.anchorY);
-          u("stairAngle", best);
-        }, 220);
+        const targetCum = cumRotation + snapDelta;
+        const startCum = cumRotation;
+        const duration = 150;
+        const t0 = performance.now();
+        const animate = (now) => {
+          const elapsed = now - t0;
+          const progress = Math.min(elapsed / duration, 1);
+          const eased = 1 - Math.pow(1 - progress, 3); // ease-out cubic
+          const cur = startCum + (targetCum - startCum) * eased;
+          grp.setAttribute("transform", "rotate(" + cur + " " + pivX + " " + pivY + ")");
+          if (progress < 1) {
+            requestAnimationFrame(animate);
+          } else {
+            grp.removeAttribute("transform");
+            u("stairAnchorX", dr.anchorX);
+            u("stairAnchorY", dr.anchorY);
+            u("stairAngle", best);
+          }
+        };
+        requestAnimationFrame(animate);
+      } else {
+        grp.removeAttribute("transform");
       }
       rotAngleRef.current = null;
-      setRotPreview(null);
       dragRef.current = null;
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
     };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
