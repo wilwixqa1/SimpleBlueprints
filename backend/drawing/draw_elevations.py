@@ -410,9 +410,11 @@ def draw_north_elevation(ax, params, calc):
             # Stringer outline
             ax.plot([sx, end_x], [deck_top, ground_y], color=BRAND["dark"], lw=0.8, zorder=6)
 
-            # Handrails (dashed)
+            # Handrails (dashed) — cap at rail_top so they don't overshoot
             rail_h_ft = calc["rail_height"] / 12
-            ax.plot([sx, end_x], [deck_top + rail_h_ft, ground_y + rail_h_ft],
+            # Handrail parallels stringer, but clip top end to rail_top
+            hr_top_y = min(deck_top + rail_h_ft, rail_top)
+            ax.plot([sx, end_x], [hr_top_y, ground_y + rail_h_ft],
                     color=BRAND["dark"], lw=0.4, ls='--', zorder=6)
 
             # Landing pad at grade
@@ -428,14 +430,23 @@ def draw_north_elevation(ax, params, calc):
     lbl_x = deck_start_x + D + max(2, stair_ext + 1.5)
     lbl_kw = dict(fontsize=4.5, fontfamily='monospace', color=BRAND["dark"])
 
-    ax.text(lbl_x, rail_top - 0.3, f'{calc["rail_height"]}" GUARD RAIL', **lbl_kw)
-    ax.text(lbl_x, deck_top - beam_h / 2, f'{calc["beam_size"].upper()}', **lbl_kw)
-    ax.text(lbl_x, deck_top - beam_h / 2 - 0.6, 'BEAM', **lbl_kw)
-    ax.text(lbl_x, H * 0.4, f'{calc["post_size"]} PT POST', **lbl_kw)
-    ax.text(lbl_x, -0.5, f'{calc["footing_diam"]}" Ø PIER', **lbl_kw)
+    # Space labels with minimum gap so they never bunch at low deck heights
+    _min_gap = 0.55
+    _lbl_rail = rail_top - 0.3
+    _lbl_beam = min(deck_top - beam_h / 2, _lbl_rail - _min_gap)
+    _lbl_beam2 = _lbl_beam - _min_gap
+    _lbl_post = min(H * 0.4, _lbl_beam2 - _min_gap)
+    _lbl_pier = min(-0.5, _lbl_post - _min_gap)
+
+    ax.text(lbl_x, _lbl_rail, f'{calc["rail_height"]}" GUARD RAIL', **lbl_kw)
+    ax.text(lbl_x, _lbl_beam, f'{calc["beam_size"].upper()}', **lbl_kw)
+    ax.text(lbl_x, _lbl_beam2, 'BEAM', **lbl_kw)
+    ax.text(lbl_x, _lbl_post, f'{calc["post_size"]} PT POST', **lbl_kw)
+    ax.text(lbl_x, _lbl_pier, f'{calc["footing_diam"]}" Ø PIER', **lbl_kw)
 
     # === DIMENSIONS ===
-    draw_dimension_v(ax, deck_start_x + D + 0.5, ground_y, deck_top,
+    dim_x = deck_start_x + D + max(0.5, stair_ext + 0.5)
+    draw_dimension_v(ax, dim_x, ground_y, deck_top,
                      format_feet_inches(H), offset=7, color=BRAND["blue"], fontsize=6)
     draw_dimension_h(ax, deck_start_x, deck_start_x + D, deck_top,
                      format_feet_inches(D), offset=max(rail_h + 1.5, 3), color=BRAND["red"], fontsize=6)
