@@ -370,6 +370,7 @@ function PlanView({ p, c, mode, u }) {
   const [stairSelected, setStairSelected] = useState(false);
   const [rotPreview, setRotPreview] = useState(null); // degrees during drag, null when idle
   const rotAngleRef = useRef(null); // tracks live angle during drag (avoids stale closure)
+  const stairGroupRef = useRef(null); // direct DOM ref for smooth rotation
 
   const onPointerDown = (e, type) => {
     e.preventDefault(); e.stopPropagation();
@@ -439,19 +440,23 @@ function PlanView({ p, c, mode, u }) {
     window.addEventListener("pointerup", onUp);
   };
 
-  // Rotation drag handler — smooth live preview, snaps on release
+  // Rotation drag handler — direct DOM manipulation for 60fps, snap on release
   const onRotateDragStart = (e, centerX, centerY) => {
     e.preventDefault(); e.stopPropagation();
     const svg = svgRef.current; if (!svg) return;
+    const grp = stairGroupRef.current; if (!grp) return;
     const rect = svg.getBoundingClientRect();
     const svgScaleR = svgW / rect.width;
     const pl = getStairPlacement(p, c);
+    const pivX = dx + pl.anchorX * sc;
+    const pivY = pad + pl.anchorY * sc;
     const startMouseAngle = Math.atan2(
       (e.clientY - rect.top) * svgScaleR - centerY,
       (e.clientX - rect.left) * svgScaleR - centerX
     ) * 180 / Math.PI;
     dragRef.current = { type: "rotate", centerX, centerY, svgScale: svgScaleR, rect,
       startAngle: pl.angle, startMouseAngle, anchorX: pl.anchorX, anchorY: pl.anchorY };
+    grp.style.transition = "none";
 
     const onMove = (ev) => {
       if (!dragRef.current || dragRef.current.type !== "rotate") return;
@@ -463,18 +468,27 @@ function PlanView({ p, c, mode, u }) {
       const delta = mouseAngle - dr.startMouseAngle;
       const rawAngle = ((dr.startAngle + delta) % 360 + 360) % 360;
       rotAngleRef.current = rawAngle;
-      setRotPreview(rawAngle);
+      const rot = rawAngle - dr.startAngle;
+      grp.setAttribute("transform", "rotate(" + rot + " " + pivX + " " + pivY + ")");
     };
     const onUp = () => {
-      if (dragRef.current && dragRef.current.type === "rotate") {
-        const raw = rotAngleRef.current != null ? rotAngleRef.current : dragRef.current.startAngle;
+      const dr = dragRef.current;
+      if (dr && dr.type === "rotate") {
+        const raw = rotAngleRef.current != null ? rotAngleRef.current : dr.startAngle;
         const snaps = [0, 90, 180, 270, 360];
         let best = 0, bestDist = 999;
         for (const s of snaps) { const dd = Math.abs(raw - s); if (dd < bestDist) { bestDist = dd; best = s % 360; } }
-        const dr = dragRef.current;
-        u("stairAnchorX", dr.anchorX);
-        u("stairAnchorY", dr.anchorY);
-        u("stairAngle", best);
+        // Smooth snap: animate to snapped angle, then commit
+        const snapRot = best - dr.startAngle;
+        grp.style.transition = "transform 0.2s ease-out";
+        grp.setAttribute("transform", "rotate(" + snapRot + " " + pivX + " " + pivY + ")");
+        setTimeout(() => {
+          grp.style.transition = "none";
+          grp.removeAttribute("transform");
+          u("stairAnchorX", dr.anchorX);
+          u("stairAnchorY", dr.anchorY);
+          u("stairAngle", best);
+        }, 220);
       }
       rotAngleRef.current = null;
       setRotPreview(null);
@@ -635,11 +649,7 @@ function PlanView({ p, c, mode, u }) {
               style={{ fontSize: 4.5, fill: "#666", fontFamily: "monospace", fontWeight: 600, pointerEvents: "none" }}>{dirLabels[curAngle] || ""}</text>);
           }
         }
-        // Wrap in <g> with rotation preview transform
-        const previewRot = rotPreview != null ? rotPreview - (placement ? placement.angle : 0) : 0;
-        const pivotX = (() => { const pl3 = getStairPlacement(p, c); return dx + pl3.anchorX * sc; })();
-        const pivotY = (() => { const pl3 = getStairPlacement(p, c); return pad + pl3.anchorY * sc; })();
-        return <g transform={previewRot !== 0 ? "rotate(" + previewRot + " " + pivotX + " " + pivotY + ")" : undefined}>{els}</g>;
+        return <g ref={stairGroupRef}>{els}</g>;
       })()}
 
       <line x1={pad} y1={pad + sd + 25} x2={pad + sw} y2={pad + sd + 25} stroke="#c62828" strokeWidth="0.6" />
