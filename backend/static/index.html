@@ -554,25 +554,29 @@ function PlanView({ p, c, mode, u }) {
               style={{ fontSize: 7, fill: "#fff", fontFamily: "monospace", fontWeight: 700, letterSpacing: "0.5px", pointerEvents: "none" }}>✥ MOVE</text>
           </g>);
 
-          // Rotate buttons below stairs
-          const rotY = bbRect.y + bbRect.h + 6;
-          const rotCx = hcx;
+          // Circular rotate handle — click to rotate 90° clockwise
           const curAngle = placement.angle;
-          const rotBtns = [
-            { a: 0, lbl: "↓" }, { a: 90, lbl: "→" },
-            { a: 180, lbl: "↑" }, { a: 270, lbl: "←" },
-          ];
-          rotBtns.forEach((btn, ai) => {
-            const bx = rotCx - 32 + ai * 17;
-            const isActive = curAngle === btn.a;
-            els.push(<g key={"rot"+ai} style={{ cursor: "pointer" }}
-              onClick={e => { e.stopPropagation(); u("stairAnchorX", placement.anchorX); u("stairAnchorY", placement.anchorY); u("stairAngle", btn.a); }}>
-              <rect x={bx} y={rotY} width={14} height={13} rx={3}
-                fill={isActive ? "#c62828" : "#fff"} stroke={isActive ? "#a02020" : "#ccc"} strokeWidth={isActive ? 1.2 : 0.6} />
-              <text x={bx + 7} y={rotY + 9.5} textAnchor="middle"
-                style={{ fontSize: 7.5, fill: isActive ? "#fff" : "#999", fontWeight: 700, pointerEvents: "none" }}>{btn.lbl}</text>
-            </g>);
-          });
+          const rotX = bbRect.x + bbRect.w + 14;
+          const rotCy = hcy;
+          const rotR = 10;
+          const nextAngle = (curAngle + 90) % 360;
+          const dirLabels = { 0: "Front", 90: "Right", 180: "Back", 270: "Left" };
+          // Arc path (270° arc = 3/4 circle, clockwise)
+          const arc = "M " + (rotX + rotR) + " " + rotCy +
+            " A " + rotR + " " + rotR + " 0 1 1 " + rotX + " " + (rotCy - rotR);
+          // Arrow head at end of arc
+          const ax = rotX, ay = rotCy - rotR;
+          const arrowPts = (ax - 3) + "," + (ay - 1) + " " + ax + "," + (ay - 5) + " " + (ax + 3) + "," + (ay - 1);
+          els.push(<g key="rotHandle" style={{ cursor: "pointer" }}
+            onClick={e => { e.stopPropagation(); u("stairAnchorX", placement.anchorX); u("stairAnchorY", placement.anchorY); u("stairAngle", nextAngle); }}>
+            <circle cx={rotX} cy={rotCy} r={rotR + 5} fill="white" opacity="0.85" />
+            <circle cx={rotX} cy={rotCy} r={rotR + 5} fill="none" stroke="#ccc" strokeWidth="0.5" />
+            <path d={arc} fill="none" stroke="#3d5a2e" strokeWidth="2.5" strokeLinecap="round" />
+            <polygon points={arrowPts} fill="#3d5a2e" />
+          </g>);
+          // Direction label below rotate handle
+          els.push(<text key="rotDir" x={rotX} y={rotCy + rotR + 10} textAnchor="middle"
+            style={{ fontSize: 4.5, fill: "#888", fontFamily: "monospace", pointerEvents: "none" }}>{dirLabels[curAngle] || ""}</text>);
         }
         return <g>{els}</g>;
       })()}
