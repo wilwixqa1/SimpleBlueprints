@@ -251,7 +251,7 @@ def draw_plan_and_framing(fig, params, calc):
 
             if stair_loc == "front":
                 sx = placement["anchor_x"] - sw_ft / 2
-                sy = D
+                sy = placement["anchor_y"]
                 # Stringer outlines
                 ax.plot([sx, sx], [sy, sy + stair_run], color=BRAND["dark"], lw=1.0)
                 ax.plot([sx + sw_ft, sx + sw_ft], [sy, sy + stair_run], color=BRAND["dark"], lw=1.0)
@@ -283,18 +283,19 @@ def draw_plan_and_framing(fig, params, calc):
                         fontsize=3.5, fontfamily='monospace', color=BRAND["dark"], va='center')
 
             elif stair_loc == "left":
-                sx = -stair_run
+                sx = placement["anchor_x"] - stair_run
                 sy = placement["anchor_y"] - sw_ft / 2
-                ax.plot([sx, 0], [sy, sy], color=BRAND["dark"], lw=1.0)
-                ax.plot([sx, 0], [sy + sw_ft, sy + sw_ft], color=BRAND["dark"], lw=1.0)
+                deck_edge_x = placement["anchor_x"]
+                ax.plot([sx, deck_edge_x], [sy, sy], color=BRAND["dark"], lw=1.0)
+                ax.plot([sx, deck_edge_x], [sy + sw_ft, sy + sw_ft], color=BRAND["dark"], lw=1.0)
                 for i in range(n_treads + 1):
-                    tx = 0 - i * tread_step
+                    tx = deck_edge_x - i * tread_step
                     ax.plot([tx, tx], [sy, sy + sw_ft], color=BRAND["mute"], lw=0.5)
                 for si in range(n_stringers):
                     ssy = sy + (si) * sw_ft / (n_stringers - 1) if n_stringers > 1 else sy + sw_ft / 2
-                    ax.plot([sx, 0], [ssy, ssy], color=BRAND["mute"], lw=0.3, ls='--', dashes=(2, 2))
+                    ax.plot([sx, deck_edge_x], [ssy, ssy], color=BRAND["mute"], lw=0.3, ls='--', dashes=(2, 2))
                 mid_y = sy + sw_ft / 2
-                ax.annotate('', xy=(sx + 0.3, mid_y), xytext=(-0.3, mid_y),
+                ax.annotate('', xy=(sx + 0.3, mid_y), xytext=(deck_edge_x - 0.3, mid_y),
                             arrowprops=dict(arrowstyle='->', color=BRAND["dark"], lw=0.8))
                 ax.text(sx + stair_run / 2, mid_y, 'DN', ha='center', va='center', fontsize=5,
                         fontweight='bold', color=BRAND["dark"],
@@ -309,7 +310,7 @@ def draw_plan_and_framing(fig, params, calc):
                         ha='center', fontsize=3.5, fontfamily='monospace', color=BRAND["dark"])
 
             elif stair_loc == "right":
-                sx = W
+                sx = placement["anchor_x"]
                 sy = placement["anchor_y"] - sw_ft / 2
                 ax.plot([sx, sx + stair_run], [sy, sy], color=BRAND["dark"], lw=1.0)
                 ax.plot([sx, sx + stair_run], [sy + sw_ft, sy + sw_ft], color=BRAND["dark"], lw=1.0)
