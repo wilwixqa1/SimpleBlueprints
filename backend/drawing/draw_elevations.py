@@ -239,6 +239,39 @@ def draw_south_elevation(ax, params, calc):
         # Landing pad at grade
         ax.add_patch(patches.Rectangle((stair_x - 0.2, ground_y - 0.12), sw + 0.4, 0.12,
                      fc='#e0ddd8', ec=BRAND["dark"], lw=0.4, zorder=6))
+    # === RIGHT / LEFT STAIRS (side-profile in south elevation) ===
+    if _exit_side in ("right", "left") and params.get("hasStairs") and calc.get("stairs"):
+        stair = calc["stairs"]
+        _rise = stair["actual_rise"] / 12
+        _run = stair["tread_depth"] / 12
+        _nT = stair["num_treads"]
+        _nR = stair["num_risers"]
+        _sw = stair.get("width", 4)
+        _sx = deck_x + _placement["anchor_x"]
+        _dir = 1 if _exit_side == "right" else -1
+        rail_h = calc["rail_height"] / 12
+
+        # Stepped profile
+        for i in range(_nT):
+            tx = _sx + _dir * i * _run
+            ty = deck_top - i * _rise
+            ax.plot([tx, tx + _dir * _run], [ty, ty], color=BRAND["dark"], lw=0.6, zorder=6)
+            nty = deck_top - (i + 1) * _rise
+            ax.plot([tx + _dir * _run, tx + _dir * _run], [ty, nty], color=BRAND["dark"], lw=0.6, zorder=6)
+
+        _end_x = _sx + _dir * _nT * _run
+        ax.plot([_end_x - _dir * _run, _end_x], [ground_y, ground_y], color=BRAND["dark"], lw=0.6, zorder=6)
+        ax.plot([_sx, _end_x], [deck_top, ground_y], color=BRAND["dark"], lw=0.8, zorder=6)
+
+        # Handrail
+        hr_top = min(deck_top + rail_h, deck_top + rail_h)
+        ax.plot([_sx, _end_x], [hr_top, ground_y + rail_h],
+                color=BRAND["dark"], lw=0.4, ls='--', zorder=6)
+
+        # Landing pad
+        ax.add_patch(patches.Rectangle((_end_x - 0.5, ground_y - 0.12), 1.0, 0.12,
+                     fc='#e0ddd8', ec=BRAND["dark"], lw=0.4, zorder=6))
+
     # === LABELS ===
     lbl_x = deck_x + W + 1.5
     lbl_kw = dict(fontsize=4.5, fontfamily='monospace', color=BRAND["dark"])
@@ -358,42 +391,40 @@ def draw_north_elevation(ax, params, calc):
         stair_loc = get_stair_exit_side(_n_placement["angle"])
         
         if stair_loc in ("left", "right"):
-            # In side view, stairs extend outward from the deck edge
-            # Right stairs: extend past the far edge of deck
-            # Left stairs: extend before the near edge of deck
-            if stair_loc == "right":
-                sx = deck_start_x + _n_placement["anchor_y"]
-                direction = 1
-            else:
-                sx = deck_start_x + _n_placement["anchor_y"]
-                direction = -1
-            
-            rise = stair["actual_rise"] / 12
-            run = stair["tread_depth"] / 12
+            # Side view: stairs face perpendicular — show head-on (treads)
+            sw = stair.get("width", 4)
+            stair_cx = deck_start_x + _n_placement["anchor_y"]
+            rise_per = stair["actual_rise"] / 12
+            n_risers = stair["num_risers"]
+            rail_h_ft = calc["rail_height"] / 12
 
-            # Draw stepped profile (horizontal treads + vertical risers)
-            for i in range(stair["num_treads"]):
-                tx = sx + direction * i * run
-                ty = deck_top - i * rise
-                # Tread (horizontal)
-                ax.plot([tx, tx + direction * run], [ty, ty], color=BRAND["dark"], lw=0.6)
-                # Riser (vertical down)
-                next_ty = deck_top - (i + 1) * rise
-                ax.plot([tx + direction * run, tx + direction * run], [ty, next_ty],
-                        color=BRAND["dark"], lw=0.6)
+            # White fill to mask structure behind
+            ax.add_patch(patches.Rectangle((stair_cx - sw/2, ground_y), sw, deck_top - ground_y,
+                         fc='white', ec='none', zorder=5))
 
-            # Bottom tread at ground
-            end_x = sx + direction * stair["num_treads"] * run
-            ax.plot([end_x - direction * run, end_x], [ground_y, ground_y], color=BRAND["dark"], lw=0.6)
+            # Tread lines
+            for i in range(n_risers + 1):
+                ty = deck_top - i * rise_per
+                ax.plot([stair_cx - sw/2, stair_cx + sw/2], [ty, ty],
+                        color=BRAND["dark"], lw=0.8, zorder=6)
 
-            # Stringer (diagonal)
-            ax.plot([sx, end_x], [deck_top, ground_y], color=BRAND["dark"], lw=0.8)
+            # Stringer sides
+            ax.plot([stair_cx - sw/2, stair_cx - sw/2], [ground_y, deck_top],
+                    color=BRAND["dark"], lw=1.0, zorder=6)
+            ax.plot([stair_cx + sw/2, stair_cx + sw/2], [ground_y, deck_top],
+                    color=BRAND["dark"], lw=1.0, zorder=6)
+            ax.plot([stair_cx - sw/2, stair_cx + sw/2], [ground_y, ground_y],
+                    color=BRAND["dark"], lw=0.8, zorder=6)
 
-            # Handrails (dashed)
-            rail_h_ft = 3
-            ax.plot([sx, end_x], [deck_top + rail_h_ft, ground_y + rail_h_ft],
-                    color=BRAND["dark"], lw=0.4, ls='--')
+            # Handrails
+            ax.plot([stair_cx - sw/2, stair_cx - sw/2], [ground_y + rail_h_ft, deck_top + rail_h_ft],
+                    color=BRAND["rail"], lw=0.8, zorder=6)
+            ax.plot([stair_cx + sw/2, stair_cx + sw/2], [ground_y + rail_h_ft, deck_top + rail_h_ft],
+                    color=BRAND["rail"], lw=0.8, zorder=6)
 
+            # Landing pad
+            ax.add_patch(patches.Rectangle((stair_cx - sw/2 - 0.2, ground_y - 0.12), sw + 0.4, 0.12,
+                         fc='#e0ddd8', ec=BRAND["dark"], lw=0.4, zorder=6))
         elif stair_loc == "front":
             # Front stairs in side view: profile stepping down from anchor position
             sx = deck_start_x + _n_placement["anchor_y"]
