@@ -977,7 +977,7 @@ function Deck3D({ c, p }) {
     [[cx, cz], [cx + W, cz], [cx, cz + D], [cx + W, cz + D]].forEach(([x, z]) => { const cp = new THREE.Mesh(crnG, mats.rail); cp.position.set(x, H + bdH + rH / 2, z); scene.add(cp); });
 
     // ================================================================
-    // STAIRS 3D — treads, risers, stringers, landings, stair railing
+    // STAIRS 3D
     // ================================================================
     if (p.hasStairs && c.stairs && H > 0.5) {
       var sg = computeStairGeometry({
@@ -992,16 +992,15 @@ function Deck3D({ c, p }) {
         var stGrp = new THREE.Group();
         var riseFt = sg.riseIn / 12;
         var treadFt = 10.5 / 12;
-        var brdH2 = 1.5 / 12;   // tread board thickness
-        var rsrT = 0.75 / 12;   // riser board thickness
-        var strW = 1.5 / 12;    // stringer width (1.5")
-        var strBH = 11.25 / 12; // stringer board height (2x12 actual)
-        var stRailH = 3;        // stair railing height above tread
+        var brdH2 = 1.5 / 12;
+        var rsrT = 0.75 / 12;
+        var strW = 1.5 / 12;
+        var strBH = 11.25 / 12;
+        var stRailH = 3;
 
         var cumR = 0;
         sg.runs.forEach(function(run) {
           var topH2 = H - cumR * riseFt;
-          // Step direction in stairGeom local coords (X->X, Y->Z)
           var dsx = 0, dsz = 0;
           if (run.downDir === "+y") dsz = 1;
           else if (run.downDir === "-y") dsz = -1;
@@ -1009,44 +1008,31 @@ function Deck3D({ c, p }) {
           else if (run.downDir === "-x") dsx = -1;
           var isH = (run.treadAxis === "h");
           var span = isH ? run.rect.w : run.rect.h;
-          // Start position: the deck-edge end of this run
           var sx, sz;
           if (dsz > 0) { sx = run.rect.x + run.rect.w / 2; sz = run.rect.y; }
           else if (dsz < 0) { sx = run.rect.x + run.rect.w / 2; sz = run.rect.y + run.rect.h; }
           else if (dsx > 0) { sx = run.rect.x; sz = run.rect.y + run.rect.h / 2; }
           else { sx = run.rect.x + run.rect.w; sz = run.rect.y + run.rect.h / 2; }
 
-          // Treads and risers
           for (var i = 0; i < run.risers; i++) {
             var h = topH2 - (i + 1) * riseFt;
-            // Tread
             if (i < run.treads) {
               var tg2 = isH
                 ? new THREE.BoxGeometry(span, brdH2, treadFt)
                 : new THREE.BoxGeometry(treadFt, brdH2, span);
               var tm2 = new THREE.Mesh(tg2, mats.stairTread);
-              tm2.position.set(
-                sx + dsx * treadFt * (i + 0.5),
-                h + brdH2 / 2,
-                sz + dsz * treadFt * (i + 0.5)
-              );
+              tm2.position.set(sx + dsx * treadFt * (i + 0.5), h + brdH2 / 2, sz + dsz * treadFt * (i + 0.5));
               tm2.castShadow = true; tm2.receiveShadow = true;
               stGrp.add(tm2);
             }
-            // Riser
             var rg2 = isH
               ? new THREE.BoxGeometry(span, riseFt, rsrT)
               : new THREE.BoxGeometry(rsrT, riseFt, span);
             var rm2 = new THREE.Mesh(rg2, mats.stairRiser);
-            rm2.position.set(
-              sx + dsx * treadFt * i,
-              h + riseFt / 2,
-              sz + dsz * treadFt * i
-            );
+            rm2.position.set(sx + dsx * treadFt * i, h + riseFt / 2, sz + dsz * treadFt * i);
             stGrp.add(rm2);
           }
 
-          // Stringers (outer pair)
           var hDist = run.treads * treadFt;
           var vDist = run.risers * riseFt;
           var sLen = Math.sqrt(hDist * hDist + vDist * vDist);
@@ -1082,11 +1068,9 @@ function Deck3D({ c, p }) {
             stGrp.add(sm2);
           });
 
-          // Stair railing — posts every ~4ft + top rail along edges
           var nSteps = run.treads;
           var postEvery = Math.max(1, Math.round(4 / treadFt));
           edges.forEach(function(edge) {
-            // Posts along stair
             for (var si = 0; si <= nSteps; si += postEvery) {
               var ph = topH2 - (Math.min(si, nSteps - 1) + 1) * riseFt;
               var rpx2 = isH ? edge.pos : sx + dsx * treadFt * (si + 0.5);
@@ -1096,7 +1080,6 @@ function Deck3D({ c, p }) {
               rp2.position.set(rpx2, ph + stRailH / 2 + brdH2, rpz2);
               stGrp.add(rp2);
             }
-            // Top rail — angled box matching stringer slope
             var railG2 = isH
               ? new THREE.BoxGeometry(0.08, 0.08, sLen)
               : new THREE.BoxGeometry(sLen, 0.08, 0.08);
@@ -1109,7 +1092,6 @@ function Deck3D({ c, p }) {
               rail2.rotation.z = dsx > 0 ? -sAng : sAng;
             }
             stGrp.add(rail2);
-            // Bottom rail
             var bRailG = isH
               ? new THREE.BoxGeometry(0.06, 0.06, sLen)
               : new THREE.BoxGeometry(sLen, 0.06, 0.06);
@@ -1133,7 +1115,6 @@ function Deck3D({ c, p }) {
           lCumR += sg.runs[li].risers;
           var lH2 = H - lCumR * riseFt;
           var lr = landing.rect;
-          // Platform decking boards
           var lbdW = 5.5 / 12, lbdH = 1 / 12;
           for (var lx = lr.x + lbdW / 2; lx < lr.x + lr.w; lx += lbdW) {
             var lbg = new THREE.BoxGeometry(lbdW - 0.02, lbdH, lr.h);
@@ -1142,21 +1123,16 @@ function Deck3D({ c, p }) {
             lbm.receiveShadow = true;
             stGrp.add(lbm);
           }
-          // Landing rim joists (4 sides)
           var ljH2 = 9.25 / 12, ljW2 = 1.5 / 12;
-          var ljoists = [
-            [lr.x, lr.y + lr.h / 2, ljW2, ljH2, lr.h],
-            [lr.x + lr.w, lr.y + lr.h / 2, ljW2, ljH2, lr.h],
-            [lr.x + lr.w / 2, lr.y, lr.w, ljH2, ljW2],
-            [lr.x + lr.w / 2, lr.y + lr.h, lr.w, ljH2, ljW2]
-          ];
-          ljoists.forEach(function(lj) {
+          [[lr.x, lr.y + lr.h / 2, ljW2, ljH2, lr.h],
+           [lr.x + lr.w, lr.y + lr.h / 2, ljW2, ljH2, lr.h],
+           [lr.x + lr.w / 2, lr.y, lr.w, ljH2, ljW2],
+           [lr.x + lr.w / 2, lr.y + lr.h, lr.w, ljH2, ljW2]].forEach(function(lj) {
             var ljg = new THREE.BoxGeometry(lj[2], lj[3], lj[4]);
             var ljm = new THREE.Mesh(ljg, mats.stairRiser);
             ljm.position.set(lj[0], lH2 - lj[3] / 2, lj[1]);
             stGrp.add(ljm);
           });
-          // Landing posts
           var lpD = postSize === "6x6" ? 5.5 / 12 : 3.5 / 12;
           landing.posts.forEach(function(pt) {
             var lpG2 = new THREE.BoxGeometry(lpD, lH2, lpD);
@@ -1164,26 +1140,18 @@ function Deck3D({ c, p }) {
             lp2.position.set(pt[0], lH2 / 2, pt[1]);
             lp2.castShadow = true;
             stGrp.add(lp2);
-            // Pier at base
-            var lPier = new THREE.Mesh(
-              new THREE.CylinderGeometry(pR, pR, 0.5, 12),
-              mats.concrete
-            );
+            var lPier = new THREE.Mesh(new THREE.CylinderGeometry(pR, pR, 0.5, 12), mats.concrete);
             lPier.position.set(pt[0], 0.25, pt[1]);
             stGrp.add(lPier);
           });
         });
 
-        // Ground pad at bottom of stairs (concrete slab)
+        // Ground pad
         var padMat = new THREE.MeshStandardMaterial({ color: 0xc8c8c8, roughness: 0.95 });
         var padBB = sg.bbox;
         var padG2 = new THREE.BoxGeometry(padBB.w + 1, 0.3, padBB.h + 1);
         var padM2 = new THREE.Mesh(padG2, padMat);
-        padM2.position.set(
-          (padBB.minX + padBB.maxX) / 2,
-          0.15,
-          (padBB.minY + padBB.maxY) / 2
-        );
+        padM2.position.set((padBB.minX + padBB.maxX) / 2, 0.15, (padBB.minY + padBB.maxY) / 2);
         padM2.receiveShadow = true;
         stGrp.add(padM2);
 
@@ -1215,6 +1183,7 @@ function Deck3D({ c, p }) {
 
   return <div ref={ref} style={{ width: "100%", height: 380, borderRadius: 6, overflow: "hidden" }} />;
 }
+
 
 
 // ============================================================
