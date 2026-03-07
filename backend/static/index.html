@@ -909,14 +909,10 @@ function Deck3D({ c, p }) {
     };
 
     const cx = -W / 2, cz = -D / 2;
-
-    // ── Stair placement ──
     var hasSt = p.hasStairs && c.stairs && H > 0.5;
     var stPl = hasSt ? getStairPlacement(p, c) : null;
     var exitSide = stPl ? (stPl.angle === 90 ? "right" : stPl.angle === 270 ? "left" : stPl.angle === 180 ? "back" : "front") : null;
     var stW = (p.stairWidth || 4);
-
-    // ── Railing gap ──
     var frontGap = null, leftGap = null, rightGap = null;
     if (hasSt && stPl) {
       if (exitSide === "front") { var gc = cx + stPl.anchorX; frontGap = { min: gc - stW/2, max: gc + stW/2 }; }
@@ -927,31 +923,28 @@ function Deck3D({ c, p }) {
     // House
     const hW = p.houseWidth, hD = 14, hH = Math.max(H + 8, 12);
     const hX = cx + (W - hW) / 2, hZ = cz - hD;
-    const house = new THREE.Mesh(new THREE.BoxGeometry(hW, hH, hD), mats.house);
-    house.position.set(hX + hW/2, hH/2, hZ + hD/2); house.castShadow = true; scene.add(house);
-    // Roof
+    var hm = new THREE.Mesh(new THREE.BoxGeometry(hW, hH, hD), mats.house); hm.position.set(hX + hW/2, hH/2, hZ + hD/2); hm.castShadow = true; scene.add(hm);
     const ov = 1.5, rpk = 5;
-    const rx1 = hX-ov, rx2 = hX+hW+ov, rxM = hX+hW/2;
-    const ry = hH, ryP = hH+rpk, rz1 = hZ-1, rz2 = hZ+hD+1;
+    const rx1 = hX-ov, rx2 = hX+hW+ov, rxM = hX+hW/2, ry = hH, ryP = hH+rpk, rz1 = hZ-1, rz2 = hZ+hD+1;
     const rv = new Float32Array([rx1,ry,rz2,rx2,ry,rz2,rxM,ryP,rz2, rx2,ry,rz1,rx1,ry,rz1,rxM,ryP,rz1, rx1,ry,rz1,rx1,ry,rz2,rxM,ryP,rz2,rx1,ry,rz1,rxM,ryP,rz2,rxM,ryP,rz1, rx2,ry,rz2,rx2,ry,rz1,rxM,ryP,rz1,rx2,ry,rz2,rxM,ryP,rz1,rxM,ryP,rz2, rx1,ry,rz1,rx2,ry,rz1,rx2,ry,rz2,rx1,ry,rz1,rx2,ry,rz2,rx1,ry,rz2]);
     const rg = new THREE.BufferGeometry(); rg.setAttribute('position', new THREE.BufferAttribute(rv, 3)); rg.computeVertexNormals();
     scene.add(new THREE.Mesh(rg, mats.roof));
-    // Windows + door
     for (let wx = 0.2; wx < 0.9; wx += 0.3) { scene.add(new THREE.Mesh(new THREE.PlaneGeometry(3,4), mats.win)).position.set(hX+hW*wx, H+5, hZ+hD+0.05); }
     scene.add(new THREE.Mesh(new THREE.PlaneGeometry(4,6.5), mats.win)).position.set(cx+W/2, H-6.5/2+6.7, cz+0.05);
-    // Piers
-    const pR = (fDiam/12)/2;
-    pp.forEach(px => { scene.add(new THREE.Mesh(new THREE.CylinderGeometry(pR,pR,0.5,16), mats.concrete)).position.set(cx+px, 0.25, cz+D-1.5); });
-    // Posts
-    const pD = postSize==="6x6" ? 5.5/12 : 3.5/12;
-    pp.forEach(px => { var po = new THREE.Mesh(new THREE.BoxGeometry(pD,H,pD), mats.post); po.position.set(cx+px, H/2, cz+D-1.5); po.castShadow=true; scene.add(po); });
-    // Post caps
-    pp.forEach(px => { scene.add(new THREE.Mesh(new THREE.BoxGeometry(pD+0.2,0.15,pD+0.2), mats.metal)).position.set(cx+px, H, cz+D-1.5); });
-    // Beam
+
+    // Piers + Posts + Caps
+    const pR = (fDiam/12)/2, pD = postSize==="6x6" ? 5.5/12 : 3.5/12;
+    pp.forEach(px => {
+      scene.add(new THREE.Mesh(new THREE.CylinderGeometry(pR,pR,0.5,16), mats.concrete)).position.set(cx+px, 0.25, cz+D-1.5);
+      var po = new THREE.Mesh(new THREE.BoxGeometry(pD,H,pD), mats.post); po.position.set(cx+px, H/2, cz+D-1.5); po.castShadow=true; scene.add(po);
+      scene.add(new THREE.Mesh(new THREE.BoxGeometry(pD+0.2,0.15,pD+0.2), mats.metal)).position.set(cx+px, H, cz+D-1.5);
+    });
+
+    // Beam + Ledger
     const bH2 = 11.875/12, bW2 = beamSize.includes("3") ? 5.25/12 : 3.5/12;
     var bm = new THREE.Mesh(new THREE.BoxGeometry(W-2,bH2,bW2), mats.beam); bm.position.set(cx+W/2, H-bH2/2-0.1, cz+D-1.5); bm.castShadow=true; scene.add(bm);
-    // Ledger
     scene.add(new THREE.Mesh(new THREE.BoxGeometry(W,9.25/12,1.5/12), mats.joist)).position.set(cx+W/2, H-0.4, cz+0.06);
+
     // Joists
     const jH2=9.25/12, jW2=1.5/12, jLen=D-1.5;
     for (let x=sp/12; x<W; x+=sp/12) { scene.add(new THREE.Mesh(new THREE.BoxGeometry(jW2,jH2,jLen), mats.joist)).position.set(cx+x, H-jH2/2-0.1, cz+jLen/2); }
@@ -974,13 +967,11 @@ function Deck3D({ c, p }) {
       if(s2>0.1) addRimSeg(cx+W, H-jH2/2-0.1, rightGap.max+s2/2, jW2, jH2, s2);
     } else { addRimSeg(cx+W, H-jH2/2-0.1, cz+D/2, jW2, jH2, D); }
 
-    // Decking — skip boards in stair gap
+    // Decking — FULL SURFACE, no gap (stairs connect below deck level)
     const bdW=5.5/12, bdH=1/12;
     for (let x=bdW/2; x<W; x+=bdW) {
-      var wx2=cx+x;
-      if (frontGap && wx2>frontGap.min && wx2<frontGap.max) continue;
       var b=new THREE.Mesh(new THREE.BoxGeometry(bdW-0.02, bdH, D+0.1), mats.deck);
-      b.position.set(wx2, H+bdH/2, cz+D/2); b.receiveShadow=true; scene.add(b);
+      b.position.set(cx+x, H+bdH/2, cz+D/2); b.receiveShadow=true; scene.add(b);
     }
 
     // ── RAILING with gaps ──
@@ -988,41 +979,30 @@ function Deck3D({ c, p }) {
     function addRail(x1,z1,x2,z2) {
       var dx2=x2-x1,dz2=z2-z1,len=Math.sqrt(dx2*dx2+dz2*dz2);
       if(len<0.05) return;
-      var mx=(x1+x2)/2,mz=(z1+z2)/2;
-      // Top rail
-      var isX=Math.abs(dz2)<0.01;
-      var g1=isX ? new THREE.BoxGeometry(len,0.1,0.08) : new THREE.BoxGeometry(0.08,0.1,len);
-      scene.add(new THREE.Mesh(g1,mats.rail)).position.set(mx,trY,mz);
-      // Bottom rail
-      var g2=isX ? new THREE.BoxGeometry(len,0.06,0.06) : new THREE.BoxGeometry(0.06,0.06,len);
-      scene.add(new THREE.Mesh(g2,mats.rail)).position.set(mx,brY,mz);
-      // Balusters
-      var bG=new THREE.BoxGeometry(0.04,rH-0.3,0.04);
-      var step=3.75/12, n=Math.floor(len/step);
+      var mx=(x1+x2)/2,mz=(z1+z2)/2,isX=Math.abs(dz2)<0.01;
+      scene.add(new THREE.Mesh(isX?new THREE.BoxGeometry(len,0.1,0.08):new THREE.BoxGeometry(0.08,0.1,len),mats.rail)).position.set(mx,trY,mz);
+      scene.add(new THREE.Mesh(isX?new THREE.BoxGeometry(len,0.06,0.06):new THREE.BoxGeometry(0.06,0.06,len),mats.rail)).position.set(mx,brY,mz);
+      var bG=new THREE.BoxGeometry(0.04,rH-0.3,0.04), step=3.75/12, n=Math.floor(len/step);
       for(var i=0;i<=n;i++){var t=n>0?i/n:0.5; scene.add(new THREE.Mesh(bG,mats.rail)).position.set(x1+dx2*t, H+bdH+rH/2+0.1, z1+dz2*t);}
     }
-    // Front
     if(frontGap){
       if(frontGap.min-cx>0.1) addRail(cx,cz+D,frontGap.min,cz+D);
       if((cx+W)-frontGap.max>0.1) addRail(frontGap.max,cz+D,cx+W,cz+D);
     } else addRail(cx,cz+D,cx+W,cz+D);
-    // Left
     if(leftGap){
       if(leftGap.min-cz>0.1) addRail(cx,cz,cx,leftGap.min);
       if((cz+D)-leftGap.max>0.1) addRail(cx,leftGap.max,cx,cz+D);
     } else addRail(cx,cz,cx,cz+D);
-    // Right
     if(rightGap){
       if(rightGap.min-cz>0.1) addRail(cx+W,cz,cx+W,rightGap.min);
       if((cz+D)-rightGap.max>0.1) addRail(cx+W,rightGap.max,cx+W,cz+D);
     } else addRail(cx+W,cz,cx+W,cz+D);
-    // Corner posts
     [[cx,cz],[cx+W,cz],[cx,cz+D],[cx+W,cz+D]].forEach(([x,z])=>{
       scene.add(new THREE.Mesh(new THREE.BoxGeometry(0.2,rH+0.2,0.2),mats.rail)).position.set(x,H+bdH+rH/2,z);
     });
 
     // ================================================================
-    // STAIRS 3D — polished
+    // STAIRS 3D
     // ================================================================
     if (hasSt && stPl) {
       var sg = computeStairGeometry({
@@ -1034,78 +1014,35 @@ function Deck3D({ c, p }) {
       });
       if (sg) {
         var stGrp = new THREE.Group();
-        var riseFt = sg.riseIn / 12;
-        var treadFt = 10.5 / 12;
-        var brdTh = 1.25 / 12;
-        var rsrT = 0.75 / 12;
-        var strW = 1.5 / 12;
-        var strBH = 11.25 / 12;
-        var stRailH = 3;
-
-        // Collect all landing rects for edge adjacency checks
+        var riseFt = sg.riseIn / 12, treadFt = 10.5 / 12;
+        var brdTh = 1.25 / 12, rsrT = 0.75 / 12;
+        var strW = 1.5 / 12, strBH = 11.25 / 12, stRailH = 3;
         var landingRects = sg.landings.map(function(l){return l.rect;});
 
-        // Check if an edge of a run is adjacent to a landing
-        function isEdgeAdjacentToLanding(edgePos, axis, runRect) {
-          for (var li = 0; li < landingRects.length; li++) {
-            var lr = landingRects[li];
+        function isAdjacentTo(edgePos, axis, rect, skipIdx, collection) {
+          for (var i = 0; i < collection.length; i++) {
+            if (i === skipIdx) continue;
+            var r = collection[i].rect || collection[i];
             if (axis === "x") {
-              // Edge is a vertical line at x=edgePos along z range of run
-              // Check if landing shares this x boundary
-              if (Math.abs(edgePos - lr.x) < 0.2 || Math.abs(edgePos - (lr.x + lr.w)) < 0.2) {
-                // Check z overlap
-                var rMinZ = runRect.y, rMaxZ = runRect.y + runRect.h;
-                var lMinZ = lr.y, lMaxZ = lr.y + lr.h;
-                if (rMinZ < lMaxZ && rMaxZ > lMinZ) return true;
+              if (Math.abs(edgePos - r.x) < 0.3 || Math.abs(edgePos - (r.x + r.w)) < 0.3) {
+                if (rect.y < r.y + r.h && rect.y + rect.h > r.y) return true;
               }
             } else {
-              // Edge is horizontal at z=edgePos
-              if (Math.abs(edgePos - lr.y) < 0.2 || Math.abs(edgePos - (lr.y + lr.h)) < 0.2) {
-                var rMinX = runRect.x, rMaxX = runRect.x + runRect.w;
-                var lMinX = lr.x, lMaxX = lr.x + lr.w;
-                if (rMinX < lMaxX && rMaxX > lMinX) return true;
+              if (Math.abs(edgePos - r.y) < 0.3 || Math.abs(edgePos - (r.y + r.h)) < 0.3) {
+                if (rect.x < r.x + r.w && rect.x + rect.w > r.x) return true;
               }
             }
           }
           return false;
-        }
-
-        // Also check if edge is adjacent to another run
-        function isEdgeAdjacentToRun(edgePos, axis, runRect, runIdx) {
-          for (var ri = 0; ri < sg.runs.length; ri++) {
-            if (ri === runIdx) continue;
-            var or = sg.runs[ri].rect;
-            if (axis === "x") {
-              if (Math.abs(edgePos - or.x) < 0.2 || Math.abs(edgePos - (or.x + or.w)) < 0.2) {
-                var rMinZ = runRect.y, rMaxZ = runRect.y + runRect.h;
-                var oMinZ = or.y, oMaxZ = or.y + or.h;
-                if (rMinZ < oMaxZ && rMaxZ > oMinZ) return true;
-              }
-            } else {
-              if (Math.abs(edgePos - or.y) < 0.2 || Math.abs(edgePos - (or.y + or.h)) < 0.2) {
-                var rMinX = runRect.x, rMaxX = runRect.x + runRect.w;
-                var oMinX = or.x, oMaxX = or.x + or.w;
-                if (rMinX < oMaxX && rMaxX > oMinX) return true;
-              }
-            }
-          }
-          return false;
-        }
-
-        // Is first run and this is the deck-connection edge?
-        function isDeckEdge(runIdx, edgeAxis, edgeDir) {
-          return runIdx === 0 && edgeDir === "start";
         }
 
         var cumR = 0;
-        sg.runs.forEach(function(run, runIdx) {
+        sg.runs.forEach(function(run, ri) {
           var topElev = H - cumR * riseFt;
           var dsx=0,dsz=0;
           if(run.downDir==="+y")dsz=1;else if(run.downDir==="-y")dsz=-1;
           else if(run.downDir==="+x")dsx=1;else if(run.downDir==="-x")dsx=-1;
-          var isH=(run.treadAxis==="h");
-          var span=isH?run.rect.w:run.rect.h;
-
+          var isHoriz=(run.treadAxis==="h"), span=isHoriz?run.rect.w:run.rect.h;
           var sx,sz;
           if(dsz>0){sx=run.rect.x+run.rect.w/2;sz=run.rect.y;}
           else if(dsz<0){sx=run.rect.x+run.rect.w/2;sz=run.rect.y+run.rect.h;}
@@ -1116,138 +1053,107 @@ function Deck3D({ c, p }) {
           for(var i=0;i<run.risers;i++){
             var tY=topElev-(i+1)*riseFt;
             if(i<run.treads){
-              var tw=isH?span:treadFt, td=isH?treadFt:span;
-              var tm=new THREE.Mesh(new THREE.BoxGeometry(tw,brdTh,td),mats.stairTread);
+              var tm=new THREE.Mesh(new THREE.BoxGeometry(isHoriz?span:treadFt,brdTh,isHoriz?treadFt:span),mats.stairTread);
               tm.position.set(sx+dsx*treadFt*(i+0.5),tY+brdTh/2,sz+dsz*treadFt*(i+0.5));
               tm.castShadow=true;tm.receiveShadow=true;stGrp.add(tm);
             }
-            var rw=isH?span:rsrT, rd=isH?rsrT:span;
-            var rm=new THREE.Mesh(new THREE.BoxGeometry(rw,riseFt*0.85,rd),mats.stairRiser);
+            var rm=new THREE.Mesh(new THREE.BoxGeometry(isHoriz?span:rsrT,riseFt*0.85,isHoriz?rsrT:span),mats.stairRiser);
             rm.position.set(sx+dsx*treadFt*i,tY+riseFt*0.425,sz+dsz*treadFt*i);
             stGrp.add(rm);
           }
 
-          // Stringers
+          // Stringers + rails (outer edges only)
           var hDist=run.treads*treadFt, vDist=run.risers*riseFt;
-          var sLen=Math.sqrt(hDist*hDist+vDist*vDist);
-          var sAng=Math.atan2(vDist,hDist);
-          var midY=topElev-vDist/2;
-          var midHX=sx+dsx*hDist/2, midHZ=sz+dsz*hDist/2;
+          var sLen=Math.sqrt(hDist*hDist+vDist*vDist), sAng=Math.atan2(vDist,hDist);
+          var midY=topElev-vDist/2, midHX=sx+dsx*hDist/2, midHZ=sz+dsz*hDist/2;
 
           var edges=[];
-          if(isH){
-            edges.push({pos:run.rect.x+strW/2, axis:"z", edgeX:run.rect.x});
-            edges.push({pos:run.rect.x+run.rect.w-strW/2, axis:"z", edgeX:run.rect.x+run.rect.w});
+          if(isHoriz){
+            edges.push({pos:run.rect.x+strW/2, edgeVal:run.rect.x, axis:"x"});
+            edges.push({pos:run.rect.x+run.rect.w-strW/2, edgeVal:run.rect.x+run.rect.w, axis:"x"});
           } else {
-            edges.push({pos:run.rect.y+strW/2, axis:"x", edgeZ:run.rect.y});
-            edges.push({pos:run.rect.y+run.rect.h-strW/2, axis:"x", edgeZ:run.rect.y+run.rect.h});
+            edges.push({pos:run.rect.y+strW/2, edgeVal:run.rect.y, axis:"z"});
+            edges.push({pos:run.rect.y+run.rect.h-strW/2, edgeVal:run.rect.y+run.rect.h, axis:"z"});
           }
 
           edges.forEach(function(edge){
-            // Always draw stringer
-            var sg2=isH?new THREE.BoxGeometry(strW,strBH,sLen):new THREE.BoxGeometry(sLen,strBH,strW);
+            // Stringer always
+            var sg2=isHoriz?new THREE.BoxGeometry(strW,strBH,sLen):new THREE.BoxGeometry(sLen,strBH,strW);
             var sm=new THREE.Mesh(sg2,mats.stringer);
-            if(isH){sm.position.set(edge.pos,midY,midHZ);sm.rotation.x=dsz>0?sAng:-sAng;}
+            if(isHoriz){sm.position.set(edge.pos,midY,midHZ);sm.rotation.x=dsz>0?sAng:-sAng;}
             else{sm.position.set(midHX,midY,edge.pos);sm.rotation.z=dsx>0?-sAng:sAng;}
             sm.castShadow=true;stGrp.add(sm);
 
-            // Only add rail if this edge is NOT adjacent to a landing or another run
-            var adjToLanding = isH
-              ? isEdgeAdjacentToLanding(edge.edgeX, "x", run.rect)
-              : isEdgeAdjacentToLanding(edge.edgeZ, "z", run.rect);
-            var adjToRun = isH
-              ? isEdgeAdjacentToRun(edge.edgeX, "x", run.rect, runIdx)
-              : isEdgeAdjacentToRun(edge.edgeZ, "z", run.rect, runIdx);
-
-            if (!adjToLanding && !adjToRun) {
-              // Top rail
-              var trG=isH?new THREE.BoxGeometry(0.08,0.08,sLen):new THREE.BoxGeometry(sLen,0.08,0.08);
+            // Rail only on outer edges
+            var adjL = isAdjacentTo(edge.edgeVal, edge.axis, run.rect, -1, sg.landings);
+            var adjR = isAdjacentTo(edge.edgeVal, edge.axis, run.rect, ri, sg.runs);
+            if (!adjL && !adjR) {
+              var trG=isHoriz?new THREE.BoxGeometry(0.08,0.08,sLen):new THREE.BoxGeometry(sLen,0.08,0.08);
               var tr=new THREE.Mesh(trG,mats.rail);
-              if(isH){tr.position.set(edge.pos,midY+stRailH,midHZ);tr.rotation.x=dsz>0?sAng:-sAng;}
+              if(isHoriz){tr.position.set(edge.pos,midY+stRailH,midHZ);tr.rotation.x=dsz>0?sAng:-sAng;}
               else{tr.position.set(midHX,midY+stRailH,edge.pos);tr.rotation.z=dsx>0?-sAng:sAng;}
               stGrp.add(tr);
-
-              // Rail posts — every ~4ft, skip first (at deck level)
-              var postInterval = Math.max(2, Math.round(4/treadFt));
-              for(var si=1;si<=run.treads;si+=postInterval){
-                var stepI=Math.min(si,run.treads-1);
-                var pBase=topElev-(stepI+1)*riseFt;
-                var px2=isH?edge.pos:sx+dsx*treadFt*(si+0.5);
-                var pz2=isH?sz+dsz*treadFt*(si+0.5):edge.pos;
-                var rp=new THREE.Mesh(new THREE.BoxGeometry(0.08,stRailH,0.08),mats.rail);
-                rp.position.set(px2,pBase+stRailH/2+brdTh,pz2);
-                stGrp.add(rp);
+              var pInt=Math.max(2,Math.round(4/treadFt));
+              for(var si=1;si<=run.treads;si+=pInt){
+                var sI=Math.min(si,run.treads-1);
+                var pB=topElev-(sI+1)*riseFt;
+                var px2=isHoriz?edge.pos:sx+dsx*treadFt*(si+0.5);
+                var pz2=isHoriz?sz+dsz*treadFt*(si+0.5):edge.pos;
+                stGrp.add(new THREE.Mesh(new THREE.BoxGeometry(0.08,stRailH,0.08),mats.rail)).position.set(px2,pB+stRailH/2+brdTh,pz2);
               }
             }
           });
-
           cumR += run.risers;
         });
 
-        // ── Landings ──
+        // Landings
         var lCumR=0;
         sg.landings.forEach(function(landing,li){
           lCumR+=sg.runs[li].risers;
-          var lElev=H-lCumR*riseFt;
-          var lr=landing.rect;
-          // Platform — single slab matching deck color
-          var platG=new THREE.BoxGeometry(lr.w, brdTh*2, lr.h);
-          var platM=new THREE.Mesh(platG, mats.deck);
+          var lElev=H-lCumR*riseFt, lr=landing.rect;
+          var platM=new THREE.Mesh(new THREE.BoxGeometry(lr.w, brdTh*2, lr.h), mats.deck);
           platM.position.set(lr.x+lr.w/2, lElev+brdTh, lr.y+lr.h/2);
           platM.receiveShadow=true; stGrp.add(platM);
-          // Frame under platform
-          var fH=9.25/12,fW=1.5/12;
-          [[lr.x+fW/2,lr.y+lr.h/2,fW,fH,lr.h],[lr.x+lr.w-fW/2,lr.y+lr.h/2,fW,fH,lr.h],
-           [lr.x+lr.w/2,lr.y+fW/2,lr.w,fH,fW],[lr.x+lr.w/2,lr.y+lr.h-fW/2,lr.w,fH,fW]].forEach(function(f){
+          // Frame
+          [[lr.x+0.0625,lr.y+lr.h/2,0.125,9.25/12,lr.h],[lr.x+lr.w-0.0625,lr.y+lr.h/2,0.125,9.25/12,lr.h],
+           [lr.x+lr.w/2,lr.y+0.0625,lr.w,9.25/12,0.125],[lr.x+lr.w/2,lr.y+lr.h-0.0625,lr.w,9.25/12,0.125]].forEach(function(f){
             stGrp.add(new THREE.Mesh(new THREE.BoxGeometry(f[2],f[3],f[4]),mats.joist)).position.set(f[0],lElev-f[3]/2,f[1]);
           });
-          // Landing posts (structural)
+          // Posts
           var lpSz=postSize==="6x6"?5.5/12:3.5/12;
           landing.posts.forEach(function(pt){
             var lpm=new THREE.Mesh(new THREE.BoxGeometry(lpSz,lElev,lpSz),mats.post);
             lpm.position.set(pt[0],lElev/2,pt[1]);lpm.castShadow=true;stGrp.add(lpm);
             stGrp.add(new THREE.Mesh(new THREE.CylinderGeometry(pR,pR,0.4,12),mats.concrete)).position.set(pt[0],0.2,pt[1]);
           });
-          // Landing rail — only on outer edges (not where runs connect)
-          // Check each of the 4 edges of the landing
-          var lEdges=[
-            {x1:lr.x,z1:lr.y,x2:lr.x+lr.w,z2:lr.y},           // top (min z)
-            {x1:lr.x,z1:lr.y+lr.h,x2:lr.x+lr.w,z2:lr.y+lr.h}, // bottom (max z)
-            {x1:lr.x,z1:lr.y,x2:lr.x,z2:lr.y+lr.h},           // left (min x)
-            {x1:lr.x+lr.w,z1:lr.y,x2:lr.x+lr.w,z2:lr.y+lr.h}  // right (max x)
-          ];
-          lEdges.forEach(function(le){
-            var mx=(le.x1+le.x2)/2, mz=(le.z1+le.z2)/2;
-            var isVert=Math.abs(le.x1-le.x2)<0.01;
-            var edgeVal=isVert?le.x1:le.z1;
-            var axis=isVert?"x":"z";
-            // Check adjacency to any run
+          // Landing rail — outer edges only
+          [[lr.x,lr.y,lr.x+lr.w,lr.y,"z",lr.y],
+           [lr.x,lr.y+lr.h,lr.x+lr.w,lr.y+lr.h,"z",lr.y+lr.h],
+           [lr.x,lr.y,lr.x,lr.y+lr.h,"x",lr.x],
+           [lr.x+lr.w,lr.y,lr.x+lr.w,lr.y+lr.h,"x",lr.x+lr.w]].forEach(function(le){
             var adjRun=false;
             sg.runs.forEach(function(r){
               var rr=r.rect;
-              if(axis==="x"){
-                if(Math.abs(edgeVal-rr.x)<0.3||Math.abs(edgeVal-(rr.x+rr.w))<0.3){
-                  var oMin=Math.min(le.z1,le.z2),oMax=Math.max(le.z1,le.z2);
-                  if(rr.y<oMax&&rr.y+rr.h>oMin) adjRun=true;
+              if(le[4]==="x"){
+                if(Math.abs(le[5]-rr.x)<0.3||Math.abs(le[5]-(rr.x+rr.w))<0.3){
+                  var mn=Math.min(le[1],le[3]),mx2=Math.max(le[1],le[3]);
+                  if(rr.y<mx2&&rr.y+rr.h>mn)adjRun=true;
                 }
               } else {
-                if(Math.abs(edgeVal-rr.y)<0.3||Math.abs(edgeVal-(rr.y+rr.h))<0.3){
-                  var oMin=Math.min(le.x1,le.x2),oMax=Math.max(le.x1,le.x2);
-                  if(rr.x<oMax&&rr.x+rr.w>oMin) adjRun=true;
+                if(Math.abs(le[5]-rr.y)<0.3||Math.abs(le[5]-(rr.y+rr.h))<0.3){
+                  var mn=Math.min(le[0],le[2]),mx2=Math.max(le[0],le[2]);
+                  if(rr.x<mx2&&rr.x+rr.w>mn)adjRun=true;
                 }
               }
             });
             if(!adjRun){
-              // Draw landing rail
-              var len=isVert?Math.abs(le.z2-le.z1):Math.abs(le.x2-le.x1);
-              if(len>0.1){
-                var rG=isVert?new THREE.BoxGeometry(0.08,0.08,len):new THREE.BoxGeometry(len,0.08,0.08);
-                stGrp.add(new THREE.Mesh(rG,mats.rail)).position.set(mx,lElev+stRailH,mz);
-                // Posts at ends
+              var len2=Math.sqrt((le[2]-le[0])*(le[2]-le[0])+(le[3]-le[1])*(le[3]-le[1]));
+              if(len2>0.1){
+                var isV=Math.abs(le[0]-le[2])<0.01;
+                var rG=isV?new THREE.BoxGeometry(0.08,0.08,len2):new THREE.BoxGeometry(len2,0.08,0.08);
+                stGrp.add(new THREE.Mesh(rG,mats.rail)).position.set((le[0]+le[2])/2,lElev+stRailH,(le[1]+le[3])/2);
                 [0,1].forEach(function(idx){
-                  var pp2=new THREE.Mesh(new THREE.BoxGeometry(0.08,stRailH,0.08),mats.rail);
-                  pp2.position.set(idx===0?le.x1:le.x2, lElev+stRailH/2+brdTh, idx===0?le.z1:le.z2);
-                  stGrp.add(pp2);
+                  stGrp.add(new THREE.Mesh(new THREE.BoxGeometry(0.08,stRailH,0.08),mats.rail)).position.set(idx?le[2]:le[0],lElev+stRailH/2+brdTh,idx?le[3]:le[1]);
                 });
               }
             }
@@ -1256,12 +1162,9 @@ function Deck3D({ c, p }) {
 
         // Ground pad
         var bb=sg.bbox;
-        var pad=new THREE.Mesh(new THREE.BoxGeometry(bb.w+0.5,0.2,bb.h+0.5),
-          new THREE.MeshStandardMaterial({color:0xc0c0c0,roughness:0.95}));
-        pad.position.set((bb.minX+bb.maxX)/2,0.1,(bb.minY+bb.maxY)/2);
-        pad.receiveShadow=true;stGrp.add(pad);
+        stGrp.add(new THREE.Mesh(new THREE.BoxGeometry(bb.w+0.5,0.2,bb.h+0.5),
+          new THREE.MeshStandardMaterial({color:0xc0c0c0,roughness:0.95}))).position.set((bb.minX+bb.maxX)/2,0.1,(bb.minY+bb.maxY)/2);
 
-        // Position + rotate
         stGrp.position.set(cx+stPl.anchorX, 0, cz+stPl.anchorY);
         stGrp.rotation.y = -(stPl.angle||0)*Math.PI/180;
         scene.add(stGrp);
