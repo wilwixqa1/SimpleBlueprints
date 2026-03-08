@@ -50,7 +50,7 @@ function Deck3D({ c, p }) {
     var exitSide = stPl ? (stPl.angle === 90 ? "right" : stPl.angle === 270 ? "left" : stPl.angle === 180 ? "back" : "front") : null;
     var stW = (p.stairWidth || 4);
     var frontGap = null, leftGap = null, rightGap = null;
-    // Compute stair geometry early — needed for deck clipping AND 3D stair rendering
+    // Compute stair geometry early — needed for 2D overlap AND 3D rendering
     var sg = hasSt ? window.computeStairGeometry({
       template: p.stairTemplate || "straight", height: H,
       stairWidth: p.stairWidth || 4, numStringers: p.numStringers || 3,
@@ -58,13 +58,39 @@ function Deck3D({ c, p }) {
       landingDepth: p.stairLandingDepth || null,
       stairGap: p.stairGap != null ? p.stairGap : 0.5
     }) : null;
-    if (hasSt && stPl) {
-      if (exitSide === "front") { var gc = cx + stPl.anchorX; frontGap = { min: gc - stW/2, max: gc + stW/2 }; }
-      else if (exitSide === "right") { var gc = cz + stPl.anchorY; rightGap = { min: gc - stW/2, max: gc + stW/2 }; }
-      else if (exitSide === "left") { var gc = cz + stPl.anchorY; leftGap = { min: gc - stW/2, max: gc + stW/2 }; }
+    // Compute ACTUAL 2D overlap between stair footprint and deck
+    // Deck world: X=[cx, cx+W], Z=[cz, cz+D]
+    var stairClipD = 0;
+    if (hasSt && stPl && sg && sg.runs.length > 0) {
+      var runLen = sg.runs[0].runFt;
+      if (exitSide === "front") {
+        // Stair Z: starts at anchorY (=D for edge), extends outward
+        // Overlap = how much stair is INSIDE deck Z range
+        stairClipD = Math.max(0, (cz + D) - (cz + stPl.anchorY));
+        var gc = cx + stPl.anchorX;
+        var sxMin = gc - stW/2, sxMax = gc + stW/2;
+        // Only create gap if stair X overlaps deck X
+        if (sxMax > cx && sxMin < cx + W) {
+          frontGap = { min: Math.max(sxMin, cx), max: Math.min(sxMax, cx + W) };
+        }
+      } else if (exitSide === "right") {
+        // Stair X: starts at anchorX (=W for edge), extends rightward
+        stairClipD = Math.max(0, (cx + W) - (cx + stPl.anchorX));
+        var gc = cz + stPl.anchorY;
+        var szMin = gc - stW/2, szMax = gc + stW/2;
+        if (szMax > cz && szMin < cz + D) {
+          rightGap = { min: Math.max(szMin, cz), max: Math.min(szMax, cz + D) };
+        }
+      } else if (exitSide === "left") {
+        // Stair X: starts at anchorX (=0 for edge), extends leftward
+        stairClipD = Math.max(0, (cx + stPl.anchorX) - cx);
+        var gc = cz + stPl.anchorY;
+        var szMin = gc - stW/2, szMax = gc + stW/2;
+        if (szMax > cz && szMin < cz + D) {
+          leftGap = { min: Math.max(szMin, cz), max: Math.min(szMax, cz + D) };
+        }
+      }
     }
-    // Clip depth = first run's actual 2D footprint depth
-    var stairClipD = (sg && sg.runs.length > 0) ? sg.runs[0].runFt : 0;
 
     // House
     const hW = p.houseWidth, hD = 14, hH = Math.max(H + 8, 12);
@@ -102,9 +128,9 @@ function Deck3D({ c, p }) {
       scene.add(new THREE.Mesh(new THREE.BoxGeometry(pD+0.2,0.15,pD+0.2), mats.metal)).position.set(cx+px, H, cz+D-1.5);
     });
 
-    // Beam + Ledger — split beam at stair gap (no structure where stairs exist)
+    // Beam + Ledger — split only if stair clip zone reaches the beam (1.5ft from front)
     const bH2 = 11.875/12, bW2 = beamSize.includes("3") ? 5.25/12 : 3.5/12;
-    if (frontGap) {
+    if (frontGap && stairClipD > 1.5) {
       var bL = frontGap.min - (cx + 1);
       var bR = (cx + W - 1) - frontGap.max;
       if (bL > 0.1) { var bmL = new THREE.Mesh(new THREE.BoxGeometry(bL,bH2,bW2), mats.beam); bmL.position.set(cx+1+bL/2, H-bH2/2-0.1, cz+D-1.5); bmL.castShadow=true; scene.add(bmL); }
@@ -114,11 +140,11 @@ function Deck3D({ c, p }) {
     }
     scene.add(new THREE.Mesh(new THREE.BoxGeometry(W,9.25/12,1.5/12), mats.joist)).position.set(cx+W/2, H-0.4, cz+0.06);
 
-    // Joists — skip any joist at X positions within front stair gap
+    // Joists — skip at stair X only if clip zone is deep enough to expose them
     const jH2=9.25/12, jW2=1.5/12, jLen=D-1.5;
     for (let x=sp/12; x<W; x+=sp/12) {
       var jx = cx + x;
-      if (frontGap && jx > frontGap.min + 0.05 && jx < frontGap.max - 0.05) continue;
+      if (frontGap && stairClipD > 0.5 && jx > frontGap.min + 0.05 && jx < frontGap.max - 0.05) continue;
       scene.add(new THREE.Mesh(new THREE.BoxGeometry(jW2,jH2,jLen), mats.joist)).position.set(jx, H-jH2/2-0.1, cz+jLen/2);
     }
 
@@ -140,17 +166,16 @@ function Deck3D({ c, p }) {
       if(s2>0.1) addRimSeg(cx+W, H-jH2/2-0.1, rightGap.max+s2/2, jW2, jH2, s2);
     } else { addRimSeg(cx+W, H-jH2/2-0.1, cz+D/2, jW2, jH2, D); }
 
-    // Decking — skip boards at stair coordinates (no deck where stairs exist)
+    // Decking — shorten boards only where stair actually overlaps deck (stairClipD)
     const bdW=5.5/12, bdH=1/12;
-    // Shared visual stair dimensions (used by stair rendering below)
-    const V_TREAD_RUN = 10.5 / 12;  // tread depth (IRC fixed)
-    const V_STR_W = 0.25;           // stringer visual width
-    const V_STR_H = 0.9;            // stringer visual height
-    const V_RAIL_W = 0.15;          // handrail post width
+    const V_TREAD_RUN = 10.5 / 12;
+    const V_STR_W = 0.25;
+    const V_STR_H = 0.9;
+    const V_RAIL_W = 0.15;
     for (let x=bdW/2; x<W; x+=bdW) {
       var bx = cx + x;
-      // Front stair: shorten board — clip depth = first run's 2D footprint
-      if (frontGap && bx > frontGap.min + 0.02 && bx < frontGap.max - 0.02) {
+      // Front stair: shorten board by stairClipD (0 for edge stairs = full board)
+      if (frontGap && stairClipD > 0.1 && bx > frontGap.min + 0.02 && bx < frontGap.max - 0.02) {
         var shortLen = D - stairClipD;
         if (shortLen > 0.2) {
           var b = new THREE.Mesh(new THREE.BoxGeometry(bdW-0.02, bdH, shortLen), mats.deck);
@@ -158,15 +183,16 @@ function Deck3D({ c, p }) {
         }
         continue;
       }
-      // For left/right gaps, split board around the gap
-      if (leftGap && bx < cx + stW + 0.5) {
+      // Left stair: split board only if overlap
+      if (leftGap && stairClipD > 0.1 && bx < cx + stairClipD) {
         var seg1 = leftGap.min - cz;
         var seg2 = (cz + D) - leftGap.max;
         if (seg1 > 0.1) { var b1 = new THREE.Mesh(new THREE.BoxGeometry(bdW-0.02, bdH, seg1), mats.deck); b1.position.set(bx, H+bdH/2, cz+seg1/2); b1.receiveShadow=true; scene.add(b1); }
         if (seg2 > 0.1) { var b2 = new THREE.Mesh(new THREE.BoxGeometry(bdW-0.02, bdH, seg2), mats.deck); b2.position.set(bx, H+bdH/2, leftGap.max+seg2/2); b2.receiveShadow=true; scene.add(b2); }
         continue;
       }
-      if (rightGap && bx > cx + W - stW - 0.5) {
+      // Right stair: split board only if overlap
+      if (rightGap && stairClipD > 0.1 && bx > cx + W - stairClipD) {
         var seg1 = rightGap.min - cz;
         var seg2 = (cz + D) - rightGap.max;
         if (seg1 > 0.1) { var b1 = new THREE.Mesh(new THREE.BoxGeometry(bdW-0.02, bdH, seg1), mats.deck); b1.position.set(bx, H+bdH/2, cz+seg1/2); b1.receiveShadow=true; scene.add(b1); }
@@ -228,7 +254,7 @@ function Deck3D({ c, p }) {
     }
 
     // ================================================================
-    // STAIRS 3D — Visual overhaul: exaggerated proportions, no rails
+    // STAIRS 3D — Visual overhaul: exaggerated proportions
     // ================================================================
     if (hasSt && stPl && sg) {
         var stGrp = new THREE.Group();
