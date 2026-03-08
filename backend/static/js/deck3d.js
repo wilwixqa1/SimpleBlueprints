@@ -213,6 +213,19 @@ function Deck3D({ c, p }) {
     [[cx,cz],[cx+W,cz],[cx,cz+D],[cx+W,cz+D]].forEach(([x,z])=>{
       scene.add(new THREE.Mesh(new THREE.BoxGeometry(postW,rH+0.3,postW),mats.rail)).position.set(x,H+bdH+rH/2,z);
     });
+    // Terminal posts at stair gap edges (where railing meets stair opening)
+    if(frontGap){
+      scene.add(new THREE.Mesh(new THREE.BoxGeometry(postW,rH+0.3,postW),mats.rail)).position.set(frontGap.min,H+bdH+rH/2,cz+D);
+      scene.add(new THREE.Mesh(new THREE.BoxGeometry(postW,rH+0.3,postW),mats.rail)).position.set(frontGap.max,H+bdH+rH/2,cz+D);
+    }
+    if(leftGap){
+      scene.add(new THREE.Mesh(new THREE.BoxGeometry(postW,rH+0.3,postW),mats.rail)).position.set(cx,H+bdH+rH/2,leftGap.min);
+      scene.add(new THREE.Mesh(new THREE.BoxGeometry(postW,rH+0.3,postW),mats.rail)).position.set(cx,H+bdH+rH/2,leftGap.max);
+    }
+    if(rightGap){
+      scene.add(new THREE.Mesh(new THREE.BoxGeometry(postW,rH+0.3,postW),mats.rail)).position.set(cx+W,H+bdH+rH/2,rightGap.min);
+      scene.add(new THREE.Mesh(new THREE.BoxGeometry(postW,rH+0.3,postW),mats.rail)).position.set(cx+W,H+bdH+rH/2,rightGap.max);
+    }
 
     // ================================================================
     // STAIRS 3D — Visual overhaul: exaggerated proportions, no rails
