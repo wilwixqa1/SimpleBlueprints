@@ -1,0 +1,544 @@
+// ============================================================
+// WIZARD STEPS — Step 0 (Size), Step 1 (Structure), Step 2 (Finishes), Step 3 (Review)
+// ============================================================
+const { useState: _stUS, useEffect: _stUE } = React;
+const { br: _br, mono: _mono, sans: _sans } = window.SB;
+
+// ── Shared UI helpers ──
+function Label({ children }) {
+  return <label style={{ display: "block", fontSize: 10, fontWeight: 700, color: _br.mu, marginBottom: 4, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>{children}</label>;
+}
+
+function Slider({ label, value, min, max, step: s = 1, field, unit = "'", u, p }) {
+  const [editing, setEditing] = _stUS(false);
+  const [draft, setDraft] = _stUS(String(value));
+  const commit = () => {
+    setEditing(false);
+    let v = parseFloat(draft);
+    if (isNaN(v)) v = value;
+    v = Math.max(min, Math.min(max, s < 1 ? v : Math.round(v / s) * s));
+    u(field, v);
+    setDraft(String(v));
+  };
+  _stUE(() => { if (!editing) setDraft(String(value)); }, [value, editing]);
+  return (
+    <div style={{ marginBottom: 16 }}><Label>{label}</Label>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <input type="range" min={min} max={max} step={s} value={value} onChange={e => u(field, Number(e.target.value))} style={{ flex: 1, accentColor: _br.gn, height: 6 }} />
+        {editing ? (
+          <input type="number" min={min} max={max} step={s} value={draft} onChange={e => setDraft(e.target.value)} onBlur={commit} onKeyDown={e => e.key === "Enter" && commit()} autoFocus
+            style={{ width: 60, fontFamily: _mono, fontSize: 16, fontWeight: 800, color: _br.tx, textAlign: "right", border: `2px solid ${_br.gn}`, borderRadius: 4, padding: "2px 4px", outline: "none", background: "#fff" }} />
+        ) : (
+          <span onClick={() => setEditing(true)} style={{ fontFamily: _mono, fontSize: 18, fontWeight: 800, color: _br.tx, minWidth: 58, textAlign: "center", cursor: "text", background: "#f0ede4", borderRadius: 5, padding: "2px 8px", border: `1px solid ${_br.bd}`, display: "inline-flex", alignItems: "center", gap: 4 }}>{value}{unit}<span style={{ fontSize: 10, color: _br.mu, opacity: 0.6 }}>{"\u270E"}</span></span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Chips({ label, field, opts, u, p }) {
+  return (
+    <div style={{ marginBottom: 16 }}><Label>{label}</Label>
+      <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+        {opts.map(([v, t]) => <button key={v} onClick={() => u(field, v)} style={{ padding: "7px 14px", borderRadius: 6, fontSize: 11, fontFamily: _mono, cursor: "pointer", border: p[field] === v ? `2px solid ${_br.gn}` : `1px solid ${_br.bd}`, background: p[field] === v ? _br.gn : "#fff", color: p[field] === v ? "#fff" : _br.tx, fontWeight: p[field] === v ? 700 : 400, transition: "all 0.15s" }}>{t}</button>)}
+      </div>
+    </div>
+  );
+}
+
+function Spec({ l, v, color }) {
+  return <div style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", borderBottom: `1px solid ${_br.wr}` }}><span style={{ fontSize: 11, color: _br.mu, fontFamily: _mono }}>{l}</span><span style={{ fontSize: 11, fontWeight: 700, color: color || _br.tx, fontFamily: _mono }}>{v}</span></div>;
+}
+
+// ── Step Content ──
+function StepContent(props) {
+  const { step, p, u, c, m, info, setI, showAdvanced, setShowAdvanced,
+    sitePlanMode, setSitePlanMode, sitePlanFile, setSitePlanFile, setSitePlanB64,
+    isProduction, feedbackDone, setFeedbackDone, feedback, setFeedback, submitFeedback,
+    genStatus, genError, generateBlueprint, user, API } = props;
+
+  if (step === 0) return <>
+    <Slider label="Width (along house)" value={p.width} min={8} max={50} field="width" u={u} p={p} />
+    <Slider label="Depth (from house)" value={p.depth} min={6} max={24} field="depth" u={u} p={p} />
+    <Slider label="Height above grade" value={p.height} min={1} max={14} field="height" u={u} p={p} />
+    <Slider label="House width" value={p.houseWidth} min={20} max={80} field="houseWidth" u={u} p={p} />
+    <Chips label="Attachment" field="attachment" opts={[["ledger", "Ledger Board"], ["freestanding", "Freestanding"]]} u={u} p={p} />
+    <Chips label="Stairs" field="hasStairs" opts={[[true, "Yes"], [false, "No"]]} u={u} p={p} />
+    {p.hasStairs && <>
+      <Chips label="Stair location" field="stairLocation" opts={[["front", "Front"], ["left", "Left"], ["right", "Right"]]} u={u} p={p} />
+      <Slider label="Stair width" value={p.stairWidth} min={3} max={p.width} field="stairWidth" u={u} p={p} />
+      <Slider label="Number of stringers" value={p.numStringers} min={2} max={5} field="numStringers" unit="" u={u} p={p} />
+      <Chips label="Landing pad" field="hasLanding" opts={[[true, "Yes"], [false, "No"]]} u={u} p={p} />
+    {p.hasStairs && <>
+      <div style={{ marginBottom: 16 }}>
+        <Label>Stair Template</Label>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 5 }}>
+          {[
+            ["straight", "Straight", "\u2193"],
+            ["lLeft", "L-Left", "\u2193\u2190"],
+            ["lRight", "L-Right", "\u2193\u2192"],
+            ["switchback", "U-Turn", "\u2193\u2191"],
+            ["wrapAround", "Wrap", "\u2193\u2190\u2191"],
+            ["wideLanding", "Platform", "\u2193\u25A0\u2193"],
+          ].map(([key, name, icon]) => (
+            <button key={key} onClick={() => u("stairTemplate", key)} style={{
+              padding: "10px 4px", borderRadius: 6, cursor: "pointer", textAlign: "center",
+              border: p.stairTemplate === key ? "2px solid " + _br.gn : "1px solid " + _br.bd,
+              background: p.stairTemplate === key ? "#edf5e8" : "#fff",
+              fontFamily: _mono, transition: "all 0.15s",
+            }}>
+              <div style={{ fontSize: 16, marginBottom: 2 }}>{icon}</div>
+              <div style={{ fontSize: 9, fontWeight: 700, color: p.stairTemplate === key ? _br.gn : _br.tx }}>{name}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+    </>}
+
+    </>}
+
+    <button onClick={() => setShowAdvanced(!showAdvanced)} style={{ width: "100%", padding: "8px 14px", marginBottom: 12, background: "none", border: `1px solid ${_br.bd}`, borderRadius: 6, cursor: "pointer", fontSize: 10, fontFamily: _mono, color: _br.mu, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <span>Positioning (drag in preview or set here)</span>
+      <span style={{ transform: showAdvanced ? "rotate(180deg)" : "none", transition: "0.2s" }}>{"\u25BE"}</span>
+    </button>
+    {showAdvanced && <div style={{ padding: 14, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}`, marginBottom: 12 }}>
+      <Slider label="Deck offset from center" value={p.deckOffset} min={-Math.floor(p.houseWidth / 2)} max={Math.floor(p.houseWidth / 2)} field="deckOffset" unit="'" u={u} p={p} />
+      {p.hasStairs && p.stairAnchorX == null && <Slider label="Stair offset from center" value={p.stairOffset} min={-Math.floor((p.stairLocation === "front" ? (p.width - (p.stairWidth || 4)) : (p.depth - (p.stairWidth || 4))) / 2)} max={Math.floor((p.stairLocation === "front" ? (p.width - (p.stairWidth || 4)) : (p.depth - (p.stairWidth || 4))) / 2)} field="stairOffset" unit="'" u={u} p={p} />}
+      {p.hasStairs && p.stairAnchorX != null && <>
+        <Slider label="Stair anchor X (from left)" value={p.stairAnchorX} min={0} max={p.width} step={0.5} field="stairAnchorX" unit="'" u={u} p={p} />
+        <Slider label="Stair anchor Y (from house)" value={p.stairAnchorY} min={0} max={p.depth} step={0.5} field="stairAnchorY" unit="'" u={u} p={p} />
+        <Slider label="Stair angle" value={p.stairAngle} min={0} max={270} step={90} field="stairAngle" unit="\u00B0" u={u} p={p} />
+        <button onClick={() => { u("stairAnchorX", null); u("stairAnchorY", null); u("stairAngle", null); }} style={{ padding: "5px 12px", fontSize: 9, fontFamily: _mono, color: "#c62828", background: "none", border: "1px solid #c62828", borderRadius: 4, cursor: "pointer", marginBottom: 8 }}>Reset to edge mode</button>
+      </>}
+    {["lLeft","lRight","switchback","wrapAround","wideLanding"].includes(p.stairTemplate) && p.hasStairs && (<>
+      <Slider label="Run Split (1st run %)" value={p.stairRunSplit!=null?p.stairRunSplit:55} min={30} max={70} step={5} field="stairRunSplit" unit="%" u={u} p={p} />
+      <Slider label="Landing Depth" value={p.stairLandingDepth!=null?p.stairLandingDepth:Math.max(p.stairWidth||4,4)} min={3} max={8} step={0.5} field="stairLandingDepth" unit="'" u={u} p={p} />
+    </>)}
+    {["switchback","wrapAround"].includes(p.stairTemplate) && p.hasStairs && (
+      <Slider label="Gap Between Runs" value={p.stairGap!=null?p.stairGap:0.5} min={0} max={2} step={0.5} field="stairGap" unit="'" u={u} p={p} />
+    )}
+    </div>}
+
+    <div style={{ marginTop: 16, padding: 14, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}` }}>
+      <div style={{ fontSize: 10, fontWeight: 700, color: _br.gn, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 4 }}>Site Plan / Survey</div>
+      <div style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, marginBottom: 10, lineHeight: 1.5 }}>
+        Find lot dimensions and setbacks on your county assessor website or in your home's survey/closing documents. Setbacks come from your local zoning code.
+      </div>
+      <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+        {[["generate", "Generate for me"], ["upload", "Upload my survey"]].map(([v, t]) => (
+          <button key={v} onClick={() => setSitePlanMode(v)} style={{ flex: 1, padding: "8px 12px", borderRadius: 6, fontSize: 11, fontFamily: _mono, cursor: "pointer", border: sitePlanMode === v ? `2px solid ${_br.gn}` : `1px solid ${_br.bd}`, background: sitePlanMode === v ? _br.gn : "#fff", color: sitePlanMode === v ? "#fff" : _br.tx, fontWeight: sitePlanMode === v ? 700 : 400, transition: "all 0.15s" }}>{t}</button>
+        ))}
+      </div>
+
+      {sitePlanMode === "generate" && <>
+        <Slider label="Lot width" value={p.lotWidth} min={30} max={300} field="lotWidth" u={u} p={p} />
+        <Slider label="Lot depth" value={p.lotDepth} min={50} max={400} field="lotDepth" u={u} p={p} />
+        <Slider label="House depth" value={p.houseDepth} min={20} max={60} field="houseDepth" u={u} p={p} />
+        <Slider label="Front setback" value={p.setbackFront} min={0} max={50} field="setbackFront" u={u} p={p} />
+        <Slider label="Side setback" value={p.setbackSide} min={0} max={30} field="setbackSide" u={u} p={p} />
+        <Slider label="Rear setback" value={p.setbackRear} min={0} max={50} field="setbackRear" u={u} p={p} />
+        <Slider label="House offset from left" value={p.houseOffsetSide} min={5} max={Math.max(5, p.lotWidth - p.houseWidth - 5)} field="houseOffsetSide" u={u} p={p} />
+      </>}
+
+      {sitePlanMode === "upload" && (
+        <div style={{ textAlign: "center", padding: 20, border: `2px dashed ${sitePlanFile ? _br.gn : _br.bd}`, borderRadius: 8, background: sitePlanFile ? "#edf5e8" : "#fff", cursor: "pointer", position: "relative" }}
+          onClick={() => document.getElementById("sitePlanInput").click()}>
+          <input id="sitePlanInput" type="file" accept=".pdf,.png,.jpg,.jpeg" style={{ display: "none" }} onChange={e => {
+            const file = e.target.files[0]; if (!file) return;
+            setSitePlanFile(file);
+            const reader = new FileReader();
+            reader.onload = () => setSitePlanB64(reader.result.split(",")[1]);
+            reader.readAsDataURL(file);
+          }} />
+          {sitePlanFile ? (
+            <div>
+              <div style={{ fontSize: 20, marginBottom: 6 }}>{"\u2713"}</div>
+              <div style={{ fontSize: 11, fontFamily: _mono, color: _br.gn, fontWeight: 700 }}>{sitePlanFile.name}</div>
+              <div style={{ fontSize: 9, fontFamily: _mono, color: _br.mu, marginTop: 4 }}>{(sitePlanFile.size / 1024).toFixed(0)} KB · Click to change</div>
+            </div>
+          ) : (
+            <div>
+              <div style={{ fontSize: 24, marginBottom: 6 }}>{"\uD83D\uDCC4"}</div>
+              <div style={{ fontSize: 11, fontFamily: _mono, color: _br.tx, fontWeight: 600 }}>Click to upload your survey</div>
+              <div style={{ fontSize: 9, fontFamily: _mono, color: _br.mu, marginTop: 4 }}>PDF, PNG, or JPG</div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  </>;
+
+  if (step === 1) return <>
+    <Chips label="Joist spacing" field="joistSpacing" opts={[[12, '12" O.C.'], [16, '16" O.C.'], [24, '24" O.C.']]} u={u} p={p} />
+    <Chips label="Snow load" field="snowLoad" opts={[["none", "None"], ["light", "Light"], ["moderate", "Moderate"], ["heavy", "Heavy"]]} u={u} p={p} />
+    <Chips label="Frost zone" field="frostZone" opts={[["warm", '12"'], ["moderate", '24"'], ["cold", '36"'], ["severe", '48"']]} u={u} p={p} />
+
+    <div style={{ marginTop: 16, padding: 14, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}` }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: _br.gn, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>Structural Members</div>
+        <div style={{ fontSize: 8, color: _br.mu, fontFamily: _mono }}>AUTO = IRC recommended</div>
+      </div>
+
+      {(() => { const isOver = !!p.overJoist; const val = isOver ? p.overJoist : c.auto.joist; return (
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+            <span style={{ fontSize: 10, color: _br.mu, fontFamily: _mono, fontWeight: 700 }}>JOISTS</span>
+            <button onClick={() => u("overJoist", isOver ? null : c.auto.joist)} style={{ fontSize: 8, fontFamily: _mono, padding: "2px 8px", borderRadius: 3, cursor: "pointer", border: `1px solid ${isOver ? _br.ac : _br.bd}`, background: isOver ? "#fef9e7" : "#fff", color: isOver ? _br.ac : _br.mu, fontWeight: 700 }}>{isOver ? "MANUAL \u270E" : "AUTO \u2713"}</button>
+          </div>
+          <div style={{ display: "flex", gap: 4 }}>
+            {["2x6", "2x8", "2x10", "2x12"].map(sz => (
+              <button key={sz} onClick={() => isOver && u("overJoist", sz)} style={{
+                flex: 1, padding: "6px 4px", fontSize: 10, fontFamily: _mono, cursor: isOver ? "pointer" : "default",
+                border: val === sz ? `2px solid ${isOver ? _br.ac : _br.gn}` : `1px solid ${_br.bd}`,
+                background: val === sz ? (isOver ? "#fef9e7" : "#edf5e8") : (isOver ? "#fff" : "#fafafa"),
+                color: val === sz ? (isOver ? _br.ac : _br.gn) : (isOver ? _br.tx : "#ccc"),
+                borderRadius: 5, fontWeight: val === sz ? 700 : 400, opacity: isOver ? 1 : 0.7,
+                textAlign: "center", position: "relative",
+              }}>
+                {sz}
+                {!isOver && sz === c.auto.joist && <div style={{ fontSize: 6, color: _br.gn, marginTop: 1 }}>REC</div>}
+              </button>
+            ))}
+          </div>
+        </div>
+      ); })()}
+
+      {(() => { const isOver = !!p.overBeam; const val = isOver ? p.overBeam : c.auto.beam; const opts = ["2-ply 2x10", "3-ply 2x10", "3-ply 2x12", "3-ply LVL 1.75x12"]; return (
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+            <span style={{ fontSize: 10, color: _br.mu, fontFamily: _mono, fontWeight: 700 }}>BEAM</span>
+            <button onClick={() => u("overBeam", isOver ? null : c.auto.beam)} style={{ fontSize: 8, fontFamily: _mono, padding: "2px 8px", borderRadius: 3, cursor: "pointer", border: `1px solid ${isOver ? _br.ac : _br.bd}`, background: isOver ? "#fef9e7" : "#fff", color: isOver ? _br.ac : _br.mu, fontWeight: 700 }}>{isOver ? "MANUAL \u270E" : "AUTO \u2713"}</button>
+          </div>
+          <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+            {opts.map(sz => { const short = sz.replace("1.75x12", "LVL").replace("-ply ", "\u00D7"); return (
+              <button key={sz} onClick={() => isOver && u("overBeam", sz)} style={{
+                flex: "1 1 auto", padding: "6px 6px", fontSize: 9, fontFamily: _mono, cursor: isOver ? "pointer" : "default",
+                border: val === sz ? `2px solid ${isOver ? _br.ac : _br.gn}` : `1px solid ${_br.bd}`,
+                background: val === sz ? (isOver ? "#fef9e7" : "#edf5e8") : (isOver ? "#fff" : "#fafafa"),
+                color: val === sz ? (isOver ? _br.ac : _br.gn) : (isOver ? _br.tx : "#ccc"),
+                borderRadius: 5, fontWeight: val === sz ? 700 : 400, opacity: isOver ? 1 : 0.7, textAlign: "center",
+              }}>
+                {short}
+                {!isOver && sz === c.auto.beam && <div style={{ fontSize: 6, color: _br.gn, marginTop: 1 }}>REC</div>}
+              </button>
+            ); })}
+          </div>
+        </div>
+      ); })()}
+
+      {(() => { const isOver = !!p.overPostSize; const val = isOver ? p.overPostSize : c.auto.postSize; return (
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+            <span style={{ fontSize: 10, color: _br.mu, fontFamily: _mono, fontWeight: 700 }}>POST SIZE</span>
+            <button onClick={() => u("overPostSize", isOver ? null : c.auto.postSize)} style={{ fontSize: 8, fontFamily: _mono, padding: "2px 8px", borderRadius: 3, cursor: "pointer", border: `1px solid ${isOver ? _br.ac : _br.bd}`, background: isOver ? "#fef9e7" : "#fff", color: isOver ? _br.ac : _br.mu, fontWeight: 700 }}>{isOver ? "MANUAL \u270E" : "AUTO \u2713"}</button>
+          </div>
+          <div style={{ display: "flex", gap: 4 }}>
+            {["4x4", "6x6"].map(sz => (
+              <button key={sz} onClick={() => isOver && u("overPostSize", sz)} style={{
+                flex: 1, padding: "6px 4px", fontSize: 10, fontFamily: _mono, cursor: isOver ? "pointer" : "default",
+                border: val === sz ? `2px solid ${isOver ? _br.ac : _br.gn}` : `1px solid ${_br.bd}`,
+                background: val === sz ? (isOver ? "#fef9e7" : "#edf5e8") : (isOver ? "#fff" : "#fafafa"),
+                color: val === sz ? (isOver ? _br.ac : _br.gn) : (isOver ? _br.tx : "#ccc"),
+                borderRadius: 5, fontWeight: val === sz ? 700 : 400, opacity: isOver ? 1 : 0.7, textAlign: "center",
+              }}>
+                {sz}
+                {!isOver && sz === c.auto.postSize && <div style={{ fontSize: 6, color: _br.gn, marginTop: 1 }}>REC</div>}
+              </button>
+            ))}
+          </div>
+        </div>
+      ); })()}
+
+      {(() => { const isOver = !!p.overPostCount; const val = isOver ? p.overPostCount : c.auto.postCount; return (
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+            <span style={{ fontSize: 10, color: _br.mu, fontFamily: _mono, fontWeight: 700 }}>POST COUNT</span>
+            <button onClick={() => u("overPostCount", isOver ? null : c.auto.postCount)} style={{ fontSize: 8, fontFamily: _mono, padding: "2px 8px", borderRadius: 3, cursor: "pointer", border: `1px solid ${isOver ? _br.ac : _br.bd}`, background: isOver ? "#fef9e7" : "#fff", color: isOver ? _br.ac : _br.mu, fontWeight: 700 }}>{isOver ? "MANUAL \u270E" : "AUTO \u2713"}</button>
+          </div>
+          <div style={{ display: "flex", gap: 4 }}>
+            {[2, 3, 4, 5, 6].map(n => (
+              <button key={n} onClick={() => isOver && u("overPostCount", n)} style={{
+                flex: 1, padding: "6px 4px", fontSize: 10, fontFamily: _mono, cursor: isOver ? "pointer" : "default",
+                border: val === n ? `2px solid ${isOver ? _br.ac : _br.gn}` : `1px solid ${_br.bd}`,
+                background: val === n ? (isOver ? "#fef9e7" : "#edf5e8") : (isOver ? "#fff" : "#fafafa"),
+                color: val === n ? (isOver ? _br.ac : _br.gn) : (isOver ? _br.tx : "#ccc"),
+                borderRadius: 5, fontWeight: val === n ? 700 : 400, opacity: isOver ? 1 : 0.7, textAlign: "center",
+              }}>
+                {n}
+                {!isOver && n === c.auto.postCount && <div style={{ fontSize: 6, color: _br.gn, marginTop: 1 }}>REC</div>}
+              </button>
+            ))}
+          </div>
+        </div>
+      ); })()}
+
+      {(() => { const isOver = !!p.overFooting; const val = isOver ? p.overFooting : c.auto.footing; return (
+        <div style={{ marginBottom: 6 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+            <span style={{ fontSize: 10, color: _br.mu, fontFamily: _mono, fontWeight: 700 }}>FOOTING DIA.</span>
+            <button onClick={() => u("overFooting", isOver ? null : c.auto.footing)} style={{ fontSize: 8, fontFamily: _mono, padding: "2px 8px", borderRadius: 3, cursor: "pointer", border: `1px solid ${isOver ? _br.ac : _br.bd}`, background: isOver ? "#fef9e7" : "#fff", color: isOver ? _br.ac : _br.mu, fontWeight: 700 }}>{isOver ? "MANUAL \u270E" : "AUTO \u2713"}</button>
+          </div>
+          <div style={{ display: "flex", gap: 4 }}>
+            {[12, 16, 18, 21, 24, 30].map(d => (
+              <button key={d} onClick={() => isOver && u("overFooting", d)} style={{
+                flex: 1, padding: "6px 2px", fontSize: 9, fontFamily: _mono, cursor: isOver ? "pointer" : "default",
+                border: val === d ? `2px solid ${isOver ? _br.ac : _br.gn}` : `1px solid ${_br.bd}`,
+                background: val === d ? (isOver ? "#fef9e7" : "#edf5e8") : (isOver ? "#fff" : "#fafafa"),
+                color: val === d ? (isOver ? _br.ac : _br.gn) : (isOver ? _br.tx : "#ccc"),
+                borderRadius: 5, fontWeight: val === d ? 700 : 400, opacity: isOver ? 1 : 0.7, textAlign: "center",
+              }}>
+                {d}"
+                {!isOver && d === c.auto.footing && <div style={{ fontSize: 6, color: _br.gn, marginTop: 1 }}>REC</div>}
+              </button>
+            ))}
+          </div>
+        </div>
+      ); })()}
+
+      <div style={{ marginBottom: 8 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+          <span style={{ fontSize: 9, fontFamily: _mono, letterSpacing: 1, color: _br.mu, fontWeight: 700 }}>BEAM TYPE</span>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          {["dropped", "flush"].map(bt => (
+            <button key={bt} onClick={() => u("beamType", bt)} style={{
+              flex: 1, padding: "6px 4px", fontSize: 11, fontFamily: _mono,
+              cursor: "pointer", borderRadius: 4,
+              border: `1px solid ${p.beamType === bt ? _br.ac : _br.bd}`,
+              background: p.beamType === bt ? _br.ac : "#fff",
+              color: p.beamType === bt ? "#fff" : _br.mu,
+              fontWeight: p.beamType === bt ? 700 : 400,
+              textTransform: "capitalize"
+            }}>{bt === "dropped" ? "Dropped" : "Flush"}</button>
+          ))}
+        </div>
+        {p.beamType === "flush" && (
+          <div style={{ fontSize: 9, color: _br.mu, marginTop: 4, fontStyle: "italic" }}>
+            Beam sits inline with joists — requires LUS joist hangers
+          </div>
+        )}
+      </div>
+      <div style={{ height: 1, background: _br.bd, margin: "10px 0" }} />
+      <Spec l="Joist Span" v={`${c.jSpan}'`} /><Spec l="Beam Span" v={`${c.bSpan}'`} /><Spec l="Total Load" v={`${c.TL} PSF`} color={_br.rd} />
+      {c.warnings.map((w, i) => <div key={i} style={{ fontSize: 10, color: _br.rd, marginTop: 4, fontFamily: _mono }}>{"\u26A0\uFE0F"} {w}</div>)}
+    </div>
+  </>;
+
+  if (step === 2) return <>
+    <Chips label="Decking" field="deckingType" opts={[["composite", "Composite (Trex)"], ["pt_lumber", "Pressure Treated"]]} u={u} p={p} />
+    <Chips label="Railing" field="railType" opts={[["fortress", "Fortress Iron"], ["wood", "Wood"]]} u={u} p={p} />
+    <div style={{ marginTop: 16, padding: 14, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}` }}>
+      <div style={{ fontSize: 10, fontWeight: 700, color: _br.gn, marginBottom: 6, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>Cost Breakdown</div>
+      {["Foundation", "Posts", "Beam", "Ledger", "Framing", "Hardware", "Decking", "Railing", "Misc"].map(cat => { const t = m.items.filter(i => i.cat === cat).reduce((s, i) => s + i.qty * i.cost, 0); return t > 0 ? <Spec key={cat} l={cat} v={`$${t.toFixed(0)}`} /> : null; })}
+      <div style={{ height: 2, background: _br.gn, margin: "8px 0", opacity: 0.3 }} />
+      <Spec l="Subtotal" v={`$${m.sub.toFixed(0)}`} /><Spec l="Tax + Contingency" v={`$${(m.tax + m.cont).toFixed(0)}`} /><Spec l="TOTAL" v={`$${m.total.toFixed(0)}`} color={_br.gn} />
+    </div>
+  </>;
+
+  if (step === 3) return <>
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ fontSize: 10, fontWeight: 700, color: _br.gn, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 8 }}>Blueprint Preview</div>
+      <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 }}>
+        <div style={{ flex: "0 0 auto", width: 200, background: "#fff", border: `1px solid ${_br.bd}`, borderRadius: 6, overflow: "hidden", position: "relative" }}>
+          <div style={{ padding: "4px 8px", background: _br.wr, borderBottom: `1px solid ${_br.bd}` }}>
+            <span style={{ fontSize: 7, fontFamily: _mono, fontWeight: 700, color: _br.mu }}>SHEET A-1 — DECK PLAN</span>
+          </div>
+          <div style={{ padding: 4, height: 130 }}>
+            <svg viewBox="0 0 200 120" style={{ width: "100%", height: "100%" }}>
+              <rect x="30" y="5" width={Math.min(140, c.W * 3.5)} height={15} fill="#e8e6e0" stroke="#888" strokeWidth="0.5" />
+              <text x={30 + Math.min(140, c.W * 3.5) / 2} y="14" textAnchor="middle" style={{ fontSize: 4, fill: "#aaa" }}>HOUSE</text>
+              <rect x="30" y="20" width={Math.min(140, c.W * 3.5)} height={Math.min(80, c.D * 5)} fill="#efe5d5" stroke="#333" strokeWidth="0.8" />
+              {c.attachment === "ledger" && <line x1="30" y1="20" x2={30 + Math.min(140, c.W * 3.5)} y2="20" stroke="#2e7d32" strokeWidth="1.5" />}
+              {Array.from({ length: Math.min(20, Math.ceil(c.W / (c.sp / 12))) }, (_, i) => {
+                const x = 30 + (i + 1) * Math.min(140, c.W * 3.5) / Math.ceil(c.W / (c.sp / 12));
+                return x < 30 + Math.min(140, c.W * 3.5) ? <line key={i} x1={x} y1="21" x2={x} y2={20 + Math.min(80, c.D * 5) - 8} stroke="#ddd" strokeWidth="0.2" /> : null;
+              })}
+              <line x1="32" y1={20 + Math.min(80, c.D * 5) - 8} x2={28 + Math.min(140, c.W * 3.5)} y2={20 + Math.min(80, c.D * 5) - 8} stroke="#c4960a" strokeWidth="1.5" />
+              {c.pp.map((px, i) => <circle key={i} cx={30 + (px / c.W) * Math.min(140, c.W * 3.5)} cy={20 + Math.min(80, c.D * 5) - 8} r="2" fill="#c4a060" stroke="#444" strokeWidth="0.3" />)}
+              <text x={30 + Math.min(140, c.W * 3.5) / 2} y={20 + Math.min(80, c.D * 5) / 2} textAnchor="middle" style={{ fontSize: 5, fill: "#888" }}>{c.joistSize} @ {c.sp}" O.C.</text>
+              <text x={30 + Math.min(140, c.W * 3.5) / 2} y={20 + Math.min(80, c.D * 5) + 8} textAnchor="middle" style={{ fontSize: 5, fill: "#c62828", fontWeight: 700 }}>{c.W}'-0"</text>
+            </svg>
+          </div>
+          <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
+            <span style={{ fontSize: 22, fontWeight: 900, color: "rgba(61,90,46,0.08)", fontFamily: _mono, transform: "rotate(-20deg)", letterSpacing: 4 }}>PREVIEW</span>
+          </div>
+        </div>
+
+        <div style={{ flex: "0 0 auto", width: 200, background: "#fff", border: `1px solid ${_br.bd}`, borderRadius: 6, overflow: "hidden", position: "relative" }}>
+          <div style={{ padding: "4px 8px", background: _br.wr, borderBottom: `1px solid ${_br.bd}` }}>
+            <span style={{ fontSize: 7, fontFamily: _mono, fontWeight: 700, color: _br.mu }}>SHEET A-2 — ELEVATIONS</span>
+          </div>
+          <div style={{ padding: 4, height: 130 }}>
+            <svg viewBox="0 0 200 120" style={{ width: "100%", height: "100%" }}>
+              <line x1="15" y1="85" x2="185" y2="85" stroke="#444" strokeWidth="0.5" />
+              {(() => { const dw = Math.min(150, c.W * 3.5); const dx = (200 - dw) / 2; const hSc = Math.min(4, 50 / c.H); const dy = 85 - c.H * hSc; return (<>
+                <rect x={dx} y="15" width={dw} height={70} fill="#e8e6e0" stroke="#888" strokeWidth="0.3" />
+                <polygon points={`${dx - 3},15 ${dx + dw / 2},5 ${dx + dw + 3},15`} fill="#888" stroke="#444" strokeWidth="0.3" />
+                {c.pp.map((px, i) => <line key={i} x1={dx + (px / c.W) * dw} y1="85" x2={dx + (px / c.W) * dw} y2={dy} stroke="#c4a060" strokeWidth="1" />)}
+                <rect x={dx + 2} y={dy + 1} width={dw - 4} height={3} fill="#c4960a" fillOpacity="0.8" stroke="#444" strokeWidth="0.2" />
+                <line x1={dx} y1={dy} x2={dx + dw} y2={dy} stroke="#6B5340" strokeWidth="1.5" />
+                <line x1={dx} y1={dy - c.H * hSc * 0.4} x2={dx + dw} y2={dy - c.H * hSc * 0.4} stroke="#333" strokeWidth="0.8" />
+                <text x={dx + dw + 4} y={(85 + dy) / 2 + 1} style={{ fontSize: 5, fill: "#1565c0", fontWeight: 700 }}>{c.H}'</text>
+                <text x={dx + dw / 2} y="97" textAnchor="middle" style={{ fontSize: 5, fill: "#c62828", fontWeight: 700 }}>{c.W}'-0"</text>
+              </>); })()}
+            </svg>
+          </div>
+          <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
+            <span style={{ fontSize: 22, fontWeight: 900, color: "rgba(61,90,46,0.08)", fontFamily: _mono, transform: "rotate(-20deg)", letterSpacing: 4 }}>PREVIEW</span>
+          </div>
+        </div>
+
+        <div style={{ flex: "0 0 auto", width: 200, background: "#fff", border: `1px solid ${_br.bd}`, borderRadius: 6, overflow: "hidden", position: "relative" }}>
+          <div style={{ padding: "4px 8px", background: _br.wr, borderBottom: `1px solid ${_br.bd}` }}>
+            <span style={{ fontSize: 7, fontFamily: _mono, fontWeight: 700, color: _br.mu }}>SHEET A-3 — DETAILS</span>
+          </div>
+          <div style={{ padding: 8, height: 130, display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "1fr 1fr", gap: 4 }}>
+            {[
+              { t: "LEDGER DETAIL", lines: [[10, 30, 10, 80], [10, 30, 60, 30], [20, 30, 20, 80], [30, 35, 30, 75], [40, 35, 40, 75]] },
+              { t: "FOOTING DETAIL", lines: [[25, 20, 25, 70], [45, 20, 45, 70], [25, 70, 45, 70], [30, 15, 40, 15], [30, 15, 30, 20], [40, 15, 40, 20]] },
+              { t: "GUARD RAIL", lines: [[5, 65, 65, 65], [5, 15, 65, 15], [5, 15, 5, 65], [65, 15, 65, 65]] },
+              { t: "POST / BEAM", lines: [[25, 80, 25, 30], [45, 80, 45, 30], [10, 30, 60, 30], [10, 25, 60, 25]] },
+            ].map((detail, di) => (
+              <div key={di} style={{ background: "#fcfcfa", border: `0.5px solid ${_br.bd}`, borderRadius: 3, position: "relative", overflow: "hidden" }}>
+                <svg viewBox="0 0 70 90" style={{ width: "100%", height: "100%" }}>
+                  {detail.lines.map(([x1, y1, x2, y2], li) => <line key={li} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#bbb" strokeWidth="0.5" />)}
+                  <text x="35" y="87" textAnchor="middle" style={{ fontSize: 4.5, fill: "#aaa", fontWeight: 600 }}>{detail.t}</text>
+                </svg>
+              </div>
+            ))}
+          </div>
+          <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
+            <span style={{ fontSize: 22, fontWeight: 900, color: "rgba(61,90,46,0.08)", fontFamily: _mono, transform: "rotate(-20deg)", letterSpacing: 4 }}>PREVIEW</span>
+          </div>
+        </div>
+      </div>
+      <div style={{ textAlign: "center", marginTop: 6 }}>
+        <span style={{ fontSize: 8, color: _br.mu, fontFamily: _mono }}>4 sheets included · Plan · Elevations · Details · Materials</span>
+      </div>
+    </div>
+
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10, marginBottom: 14 }}>
+      <div style={{ padding: 12, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}` }}>
+        <div style={{ fontSize: 9, fontWeight: 700, color: _br.gn, marginBottom: 6, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>Project</div>
+        <Spec l="Size" v={`${c.W}'\u00D7${c.D}' (${c.area} SF)`} /><Spec l="Height" v={`${c.H}'`} /><Spec l="Attach" v={c.attachment === "ledger" ? "Ledger" : "Free"} /><Spec l="Stairs" v={p.hasStairs ? `${p.stairLocation} ${p.stairWidth || 4}' \u00B7 ${p.numStringers || 3} stringers${p.hasLanding ? " \u00B7 landing" : ""}` : "None"} /><Spec l="Deck" v={p.deckingType === "composite" ? "Composite" : "PT"} /><Spec l="Rail" v={p.railType === "fortress" ? "Fortress" : "Wood"} />
+      </div>
+      <div style={{ padding: 12, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}` }}>
+        <div style={{ fontSize: 9, fontWeight: 700, color: _br.gn, marginBottom: 6, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>Structure</div>
+        <Spec l="Joists" v={`${c.joistSize}@${c.sp}"`} /><Spec l="Beam" v={c.beamSize.replace("3-ply ","3\u00D7").replace("2-ply ","2\u00D7")} /><Spec l="Posts" v={`${c.postSize}\u00D7${c.nP}`} /><Spec l="Footings" v={`${c.fDiam}"\u00D8\u00D7${c.nF}`} /><Spec l="Load" v={`${c.TL} PSF`} color={_br.rd} />
+        {c.warnings.length > 0 && <div style={{ fontSize: 8, color: _br.rd, marginTop: 4, fontFamily: _mono }}>{"\u26A0\uFE0F"} {c.warnings.length} warning{c.warnings.length > 1 ? "s" : ""}</div>}
+      </div>
+    </div>
+
+    <div style={{ padding: 14, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}`, marginBottom: 14 }}>
+      <div style={{ fontSize: 9, fontWeight: 700, color: _br.gn, marginBottom: 10, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>Project Information <span style={{ fontWeight: 400, color: _br.mu, fontSize: 8 }}>(prints on title block)</span></div>
+      {[["owner", "Owner / Applicant Name"],["address", "Project Address"],["city", "City"]].map(([f, lbl]) => (
+        <div key={f} style={{ marginBottom: 8 }}>
+          <label style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, display: "block", marginBottom: 2 }}>{lbl}</label>
+          <input value={info[f]} onChange={e => setI(f, e.target.value)} placeholder={lbl}
+            style={{ width: "100%", padding: "7px 10px", border: `1px solid ${_br.bd}`, borderRadius: 5, fontSize: 12, fontFamily: _mono, color: _br.tx, background: "#fff", outline: "none" }} />
+        </div>
+      ))}
+      <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+        <div style={{ flex: 1 }}>
+          <label style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, display: "block", marginBottom: 2 }}>State</label>
+          <input value={info.state} onChange={e => setI("state", e.target.value)} placeholder="State"
+            style={{ width: "100%", padding: "7px 10px", border: `1px solid ${_br.bd}`, borderRadius: 5, fontSize: 12, fontFamily: _mono, color: _br.tx, background: "#fff", outline: "none" }} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <label style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, display: "block", marginBottom: 2 }}>ZIP</label>
+          <input value={info.zip} onChange={e => setI("zip", e.target.value)} placeholder="ZIP"
+            style={{ width: "100%", padding: "7px 10px", border: `1px solid ${_br.bd}`, borderRadius: 5, fontSize: 12, fontFamily: _mono, color: _br.tx, background: "#fff", outline: "none" }} />
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ flex: 1 }}>
+          <label style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, display: "block", marginBottom: 2 }}>Lot / Parcel #</label>
+          <input value={info.lot} onChange={e => setI("lot", e.target.value)} placeholder="Optional"
+            style={{ width: "100%", padding: "7px 10px", border: `1px solid ${_br.bd}`, borderRadius: 5, fontSize: 12, fontFamily: _mono, color: _br.tx, background: "#fff", outline: "none" }} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <label style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, display: "block", marginBottom: 2 }}>Contractor</label>
+          <input value={info.contractor} onChange={e => setI("contractor", e.target.value)} placeholder="Owner-Builder"
+            style={{ width: "100%", padding: "7px 10px", border: `1px solid ${_br.bd}`, borderRadius: 5, fontSize: 12, fontFamily: _mono, color: _br.tx, background: "#fff", outline: "none" }} />
+        </div>
+      </div>
+    </div>
+
+    {isProduction && !feedbackDone && <div style={{ padding: 16, background: "#fff8e1", borderRadius: 8, border: "1px solid #ffe082", marginBottom: 14 }}>
+      <div style={{ fontSize: 10, fontWeight: 700, color: "#f57f17", fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 8 }}>Quick Feedback <span style={{ fontWeight: 400, color: "#ffa000", fontSize: 8 }}>(helps us build what you need)</span></div>
+      <div style={{ marginBottom: 8 }}>
+        <label style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, display: "block", marginBottom: 2 }}>I am a...</label>
+        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+          {[["diy", "DIY Homeowner"], ["contractor", "Contractor"], ["designer", "Designer"], ["other", "Other"]].map(([v, t]) => (
+            <button key={v} onClick={() => setFeedback(f => ({...f, role: v}))} style={{ padding: "5px 12px", borderRadius: 5, fontSize: 10, fontFamily: _mono, cursor: "pointer", border: feedback.role === v ? "2px solid #f57f17" : "1px solid " + _br.bd, background: feedback.role === v ? "#fff3e0" : "#fff", color: feedback.role === v ? "#e65100" : _br.tx, fontWeight: feedback.role === v ? 700 : 400 }}>{t}</button>
+          ))}
+        </div>
+      </div>
+      <div style={{ marginBottom: 8 }}>
+        <label style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, display: "block", marginBottom: 2 }}>How did you find us?</label>
+        <input value={feedback.source} onChange={e => setFeedback(f => ({...f, source: e.target.value}))} placeholder="Google, Reddit, friend, etc." style={{ width: "100%", padding: "6px 10px", border: "1px solid " + _br.bd, borderRadius: 5, fontSize: 11, fontFamily: _mono, color: _br.tx, background: "#fff", outline: "none" }} />
+      </div>
+      <div style={{ marginBottom: 8 }}>
+        <label style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, display: "block", marginBottom: 2 }}>What would you pay for this?</label>
+        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+          {[["$0", "$0"], ["$25-49", "$25\u201349"], ["$50-99", "$50\u201399"], ["$100+", "$100+"]].map(([v, t]) => (
+            <button key={v} onClick={() => setFeedback(f => ({...f, price: v}))} style={{ padding: "5px 12px", borderRadius: 5, fontSize: 10, fontFamily: _mono, cursor: "pointer", border: feedback.price === v ? "2px solid #f57f17" : "1px solid " + _br.bd, background: feedback.price === v ? "#fff3e0" : "#fff", color: feedback.price === v ? "#e65100" : _br.tx, fontWeight: feedback.price === v ? 700 : 400 }}>{t}</button>
+          ))}
+        </div>
+      </div>
+      <div style={{ marginBottom: 8 }}>
+        <label style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, display: "block", marginBottom: 2 }}>Anything confusing or missing? <span style={{ color: "#bbb" }}>(optional)</span></label>
+        <textarea value={feedback.feedback} onChange={e => setFeedback(f => ({...f, feedback: e.target.value}))} placeholder="Your thoughts..." rows={2} style={{ width: "100%", padding: "6px 10px", border: "1px solid " + _br.bd, borderRadius: 5, fontSize: 11, fontFamily: _mono, color: _br.tx, background: "#fff", outline: "none", resize: "vertical" }} />
+      </div>
+      <div style={{ marginBottom: 10 }}>
+        <label style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, display: "block", marginBottom: 2 }}>Email <span style={{ color: "#bbb" }}>(optional — for launch notification)</span></label>
+        <input type="email" value={feedback.email} onChange={e => setFeedback(f => ({...f, email: e.target.value}))} placeholder="you@example.com" style={{ width: "100%", padding: "6px 10px", border: "1px solid " + _br.bd, borderRadius: 5, fontSize: 11, fontFamily: _mono, color: _br.tx, background: "#fff", outline: "none" }} />
+      </div>
+      <button onClick={submitFeedback} disabled={!feedback.role || !feedback.price} style={{ padding: "8px 20px", background: !feedback.role || !feedback.price ? "#ccc" : "#f57f17", border: "none", borderRadius: 6, color: "#fff", fontSize: 11, fontWeight: 700, cursor: !feedback.role || !feedback.price ? "default" : "pointer", fontFamily: _mono }}>Submit Feedback</button>
+      <span style={{ fontSize: 8, color: "#bbb", fontFamily: _mono, marginLeft: 8 }}>Required to generate on this domain</span>
+    </div>}
+    {isProduction && feedbackDone && <div style={{ padding: 10, background: "#e8f5e9", borderRadius: 8, border: "1px solid #c8e6c9", marginBottom: 14, textAlign: "center" }}>
+      <span style={{ fontSize: 11, color: "#2e7d32", fontFamily: _mono, fontWeight: 700 }}>{"\u2713"} Thanks for your feedback!</span>
+    </div>}
+
+    <div style={{ padding: 16, background: "#e8f5e9", borderRadius: 8, border: "1px solid #c8e6c9", textAlign: "center", marginBottom: 10 }}>
+      <div style={{ fontSize: 10, fontFamily: _mono, color: _br.gn, fontWeight: 700, letterSpacing: "1px", textTransform: "uppercase" }}>Estimated Materials</div>
+      <div style={{ fontSize: 36, fontWeight: 900, color: _br.gn, fontFamily: _mono }}>${m.total.toFixed(0)}</div>
+      <div style={{ fontSize: 10, color: "#66bb6a", fontFamily: _mono }}>Includes tax + 5% contingency</div>
+    </div>
+
+    <div style={{ background: _br.dk, borderRadius: 10, padding: 20, textAlign: "center", marginBottom: 10 }}>
+      <div style={{ fontSize: 10, fontFamily: _mono, color: "rgba(255,255,255,0.5)", letterSpacing: "2px", textTransform: "uppercase", marginBottom: 6 }}>Your Blueprint Package</div>
+      <div style={{ display: "flex", justifyContent: "center", gap: 16, marginBottom: 12, flexWrap: "wrap" }}>
+        {["Plan View", "Framing Plan", "Elevations", "Details", "Material List"].map(s => (
+          <div key={s} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <span style={{ color: "#66bb6a", fontSize: 11 }}>{"\u2713"}</span>
+            <span style={{ fontSize: 10, fontFamily: _mono, color: "rgba(255,255,255,0.8)" }}>{s}</span>
+          </div>
+        ))}
+      </div>
+      {user ? <>
+      <button
+        onClick={generateBlueprint}
+        disabled={genStatus === "generating" || (isProduction && !feedbackDone)}
+        style={{ padding: "14px 40px", background: genStatus === "generating" ? "#555" : genStatus === "done" ? "#2e7d32" : _br.gn, color: "#fff", border: "none", borderRadius: 8, fontSize: 16, fontWeight: 800, cursor: genStatus === "generating" ? "wait" : "pointer", fontFamily: _mono, letterSpacing: "1px", boxShadow: "0 4px 20px rgba(61,90,46,0.4)", transition: "all 0.2s" }}>
+        {genStatus === "generating" ? "Generating PDF..." : genStatus === "done" ? "\u2713 Download Complete — Generate Again?" : "Generate Blueprint — FREE BETA"}
+      </button>
+      {genStatus === "error" && <div style={{ fontSize: 10, color: "#f44336", fontFamily: _mono, marginTop: 8 }}>Error: {genError}</div>}
+      <div style={{ fontSize: 8, color: "rgba(255,255,255,0.4)", fontFamily: _mono, marginTop: 8 }}>
+        {genStatus === "done" ? "PDF opened in new tab \u00B7 Check your downloads" : "Instant PDF download \u00B7 Print-ready quality \u00B7 Permit-office format"}
+      </div>
+      </> : <div style={{ textAlign: "center" }}>
+        <div style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", fontFamily: _mono, marginBottom: 12 }}>Sign in to generate your blueprint</div>
+        <button onClick={() => { window.location.href = `${API}/auth/login`; }} style={{ padding: "12px 32px", background: "#fff", color: "#333", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: _mono, display: "inline-flex", alignItems: "center", gap: 10, boxShadow: "0 2px 12px rgba(0,0,0,0.15)" }}>
+          <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#4285F4" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#34A853" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59a14.5 14.5 0 010-9.18l-7.98-6.19a24.04 24.04 0 000 21.56l7.98-6.19z"/><path fill="#EA4335" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+          Sign in with Google
+        </button>
+      </div>}
+    </div>
+  </>;
+
+  return null;
+}
+
+window.StepContent = StepContent;
