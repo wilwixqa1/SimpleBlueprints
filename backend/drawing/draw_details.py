@@ -294,7 +294,7 @@ def draw_details_sheet(fig, params, calc):
              fontsize=5, fontfamily='monospace', color=BRAND["mute"], wrap=True)
 
     fig.text(0.5, 0.01,
-             f'SHEET A-3  |  STRUCTURAL DETAILS  |  {format_feet_inches(calc["width"])} × {format_feet_inches(calc["depth"])}  |  simpleblueprints.xyz',
+             f'SHEET A-4  |  STRUCTURAL DETAILS  |  {format_feet_inches(calc["width"])} × {format_feet_inches(calc["depth"])}  |  simpleblueprints.xyz',
              ha='center', fontsize=6, fontfamily='monospace', color=BRAND["mute"])
 
 
