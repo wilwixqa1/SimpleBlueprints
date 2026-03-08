@@ -139,8 +139,16 @@ function Deck3D({ c, p }) {
     const V_RAIL_W = 0.15;          // handrail post width
     for (let x=bdW/2; x<W; x+=bdW) {
       var bx = cx + x;
-      // Skip board entirely if it falls within front stair gap
-      if (frontGap && bx > frontGap.min + 0.02 && bx < frontGap.max - 0.02) continue;
+      // Front stair: shorten board — keep from house to 1ft before front edge
+      if (frontGap && bx > frontGap.min + 0.02 && bx < frontGap.max - 0.02) {
+        var clipD = 1.0; // remove last 1ft at front edge (beam is at 1.5ft so stays hidden)
+        var shortLen = D - clipD;
+        if (shortLen > 0.2) {
+          var b = new THREE.Mesh(new THREE.BoxGeometry(bdW-0.02, bdH, shortLen), mats.deck);
+          b.position.set(bx, H+bdH/2, cz+shortLen/2); b.receiveShadow=true; scene.add(b);
+        }
+        continue;
+      }
       // For left/right gaps, split board around the gap
       if (leftGap && bx < cx + stW + 0.5) {
         var seg1 = leftGap.min - cz;
@@ -241,12 +249,6 @@ function Deck3D({ c, p }) {
           else if (dsz < 0) { sx = run.rect.x + run.rect.w / 2; sz = run.rect.y + run.rect.h; }
           else if (dsx > 0) { sx = run.rect.x; sz = run.rect.y + run.rect.h / 2; }
           else { sx = run.rect.x + run.rect.w; sz = run.rect.y + run.rect.h / 2; }
-
-          // Offset first run outward so top of stringer/handrail doesn't clip deck surface
-          if (ri === 0) {
-            sx += dsx * treadFt * 0.5;
-            sz += dsz * treadFt * 0.5;
-          }
 
           // === TREADS — thick, visible boards ===
           for (var i = 0; i < run.treads; i++) {
