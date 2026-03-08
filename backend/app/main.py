@@ -381,3 +381,5 @@ async def root(request: Request):
         except: pass
         return FileResponse(str(index_path), media_type="text/html")
     return {"message": "SimpleBlueprints API is running"}
+
+app.mount("/js", StaticFiles(directory=str(_STATIC_DIR / "js")), name="js-static")
