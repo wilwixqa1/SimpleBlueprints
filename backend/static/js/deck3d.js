@@ -65,7 +65,8 @@ function Deck3D({ c, p }) {
         var gc = cx + stPl.anchorX;
         var sxMin = gc - stW/2, sxMax = gc + stW/2;
         if (sxMax > cx && sxMin < cx + W) {
-          frontGap = { min: Math.max(sxMin, cx), max: Math.min(sxMax, cx + W) };
+          frontGap = { min: Math.max(sxMin, cx), max: Math.min(sxMax, cx + W),
+            zMin: cz + stPl.anchorY, zMax: Math.min(cz + D, cz + stPl.anchorY + (sg.bbox ? sg.bbox.h : D)) };
         }
       } else if (exitSide === "right") {
         stairClipD = Math.max(0, (cx + W) - (cx + stPl.anchorX));
@@ -121,7 +122,7 @@ function Deck3D({ c, p }) {
 
     // Beam + Ledger
     const bH2 = 11.875/12, bW2 = beamSize.includes("3") ? 5.25/12 : 3.5/12;
-    if (frontGap && stairClipD > 1.5) {
+    if (frontGap && stairClipD > 1.5 && frontGap.zMax > cz + D - 2) {
       var bL = frontGap.min - (cx + 1);
       var bR = (cx + W - 1) - frontGap.max;
       if (bL > 0.1) { var bmL = new THREE.Mesh(new THREE.BoxGeometry(bL,bH2,bW2), mats.beam); bmL.position.set(cx+1+bL/2, H-bH2/2-0.1, cz+D-1.5); bmL.castShadow=true; scene.add(bmL); }
@@ -135,13 +136,24 @@ function Deck3D({ c, p }) {
     const jH2=9.25/12, jW2=1.5/12, jLen=D-1.5;
     for (let x=sp/12; x<W; x+=sp/12) {
       var jx = cx + x;
-      if (frontGap && stairClipD > 0.5 && jx > frontGap.min + 0.05 && jx < frontGap.max - 0.05) continue;
+      if (frontGap && stairClipD > 0.5 && jx > frontGap.min + 0.05 && jx < frontGap.max - 0.05) {
+        // Split joist around stair footprint instead of removing entirely
+        var jSeg1 = frontGap.zMin - cz;
+        if (jSeg1 > 0.2) {
+          scene.add(new THREE.Mesh(new THREE.BoxGeometry(jW2,jH2,jSeg1), mats.joist)).position.set(jx, H-jH2/2-0.1, cz+jSeg1/2);
+        }
+        var jSeg2 = (cz + D - 1.5) - frontGap.zMax;
+        if (jSeg2 > 0.2) {
+          scene.add(new THREE.Mesh(new THREE.BoxGeometry(jW2,jH2,jSeg2), mats.joist)).position.set(jx, H-jH2/2-0.1, frontGap.zMax+jSeg2/2);
+        }
+        continue;
+      }
       scene.add(new THREE.Mesh(new THREE.BoxGeometry(jW2,jH2,jLen), mats.joist)).position.set(jx, H-jH2/2-0.1, cz+jLen/2);
     }
 
     // Rim joists — with gap for stairs
     function addRimSeg(x,y,z,w,h,d) { scene.add(new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mats.joist)).position.set(x,y,z); }
-    if (frontGap) {
+    if (frontGap && frontGap.zMax >= cz + D - 0.1) {
       var lw=frontGap.min-cx, rw=(cx+W)-frontGap.max;
       if(lw>0.1) addRimSeg(cx+lw/2, H-jH2/2-0.1, cz+D, lw, jH2, jW2);
       if(rw>0.1) addRimSeg(frontGap.max+rw/2, H-jH2/2-0.1, cz+D, rw, jH2, jW2);
@@ -166,10 +178,17 @@ function Deck3D({ c, p }) {
     for (let x=bdW/2; x<W; x+=bdW) {
       var bx = cx + x;
       if (frontGap && stairClipD > 0.1 && bx > frontGap.min + 0.02 && bx < frontGap.max - 0.02) {
-        var shortLen = D - stairClipD;
-        if (shortLen > 0.2) {
-          var b = new THREE.Mesh(new THREE.BoxGeometry(bdW-0.02, bdH, shortLen), mats.deck);
-          b.position.set(bx, H+bdH/2, cz+shortLen/2); b.receiveShadow=true; scene.add(b);
+        // Segment 1: house wall to stair start
+        var seg1Len = frontGap.zMin - cz;
+        if (seg1Len > 0.2) {
+          var b1 = new THREE.Mesh(new THREE.BoxGeometry(bdW-0.02, bdH, seg1Len), mats.deck);
+          b1.position.set(bx, H+bdH/2, cz+seg1Len/2); b1.receiveShadow=true; scene.add(b1);
+        }
+        // Segment 2: stair end to front edge (only for mid-deck stairs)
+        var seg2Len = (cz + D) - frontGap.zMax;
+        if (seg2Len > 0.2) {
+          var b2 = new THREE.Mesh(new THREE.BoxGeometry(bdW-0.02, bdH, seg2Len), mats.deck);
+          b2.position.set(bx, H+bdH/2, frontGap.zMax+seg2Len/2); b2.receiveShadow=true; scene.add(b2);
         }
         continue;
       }
@@ -203,7 +222,7 @@ function Deck3D({ c, p }) {
       var bG=new THREE.BoxGeometry(balW,rH-0.3,balW), n=Math.max(1,Math.floor(len/balSp));
       for(var i=0;i<=n;i++){var t=n>0?i/n:0.5; scene.add(new THREE.Mesh(bG,mats.rail)).position.set(x1+dx2*t, H+bdH+rH/2+0.1, z1+dz2*t);}
     }
-    if(frontGap){
+    if(frontGap && frontGap.zMax >= cz + D - 0.1){
       if(frontGap.min-cx>0.1) addRail(cx,cz+D,frontGap.min,cz+D);
       if((cx+W)-frontGap.max>0.1) addRail(frontGap.max,cz+D,cx+W,cz+D);
     } else addRail(cx,cz+D,cx+W,cz+D);
@@ -218,7 +237,7 @@ function Deck3D({ c, p }) {
     [[cx,cz],[cx+W,cz],[cx,cz+D],[cx+W,cz+D]].forEach(([x,z])=>{
       scene.add(new THREE.Mesh(new THREE.BoxGeometry(postW,rH+0.3,postW),mats.rail)).position.set(x,H+bdH+rH/2,z);
     });
-    if(frontGap){
+    if(frontGap && frontGap.zMax >= cz + D - 0.1){
       scene.add(new THREE.Mesh(new THREE.BoxGeometry(postW,rH+0.3,postW),mats.rail)).position.set(frontGap.min,H+bdH+rH/2,cz+D);
       scene.add(new THREE.Mesh(new THREE.BoxGeometry(postW,rH+0.3,postW),mats.rail)).position.set(frontGap.max,H+bdH+rH/2,cz+D);
     }
