@@ -105,12 +105,18 @@ function Deck3D({ c, p }) {
 
     // Decking — with stairwell opening at stair exit
     const bdW=5.5/12, bdH=1/12;
-    const notchD = 1.2; // notch depth (ft) at stair exit for visual step-down
+    // Notch depth: 2 treads + stringer overshoot so top of stairs is fully visible
+    const treadRunFt = 10.5 / 12; // one tread depth
+    const notchD = hasSt ? treadRunFt * 2 + 0.5 : 0; // ~2.25ft for clear stair entrance
+    // Widen the gap slightly past stair width for visual clearance
+    var deckFrontGap = frontGap ? { min: frontGap.min - 0.15, max: frontGap.max + 0.15 } : null;
+    var deckLeftGap = leftGap ? { min: leftGap.min - 0.15, max: leftGap.max + 0.15 } : null;
+    var deckRightGap = rightGap ? { min: rightGap.min - 0.15, max: rightGap.max + 0.15 } : null;
     for (let x=bdW/2; x<W; x+=bdW) {
       const bx = cx + x; // board center X in world coords
 
       // Front stair: boards crossing stair width stop short of front edge
-      if (frontGap && bx > frontGap.min + 0.02 && bx < frontGap.max - 0.02) {
+      if (deckFrontGap && bx > deckFrontGap.min + 0.02 && bx < deckFrontGap.max - 0.02) {
         const shortD = D - notchD;
         if (shortD > 0.2) {
           var b=new THREE.Mesh(new THREE.BoxGeometry(bdW-0.02, bdH, shortD), mats.deck);
@@ -118,8 +124,8 @@ function Deck3D({ c, p }) {
         }
       }
       // Left stair: boards near left edge split around the stair Z-range
-      else if (leftGap && bx < cx + notchD) {
-        var zMin = leftGap.min, zMax = leftGap.max;
+      else if (deckLeftGap && bx < cx + notchD) {
+        var zMin = deckLeftGap.min, zMax = deckLeftGap.max;
         // Segment before gap (house-side)
         var seg1Len = zMin - cz;
         if (seg1Len > 0.1) {
@@ -134,8 +140,8 @@ function Deck3D({ c, p }) {
         }
       }
       // Right stair: boards near right edge split around the stair Z-range
-      else if (rightGap && bx > cx + W - notchD) {
-        var zMin = rightGap.min, zMax = rightGap.max;
+      else if (deckRightGap && bx > cx + W - notchD) {
+        var zMin = deckRightGap.min, zMax = deckRightGap.max;
         var seg1Len = zMin - cz;
         if (seg1Len > 0.1) {
           var b1=new THREE.Mesh(new THREE.BoxGeometry(bdW-0.02, bdH, seg1Len), mats.deck);
@@ -190,17 +196,20 @@ function Deck3D({ c, p }) {
       scene.add(new THREE.Mesh(new THREE.BoxGeometry(postW,rH+0.3,postW),mats.rail)).position.set(x,H+bdH+rH/2,z);
     });
     // Rim board at stair opening edge
-    if(frontGap){
+    if(deckFrontGap){
       var rimY = H - jH2/2 - 0.1, rimH = jH2;
-      scene.add(new THREE.Mesh(new THREE.BoxGeometry(frontGap.max-frontGap.min, rimH, jW2), mats.joist)).position.set((frontGap.min+frontGap.max)/2, rimY, cz+D-notchD);
+      var rimW = deckFrontGap.max - deckFrontGap.min;
+      scene.add(new THREE.Mesh(new THREE.BoxGeometry(rimW, rimH, jW2), mats.joist)).position.set((deckFrontGap.min+deckFrontGap.max)/2, rimY, cz+D-notchD);
     }
-    if(leftGap){
+    if(deckLeftGap){
       var rimY = H - jH2/2 - 0.1, rimH = jH2;
-      scene.add(new THREE.Mesh(new THREE.BoxGeometry(jW2, rimH, leftGap.max-leftGap.min), mats.joist)).position.set(cx+notchD, rimY, (leftGap.min+leftGap.max)/2);
+      var rimLen = deckLeftGap.max - deckLeftGap.min;
+      scene.add(new THREE.Mesh(new THREE.BoxGeometry(jW2, rimH, rimLen), mats.joist)).position.set(cx+notchD, rimY, (deckLeftGap.min+deckLeftGap.max)/2);
     }
-    if(rightGap){
+    if(deckRightGap){
       var rimY = H - jH2/2 - 0.1, rimH = jH2;
-      scene.add(new THREE.Mesh(new THREE.BoxGeometry(jW2, rimH, rightGap.max-rightGap.min), mats.joist)).position.set(cx+W-notchD, rimY, (rightGap.min+rightGap.max)/2);
+      var rimLen = deckRightGap.max - deckRightGap.min;
+      scene.add(new THREE.Mesh(new THREE.BoxGeometry(jW2, rimH, rimLen), mats.joist)).position.set(cx+W-notchD, rimY, (deckRightGap.min+deckRightGap.max)/2);
     }
 
     // ================================================================
@@ -280,7 +289,7 @@ function Deck3D({ c, p }) {
           // === STRINGERS — prominent diagonal boards on each side ===
           var hDist = run.treads * treadFt;
           var vDist = run.risers * riseFt;
-          var sLen = Math.sqrt(hDist * hDist + vDist * vDist) + 0.3; // slight overshoot
+          var sLen = Math.sqrt(hDist * hDist + vDist * vDist); // exact length, no overshoot
           var sAng = Math.atan2(vDist, hDist);
           var midY = topElev - vDist / 2;
           var midHX = sx + dsx * hDist / 2;
