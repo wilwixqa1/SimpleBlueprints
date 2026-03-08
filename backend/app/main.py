@@ -31,6 +31,7 @@ from drawing.draw_details import draw_details_sheet
 from drawing.draw_materials import draw_materials_sheet
 from drawing.title_block import draw_title_block
 from drawing.draw_cover import draw_cover_sheet
+from drawing.draw_notes import draw_notes_sheet
 from drawing.draw_site_plan import draw_site_plan
 
 from app.database import (
@@ -128,8 +129,9 @@ def generate_blueprint_pdf(params: dict) -> tuple[str, dict]:
     sheets = [
         ("A-1", "DECK PLAN & FRAMING", draw_plan_and_framing),
         ("A-2", "ELEVATIONS", draw_elevations_sheet),
-        ("A-3", "STRUCTURAL DETAILS", draw_details_sheet),
-        ("A-4", "MATERIAL LIST", draw_materials_sheet),
+        ("A-3", "GENERAL NOTES", draw_notes_sheet),
+        ("A-4", "STRUCTURAL DETAILS", draw_details_sheet),
+        ("A-5", "MATERIAL LIST", draw_materials_sheet),
     ]
 
     with PdfPages(str(output_path)) as pdf:
@@ -163,16 +165,16 @@ def generate_blueprint_pdf(params: dict) -> tuple[str, dict]:
                     fig5 = plt.figure(figsize=(14,8.5)); fig5.set_facecolor('white')
                     ax5 = fig5.add_axes([0.02,0.05,0.96,0.88]); ax5.axis('off')
                     ax5.imshow(np.array(img), aspect='auto')
-                    fig5.text(0.5,0.97,"SHEET A-5  |  UPLOADED SITE PLAN / SURVEY",ha='center',fontsize=8,fontfamily='monospace',color='#7a8068')
-                    draw_title_block(fig5,"A-5","SITE PLAN (UPLOADED)",calc,pi)
+                    fig5.text(0.5,0.97,"SHEET A-6  |  UPLOADED SITE PLAN / SURVEY",ha='center',fontsize=8,fontfamily='monospace',color='#7a8068')
+                    draw_title_block(fig5,"A-6","SITE PLAN (UPLOADED)",calc,pi)
                     pdf.savefig(fig5,dpi=200); plt.close(fig5)
             except:
                 fig5 = plt.figure(figsize=(14,8.5)); fig5.set_facecolor('white')
-                draw_site_plan(fig5,params,calc); draw_title_block(fig5,"A-5","SITE PLAN",calc,pi)
+                draw_site_plan(fig5,params,calc); draw_title_block(fig5,"A-6","SITE PLAN",calc,pi)
                 pdf.savefig(fig5,dpi=200); plt.close(fig5)
         else:
             fig5 = plt.figure(figsize=(14,8.5)); fig5.set_facecolor('white')
-            draw_site_plan(fig5,params,calc); draw_title_block(fig5,"A-5","SITE PLAN",calc,pi)
+            draw_site_plan(fig5,params,calc); draw_title_block(fig5,"A-6","SITE PLAN",calc,pi)
             pdf.savefig(fig5,dpi=200); plt.close(fig5)
 
     return file_id, calc
