@@ -1,5 +1,5 @@
 // ============================================================
-// DECK 3D — Three.js interactive preview
+// DECK 3D — Three.js interactive preview + capture3D for PDF cover
 // ============================================================
 const { useEffect: _d3UE, useRef: _d3UR } = React;
 
@@ -50,7 +50,6 @@ function Deck3D({ c, p }) {
     var exitSide = stPl ? (stPl.angle === 90 ? "right" : stPl.angle === 270 ? "left" : stPl.angle === 180 ? "back" : "front") : null;
     var stW = (p.stairWidth || 4);
     var frontGap = null, leftGap = null, rightGap = null;
-    // Compute stair geometry early — needed for 2D overlap AND 3D rendering
     var sg = hasSt ? window.computeStairGeometry({
       template: p.stairTemplate || "straight", height: H,
       stairWidth: p.stairWidth || 4, numStringers: p.numStringers || 3,
@@ -58,23 +57,17 @@ function Deck3D({ c, p }) {
       landingDepth: p.stairLandingDepth || null,
       stairGap: p.stairGap != null ? p.stairGap : 0.5
     }) : null;
-    // Compute ACTUAL 2D overlap between stair footprint and deck
-    // Deck world: X=[cx, cx+W], Z=[cz, cz+D]
     var stairClipD = 0;
     if (hasSt && stPl && sg && sg.runs.length > 0) {
       var runLen = sg.runs[0].runFt;
       if (exitSide === "front") {
-        // Stair Z: starts at anchorY (=D for edge), extends outward
-        // Overlap = how much stair is INSIDE deck Z range
         stairClipD = Math.max(0, (cz + D) - (cz + stPl.anchorY));
         var gc = cx + stPl.anchorX;
         var sxMin = gc - stW/2, sxMax = gc + stW/2;
-        // Only create gap if stair X overlaps deck X
         if (sxMax > cx && sxMin < cx + W) {
           frontGap = { min: Math.max(sxMin, cx), max: Math.min(sxMax, cx + W) };
         }
       } else if (exitSide === "right") {
-        // Stair X: starts at anchorX (=W for edge), extends rightward
         stairClipD = Math.max(0, (cx + W) - (cx + stPl.anchorX));
         var gc = cz + stPl.anchorY;
         var szMin = gc - stW/2, szMax = gc + stW/2;
@@ -82,7 +75,6 @@ function Deck3D({ c, p }) {
           rightGap = { min: Math.max(szMin, cz), max: Math.min(szMax, cz + D) };
         }
       } else if (exitSide === "left") {
-        // Stair X: starts at anchorX (=0 for edge), extends leftward
         stairClipD = Math.max(0, (cx + stPl.anchorX) - cx);
         var gc = cz + stPl.anchorY;
         var szMin = gc - stW/2, szMax = gc + stW/2;
@@ -104,16 +96,15 @@ function Deck3D({ c, p }) {
     for (let wx = 0.2; wx < 0.9; wx += 0.3) { scene.add(new THREE.Mesh(new THREE.PlaneGeometry(3,4), mats.win)).position.set(hX+hW*wx, H+5, hZ+hD+0.05); }
     scene.add(new THREE.Mesh(new THREE.PlaneGeometry(4,6.5), mats.win)).position.set(cx+W/2, H-6.5/2+6.7, cz+0.05);
 
-    // Piers + Posts + Caps — filter out posts that conflict with stair opening
+    // Piers + Posts + Caps
     const pR = (fDiam/12)/2, pD = postSize==="6x6" ? 5.5/12 : 3.5/12;
     var filteredPP = pp.filter(function(px) {
-      var wx = cx + px; // world X of this post
+      var wx = cx + px;
       if (frontGap) {
-        // Skip post if it's anywhere within the stair width (with 1ft margin)
         if (wx > frontGap.min - 0.5 && wx < frontGap.max + 0.5) return false;
       }
       if (leftGap) {
-        var wz = cz + D - 1.5; // beam Z position
+        var wz = cz + D - 1.5;
         if (wz > leftGap.min - 0.5 && wz < leftGap.max + 0.5 && wx < cx + stW + 1) return false;
       }
       if (rightGap) {
@@ -128,7 +119,7 @@ function Deck3D({ c, p }) {
       scene.add(new THREE.Mesh(new THREE.BoxGeometry(pD+0.2,0.15,pD+0.2), mats.metal)).position.set(cx+px, H, cz+D-1.5);
     });
 
-    // Beam + Ledger — split only if stair clip zone reaches the beam (1.5ft from front)
+    // Beam + Ledger
     const bH2 = 11.875/12, bW2 = beamSize.includes("3") ? 5.25/12 : 3.5/12;
     if (frontGap && stairClipD > 1.5) {
       var bL = frontGap.min - (cx + 1);
@@ -140,7 +131,7 @@ function Deck3D({ c, p }) {
     }
     scene.add(new THREE.Mesh(new THREE.BoxGeometry(W,9.25/12,1.5/12), mats.joist)).position.set(cx+W/2, H-0.4, cz+0.06);
 
-    // Joists — skip at stair X only if clip zone is deep enough to expose them
+    // Joists
     const jH2=9.25/12, jW2=1.5/12, jLen=D-1.5;
     for (let x=sp/12; x<W; x+=sp/12) {
       var jx = cx + x;
@@ -166,7 +157,7 @@ function Deck3D({ c, p }) {
       if(s2>0.1) addRimSeg(cx+W, H-jH2/2-0.1, rightGap.max+s2/2, jW2, jH2, s2);
     } else { addRimSeg(cx+W, H-jH2/2-0.1, cz+D/2, jW2, jH2, D); }
 
-    // Decking — shorten boards only where stair actually overlaps deck (stairClipD)
+    // Decking
     const bdW=5.5/12, bdH=1/12;
     const V_TREAD_RUN = 10.5 / 12;
     const V_STR_W = 0.25;
@@ -174,7 +165,6 @@ function Deck3D({ c, p }) {
     const V_RAIL_W = 0.15;
     for (let x=bdW/2; x<W; x+=bdW) {
       var bx = cx + x;
-      // Front stair: shorten board by stairClipD (0 for edge stairs = full board)
       if (frontGap && stairClipD > 0.1 && bx > frontGap.min + 0.02 && bx < frontGap.max - 0.02) {
         var shortLen = D - stairClipD;
         if (shortLen > 0.2) {
@@ -183,7 +173,6 @@ function Deck3D({ c, p }) {
         }
         continue;
       }
-      // Left stair: split board only if overlap
       if (leftGap && stairClipD > 0.1 && bx < cx + stairClipD) {
         var seg1 = leftGap.min - cz;
         var seg2 = (cz + D) - leftGap.max;
@@ -191,7 +180,6 @@ function Deck3D({ c, p }) {
         if (seg2 > 0.1) { var b2 = new THREE.Mesh(new THREE.BoxGeometry(bdW-0.02, bdH, seg2), mats.deck); b2.position.set(bx, H+bdH/2, leftGap.max+seg2/2); b2.receiveShadow=true; scene.add(b2); }
         continue;
       }
-      // Right stair: split board only if overlap
       if (rightGap && stairClipD > 0.1 && bx > cx + W - stairClipD) {
         var seg1 = rightGap.min - cz;
         var seg2 = (cz + D) - rightGap.max;
@@ -199,27 +187,19 @@ function Deck3D({ c, p }) {
         if (seg2 > 0.1) { var b2 = new THREE.Mesh(new THREE.BoxGeometry(bdW-0.02, bdH, seg2), mats.deck); b2.position.set(bx, H+bdH/2, rightGap.max+seg2/2); b2.receiveShadow=true; scene.add(b2); }
         continue;
       }
-      // Normal full board
       var b = new THREE.Mesh(new THREE.BoxGeometry(bdW-0.02, bdH, D+0.1), mats.deck);
       b.position.set(bx, H+bdH/2, cz+D/2); b.receiveShadow=true; scene.add(b);
     }
 
-    // ── RAILING with gaps — beefed up for visibility ──
+    // Railing with gaps
     const rH=3, trY=H+bdH+rH, brY=H+bdH+0.25;
-    var railTopW = 0.18;  // top rail thickness
-    var railBotW = 0.12;  // bottom rail thickness
-    var balW = 0.07;      // baluster width
-    var balSp = 0.5;      // baluster spacing (~6")
-    var postW = 0.3;      // corner post width
+    var railTopW = 0.18, railBotW = 0.12, balW = 0.07, balSp = 0.5, postW = 0.3;
     function addRail(x1,z1,x2,z2) {
       var dx2=x2-x1,dz2=z2-z1,len=Math.sqrt(dx2*dx2+dz2*dz2);
       if(len<0.05) return;
       var mx=(x1+x2)/2,mz=(z1+z2)/2,isX=Math.abs(dz2)<0.01;
-      // Top rail
       scene.add(new THREE.Mesh(isX?new THREE.BoxGeometry(len,railTopW,railTopW):new THREE.BoxGeometry(railTopW,railTopW,len),mats.rail)).position.set(mx,trY,mz);
-      // Bottom rail
       scene.add(new THREE.Mesh(isX?new THREE.BoxGeometry(len,railBotW,railBotW):new THREE.BoxGeometry(railBotW,railBotW,len),mats.rail)).position.set(mx,brY,mz);
-      // Balusters
       var bG=new THREE.BoxGeometry(balW,rH-0.3,balW), n=Math.max(1,Math.floor(len/balSp));
       for(var i=0;i<=n;i++){var t=n>0?i/n:0.5; scene.add(new THREE.Mesh(bG,mats.rail)).position.set(x1+dx2*t, H+bdH+rH/2+0.1, z1+dz2*t);}
     }
@@ -235,11 +215,9 @@ function Deck3D({ c, p }) {
       if(rightGap.min-cz>0.1) addRail(cx+W,cz,cx+W,rightGap.min);
       if((cz+D)-rightGap.max>0.1) addRail(cx+W,rightGap.max,cx+W,cz+D);
     } else addRail(cx+W,cz,cx+W,cz+D);
-    // Corner posts — bigger
     [[cx,cz],[cx+W,cz],[cx,cz+D],[cx+W,cz+D]].forEach(([x,z])=>{
       scene.add(new THREE.Mesh(new THREE.BoxGeometry(postW,rH+0.3,postW),mats.rail)).position.set(x,H+bdH+rH/2,z);
     });
-    // Terminal posts at stair gap edges (where railing meets stair opening)
     if(frontGap){
       scene.add(new THREE.Mesh(new THREE.BoxGeometry(postW,rH+0.3,postW),mats.rail)).position.set(frontGap.min,H+bdH+rH/2,cz+D);
       scene.add(new THREE.Mesh(new THREE.BoxGeometry(postW,rH+0.3,postW),mats.rail)).position.set(frontGap.max,H+bdH+rH/2,cz+D);
@@ -253,28 +231,21 @@ function Deck3D({ c, p }) {
       scene.add(new THREE.Mesh(new THREE.BoxGeometry(postW,rH+0.3,postW),mats.rail)).position.set(cx+W,H+bdH+rH/2,rightGap.max);
     }
 
-    // ================================================================
-    // STAIRS 3D — Visual overhaul: exaggerated proportions
-    // ================================================================
+    // Stairs 3D
     if (hasSt && stPl && sg) {
         var stGrp = new THREE.Group();
-
-        // Exaggerated dimensions for visual clarity at preview scale
-        var riseFt = sg.riseIn / 12;        // actual rise per step in feet
-        var treadFt = V_TREAD_RUN;          // tread run (10.5")
-        var treadTh = 0.2;                  // tread thickness — 3x real for visibility
-        var riserTh = 0.1;                  // riser board thickness
-        var strW = V_STR_W;                 // stringer width — visible diagonal
-        var strH = V_STR_H;                 // stringer height (depth of cut board)
-        var noseOver = 0.08;                // tread overhang past riser
-
-        // Stringer material — make it darker/more visible
+        var riseFt = sg.riseIn / 12;
+        var treadFt = V_TREAD_RUN;
+        var treadTh = 0.2;
+        var riserTh = 0.1;
+        var strW = V_STR_W;
+        var strH = V_STR_H;
+        var noseOver = 0.08;
         var matStr = new THREE.MeshStandardMaterial({ color: 0x8B6914, roughness: 0.7 });
 
         var cumR = 0;
         sg.runs.forEach(function(run, ri) {
           var topElev = H - cumR * riseFt;
-          // Direction vectors
           var dsx = 0, dsz = 0;
           if (run.downDir === "+y") dsz = 1;
           else if (run.downDir === "-y") dsz = -1;
@@ -283,19 +254,16 @@ function Deck3D({ c, p }) {
           var isHoriz = (run.treadAxis === "h");
           var span = isHoriz ? run.rect.w : run.rect.h;
 
-          // Start position (top of this run, center of stair width)
           var sx, sz;
           if (dsz > 0) { sx = run.rect.x + run.rect.w / 2; sz = run.rect.y; }
           else if (dsz < 0) { sx = run.rect.x + run.rect.w / 2; sz = run.rect.y + run.rect.h; }
           else if (dsx > 0) { sx = run.rect.x; sz = run.rect.y + run.rect.h / 2; }
           else { sx = run.rect.x + run.rect.w; sz = run.rect.y + run.rect.h / 2; }
 
-          // === TREADS — thick, visible boards ===
           for (var i = 0; i < run.treads; i++) {
             var tY = topElev - (i + 1) * riseFt;
             var tX = sx + dsx * treadFt * (i + 0.5);
             var tZ = sz + dsz * treadFt * (i + 0.5);
-            // Tread with slight overhang
             var tw = isHoriz ? span + noseOver * 2 : treadFt + noseOver;
             var td = isHoriz ? treadFt + noseOver : span + noseOver * 2;
             var tm = new THREE.Mesh(new THREE.BoxGeometry(tw, treadTh, td), mats.stairTread);
@@ -304,12 +272,10 @@ function Deck3D({ c, p }) {
             stGrp.add(tm);
           }
 
-          // === RISERS — vertical boards between treads ===
           for (var i = 0; i < run.risers; i++) {
             var rY = topElev - (i + 1) * riseFt;
             var rX = sx + dsx * treadFt * i;
             var rZ = sz + dsz * treadFt * i;
-            // Offset riser to front face of tread position
             rX += dsx * (-treadFt * 0.0);
             rZ += dsz * (-treadFt * 0.0);
             var rw = isHoriz ? span : riserTh;
@@ -319,18 +285,15 @@ function Deck3D({ c, p }) {
             stGrp.add(rm);
           }
 
-          // === STRINGERS — prominent diagonal boards on each side ===
           var hDist = run.treads * treadFt;
           var vDist = run.risers * riseFt;
-          var sLen = Math.sqrt(hDist * hDist + vDist * vDist); // exact length, no overshoot
+          var sLen = Math.sqrt(hDist * hDist + vDist * vDist);
           var sAng = Math.atan2(vDist, hDist);
-          // Offset stringer down so its upper edge at the top doesn't exceed deck level
           var strYClip = strH / 2 * Math.cos(sAng);
           var midY = topElev - vDist / 2 - strYClip;
           var midHX = sx + dsx * hDist / 2;
           var midHZ = sz + dsz * hDist / 2;
 
-          // Place stringers at edges of stair width
           var strPositions = [];
           if (isHoriz) {
             strPositions.push(run.rect.x + strW / 2);
@@ -355,13 +318,10 @@ function Deck3D({ c, p }) {
             sm.castShadow = true;
             stGrp.add(sm);
 
-            // === STAIR HANDRAIL — angled top rail + posts ===
             var stRailH = 3.0;
-            var railW = V_RAIL_W; // rail thickness (shared constant)
+            var railW = V_RAIL_W;
             var trLen = Math.sqrt(hDist * hDist + vDist * vDist);
-            // Shorten rail for first run so it doesn't extend past deck edge
             if (ri === 0) trLen = trLen * 0.85;
-            // Top rail — follows stringer angle, offset up by rail height
             var trG = isHoriz
               ? new THREE.BoxGeometry(railW, railW, trLen)
               : new THREE.BoxGeometry(trLen, railW, railW);
@@ -375,8 +335,6 @@ function Deck3D({ c, p }) {
             }
             stGrp.add(trM);
 
-            // FIX #2: Posts start from 0 on ALL runs (including first)
-            // The first post is half a tread (~5.25") from deck edge — no clipping
             var postSpacing = Math.max(1, Math.floor(run.treads / 3));
             for (var pi = 0; pi <= run.treads; pi += postSpacing) {
               var stepIdx = Math.min(pi, run.treads - 1);
@@ -394,14 +352,12 @@ function Deck3D({ c, p }) {
           cumR += run.risers;
         });
 
-        // === LANDINGS — simple thick slab ===
         var lCumR = 0;
         sg.landings.forEach(function(landing, li) {
           lCumR += sg.runs[li].risers;
           var lElev = H - lCumR * riseFt;
           var lr = landing.rect;
 
-          // Landing slab — thicker than treads for visual weight
           var platM = new THREE.Mesh(
             new THREE.BoxGeometry(lr.w, treadTh * 2, lr.h), mats.deck
           );
@@ -409,7 +365,6 @@ function Deck3D({ c, p }) {
           platM.receiveShadow = true; platM.castShadow = true;
           stGrp.add(platM);
 
-          // Landing support posts (only corners)
           var lpSz = postSize === "6x6" ? 5.5 / 12 : 3.5 / 12;
           var corners = [
             [lr.x + lpSz / 2, lr.y + lpSz / 2],
@@ -422,14 +377,12 @@ function Deck3D({ c, p }) {
             lpm.position.set(pt[0], lElev / 2, pt[1]);
             lpm.castShadow = true;
             stGrp.add(lpm);
-            // Pier at base
             stGrp.add(new THREE.Mesh(
               new THREE.CylinderGeometry(pR, pR, 0.35, 12), mats.concrete
             )).position.set(pt[0], 0.175, pt[1]);
           });
         });
 
-        // === GROUND PAD at bottom of stairs ===
         var bb = sg.bbox;
         var padMat = new THREE.MeshStandardMaterial({ color: 0xb0b0b0, roughness: 0.95 });
         var padM = new THREE.Mesh(
@@ -439,12 +392,7 @@ function Deck3D({ c, p }) {
         padM.receiveShadow = true;
         stGrp.add(padM);
 
-        // Position and rotate the entire stair group
         stGrp.position.set(cx + stPl.anchorX, 0, cz + stPl.anchorY);
-        // FIX #1: Removed negation — positive angle rotates stair correctly
-        // angle=0 (front): +local Z = +world Z (away from house) ✓
-        // angle=90 (right): +local Z → +world X (rightward) ✓
-        // angle=270 (left): +local Z → -world X (leftward) ✓
         stGrp.rotation.y = (stPl.angle || 0) * Math.PI / 180;
         scene.add(stGrp);
     }
@@ -467,3 +415,116 @@ function Deck3D({ c, p }) {
 }
 
 window.Deck3D = Deck3D;
+
+
+// ============================================================
+// capture3D — Simplified 3D render for PDF cover image
+// Exported as window.capture3D(p, c) → Promise<base64 string | null>
+// ============================================================
+window.capture3D = function(p, c) {
+  return new Promise(function(resolve) {
+    try {
+      if (typeof THREE === 'undefined') { resolve(null); return; }
+      var w = 800, h = 500;
+      var W = c.W, D = c.D, H = c.H, pp = c.pp, postSize = c.postSize, beamSize = c.beamSize, sp = c.sp, fDiam = c.fDiam;
+      var scene = new THREE.Scene(); scene.background = new THREE.Color(0xf5f2eb);
+      scene.fog = new THREE.Fog(0xf5f2eb, 60, 120);
+      var cam = new THREE.PerspectiveCamera(45, w / h, 0.1, 200);
+      var ren = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+      ren.setSize(w, h); ren.setPixelRatio(1);
+      ren.shadowMap.enabled = true; ren.shadowMap.type = THREE.PCFSoftShadowMap;
+
+      scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+      var sun = new THREE.DirectionalLight(0xfff5e0, 0.8); sun.position.set(20, 30, 15); sun.castShadow = true;
+      sun.shadow.mapSize.set(1024, 1024); sun.shadow.camera.left = -40; sun.shadow.camera.right = 40; sun.shadow.camera.top = 40; sun.shadow.camera.bottom = -40;
+      scene.add(sun);
+      var fill = new THREE.DirectionalLight(0xc0d0ff, 0.3); fill.position.set(-10, 15, -10); scene.add(fill);
+
+      var mats = {
+        concrete: new THREE.MeshStandardMaterial({ color: 0xb8b8b8, roughness: 0.9 }),
+        post: new THREE.MeshStandardMaterial({ color: 0xc4a060, roughness: 0.7 }),
+        beam: new THREE.MeshStandardMaterial({ color: 0xc4960a, roughness: 0.6 }),
+        joist: new THREE.MeshStandardMaterial({ color: 0xd4b87a, roughness: 0.7 }),
+        deck: new THREE.MeshStandardMaterial({ color: p.deckingType === "composite" ? 0x8B7355 : 0xc4a060, roughness: 0.6 }),
+        rail: new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.4, metalness: 0.3 }),
+        house: new THREE.MeshStandardMaterial({ color: 0xd8d4c8, roughness: 0.8 }),
+        roof: new THREE.MeshStandardMaterial({ color: 0x666666, roughness: 0.7 }),
+        win: new THREE.MeshStandardMaterial({ color: 0x90bcd4, roughness: 0.2 }),
+        metal: new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 0.3, metalness: 0.5 }),
+      };
+
+      var gnd = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), new THREE.MeshStandardMaterial({ color: 0xb8c9a0, roughness: 1 }));
+      gnd.rotation.x = -Math.PI / 2; gnd.receiveShadow = true; scene.add(gnd);
+      var grid = new THREE.GridHelper(80, 80, 0xa0b088, 0xa8b890); grid.position.y = 0.01; scene.add(grid);
+
+      var cx = -W / 2, cz = -D / 2;
+      var hW = p.houseWidth, hD = 14, hH = Math.max(H + 8, 12);
+      var hX = cx + (W - hW) / 2, hZ = cz - hD;
+      var house = new THREE.Mesh(new THREE.BoxGeometry(hW, hH, hD), mats.house);
+      house.position.set(hX + hW / 2, hH / 2, hZ + hD / 2); house.castShadow = true; scene.add(house);
+
+      var ov = 1.5, rpk = 5;
+      var rx1 = hX - ov, rx2 = hX + hW + ov, rxM = hX + hW / 2;
+      var ry = hH, ryP = hH + rpk, rz1 = hZ - 1, rz2 = hZ + hD + 1;
+      var rv = new Float32Array([rx1,ry,rz2,rx2,ry,rz2,rxM,ryP,rz2, rx2,ry,rz1,rx1,ry,rz1,rxM,ryP,rz1, rx1,ry,rz1,rx1,ry,rz2,rxM,ryP,rz2,rx1,ry,rz1,rxM,ryP,rz2,rxM,ryP,rz1, rx2,ry,rz2,rx2,ry,rz1,rxM,ryP,rz1,rx2,ry,rz2,rxM,ryP,rz1,rxM,ryP,rz2, rx1,ry,rz1,rx2,ry,rz1,rx2,ry,rz2,rx1,ry,rz1,rx2,ry,rz2,rx1,ry,rz2]);
+      var rg = new THREE.BufferGeometry(); rg.setAttribute('position', new THREE.BufferAttribute(rv, 3)); rg.computeVertexNormals();
+      var roofM = new THREE.Mesh(rg, mats.roof); roofM.castShadow = true; scene.add(roofM);
+
+      for (var wx = 0.2; wx < 0.9; wx += 0.3) { var wn = new THREE.Mesh(new THREE.PlaneGeometry(3, 4), mats.win); wn.position.set(hX + hW * wx, H + 5, hZ + hD + 0.05); scene.add(wn); }
+      var dr = new THREE.Mesh(new THREE.PlaneGeometry(4, 6.5), mats.win); dr.position.set(cx + W / 2, H - 6.5 / 2 + 6.7, cz + 0.05); scene.add(dr);
+
+      var pR = (fDiam / 12) / 2;
+      var pierG = new THREE.CylinderGeometry(pR, pR, 0.5, 16);
+      pp.forEach(function(px) { var pr = new THREE.Mesh(pierG, mats.concrete); pr.position.set(cx + px, 0.25, cz + D - 1.5); scene.add(pr); });
+
+      var pDim = postSize === "6x6" ? 5.5 / 12 : 3.5 / 12;
+      var postG = new THREE.BoxGeometry(pDim, H, pDim);
+      pp.forEach(function(px) { var po = new THREE.Mesh(postG, mats.post); po.position.set(cx + px, H / 2, cz + D - 1.5); po.castShadow = true; scene.add(po); });
+
+      var capG = new THREE.BoxGeometry(pDim + 0.2, 0.15, pDim + 0.2);
+      pp.forEach(function(px) { var ca = new THREE.Mesh(capG, mats.metal); ca.position.set(cx + px, H, cz + D - 1.5); scene.add(ca); });
+
+      var bH2 = 11.875 / 12, bW2 = beamSize.includes("3") ? 5.25 / 12 : 3.5 / 12;
+      var bm = new THREE.Mesh(new THREE.BoxGeometry(W - 2, bH2, bW2), mats.beam);
+      bm.position.set(cx + W / 2, H - bH2 / 2 - 0.1, cz + D - 1.5); bm.castShadow = true; scene.add(bm);
+
+      var ld = new THREE.Mesh(new THREE.BoxGeometry(W, 9.25 / 12, 1.5 / 12), mats.joist);
+      ld.position.set(cx + W / 2, H - 0.4, cz + 0.06); scene.add(ld);
+
+      var jH2 = 9.25 / 12, jW2 = 1.5 / 12, jLen = D - 1.5;
+      var jG = new THREE.BoxGeometry(jW2, jH2, jLen);
+      for (var x = sp / 12; x < W; x += sp / 12) { var j = new THREE.Mesh(jG, mats.joist); j.position.set(cx + x, H - jH2 / 2 - 0.1, cz + jLen / 2); scene.add(j); }
+
+      var rimF = new THREE.Mesh(new THREE.BoxGeometry(W, jH2, jW2), mats.joist);
+      rimF.position.set(cx + W / 2, H - jH2 / 2 - 0.1, cz + D); scene.add(rimF);
+      [0, W].forEach(function(x) { var rim = new THREE.Mesh(new THREE.BoxGeometry(jW2, jH2, D), mats.joist); rim.position.set(cx + x, H - jH2 / 2 - 0.1, cz + D / 2); scene.add(rim); });
+
+      var bdW = 5.5 / 12, bdH = 1 / 12;
+      var bdG = new THREE.BoxGeometry(bdW - 0.02, bdH, D + 0.1);
+      for (var x = bdW / 2; x < W; x += bdW) { var b = new THREE.Mesh(bdG, mats.deck); b.position.set(cx + x, H + bdH / 2, cz + D / 2); b.receiveShadow = true; scene.add(b); }
+
+      var rH = 3, trY2 = H + bdH + rH, brY2 = H + bdH + 0.25;
+      [[new THREE.BoxGeometry(W, 0.1, 0.08), cx + W / 2, trY2, cz + D], [new THREE.BoxGeometry(0.08, 0.1, D), cx, trY2, cz + D / 2], [new THREE.BoxGeometry(0.08, 0.1, D), cx + W, trY2, cz + D / 2]].forEach(function(arr) { var r = new THREE.Mesh(arr[0], mats.rail); r.position.set(arr[1], arr[2], arr[3]); scene.add(r); });
+      [[new THREE.BoxGeometry(W, 0.06, 0.06), cx + W / 2, brY2, cz + D], [new THREE.BoxGeometry(0.06, 0.06, D), cx, brY2, cz + D / 2], [new THREE.BoxGeometry(0.06, 0.06, D), cx + W, brY2, cz + D / 2]].forEach(function(arr) { var r = new THREE.Mesh(arr[0], mats.rail); r.position.set(arr[1], arr[2], arr[3]); scene.add(r); });
+
+      var balG = new THREE.BoxGeometry(0.04, rH - 0.3, 0.04);
+      for (var x = 0; x < W; x += 3.75 / 12) { var b = new THREE.Mesh(balG, mats.rail); b.position.set(cx + x, H + bdH + rH / 2 + 0.1, cz + D); scene.add(b); }
+      for (var z = 0; z < D; z += 3.75 / 12) { [cx, cx + W].forEach(function(x) { var b = new THREE.Mesh(balG, mats.rail); b.position.set(x, H + bdH + rH / 2 + 0.1, cz + z); scene.add(b); }); }
+
+      var crnG = new THREE.BoxGeometry(0.2, rH + 0.2, 0.2);
+      [[cx, cz], [cx + W, cz], [cx, cz + D], [cx + W, cz + D]].forEach(function(arr) { var cp = new THREE.Mesh(crnG, mats.rail); cp.position.set(arr[0], H + bdH + rH / 2, arr[1]); scene.add(cp); });
+
+      var maxDim = Math.max(W, D, H * 2, hW);
+      var dist = maxDim * 1.6;
+      var theta = 0.7, phi = 0.55;
+      var lookY = H * 0.6;
+      cam.position.set(dist * Math.sin(phi) * Math.cos(theta), dist * Math.cos(phi) + lookY, dist * Math.sin(phi) * Math.sin(theta));
+      cam.lookAt(0, lookY, 0);
+
+      ren.render(scene, cam);
+      var dataUrl = ren.domElement.toDataURL("image/jpeg", 0.85);
+      ren.dispose();
+      resolve(dataUrl.split(",")[1]);
+    } catch (e) { console.warn("3D capture failed:", e); resolve(null); }
+  });
+};
