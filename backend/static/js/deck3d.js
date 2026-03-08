@@ -34,7 +34,7 @@ function Deck3D({ c, p }) {
       beam: new THREE.MeshStandardMaterial({ color: 0xc4960a, roughness: 0.6 }),
       joist: new THREE.MeshStandardMaterial({ color: 0xd4b87a, roughness: 0.7 }),
       deck: new THREE.MeshStandardMaterial({ color: p.deckingType === "composite" ? 0x8B7355 : 0xc4a060, roughness: 0.6 }),
-      rail: new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.4, metalness: 0.3 }),
+      rail: new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.3, metalness: 0.7 }),
       house: new THREE.MeshStandardMaterial({ color: 0xd8d4c8, roughness: 0.8 }),
       roof: new THREE.MeshStandardMaterial({ color: 0x666666, roughness: 0.7 }),
       win: new THREE.MeshStandardMaterial({ color: 0x90bcd4, roughness: 0.2 }),
@@ -310,6 +310,38 @@ function Deck3D({ c, p }) {
             }
             sm.castShadow = true;
             stGrp.add(sm);
+
+            // === STAIR HANDRAIL — angled top rail + posts ===
+            var stRailH = 3.0;
+            var railW = 0.15; // rail thickness
+            var trLen = Math.sqrt(hDist * hDist + vDist * vDist);
+            // Top rail — follows stringer angle, offset up by rail height
+            var trG = isHoriz
+              ? new THREE.BoxGeometry(railW, railW, trLen)
+              : new THREE.BoxGeometry(trLen, railW, railW);
+            var trM = new THREE.Mesh(trG, mats.rail);
+            if (isHoriz) {
+              trM.position.set(ePos, midY + stRailH, midHZ);
+              trM.rotation.x = dsz > 0 ? sAng : -sAng;
+            } else {
+              trM.position.set(midHX, midY + stRailH, ePos);
+              trM.rotation.z = dsx > 0 ? -sAng : sAng;
+            }
+            stGrp.add(trM);
+
+            // Posts at top, middle, and bottom of run
+            var postSpacing = Math.max(1, Math.floor(run.treads / 3));
+            for (var pi = 0; pi <= run.treads; pi += postSpacing) {
+              var stepIdx = Math.min(pi, run.treads - 1);
+              var postBaseY = topElev - (stepIdx + 1) * riseFt + treadTh;
+              var postX = isHoriz ? ePos : sx + dsx * treadFt * (stepIdx + 0.5);
+              var postZ = isHoriz ? sz + dsz * treadFt * (stepIdx + 0.5) : ePos;
+              var pm = new THREE.Mesh(
+                new THREE.BoxGeometry(railW, stRailH, railW), mats.rail
+              );
+              pm.position.set(postX, postBaseY + stRailH / 2, postZ);
+              stGrp.add(pm);
+            }
           });
 
           cumR += run.risers;
