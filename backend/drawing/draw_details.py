@@ -65,9 +65,9 @@ def draw_ledger_detail(ax, params, calc):
 
     # Decking on top
     if params["deckingType"] == "composite":
-        deck_label = '1×6 TREX\nCOMPOSITE'
+        deck_label = '1\u00d76 TREX\nCOMPOSITE'
     else:
-        deck_label = '5/4×6 PT\nDECKING'
+        deck_label = '5/4\u00d76 PT\nDECKING'
     ax.add_patch(patches.Rectangle((3.5, 8.5), 4, 0.35, fc='#8B7355', ec=BRAND["dark"], lw=0.6))
     ax.text(8.5, 8.8, deck_label, fontsize=4.5, color=BRAND["dark"])
 
@@ -109,7 +109,7 @@ def draw_footing_detail(ax, params, calc):
                  fc=BRAND["concrete"], ec=BRAND["mute"], lw=0.8, ls='--'))
 
     ax.text(3 + pier_width / 2, -pier_visual_depth / 2,
-            f'{calc["footing_diam"]}" Ø\nCONCRETE\nPIER', ha='center', fontsize=5, color='#555')
+            f'{calc["footing_diam"]}" \u00d8\nCONCRETE\nPIER', ha='center', fontsize=5, color='#555')
 
     # Grade label
     ax.text(10, 0.3, 'GRADE', fontsize=4.5, color=BRAND["dark"])
@@ -198,13 +198,13 @@ def draw_guard_rail_detail(ax, params, calc):
     draw_dimension_v(ax, -0.5, 0, rail_visual_h + 0.4,
                      f'{calc["rail_height"]}" MIN.', offset=-1.5, color=BRAND["red"], fontsize=5)
 
-    # 4" sphere test — always centered between two balusters, vertically centered in open rail space
+    # 4" sphere test
     sphere_r = 0.35
     baluster_start = 1.5
     baluster_spacing = 0.9
     baluster_w = 0.15
-    sphere_cx = baluster_start + baluster_spacing / 2 + baluster_w / 2  # midpoint between first two balusters
-    sphere_cy = (1.05 + rail_visual_h) / 2  # midpoint of open vertical space
+    sphere_cx = baluster_start + baluster_spacing / 2 + baluster_w / 2
+    sphere_cy = (1.05 + rail_visual_h) / 2
     ax.add_patch(plt.Circle((sphere_cx, sphere_cy), sphere_r, fc='none', ec=BRAND["red"], lw=0.8, ls='--'))
     ax.text(sphere_cx + 0.5, sphere_cy - 0.2, '< 4" MUST NOT ALLOW\nPASSAGE OF 4" SPHERE',
             fontsize=4, color=BRAND["red"])
@@ -238,12 +238,10 @@ def draw_post_beam_detail(ax, params, calc):
     beam_y = 4.5
     beam_visual_w = 7
 
-    # Determine ply count from beam size string
     plies = 3 if "3-ply" in calc["beam_size"] else 2
     ax.add_patch(patches.Rectangle((1, beam_y), beam_visual_w, 2.5,
                  fc=BRAND["beam"], ec=BRAND["dark"], lw=1))
 
-    # Ply lines
     ply_spacing = beam_visual_w / plies
     for p in range(1, plies):
         px = 1 + p * ply_spacing
@@ -251,7 +249,7 @@ def draw_post_beam_detail(ax, params, calc):
 
     is_lvl = "LVL" in calc["beam_size"]
     if is_lvl:
-        beam_label = f'({plies}) 1-3/4" × 11-7/8"\n2.0E LVL EXT. GRADE'
+        beam_label = f'({plies}) 1-3/4" \u00d7 11-7/8"\n2.0E LVL EXT. GRADE'
     else:
         beam_lumber = calc["beam_size"].split(" ", 1)[1] if " " in calc["beam_size"] else calc["beam_size"]
         beam_label = f'({plies}) {beam_lumber}\nPT BEAM'
@@ -273,7 +271,7 @@ def draw_post_beam_detail(ax, params, calc):
 
 
 # ============================================================
-# SHEET 3: COMBINED DETAILS
+# SHEET: COMBINED DETAILS
 # ============================================================
 def draw_details_sheet(fig, params, calc):
     """Draw all 4 detail views on one sheet"""
@@ -292,69 +290,3 @@ def draw_details_sheet(fig, params, calc):
              '2) All hardware shall be HDG or stainless for PT compatibility.  '
              '3) Verify all dimensions in field prior to construction.',
              fontsize=5, fontfamily='monospace', color=BRAND["mute"], wrap=True)
-
-    fig.text(0.5, 0.01,
-             f'SHEET A-4  |  STRUCTURAL DETAILS  |  {format_feet_inches(calc["width"])} × {format_feet_inches(calc["depth"])}  |  simpleblueprints.xyz',
-             ha='center', fontsize=6, fontfamily='monospace', color=BRAND["mute"])
-
-
-# ============================================================
-# TEST
-# ============================================================
-def main():
-    test_configs = [
-        {
-            "name": "small_12x10_wood",
-            "params": {
-                "width": 12, "depth": 10, "height": 2, "attachment": "ledger",
-                "joistSpacing": 16, "snowLoad": "none", "frostZone": "warm",
-                "deckingType": "pt_lumber", "hasStairs": True, "stairLocation": "front",
-                "railType": "wood",
-            }
-        },
-        {
-            "name": "medium_20x14_fortress",
-            "params": {
-                "width": 20, "depth": 14, "height": 4, "attachment": "ledger",
-                "joistSpacing": 16, "snowLoad": "light", "frostZone": "moderate",
-                "deckingType": "composite", "hasStairs": True, "stairLocation": "right",
-                "railType": "fortress",
-            }
-        },
-        {
-            "name": "large_35x10_elevated",
-            "params": {
-                "width": 35, "depth": 10, "height": 9.3, "attachment": "ledger",
-                "joistSpacing": 16, "snowLoad": "moderate", "frostZone": "cold",
-                "deckingType": "composite", "hasStairs": False, "stairLocation": "front",
-                "railType": "fortress",
-            }
-        },
-    ]
-
-    output = "/home/claude/test_detail_sheets.pdf"
-
-    with PdfPages(output) as pdf:
-        for cfg in test_configs:
-            print(f"Drawing details: {cfg['name']}...")
-            calc = calculate_structure(cfg["params"])
-
-            fig = plt.figure(figsize=(14, 8.5))
-            fig.set_facecolor('white')
-            draw_details_sheet(fig, cfg["params"], calc)
-
-            fig.text(0.5, 0.97,
-                     f'TEST: {cfg["name"]}  —  {calc["joist_size"]} joists | {calc["beam_size"]} beam | '
-                     f'{calc["post_size"]} posts | {calc["footing_diam"]}" × {calc["footing_depth"]}" piers | '
-                     f'{cfg["params"]["railType"]} rail',
-                     ha='center', fontsize=7, fontfamily='monospace', color=BRAND["red"],
-                     bbox=dict(boxstyle='square,pad=0.3', fc='#fff8f0', ec=BRAND["red"], lw=0.5))
-
-            pdf.savefig(fig, dpi=200)
-            plt.close(fig)
-
-    print(f"\nSaved 3 detail sheets to {output}")
-
-
-if __name__ == "__main__":
-    main()
