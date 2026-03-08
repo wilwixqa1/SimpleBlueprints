@@ -4,15 +4,23 @@
 const { useState: _pvUS, useRef: _pvUR } = React;
 
 function PlanView({ p, c, mode, u }) {
-  const pad = 45; const sc = Math.min(420 / Math.max(c.W, 16), 18);
+  const pad = 45;
+  const sc = Math.min(420 / Math.max(c.W, 16), 18);
   const hw = p.houseWidth * sc;
-  const sw = c.W * sc; const sd = c.D * sc; const bY = sd - 1.5 * sc;
-  const svgW = Math.max(sw + pad * 2 + 40, hw + pad * 2 + 40); const svgH = sd + pad * 2 + 80;
+  const sw = c.W * sc;
+  const sd = c.D * sc;
+  const bY = sd - 1.5 * sc;
+  const svgW = Math.max(sw + pad * 2 + 40, hw + pad * 2 + 40);
+  const svgH = sd + pad * 2 + 80;
   const houseCx = svgW / 2;
   const hx = houseCx - hw / 2;
   const deckOff = (p.deckOffset || 0) * sc;
   const dx = houseCx - sw / 2 + deckOff;
-  const jLines = []; if (mode === "framing") { const s = c.sp / 12 * sc; for (let x = s; x < sw - 1; x += s) jLines.push(x); }
+  const jLines = [];
+  if (mode === "framing") {
+    const s = c.sp / 12 * sc;
+    for (let x = s; x < sw - 1; x += s) jLines.push(x);
+  }
 
   const dragRef = _pvUR(null);
   const svgRef = _pvUR(null);
@@ -31,7 +39,8 @@ function PlanView({ p, c, mode, u }) {
 
     const onMove = (ev) => {
       if (!dragRef.current) return;
-      const loc = _exitSide;
+      // FIX: was `_exitSide` (undefined) — now reads from p.stairLocation
+      const loc = p.stairLocation;
       const isVertical = dragRef.current.type === "stair" && loc !== "front";
       const delta = isVertical
         ? (ev.clientY - dragRef.current.startY) * dragRef.current.svgScale
