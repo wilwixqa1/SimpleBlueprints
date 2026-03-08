@@ -22,6 +22,13 @@ const App = function SimpleBlueprints() {
   const u = (k, v) => setP(prev => {
     const next = { ...prev, [k]: v };
     if (k === "stairLocation") { next.stairOffset = 0; next.stairAnchorX = null; next.stairAnchorY = null; next.stairAngle = null; }
+    // Sync stairLocation chip when angle changes via drag/rotate
+    if (k === "stairAngle" && v != null) {
+      if (v === 0) next.stairLocation = "front";
+      else if (v === 90) next.stairLocation = "right";
+      else if (v === 270) next.stairLocation = "left";
+      else if (v === 180) next.stairLocation = "back";
+    }
     if (k === "houseWidth" || k === "width") {
       const maxOff = Math.floor(next.houseWidth / 2);
       next.deckOffset = Math.max(-maxOff, Math.min(maxOff, next.deckOffset || 0));
