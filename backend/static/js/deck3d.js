@@ -50,11 +50,21 @@ function Deck3D({ c, p }) {
     var exitSide = stPl ? (stPl.angle === 90 ? "right" : stPl.angle === 270 ? "left" : stPl.angle === 180 ? "back" : "front") : null;
     var stW = (p.stairWidth || 4);
     var frontGap = null, leftGap = null, rightGap = null;
+    // Compute stair geometry early — needed for deck clipping AND 3D stair rendering
+    var sg = hasSt ? window.computeStairGeometry({
+      template: p.stairTemplate || "straight", height: H,
+      stairWidth: p.stairWidth || 4, numStringers: p.numStringers || 3,
+      runSplit: p.stairRunSplit ? p.stairRunSplit/100 : null,
+      landingDepth: p.stairLandingDepth || null,
+      stairGap: p.stairGap != null ? p.stairGap : 0.5
+    }) : null;
     if (hasSt && stPl) {
       if (exitSide === "front") { var gc = cx + stPl.anchorX; frontGap = { min: gc - stW/2, max: gc + stW/2 }; }
       else if (exitSide === "right") { var gc = cz + stPl.anchorY; rightGap = { min: gc - stW/2, max: gc + stW/2 }; }
       else if (exitSide === "left") { var gc = cz + stPl.anchorY; leftGap = { min: gc - stW/2, max: gc + stW/2 }; }
     }
+    // Clip depth = first run's actual 2D footprint depth
+    var stairClipD = (sg && sg.runs.length > 0) ? sg.runs[0].runFt : 0;
 
     // House
     const hW = p.houseWidth, hD = 14, hH = Math.max(H + 8, 12);
@@ -139,10 +149,9 @@ function Deck3D({ c, p }) {
     const V_RAIL_W = 0.15;          // handrail post width
     for (let x=bdW/2; x<W; x+=bdW) {
       var bx = cx + x;
-      // Front stair: shorten board — keep from house to 1ft before front edge
+      // Front stair: shorten board — clip depth = first run's 2D footprint
       if (frontGap && bx > frontGap.min + 0.02 && bx < frontGap.max - 0.02) {
-        var clipD = 1.0; // remove last 1ft at front edge (beam is at 1.5ft so stays hidden)
-        var shortLen = D - clipD;
+        var shortLen = D - stairClipD;
         if (shortLen > 0.2) {
           var b = new THREE.Mesh(new THREE.BoxGeometry(bdW-0.02, bdH, shortLen), mats.deck);
           b.position.set(bx, H+bdH/2, cz+shortLen/2); b.receiveShadow=true; scene.add(b);
@@ -208,15 +217,7 @@ function Deck3D({ c, p }) {
     // ================================================================
     // STAIRS 3D — Visual overhaul: exaggerated proportions, no rails
     // ================================================================
-    if (hasSt && stPl) {
-      var sg = window.computeStairGeometry({
-        template: p.stairTemplate || "straight", height: H,
-        stairWidth: p.stairWidth || 4, numStringers: p.numStringers || 3,
-        runSplit: p.stairRunSplit ? p.stairRunSplit/100 : null,
-        landingDepth: p.stairLandingDepth || null,
-        stairGap: p.stairGap != null ? p.stairGap : 0.5
-      });
-      if (sg) {
+    if (hasSt && stPl && sg) {
         var stGrp = new THREE.Group();
 
         // Exaggerated dimensions for visual clarity at preview scale
@@ -402,7 +403,6 @@ function Deck3D({ c, p }) {
         stGrp.position.set(cx + stPl.anchorX, 0, cz + stPl.anchorY);
         stGrp.rotation.y = -(stPl.angle || 0) * Math.PI / 180;
         scene.add(stGrp);
-      }
     }
 
     // Controls
