@@ -92,14 +92,25 @@ function Deck3D({ c, p }) {
       scene.add(new THREE.Mesh(new THREE.BoxGeometry(pD+0.2,0.15,pD+0.2), mats.metal)).position.set(cx+px, H, cz+D-1.5);
     });
 
-    // Beam + Ledger — continuous (hidden under deck boards)
+    // Beam + Ledger — split beam at stair gap (no structure where stairs exist)
     const bH2 = 11.875/12, bW2 = beamSize.includes("3") ? 5.25/12 : 3.5/12;
-    var bm = new THREE.Mesh(new THREE.BoxGeometry(W-2,bH2,bW2), mats.beam); bm.position.set(cx+W/2, H-bH2/2-0.1, cz+D-1.5); bm.castShadow=true; scene.add(bm);
+    if (frontGap) {
+      var bL = frontGap.min - (cx + 1);
+      var bR = (cx + W - 1) - frontGap.max;
+      if (bL > 0.1) { var bmL = new THREE.Mesh(new THREE.BoxGeometry(bL,bH2,bW2), mats.beam); bmL.position.set(cx+1+bL/2, H-bH2/2-0.1, cz+D-1.5); bmL.castShadow=true; scene.add(bmL); }
+      if (bR > 0.1) { var bmR = new THREE.Mesh(new THREE.BoxGeometry(bR,bH2,bW2), mats.beam); bmR.position.set(frontGap.max+bR/2, H-bH2/2-0.1, cz+D-1.5); bmR.castShadow=true; scene.add(bmR); }
+    } else {
+      var bm = new THREE.Mesh(new THREE.BoxGeometry(W-2,bH2,bW2), mats.beam); bm.position.set(cx+W/2, H-bH2/2-0.1, cz+D-1.5); bm.castShadow=true; scene.add(bm);
+    }
     scene.add(new THREE.Mesh(new THREE.BoxGeometry(W,9.25/12,1.5/12), mats.joist)).position.set(cx+W/2, H-0.4, cz+0.06);
 
-    // Joists
+    // Joists — skip any joist at X positions within front stair gap
     const jH2=9.25/12, jW2=1.5/12, jLen=D-1.5;
-    for (let x=sp/12; x<W; x+=sp/12) { scene.add(new THREE.Mesh(new THREE.BoxGeometry(jW2,jH2,jLen), mats.joist)).position.set(cx+x, H-jH2/2-0.1, cz+jLen/2); }
+    for (let x=sp/12; x<W; x+=sp/12) {
+      var jx = cx + x;
+      if (frontGap && jx > frontGap.min + 0.05 && jx < frontGap.max - 0.05) continue;
+      scene.add(new THREE.Mesh(new THREE.BoxGeometry(jW2,jH2,jLen), mats.joist)).position.set(jx, H-jH2/2-0.1, cz+jLen/2);
+    }
 
     // Rim joists — with gap for stairs
     function addRimSeg(x,y,z,w,h,d) { scene.add(new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mats.joist)).position.set(x,y,z); }
@@ -119,7 +130,7 @@ function Deck3D({ c, p }) {
       if(s2>0.1) addRimSeg(cx+W, H-jH2/2-0.1, rightGap.max+s2/2, jW2, jH2, s2);
     } else { addRimSeg(cx+W, H-jH2/2-0.1, cz+D/2, jW2, jH2, D); }
 
-    // Decking — full continuous surface (stairs descend from edge, no hole needed)
+    // Decking — skip boards at stair coordinates (no deck where stairs exist)
     const bdW=5.5/12, bdH=1/12;
     // Shared visual stair dimensions (used by stair rendering below)
     const V_TREAD_RUN = 10.5 / 12;  // tread depth (IRC fixed)
@@ -127,8 +138,27 @@ function Deck3D({ c, p }) {
     const V_STR_H = 0.9;            // stringer visual height
     const V_RAIL_W = 0.15;          // handrail post width
     for (let x=bdW/2; x<W; x+=bdW) {
-      var b=new THREE.Mesh(new THREE.BoxGeometry(bdW-0.02, bdH, D+0.1), mats.deck);
-      b.position.set(cx+x, H+bdH/2, cz+D/2); b.receiveShadow=true; scene.add(b);
+      var bx = cx + x;
+      // Skip board entirely if it falls within front stair gap
+      if (frontGap && bx > frontGap.min + 0.02 && bx < frontGap.max - 0.02) continue;
+      // For left/right gaps, split board around the gap
+      if (leftGap && bx < cx + stW + 0.5) {
+        var seg1 = leftGap.min - cz;
+        var seg2 = (cz + D) - leftGap.max;
+        if (seg1 > 0.1) { var b1 = new THREE.Mesh(new THREE.BoxGeometry(bdW-0.02, bdH, seg1), mats.deck); b1.position.set(bx, H+bdH/2, cz+seg1/2); b1.receiveShadow=true; scene.add(b1); }
+        if (seg2 > 0.1) { var b2 = new THREE.Mesh(new THREE.BoxGeometry(bdW-0.02, bdH, seg2), mats.deck); b2.position.set(bx, H+bdH/2, leftGap.max+seg2/2); b2.receiveShadow=true; scene.add(b2); }
+        continue;
+      }
+      if (rightGap && bx > cx + W - stW - 0.5) {
+        var seg1 = rightGap.min - cz;
+        var seg2 = (cz + D) - rightGap.max;
+        if (seg1 > 0.1) { var b1 = new THREE.Mesh(new THREE.BoxGeometry(bdW-0.02, bdH, seg1), mats.deck); b1.position.set(bx, H+bdH/2, cz+seg1/2); b1.receiveShadow=true; scene.add(b1); }
+        if (seg2 > 0.1) { var b2 = new THREE.Mesh(new THREE.BoxGeometry(bdW-0.02, bdH, seg2), mats.deck); b2.position.set(bx, H+bdH/2, rightGap.max+seg2/2); b2.receiveShadow=true; scene.add(b2); }
+        continue;
+      }
+      // Normal full board
+      var b = new THREE.Mesh(new THREE.BoxGeometry(bdW-0.02, bdH, D+0.1), mats.deck);
+      b.position.set(bx, H+bdH/2, cz+D/2); b.receiveShadow=true; scene.add(b);
     }
 
     // ── RAILING with gaps — beefed up for visibility ──
@@ -212,6 +242,12 @@ function Deck3D({ c, p }) {
           else if (dsx > 0) { sx = run.rect.x; sz = run.rect.y + run.rect.h / 2; }
           else { sx = run.rect.x + run.rect.w; sz = run.rect.y + run.rect.h / 2; }
 
+          // Offset first run outward so top of stringer/handrail doesn't clip deck surface
+          if (ri === 0) {
+            sx += dsx * treadFt * 0.5;
+            sz += dsz * treadFt * 0.5;
+          }
+
           // === TREADS — thick, visible boards ===
           for (var i = 0; i < run.treads; i++) {
             var tY = topElev - (i + 1) * riseFt;
@@ -246,7 +282,9 @@ function Deck3D({ c, p }) {
           var vDist = run.risers * riseFt;
           var sLen = Math.sqrt(hDist * hDist + vDist * vDist); // exact length, no overshoot
           var sAng = Math.atan2(vDist, hDist);
-          var midY = topElev - vDist / 2;
+          // Offset stringer down so its upper edge at the top doesn't exceed deck level
+          var strYClip = strH / 2 * Math.cos(sAng);
+          var midY = topElev - vDist / 2 - strYClip;
           var midHX = sx + dsx * hDist / 2;
           var midHZ = sz + dsz * hDist / 2;
 
@@ -279,6 +317,8 @@ function Deck3D({ c, p }) {
             var stRailH = 3.0;
             var railW = V_RAIL_W; // rail thickness (shared constant)
             var trLen = Math.sqrt(hDist * hDist + vDist * vDist);
+            // Shorten rail for first run so it doesn't extend past deck edge
+            if (ri === 0) trLen = trLen * 0.85;
             // Top rail — follows stringer angle, offset up by rail height
             var trG = isHoriz
               ? new THREE.BoxGeometry(railW, railW, trLen)
@@ -293,9 +333,9 @@ function Deck3D({ c, p }) {
             }
             stGrp.add(trM);
 
-            // Posts at top, middle, and bottom of run
+            // Posts — start from step 1 (not 0) to avoid clipping through deck
             var postSpacing = Math.max(1, Math.floor(run.treads / 3));
-            for (var pi = 0; pi <= run.treads; pi += postSpacing) {
+            for (var pi = (ri === 0 ? postSpacing : 0); pi <= run.treads; pi += postSpacing) {
               var stepIdx = Math.min(pi, run.treads - 1);
               var postBaseY = topElev - (stepIdx + 1) * riseFt + treadTh;
               var postX = isHoriz ? ePos : sx + dsx * treadFt * (stepIdx + 0.5);
