@@ -103,11 +103,55 @@ function Deck3D({ c, p }) {
       if(s2>0.1) addRimSeg(cx+W, H-jH2/2-0.1, rightGap.max+s2/2, jW2, jH2, s2);
     } else { addRimSeg(cx+W, H-jH2/2-0.1, cz+D/2, jW2, jH2, D); }
 
-    // Decking — FULL SURFACE
+    // Decking — with stairwell opening at stair exit
     const bdW=5.5/12, bdH=1/12;
+    const notchD = 1.2; // notch depth (ft) at stair exit for visual step-down
     for (let x=bdW/2; x<W; x+=bdW) {
-      var b=new THREE.Mesh(new THREE.BoxGeometry(bdW-0.02, bdH, D+0.1), mats.deck);
-      b.position.set(cx+x, H+bdH/2, cz+D/2); b.receiveShadow=true; scene.add(b);
+      const bx = cx + x; // board center X in world coords
+
+      // Front stair: boards crossing stair width stop short of front edge
+      if (frontGap && bx > frontGap.min + 0.02 && bx < frontGap.max - 0.02) {
+        const shortD = D - notchD;
+        if (shortD > 0.2) {
+          var b=new THREE.Mesh(new THREE.BoxGeometry(bdW-0.02, bdH, shortD), mats.deck);
+          b.position.set(bx, H+bdH/2, cz+shortD/2); b.receiveShadow=true; scene.add(b);
+        }
+      }
+      // Left stair: boards near left edge split around the stair Z-range
+      else if (leftGap && bx < cx + notchD) {
+        var zMin = leftGap.min, zMax = leftGap.max;
+        // Segment before gap (house-side)
+        var seg1Len = zMin - cz;
+        if (seg1Len > 0.1) {
+          var b1=new THREE.Mesh(new THREE.BoxGeometry(bdW-0.02, bdH, seg1Len), mats.deck);
+          b1.position.set(bx, H+bdH/2, cz+seg1Len/2); b1.receiveShadow=true; scene.add(b1);
+        }
+        // Segment after gap (yard-side)
+        var seg2Len = (cz+D) - zMax;
+        if (seg2Len > 0.1) {
+          var b2=new THREE.Mesh(new THREE.BoxGeometry(bdW-0.02, bdH, seg2Len), mats.deck);
+          b2.position.set(bx, H+bdH/2, zMax+seg2Len/2); b2.receiveShadow=true; scene.add(b2);
+        }
+      }
+      // Right stair: boards near right edge split around the stair Z-range
+      else if (rightGap && bx > cx + W - notchD) {
+        var zMin = rightGap.min, zMax = rightGap.max;
+        var seg1Len = zMin - cz;
+        if (seg1Len > 0.1) {
+          var b1=new THREE.Mesh(new THREE.BoxGeometry(bdW-0.02, bdH, seg1Len), mats.deck);
+          b1.position.set(bx, H+bdH/2, cz+seg1Len/2); b1.receiveShadow=true; scene.add(b1);
+        }
+        var seg2Len = (cz+D) - zMax;
+        if (seg2Len > 0.1) {
+          var b2=new THREE.Mesh(new THREE.BoxGeometry(bdW-0.02, bdH, seg2Len), mats.deck);
+          b2.position.set(bx, H+bdH/2, zMax+seg2Len/2); b2.receiveShadow=true; scene.add(b2);
+        }
+      }
+      // Normal full board
+      else {
+        var b=new THREE.Mesh(new THREE.BoxGeometry(bdW-0.02, bdH, D+0.1), mats.deck);
+        b.position.set(bx, H+bdH/2, cz+D/2); b.receiveShadow=true; scene.add(b);
+      }
     }
 
     // ── RAILING with gaps ──
