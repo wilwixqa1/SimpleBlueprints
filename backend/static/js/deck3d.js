@@ -154,15 +154,23 @@ function Deck3D({ c, p }) {
       }
     }
 
-    // ── RAILING with gaps ──
+    // ── RAILING with gaps — beefed up for visibility ──
     const rH=3, trY=H+bdH+rH, brY=H+bdH+0.25;
+    var railTopW = 0.18;  // top rail thickness
+    var railBotW = 0.12;  // bottom rail thickness
+    var balW = 0.07;      // baluster width
+    var balSp = 0.5;      // baluster spacing (~6")
+    var postW = 0.3;      // corner post width
     function addRail(x1,z1,x2,z2) {
       var dx2=x2-x1,dz2=z2-z1,len=Math.sqrt(dx2*dx2+dz2*dz2);
       if(len<0.05) return;
       var mx=(x1+x2)/2,mz=(z1+z2)/2,isX=Math.abs(dz2)<0.01;
-      scene.add(new THREE.Mesh(isX?new THREE.BoxGeometry(len,0.1,0.08):new THREE.BoxGeometry(0.08,0.1,len),mats.rail)).position.set(mx,trY,mz);
-      scene.add(new THREE.Mesh(isX?new THREE.BoxGeometry(len,0.06,0.06):new THREE.BoxGeometry(0.06,0.06,len),mats.rail)).position.set(mx,brY,mz);
-      var bG=new THREE.BoxGeometry(0.04,rH-0.3,0.04), step=3.75/12, n=Math.floor(len/step);
+      // Top rail
+      scene.add(new THREE.Mesh(isX?new THREE.BoxGeometry(len,railTopW,railTopW):new THREE.BoxGeometry(railTopW,railTopW,len),mats.rail)).position.set(mx,trY,mz);
+      // Bottom rail
+      scene.add(new THREE.Mesh(isX?new THREE.BoxGeometry(len,railBotW,railBotW):new THREE.BoxGeometry(railBotW,railBotW,len),mats.rail)).position.set(mx,brY,mz);
+      // Balusters
+      var bG=new THREE.BoxGeometry(balW,rH-0.3,balW), n=Math.max(1,Math.floor(len/balSp));
       for(var i=0;i<=n;i++){var t=n>0?i/n:0.5; scene.add(new THREE.Mesh(bG,mats.rail)).position.set(x1+dx2*t, H+bdH+rH/2+0.1, z1+dz2*t);}
     }
     if(frontGap){
@@ -177,9 +185,23 @@ function Deck3D({ c, p }) {
       if(rightGap.min-cz>0.1) addRail(cx+W,cz,cx+W,rightGap.min);
       if((cz+D)-rightGap.max>0.1) addRail(cx+W,rightGap.max,cx+W,cz+D);
     } else addRail(cx+W,cz,cx+W,cz+D);
+    // Corner posts — bigger
     [[cx,cz],[cx+W,cz],[cx,cz+D],[cx+W,cz+D]].forEach(([x,z])=>{
-      scene.add(new THREE.Mesh(new THREE.BoxGeometry(0.2,rH+0.2,0.2),mats.rail)).position.set(x,H+bdH+rH/2,z);
+      scene.add(new THREE.Mesh(new THREE.BoxGeometry(postW,rH+0.3,postW),mats.rail)).position.set(x,H+bdH+rH/2,z);
     });
+    // Rim board at stair opening edge
+    if(frontGap){
+      var rimY = H - jH2/2 - 0.1, rimH = jH2;
+      scene.add(new THREE.Mesh(new THREE.BoxGeometry(frontGap.max-frontGap.min, rimH, jW2), mats.joist)).position.set((frontGap.min+frontGap.max)/2, rimY, cz+D-notchD);
+    }
+    if(leftGap){
+      var rimY = H - jH2/2 - 0.1, rimH = jH2;
+      scene.add(new THREE.Mesh(new THREE.BoxGeometry(jW2, rimH, leftGap.max-leftGap.min), mats.joist)).position.set(cx+notchD, rimY, (leftGap.min+leftGap.max)/2);
+    }
+    if(rightGap){
+      var rimY = H - jH2/2 - 0.1, rimH = jH2;
+      scene.add(new THREE.Mesh(new THREE.BoxGeometry(jW2, rimH, rightGap.max-rightGap.min), mats.joist)).position.set(cx+W-notchD, rimY, (rightGap.min+rightGap.max)/2);
+    }
 
     // ================================================================
     // STAIRS 3D — Visual overhaul: exaggerated proportions, no rails
