@@ -68,9 +68,12 @@ function Deck3D({ c, p }) {
     for (let wx = 0.2; wx < 0.9; wx += 0.3) { scene.add(new THREE.Mesh(new THREE.PlaneGeometry(3,4), mats.win)).position.set(hX+hW*wx, H+5, hZ+hD+0.05); }
     scene.add(new THREE.Mesh(new THREE.PlaneGeometry(4,6.5), mats.win)).position.set(cx+W/2, H-6.5/2+6.7, cz+0.05);
 
-    // Piers + Posts + Caps
+    // Piers + Posts + Caps — skip posts in stair opening
     const pR = (fDiam/12)/2, pD = postSize==="6x6" ? 5.5/12 : 3.5/12;
     pp.forEach(px => {
+      var postWorldX = cx + px;
+      // Skip if post falls within front stair gap
+      if (frontGap && postWorldX > frontGap.min + 0.1 && postWorldX < frontGap.max - 0.1) return;
       scene.add(new THREE.Mesh(new THREE.CylinderGeometry(pR,pR,0.5,16), mats.concrete)).position.set(cx+px, 0.25, cz+D-1.5);
       var po = new THREE.Mesh(new THREE.BoxGeometry(pD,H,pD), mats.post); po.position.set(cx+px, H/2, cz+D-1.5); po.castShadow=true; scene.add(po);
       scene.add(new THREE.Mesh(new THREE.BoxGeometry(pD+0.2,0.15,pD+0.2), mats.metal)).position.set(cx+px, H, cz+D-1.5);
@@ -105,13 +108,21 @@ function Deck3D({ c, p }) {
 
     // Decking — with stairwell opening at stair exit
     const bdW=5.5/12, bdH=1/12;
-    // Notch depth: 2 treads + stringer overshoot so top of stairs is fully visible
-    const treadRunFt = 10.5 / 12; // one tread depth
-    const notchD = hasSt ? treadRunFt * 2 + 0.5 : 0; // ~2.25ft for clear stair entrance
-    // Widen the gap slightly past stair width for visual clearance
-    var deckFrontGap = frontGap ? { min: frontGap.min - 0.15, max: frontGap.max + 0.15 } : null;
-    var deckLeftGap = leftGap ? { min: leftGap.min - 0.15, max: leftGap.max + 0.15 } : null;
-    var deckRightGap = rightGap ? { min: rightGap.min - 0.15, max: rightGap.max + 0.15 } : null;
+    // Visual stair dimensions (shared between deck opening and stair rendering below)
+    const V_TREAD_RUN = 10.5 / 12;  // tread depth (IRC fixed)
+    const V_STR_W = 0.25;           // stringer visual width
+    const V_STR_H = 0.9;            // stringer visual height
+    const V_RAIL_W = 0.15;          // handrail post width
+    // Notch depth: 2 treads + stringer top protrusion (depends on stair angle via height)
+    // Steeper stairs (taller deck) → stringer top extends further back
+    const stairAngleEst = hasSt ? Math.atan2(H, Math.max(H * 1.3, 3)) : 0; // rough angle
+    const strTopProtrude = V_STR_H * 0.5 * Math.cos(stairAngleEst); // how far stringer pokes back
+    const notchD = hasSt ? V_TREAD_RUN * 2 + strTopProtrude + 0.2 : 0;
+    // Width padding: clear stringer + handrail post + margin on each side
+    const notchPad = V_STR_W / 2 + V_RAIL_W / 2 + 0.05;
+    var deckFrontGap = frontGap ? { min: frontGap.min - notchPad, max: frontGap.max + notchPad } : null;
+    var deckLeftGap = leftGap ? { min: leftGap.min - notchPad, max: leftGap.max + notchPad } : null;
+    var deckRightGap = rightGap ? { min: rightGap.min - notchPad, max: rightGap.max + notchPad } : null;
     for (let x=bdW/2; x<W; x+=bdW) {
       const bx = cx + x; // board center X in world coords
 
@@ -228,11 +239,11 @@ function Deck3D({ c, p }) {
 
         // Exaggerated dimensions for visual clarity at preview scale
         var riseFt = sg.riseIn / 12;        // actual rise per step in feet
-        var treadFt = 10.5 / 12;            // actual tread run (10.5")
+        var treadFt = V_TREAD_RUN;          // tread run (10.5")
         var treadTh = 0.2;                  // tread thickness — 3x real for visibility
         var riserTh = 0.1;                  // riser board thickness
-        var strW = 0.25;                    // stringer width — visible diagonal
-        var strH = 0.9;                     // stringer height (depth of cut board)
+        var strW = V_STR_W;                 // stringer width — visible diagonal
+        var strH = V_STR_H;                 // stringer height (depth of cut board)
         var noseOver = 0.08;                // tread overhang past riser
 
         // Stringer material — make it darker/more visible
@@ -322,7 +333,7 @@ function Deck3D({ c, p }) {
 
             // === STAIR HANDRAIL — angled top rail + posts ===
             var stRailH = 3.0;
-            var railW = 0.15; // rail thickness
+            var railW = V_RAIL_W; // rail thickness (shared constant)
             var trLen = Math.sqrt(hDist * hDist + vDist * vDist);
             // Top rail — follows stringer angle, offset up by rail height
             var trG = isHoriz
