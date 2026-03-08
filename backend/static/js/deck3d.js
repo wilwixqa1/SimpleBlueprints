@@ -68,18 +68,31 @@ function Deck3D({ c, p }) {
     for (let wx = 0.2; wx < 0.9; wx += 0.3) { scene.add(new THREE.Mesh(new THREE.PlaneGeometry(3,4), mats.win)).position.set(hX+hW*wx, H+5, hZ+hD+0.05); }
     scene.add(new THREE.Mesh(new THREE.PlaneGeometry(4,6.5), mats.win)).position.set(cx+W/2, H-6.5/2+6.7, cz+0.05);
 
-    // Piers + Posts + Caps — skip posts in stair opening
+    // Piers + Posts + Caps — filter out posts that conflict with stair opening
     const pR = (fDiam/12)/2, pD = postSize==="6x6" ? 5.5/12 : 3.5/12;
-    pp.forEach(px => {
-      var postWorldX = cx + px;
-      // Skip if post falls within front stair gap
-      if (frontGap && postWorldX > frontGap.min + 0.1 && postWorldX < frontGap.max - 0.1) return;
+    var filteredPP = pp.filter(function(px) {
+      var wx = cx + px; // world X of this post
+      if (frontGap) {
+        // Skip post if it's anywhere within the stair width (with 1ft margin)
+        if (wx > frontGap.min - 0.5 && wx < frontGap.max + 0.5) return false;
+      }
+      if (leftGap) {
+        var wz = cz + D - 1.5; // beam Z position
+        if (wz > leftGap.min - 0.5 && wz < leftGap.max + 0.5 && wx < cx + stW + 1) return false;
+      }
+      if (rightGap) {
+        var wz = cz + D - 1.5;
+        if (wz > rightGap.min - 0.5 && wz < rightGap.max + 0.5 && wx > cx + W - stW - 1) return false;
+      }
+      return true;
+    });
+    filteredPP.forEach(function(px) {
       scene.add(new THREE.Mesh(new THREE.CylinderGeometry(pR,pR,0.5,16), mats.concrete)).position.set(cx+px, 0.25, cz+D-1.5);
       var po = new THREE.Mesh(new THREE.BoxGeometry(pD,H,pD), mats.post); po.position.set(cx+px, H/2, cz+D-1.5); po.castShadow=true; scene.add(po);
       scene.add(new THREE.Mesh(new THREE.BoxGeometry(pD+0.2,0.15,pD+0.2), mats.metal)).position.set(cx+px, H, cz+D-1.5);
     });
 
-    // Beam + Ledger
+    // Beam + Ledger — continuous (hidden under deck boards)
     const bH2 = 11.875/12, bW2 = beamSize.includes("3") ? 5.25/12 : 3.5/12;
     var bm = new THREE.Mesh(new THREE.BoxGeometry(W-2,bH2,bW2), mats.beam); bm.position.set(cx+W/2, H-bH2/2-0.1, cz+D-1.5); bm.castShadow=true; scene.add(bm);
     scene.add(new THREE.Mesh(new THREE.BoxGeometry(W,9.25/12,1.5/12), mats.joist)).position.set(cx+W/2, H-0.4, cz+0.06);
@@ -106,69 +119,16 @@ function Deck3D({ c, p }) {
       if(s2>0.1) addRimSeg(cx+W, H-jH2/2-0.1, rightGap.max+s2/2, jW2, jH2, s2);
     } else { addRimSeg(cx+W, H-jH2/2-0.1, cz+D/2, jW2, jH2, D); }
 
-    // Decking — with stairwell opening at stair exit
+    // Decking — full continuous surface (stairs descend from edge, no hole needed)
     const bdW=5.5/12, bdH=1/12;
-    // Visual stair dimensions (shared between deck opening and stair rendering below)
+    // Shared visual stair dimensions (used by stair rendering below)
     const V_TREAD_RUN = 10.5 / 12;  // tread depth (IRC fixed)
     const V_STR_W = 0.25;           // stringer visual width
     const V_STR_H = 0.9;            // stringer visual height
     const V_RAIL_W = 0.15;          // handrail post width
-    // Notch depth: 2 treads + stringer top protrusion (depends on stair angle via height)
-    // Steeper stairs (taller deck) → stringer top extends further back
-    const stairAngleEst = hasSt ? Math.atan2(H, Math.max(H * 1.3, 3)) : 0; // rough angle
-    const strTopProtrude = V_STR_H * 0.5 * Math.cos(stairAngleEst); // how far stringer pokes back
-    const notchD = hasSt ? V_TREAD_RUN * 2 + strTopProtrude + 0.2 : 0;
-    // Width padding: clear stringer + handrail post + margin on each side
-    const notchPad = V_STR_W / 2 + V_RAIL_W / 2 + 0.05;
-    var deckFrontGap = frontGap ? { min: frontGap.min - notchPad, max: frontGap.max + notchPad } : null;
-    var deckLeftGap = leftGap ? { min: leftGap.min - notchPad, max: leftGap.max + notchPad } : null;
-    var deckRightGap = rightGap ? { min: rightGap.min - notchPad, max: rightGap.max + notchPad } : null;
     for (let x=bdW/2; x<W; x+=bdW) {
-      const bx = cx + x; // board center X in world coords
-
-      // Front stair: boards crossing stair width stop short of front edge
-      if (deckFrontGap && bx > deckFrontGap.min + 0.02 && bx < deckFrontGap.max - 0.02) {
-        const shortD = D - notchD;
-        if (shortD > 0.2) {
-          var b=new THREE.Mesh(new THREE.BoxGeometry(bdW-0.02, bdH, shortD), mats.deck);
-          b.position.set(bx, H+bdH/2, cz+shortD/2); b.receiveShadow=true; scene.add(b);
-        }
-      }
-      // Left stair: boards near left edge split around the stair Z-range
-      else if (deckLeftGap && bx < cx + notchD) {
-        var zMin = deckLeftGap.min, zMax = deckLeftGap.max;
-        // Segment before gap (house-side)
-        var seg1Len = zMin - cz;
-        if (seg1Len > 0.1) {
-          var b1=new THREE.Mesh(new THREE.BoxGeometry(bdW-0.02, bdH, seg1Len), mats.deck);
-          b1.position.set(bx, H+bdH/2, cz+seg1Len/2); b1.receiveShadow=true; scene.add(b1);
-        }
-        // Segment after gap (yard-side)
-        var seg2Len = (cz+D) - zMax;
-        if (seg2Len > 0.1) {
-          var b2=new THREE.Mesh(new THREE.BoxGeometry(bdW-0.02, bdH, seg2Len), mats.deck);
-          b2.position.set(bx, H+bdH/2, zMax+seg2Len/2); b2.receiveShadow=true; scene.add(b2);
-        }
-      }
-      // Right stair: boards near right edge split around the stair Z-range
-      else if (deckRightGap && bx > cx + W - notchD) {
-        var zMin = deckRightGap.min, zMax = deckRightGap.max;
-        var seg1Len = zMin - cz;
-        if (seg1Len > 0.1) {
-          var b1=new THREE.Mesh(new THREE.BoxGeometry(bdW-0.02, bdH, seg1Len), mats.deck);
-          b1.position.set(bx, H+bdH/2, cz+seg1Len/2); b1.receiveShadow=true; scene.add(b1);
-        }
-        var seg2Len = (cz+D) - zMax;
-        if (seg2Len > 0.1) {
-          var b2=new THREE.Mesh(new THREE.BoxGeometry(bdW-0.02, bdH, seg2Len), mats.deck);
-          b2.position.set(bx, H+bdH/2, zMax+seg2Len/2); b2.receiveShadow=true; scene.add(b2);
-        }
-      }
-      // Normal full board
-      else {
-        var b=new THREE.Mesh(new THREE.BoxGeometry(bdW-0.02, bdH, D+0.1), mats.deck);
-        b.position.set(bx, H+bdH/2, cz+D/2); b.receiveShadow=true; scene.add(b);
-      }
+      var b=new THREE.Mesh(new THREE.BoxGeometry(bdW-0.02, bdH, D+0.1), mats.deck);
+      b.position.set(cx+x, H+bdH/2, cz+D/2); b.receiveShadow=true; scene.add(b);
     }
 
     // ── RAILING with gaps — beefed up for visibility ──
@@ -206,22 +166,6 @@ function Deck3D({ c, p }) {
     [[cx,cz],[cx+W,cz],[cx,cz+D],[cx+W,cz+D]].forEach(([x,z])=>{
       scene.add(new THREE.Mesh(new THREE.BoxGeometry(postW,rH+0.3,postW),mats.rail)).position.set(x,H+bdH+rH/2,z);
     });
-    // Rim board at stair opening edge
-    if(deckFrontGap){
-      var rimY = H - jH2/2 - 0.1, rimH = jH2;
-      var rimW = deckFrontGap.max - deckFrontGap.min;
-      scene.add(new THREE.Mesh(new THREE.BoxGeometry(rimW, rimH, jW2), mats.joist)).position.set((deckFrontGap.min+deckFrontGap.max)/2, rimY, cz+D-notchD);
-    }
-    if(deckLeftGap){
-      var rimY = H - jH2/2 - 0.1, rimH = jH2;
-      var rimLen = deckLeftGap.max - deckLeftGap.min;
-      scene.add(new THREE.Mesh(new THREE.BoxGeometry(jW2, rimH, rimLen), mats.joist)).position.set(cx+notchD, rimY, (deckLeftGap.min+deckLeftGap.max)/2);
-    }
-    if(deckRightGap){
-      var rimY = H - jH2/2 - 0.1, rimH = jH2;
-      var rimLen = deckRightGap.max - deckRightGap.min;
-      scene.add(new THREE.Mesh(new THREE.BoxGeometry(jW2, rimH, rimLen), mats.joist)).position.set(cx+W-notchD, rimY, (deckRightGap.min+deckRightGap.max)/2);
-    }
 
     // ================================================================
     // STAIRS 3D — Visual overhaul: exaggerated proportions, no rails
