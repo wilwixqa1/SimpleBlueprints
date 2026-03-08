@@ -4,12 +4,20 @@
 const { useState: _stUS, useEffect: _stUE } = React;
 const { br: _br, mono: _mono, sans: _sans } = window.SB;
 
+// ── Feet-inches formatter (20.5 → 20'-6") ──
+function fmtFtIn(v) {
+  var ft = Math.floor(v);
+  var inches = Math.round((v - ft) * 12);
+  if (inches === 12) { ft += 1; inches = 0; }
+  return inches === 0 ? ft + "'" : ft + "'-" + inches + '"';
+}
+
 // ── Shared UI helpers ──
 function Label({ children }) {
   return <label style={{ display: "block", fontSize: 10, fontWeight: 700, color: _br.mu, marginBottom: 4, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>{children}</label>;
 }
 
-function Slider({ label, value, min, max, step: s = 1, field, unit = "'", u, p }) {
+function Slider({ label, value, min, max, step: s = 1, field, unit = "'", fmt, u, p }) {
   const [editing, setEditing] = _stUS(false);
   const [draft, setDraft] = _stUS(String(value));
   const commit = () => {
@@ -29,7 +37,7 @@ function Slider({ label, value, min, max, step: s = 1, field, unit = "'", u, p }
           <input type="number" min={min} max={max} step={s} value={draft} onChange={e => setDraft(e.target.value)} onBlur={commit} onKeyDown={e => e.key === "Enter" && commit()} autoFocus
             style={{ width: 60, fontFamily: _mono, fontSize: 16, fontWeight: 800, color: _br.tx, textAlign: "right", border: `2px solid ${_br.gn}`, borderRadius: 4, padding: "2px 4px", outline: "none", background: "#fff" }} />
         ) : (
-          <span onClick={() => setEditing(true)} style={{ fontFamily: _mono, fontSize: 18, fontWeight: 800, color: _br.tx, minWidth: 58, textAlign: "center", cursor: "text", background: "#f0ede4", borderRadius: 5, padding: "2px 8px", border: `1px solid ${_br.bd}`, display: "inline-flex", alignItems: "center", gap: 4 }}>{value}{unit}<span style={{ fontSize: 10, color: _br.mu, opacity: 0.6 }}>{"\u270E"}</span></span>
+          <span onClick={() => setEditing(true)} style={{ fontFamily: _mono, fontSize: 18, fontWeight: 800, color: _br.tx, minWidth: 58, textAlign: "center", cursor: "text", background: "#f0ede4", borderRadius: 5, padding: "2px 8px", border: `1px solid ${_br.bd}`, display: "inline-flex", alignItems: "center", gap: 4 }}>{fmt ? fmt(value) : (value + unit)}<span style={{ fontSize: 10, color: _br.mu, opacity: 0.6 }}>{"\u270E"}</span></span>
         )}
       </div>
     </div>
@@ -58,15 +66,15 @@ function StepContent(props) {
     genStatus, genError, generateBlueprint, user, API } = props;
 
   if (step === 0) return <>
-    <Slider label="Width (along house)" value={p.width} min={8} max={50} field="width" u={u} p={p} />
-    <Slider label="Depth (from house)" value={p.depth} min={6} max={24} field="depth" u={u} p={p} />
-    <Slider label="Height above grade" value={p.height} min={1} max={14} field="height" u={u} p={p} />
+    <Slider label="Width (along house)" value={p.width} min={8} max={50} step={0.5} fmt={fmtFtIn} field="width" u={u} p={p} />
+    <Slider label="Depth (from house)" value={p.depth} min={6} max={24} step={0.5} fmt={fmtFtIn} field="depth" u={u} p={p} />
+    <Slider label="Height above grade" value={p.height} min={1} max={14} step={0.5} fmt={fmtFtIn} field="height" u={u} p={p} />
     <Slider label="House width" value={p.houseWidth} min={20} max={80} field="houseWidth" u={u} p={p} />
     <Chips label="Attachment" field="attachment" opts={[["ledger", "Ledger Board"], ["freestanding", "Freestanding"]]} u={u} p={p} />
     <Chips label="Stairs" field="hasStairs" opts={[[true, "Yes"], [false, "No"]]} u={u} p={p} />
     {p.hasStairs && <>
       <Chips label="Stair location" field="stairLocation" opts={[["front", "Front"], ["left", "Left"], ["right", "Right"]]} u={u} p={p} />
-      <Slider label="Stair width" value={p.stairWidth} min={3} max={p.width} field="stairWidth" u={u} p={p} />
+      <Slider label="Stair width" value={p.stairWidth} min={3} max={p.width} step={0.5} fmt={fmtFtIn} field="stairWidth" u={u} p={p} />
       <Slider label="Number of stringers" value={p.numStringers} min={2} max={5} field="numStringers" unit="" u={u} p={p} />
       <Chips label="Landing pad" field="hasLanding" opts={[[true, "Yes"], [false, "No"]]} u={u} p={p} />
     {p.hasStairs && <>
@@ -102,20 +110,20 @@ function StepContent(props) {
       <span style={{ transform: showAdvanced ? "rotate(180deg)" : "none", transition: "0.2s" }}>{"\u25BE"}</span>
     </button>
     {showAdvanced && <div style={{ padding: 14, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}`, marginBottom: 12 }}>
-      <Slider label="Deck offset from center" value={p.deckOffset} min={-Math.floor(p.houseWidth / 2)} max={Math.floor(p.houseWidth / 2)} field="deckOffset" unit="'" u={u} p={p} />
-      {p.hasStairs && p.stairAnchorX == null && <Slider label="Stair offset from center" value={p.stairOffset} min={-Math.floor((p.stairLocation === "front" ? (p.width - (p.stairWidth || 4)) : (p.depth - (p.stairWidth || 4))) / 2)} max={Math.floor((p.stairLocation === "front" ? (p.width - (p.stairWidth || 4)) : (p.depth - (p.stairWidth || 4))) / 2)} field="stairOffset" unit="'" u={u} p={p} />}
+      <Slider label="Deck offset from center" value={p.deckOffset} min={-Math.floor(p.houseWidth / 2)} max={Math.floor(p.houseWidth / 2)} field="deckOffset" u={u} p={p} />
+      {p.hasStairs && p.stairAnchorX == null && <Slider label="Stair offset from center" value={p.stairOffset} min={-Math.floor((p.stairLocation === "front" ? (p.width - (p.stairWidth || 4)) : (p.depth - (p.stairWidth || 4))) / 2)} max={Math.floor((p.stairLocation === "front" ? (p.width - (p.stairWidth || 4)) : (p.depth - (p.stairWidth || 4))) / 2)} field="stairOffset" u={u} p={p} />}
       {p.hasStairs && p.stairAnchorX != null && <>
-        <Slider label="Stair anchor X (from left)" value={p.stairAnchorX} min={0} max={p.width} step={0.5} field="stairAnchorX" unit="'" u={u} p={p} />
-        <Slider label="Stair anchor Y (from house)" value={p.stairAnchorY} min={0} max={p.depth} step={0.5} field="stairAnchorY" unit="'" u={u} p={p} />
-        <Slider label="Stair angle" value={p.stairAngle} min={0} max={270} step={90} field="stairAngle" unit="\u00B0" u={u} p={p} />
+        <Slider label="Stair anchor X (from left)" value={p.stairAnchorX} min={0} max={p.width} step={0.5} field="stairAnchorX" fmt={fmtFtIn} u={u} p={p} />
+        <Slider label="Stair anchor Y (from house)" value={p.stairAnchorY} min={0} max={p.depth} step={0.5} field="stairAnchorY" fmt={fmtFtIn} u={u} p={p} />
+        <Slider label="Stair angle" value={p.stairAngle} min={0} max={270} step={90} field="stairAngle" unit={"\u00B0"} u={u} p={p} />
         <button onClick={() => { u("stairAnchorX", null); u("stairAnchorY", null); u("stairAngle", null); }} style={{ padding: "5px 12px", fontSize: 9, fontFamily: _mono, color: "#c62828", background: "none", border: "1px solid #c62828", borderRadius: 4, cursor: "pointer", marginBottom: 8 }}>Reset to edge mode</button>
       </>}
     {["lLeft","lRight","switchback","wrapAround","wideLanding"].includes(p.stairTemplate) && p.hasStairs && (<>
       <Slider label="Run Split (1st run %)" value={p.stairRunSplit!=null?p.stairRunSplit:55} min={30} max={70} step={5} field="stairRunSplit" unit="%" u={u} p={p} />
-      <Slider label="Landing Depth" value={p.stairLandingDepth!=null?p.stairLandingDepth:Math.max(p.stairWidth||4,4)} min={3} max={8} step={0.5} field="stairLandingDepth" unit="'" u={u} p={p} />
+      <Slider label="Landing Depth" value={p.stairLandingDepth!=null?p.stairLandingDepth:Math.max(p.stairWidth||4,4)} min={3} max={8} step={0.5} field="stairLandingDepth" fmt={fmtFtIn} u={u} p={p} />
     </>)}
     {["switchback","wrapAround"].includes(p.stairTemplate) && p.hasStairs && (
-      <Slider label="Gap Between Runs" value={p.stairGap!=null?p.stairGap:0.5} min={0} max={2} step={0.5} field="stairGap" unit="'" u={u} p={p} />
+      <Slider label="Gap Between Runs" value={p.stairGap!=null?p.stairGap:0.5} min={0} max={2} step={0.5} field="stairGap" fmt={fmtFtIn} u={u} p={p} />
     )}
     </div>}
 
@@ -420,7 +428,7 @@ function StepContent(props) {
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10, marginBottom: 14 }}>
       <div style={{ padding: 12, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}` }}>
         <div style={{ fontSize: 9, fontWeight: 700, color: _br.gn, marginBottom: 6, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>Project</div>
-        <Spec l="Size" v={`${c.W}'\u00D7${c.D}' (${c.area} SF)`} /><Spec l="Height" v={`${c.H}'`} /><Spec l="Attach" v={c.attachment === "ledger" ? "Ledger" : "Free"} /><Spec l="Stairs" v={p.hasStairs ? `${p.stairLocation} ${p.stairWidth || 4}' \u00B7 ${p.numStringers || 3} stringers${p.hasLanding ? " \u00B7 landing" : ""}` : "None"} /><Spec l="Deck" v={p.deckingType === "composite" ? "Composite" : "PT"} /><Spec l="Rail" v={p.railType === "fortress" ? "Fortress" : "Wood"} />
+        <Spec l="Size" v={`${fmtFtIn(c.W)}\u00D7${fmtFtIn(c.D)} (${c.area} SF)`} /><Spec l="Height" v={fmtFtIn(c.H)} /><Spec l="Attach" v={c.attachment === "ledger" ? "Ledger" : "Free"} /><Spec l="Stairs" v={p.hasStairs ? `${p.stairLocation} ${fmtFtIn(p.stairWidth || 4)} \u00B7 ${p.numStringers || 3} stringers${p.hasLanding ? " \u00B7 landing" : ""}` : "None"} /><Spec l="Deck" v={p.deckingType === "composite" ? "Composite" : "PT"} /><Spec l="Rail" v={p.railType === "fortress" ? "Fortress" : "Wood"} />
       </div>
       <div style={{ padding: 12, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}` }}>
         <div style={{ fontSize: 9, fontWeight: 700, color: _br.gn, marginBottom: 6, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>Structure</div>
