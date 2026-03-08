@@ -375,9 +375,10 @@ function Deck3D({ c, p }) {
             }
             stGrp.add(trM);
 
-            // Posts — start from step 1 (not 0) to avoid clipping through deck
+            // FIX #2: Posts start from 0 on ALL runs (including first)
+            // The first post is half a tread (~5.25") from deck edge — no clipping
             var postSpacing = Math.max(1, Math.floor(run.treads / 3));
-            for (var pi = (ri === 0 ? postSpacing : 0); pi <= run.treads; pi += postSpacing) {
+            for (var pi = 0; pi <= run.treads; pi += postSpacing) {
               var stepIdx = Math.min(pi, run.treads - 1);
               var postBaseY = topElev - (stepIdx + 1) * riseFt + treadTh;
               var postX = isHoriz ? ePos : sx + dsx * treadFt * (stepIdx + 0.5);
@@ -440,7 +441,11 @@ function Deck3D({ c, p }) {
 
         // Position and rotate the entire stair group
         stGrp.position.set(cx + stPl.anchorX, 0, cz + stPl.anchorY);
-        stGrp.rotation.y = -(stPl.angle || 0) * Math.PI / 180;
+        // FIX #1: Removed negation — positive angle rotates stair correctly
+        // angle=0 (front): +local Z = +world Z (away from house) ✓
+        // angle=90 (right): +local Z → +world X (rightward) ✓
+        // angle=270 (left): +local Z → -world X (leftward) ✓
+        stGrp.rotation.y = (stPl.angle || 0) * Math.PI / 180;
         scene.add(stGrp);
     }
 
