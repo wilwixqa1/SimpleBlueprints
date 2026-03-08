@@ -33,7 +33,6 @@ def format_feet_inches(feet):
 def draw_cover_sheet(fig, params, calc, project_info=None, cover_image_b64=None):
     """Draw Sheet A-0: Cover page with 3D rendering and project details."""
     pi = project_info or {}
-    # FIX: projectInfo may arrive as a JSON string instead of dict
     if isinstance(pi, str):
         try:
             pi = json.loads(pi)
@@ -52,13 +51,11 @@ def draw_cover_sheet(fig, params, calc, project_info=None, cover_image_b64=None)
     ax.axis('off')
     ax.set_facecolor('white')
 
-    # Border
     ax.add_patch(patches.Rectangle((3, 3), 134, 79, fill=False,
                  ec=BRAND["dark"], lw=2))
     ax.add_patch(patches.Rectangle((3.5, 3.5), 133, 78, fill=False,
                  ec=BRAND["dark"], lw=0.5))
 
-    # Title area (top)
     ax.add_patch(patches.Rectangle((3.5, 72), 133, 9.5, fc=BRAND["dark"], ec='none'))
 
     ax.text(7, 77.5, "SIMPLEBLUEPRINTS", fontsize=18, fontweight='bold',
@@ -71,7 +68,6 @@ def draw_cover_sheet(fig, params, calc, project_info=None, cover_image_b64=None)
     ax.text(133, 75.5, f"SHEET A-0  |  COVER", fontsize=6, fontfamily='monospace',
             color=(1,1,1,0.6), ha='right')
 
-    # 3D Rendering area
     img_y_top = 70
     img_y_bot = 30
     img_x_left = 5
@@ -103,14 +99,12 @@ def draw_cover_sheet(fig, params, calc, project_info=None, cover_image_b64=None)
                 fontsize=14, fontweight='bold', fontfamily='monospace',
                 color=BRAND["mute"])
 
-    # Project info area (below image)
     info_y = 27
     box_h = info_y - 5
     row_h = 1.8
     label_fs = 5
     val_fs = 5.5
 
-    # Left: Project details
     ax.add_patch(patches.Rectangle((5, 5), 64, box_h,
                  fc='white', ec=BRAND["dark"], lw=0.8))
 
@@ -151,7 +145,6 @@ def draw_cover_sheet(fig, params, calc, project_info=None, cover_image_b64=None)
                 color=BRAND["dark"])
         dy -= row_h
 
-    # Right: Deck specs
     ax.add_patch(patches.Rectangle((71, 5), 44, box_h,
                  fc='white', ec=BRAND["dark"], lw=0.8))
 
@@ -188,7 +181,6 @@ def draw_cover_sheet(fig, params, calc, project_info=None, cover_image_b64=None)
                 color=BRAND["dark"])
         dy -= row_h
 
-    # Right column: Drawing Index
     idx_x = 117
     idx_w = 18.5
     ax.add_patch(patches.Rectangle((idx_x, 5), idx_w, box_h,
@@ -203,9 +195,10 @@ def draw_cover_sheet(fig, params, calc, project_info=None, cover_image_b64=None)
         ("A-0", "COVER"),
         ("A-1", "PLAN & FRAMING"),
         ("A-2", "ELEVATIONS"),
-        ("A-3", "DETAILS"),
-        ("A-4", "MATERIALS"),
-        ("A-5", "SITE PLAN"),
+        ("A-3", "GENERAL NOTES"),
+        ("A-4", "DETAILS"),
+        ("A-5", "MATERIALS"),
+        ("A-6", "SITE PLAN"),
     ]
     dy = info_y - 5.5
     for i, (num, title) in enumerate(sheets):
