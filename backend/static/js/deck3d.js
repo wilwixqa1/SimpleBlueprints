@@ -45,6 +45,7 @@ function Deck3D({ c, p }) {
     };
 
     const cx = -W / 2, cz = -D / 2;
+    const isLedger = c.attachment === "ledger";
     var hasSt = p.hasStairs && c.stairs && H > 0.5;
     var stPl = hasSt ? window.getStairPlacement(p, c) : null;
     var exitSide = stPl ? (stPl.angle === 90 ? "right" : stPl.angle === 270 ? "left" : stPl.angle === 180 ? "back" : "front") : null;
@@ -137,7 +138,6 @@ function Deck3D({ c, p }) {
     for (let x=sp/12; x<W; x+=sp/12) {
       var jx = cx + x;
       if (frontGap && stairClipD > 0.5 && jx > frontGap.min + 0.05 && jx < frontGap.max - 0.05) {
-        // Split joist around stair footprint instead of removing entirely
         var jSeg1 = frontGap.zMin - cz;
         if (jSeg1 > 0.2) {
           scene.add(new THREE.Mesh(new THREE.BoxGeometry(jW2,jH2,jSeg1), mats.joist)).position.set(jx, H-jH2/2-0.1, cz+jSeg1/2);
@@ -178,13 +178,11 @@ function Deck3D({ c, p }) {
     for (let x=bdW/2; x<W; x+=bdW) {
       var bx = cx + x;
       if (frontGap && stairClipD > 0.1 && bx > frontGap.min + 0.02 && bx < frontGap.max - 0.02) {
-        // Segment 1: house wall to stair start
         var seg1Len = frontGap.zMin - cz;
         if (seg1Len > 0.2) {
           var b1 = new THREE.Mesh(new THREE.BoxGeometry(bdW-0.02, bdH, seg1Len), mats.deck);
           b1.position.set(bx, H+bdH/2, cz+seg1Len/2); b1.receiveShadow=true; scene.add(b1);
         }
-        // Segment 2: stair end to front edge (only for mid-deck stairs)
         var seg2Len = (cz + D) - frontGap.zMax;
         if (seg2Len > 0.2) {
           var b2 = new THREE.Mesh(new THREE.BoxGeometry(bdW-0.02, bdH, seg2Len), mats.deck);
@@ -210,9 +208,11 @@ function Deck3D({ c, p }) {
       b.position.set(bx, H+bdH/2, cz+D/2); b.receiveShadow=true; scene.add(b);
     }
 
-    // Railing with gaps
+    // Railing with gaps — FIX: no back rail for ledger-attached decks
     const rH=3, trY=H+bdH+rH, brY=H+bdH+0.25;
     var railTopW = 0.18, railBotW = 0.12, balW = 0.07, balSp = 0.5, postW = 0.3;
+    // For ledger decks, side rails start offset from house wall (no railing along house)
+    var railZStart = isLedger ? cz + 0.3 : cz;
     function addRail(x1,z1,x2,z2) {
       var dx2=x2-x1,dz2=z2-z1,len=Math.sqrt(dx2*dx2+dz2*dz2);
       if(len<0.05) return;
@@ -227,14 +227,18 @@ function Deck3D({ c, p }) {
       if((cx+W)-frontGap.max>0.1) addRail(frontGap.max,cz+D,cx+W,cz+D);
     } else addRail(cx,cz+D,cx+W,cz+D);
     if(leftGap){
-      if(leftGap.min-cz>0.1) addRail(cx,cz,cx,leftGap.min);
+      if(leftGap.min-railZStart>0.1) addRail(cx,railZStart,cx,leftGap.min);
       if((cz+D)-leftGap.max>0.1) addRail(cx,leftGap.max,cx,cz+D);
-    } else addRail(cx,cz,cx,cz+D);
+    } else addRail(cx,railZStart,cx,cz+D);
     if(rightGap){
-      if(rightGap.min-cz>0.1) addRail(cx+W,cz,cx+W,rightGap.min);
+      if(rightGap.min-railZStart>0.1) addRail(cx+W,railZStart,cx+W,rightGap.min);
       if((cz+D)-rightGap.max>0.1) addRail(cx+W,rightGap.max,cx+W,cz+D);
-    } else addRail(cx+W,cz,cx+W,cz+D);
-    [[cx,cz],[cx+W,cz],[cx,cz+D],[cx+W,cz+D]].forEach(([x,z])=>{
+    } else addRail(cx+W,railZStart,cx+W,cz+D);
+    // Corner posts — skip back corners (house wall side) for ledger attachment
+    var cornerPosts = isLedger
+      ? [[cx,cz+D],[cx+W,cz+D]]
+      : [[cx,cz],[cx+W,cz],[cx,cz+D],[cx+W,cz+D]];
+    cornerPosts.forEach(([x,z])=>{
       scene.add(new THREE.Mesh(new THREE.BoxGeometry(postW,rH+0.3,postW),mats.rail)).position.set(x,H+bdH+rH/2,z);
     });
     if(frontGap && frontGap.zMax >= cz + D - 0.1){
@@ -308,7 +312,8 @@ function Deck3D({ c, p }) {
           var vDist = run.risers * riseFt;
           var sLen = Math.sqrt(hDist * hDist + vDist * vDist);
           var sAng = Math.atan2(vDist, hDist);
-          var strYClip = strH / 2 * Math.cos(sAng);
+          // FIX: increased strYClip to prevent stringer top protrusion on steep angles
+          var strYClip = strH / 2 * Math.cos(sAng) + 0.08;
           var midY = topElev - vDist / 2 - strYClip;
           var midHX = sx + dsx * hDist / 2;
           var midHZ = sz + dsz * hDist / 2;
