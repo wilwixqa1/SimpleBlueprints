@@ -74,17 +74,24 @@ function Deck3D({ c, p }) {
         var gc = cz + stPl.anchorY;
         var szMin = gc - stW/2, szMax = gc + stW/2;
         if (szMax > cz && szMin < cz + D) {
-          rightGap = { min: Math.max(szMin, cz), max: Math.min(szMax, cz + D) };
+          rightGap = { min: Math.max(szMin, cz), max: Math.min(szMax, cz + D),
+            xMin: cx + stPl.anchorX,
+            xMax: Math.min(cx + W, cx + stPl.anchorX + (sg.bbox ? sg.bbox.h : W)) };
         }
       } else if (exitSide === "left") {
         stairClipD = Math.max(0, (cx + stPl.anchorX) - cx);
         var gc = cz + stPl.anchorY;
         var szMin = gc - stW/2, szMax = gc + stW/2;
         if (szMax > cz && szMin < cz + D) {
-          leftGap = { min: Math.max(szMin, cz), max: Math.min(szMax, cz + D) };
+          leftGap = { min: Math.max(szMin, cz), max: Math.min(szMax, cz + D),
+            xMin: Math.max(cx, cx + stPl.anchorX - (sg.bbox ? sg.bbox.h : W)),
+            xMax: cx + stPl.anchorX };
         }
       }
     }
+    // Edge-reach flags: only gap rim/railing/beam when stair footprint reaches deck edge
+    var leftAtEdge = leftGap && leftGap.xMin <= cx + 0.1;
+    var rightAtEdge = rightGap && rightGap.xMax >= cx + W - 0.1;
 
     // House
     const hW = p.houseWidth, hD = 14, hH = Math.max(H + 8, 12);
@@ -107,11 +114,11 @@ function Deck3D({ c, p }) {
       }
       if (leftGap) {
         var wz = cz + D - 1.5;
-        if (wz > leftGap.min - 0.5 && wz < leftGap.max + 0.5 && wx < cx + stW + 1) return false;
+        if (wz > leftGap.min - 0.5 && wz < leftGap.max + 0.5 && wx > leftGap.xMin - 0.5 && wx < leftGap.xMax + 0.5) return false;
       }
       if (rightGap) {
         var wz = cz + D - 1.5;
-        if (wz > rightGap.min - 0.5 && wz < rightGap.max + 0.5 && wx > cx + W - stW - 1) return false;
+        if (wz > rightGap.min - 0.5 && wz < rightGap.max + 0.5 && wx > rightGap.xMin - 0.5 && wx < rightGap.xMax + 0.5) return false;
       }
       return true;
     });
@@ -148,6 +155,29 @@ function Deck3D({ c, p }) {
         }
         continue;
       }
+      // Left/right stair joist splitting — split joists within stair X footprint
+      if (leftGap && jx > leftGap.xMin + 0.05 && jx < leftGap.xMax - 0.05) {
+        var jSeg1 = leftGap.min - cz;
+        if (jSeg1 > 0.2) {
+          scene.add(new THREE.Mesh(new THREE.BoxGeometry(jW2,jH2,jSeg1), mats.joist)).position.set(jx, H-jH2/2-0.1, cz+jSeg1/2);
+        }
+        var jSeg2 = (cz + D - 1.5) - leftGap.max;
+        if (jSeg2 > 0.2) {
+          scene.add(new THREE.Mesh(new THREE.BoxGeometry(jW2,jH2,jSeg2), mats.joist)).position.set(jx, H-jH2/2-0.1, leftGap.max+jSeg2/2);
+        }
+        continue;
+      }
+      if (rightGap && jx > rightGap.xMin + 0.05 && jx < rightGap.xMax - 0.05) {
+        var jSeg1 = rightGap.min - cz;
+        if (jSeg1 > 0.2) {
+          scene.add(new THREE.Mesh(new THREE.BoxGeometry(jW2,jH2,jSeg1), mats.joist)).position.set(jx, H-jH2/2-0.1, cz+jSeg1/2);
+        }
+        var jSeg2 = (cz + D - 1.5) - rightGap.max;
+        if (jSeg2 > 0.2) {
+          scene.add(new THREE.Mesh(new THREE.BoxGeometry(jW2,jH2,jSeg2), mats.joist)).position.set(jx, H-jH2/2-0.1, rightGap.max+jSeg2/2);
+        }
+        continue;
+      }
       scene.add(new THREE.Mesh(new THREE.BoxGeometry(jW2,jH2,jLen), mats.joist)).position.set(jx, H-jH2/2-0.1, cz+jLen/2);
     }
 
@@ -158,12 +188,12 @@ function Deck3D({ c, p }) {
       if(lw>0.1) addRimSeg(cx+lw/2, H-jH2/2-0.1, cz+D, lw, jH2, jW2);
       if(rw>0.1) addRimSeg(frontGap.max+rw/2, H-jH2/2-0.1, cz+D, rw, jH2, jW2);
     } else { addRimSeg(cx+W/2, H-jH2/2-0.1, cz+D, W, jH2, jW2); }
-    if (leftGap) {
+    if (leftAtEdge) {
       var s1=leftGap.min-cz, s2=(cz+D)-leftGap.max;
       if(s1>0.1) addRimSeg(cx, H-jH2/2-0.1, cz+s1/2, jW2, jH2, s1);
       if(s2>0.1) addRimSeg(cx, H-jH2/2-0.1, leftGap.max+s2/2, jW2, jH2, s2);
     } else { addRimSeg(cx, H-jH2/2-0.1, cz+D/2, jW2, jH2, D); }
-    if (rightGap) {
+    if (rightAtEdge) {
       var s1=rightGap.min-cz, s2=(cz+D)-rightGap.max;
       if(s1>0.1) addRimSeg(cx+W, H-jH2/2-0.1, cz+s1/2, jW2, jH2, s1);
       if(s2>0.1) addRimSeg(cx+W, H-jH2/2-0.1, rightGap.max+s2/2, jW2, jH2, s2);
@@ -190,14 +220,14 @@ function Deck3D({ c, p }) {
         }
         continue;
       }
-      if (leftGap && stairClipD > 0.1 && bx < cx + stairClipD) {
+      if (leftGap && bx > leftGap.xMin + 0.02 && bx < leftGap.xMax - 0.02) {
         var seg1 = leftGap.min - cz;
         var seg2 = (cz + D) - leftGap.max;
         if (seg1 > 0.1) { var b1 = new THREE.Mesh(new THREE.BoxGeometry(bdW-0.02, bdH, seg1), mats.deck); b1.position.set(bx, H+bdH/2, cz+seg1/2); b1.receiveShadow=true; scene.add(b1); }
         if (seg2 > 0.1) { var b2 = new THREE.Mesh(new THREE.BoxGeometry(bdW-0.02, bdH, seg2), mats.deck); b2.position.set(bx, H+bdH/2, leftGap.max+seg2/2); b2.receiveShadow=true; scene.add(b2); }
         continue;
       }
-      if (rightGap && stairClipD > 0.1 && bx > cx + W - stairClipD) {
+      if (rightGap && bx > rightGap.xMin + 0.02 && bx < rightGap.xMax - 0.02) {
         var seg1 = rightGap.min - cz;
         var seg2 = (cz + D) - rightGap.max;
         if (seg1 > 0.1) { var b1 = new THREE.Mesh(new THREE.BoxGeometry(bdW-0.02, bdH, seg1), mats.deck); b1.position.set(bx, H+bdH/2, cz+seg1/2); b1.receiveShadow=true; scene.add(b1); }
@@ -226,11 +256,11 @@ function Deck3D({ c, p }) {
       if(frontGap.min-cx>0.1) addRail(cx,cz+D,frontGap.min,cz+D);
       if((cx+W)-frontGap.max>0.1) addRail(frontGap.max,cz+D,cx+W,cz+D);
     } else addRail(cx,cz+D,cx+W,cz+D);
-    if(leftGap){
+    if(leftAtEdge){
       if(leftGap.min-railZStart>0.1) addRail(cx,railZStart,cx,leftGap.min);
       if((cz+D)-leftGap.max>0.1) addRail(cx,leftGap.max,cx,cz+D);
     } else addRail(cx,railZStart,cx,cz+D);
-    if(rightGap){
+    if(rightAtEdge){
       if(rightGap.min-railZStart>0.1) addRail(cx+W,railZStart,cx+W,rightGap.min);
       if((cz+D)-rightGap.max>0.1) addRail(cx+W,rightGap.max,cx+W,cz+D);
     } else addRail(cx+W,railZStart,cx+W,cz+D);
@@ -245,11 +275,11 @@ function Deck3D({ c, p }) {
       scene.add(new THREE.Mesh(new THREE.BoxGeometry(postW,rH+0.3,postW),mats.rail)).position.set(frontGap.min,H+bdH+rH/2,cz+D);
       scene.add(new THREE.Mesh(new THREE.BoxGeometry(postW,rH+0.3,postW),mats.rail)).position.set(frontGap.max,H+bdH+rH/2,cz+D);
     }
-    if(leftGap){
+    if(leftAtEdge){
       scene.add(new THREE.Mesh(new THREE.BoxGeometry(postW,rH+0.3,postW),mats.rail)).position.set(cx,H+bdH+rH/2,leftGap.min);
       scene.add(new THREE.Mesh(new THREE.BoxGeometry(postW,rH+0.3,postW),mats.rail)).position.set(cx,H+bdH+rH/2,leftGap.max);
     }
-    if(rightGap){
+    if(rightAtEdge){
       scene.add(new THREE.Mesh(new THREE.BoxGeometry(postW,rH+0.3,postW),mats.rail)).position.set(cx+W,H+bdH+rH/2,rightGap.min);
       scene.add(new THREE.Mesh(new THREE.BoxGeometry(postW,rH+0.3,postW),mats.rail)).position.set(cx+W,H+bdH+rH/2,rightGap.max);
     }
