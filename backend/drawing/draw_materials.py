@@ -93,8 +93,8 @@ def estimate_materials(params, calc):
     # Stairs
     if calc.get("stairs"):
         st = calc["stairs"]
-        items.append({"cat": "Stairs", "item": f'2×12 Stringers {st["stringer_length_ft"]}\'', "qty": st["num_stringers"], "cost": 38})
-        items.append({"cat": "Stairs", "item": "Stair Treads 2×12", "qty": st["num_treads"], "cost": 18})
+        items.append({"cat": "Stairs", "item": f'2\u00d712 Stringers {st["stringer_length_ft"]}\'', "qty": st["num_stringers"], "cost": 38})
+        items.append({"cat": "Stairs", "item": "Stair Treads 2\u00d712", "qty": st["num_treads"], "cost": 18})
         items.append({"cat": "Stairs", "item": "Stair Stringer Brackets", "qty": st["num_stringers"], "cost": 8})
         if st.get("has_landing"):
             items.append({"cat": "Stairs", "item": "Landing Pad Concrete", "qty": 2, "cost": 6.50})
@@ -117,7 +117,7 @@ def format_feet_inches(feet):
 
 
 def draw_materials_sheet(fig, params, calc):
-    """Draw Sheet A-4: Material list table with cost breakdown."""
+    """Draw Sheet A-5: Material list table with cost breakdown."""
     mat = estimate_materials(params, calc)
     items = mat["items"]
     W = calc["width"]
@@ -132,7 +132,7 @@ def draw_materials_sheet(fig, params, calc):
     # Title
     ax.text(50, 67, 'MATERIAL LIST & COST ESTIMATE', ha='center', fontsize=14,
             fontweight='bold', fontfamily='monospace', color=BRAND["dark"])
-    ax.text(50, 65.2, f'{format_feet_inches(W)} × {format_feet_inches(D)} DECK  ·  {calc["area"]} SF',
+    ax.text(50, 65.2, f'{format_feet_inches(W)} \u00d7 {format_feet_inches(D)} DECK  \u00b7  {calc["area"]} SF',
             ha='center', fontsize=8, fontfamily='monospace', color=BRAND["mute"])
 
     # Table header
@@ -197,8 +197,3 @@ def draw_materials_sheet(fig, params, calc):
             ha='center', fontsize=4.5, fontstyle='italic', fontfamily='monospace', color=BRAND["mute"])
     ax.text(50, tY - 3.5, 'Tax rate assumed at 8%. Contingency of 5% included for waste and misc. hardware.',
             ha='center', fontsize=4.5, fontstyle='italic', fontfamily='monospace', color=BRAND["mute"])
-
-    # Sheet label
-    fig.text(0.5, 0.02,
-             f'SHEET A-5  |  MATERIAL LIST & COST ESTIMATE  |  {format_feet_inches(W)} × {format_feet_inches(D)}  |  simpleblueprints.xyz',
-             ha='center', fontsize=6, fontfamily='monospace', color=BRAND["mute"])
