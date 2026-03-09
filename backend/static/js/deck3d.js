@@ -532,16 +532,18 @@ window.capture3D = function(p, c) {
       var result = window.buildDeckScene(scene, p, c, THREE);
 
       // Smart camera: angle depends on stair exit side so stairs are visible
+      // theta=0.7 puts camera at front-right (positive X, positive Z) — proven good default
       var maxDim = Math.max(W, D, H * 2, p.houseWidth || 30);
-      var dist = maxDim * 1.5;
-      var theta, phi = 0.5;
+      var dist = maxDim * 1.6;
+      var phi = 0.55;
+      var theta;
       switch (result.exitSide) {
-        case "right": theta = -1.0; break;
-        case "left":  theta = 0.0;  break;
-        case "back":  theta = 2.2;  break;
-        default:      theta = -0.5; break;  // front or no stairs
+        case "right": theta = 0.3;  break;  // shift right to see right-exit stairs
+        case "left":  theta = 1.1;  break;  // shift left to see left-exit stairs
+        case "back":  theta = 3.84; break;  // opposite side (0.7 + PI)
+        default:      theta = 0.7;  break;  // front or no stairs — matches old capture3D
       }
-      var lookY = H * 0.5;
+      var lookY = H * 0.6;
       cam.position.set(
         dist * Math.sin(phi) * Math.cos(theta),
         dist * Math.cos(phi) + lookY,
