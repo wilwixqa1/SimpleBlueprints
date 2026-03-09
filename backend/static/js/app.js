@@ -25,6 +25,7 @@ const App = function SimpleBlueprints() {
       next.deckOffset = Math.max(-maxOff, Math.min(maxOff, next.deckOffset || 0));
     }
     if (k === "width" && next.stairWidth > next.width) next.stairWidth = next.width;
+    if (k === "deckingType") { next.joistSpacing = v === "composite" ? 12 : 16; }
     if (k === "stairWidth" || k === "width" || k === "depth") {
       const edge = next.stairLocation === "front" ? next.width : next.depth;
       const maxSO = Math.floor((edge - (next.stairWidth || 4)) / 2);
