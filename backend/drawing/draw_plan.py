@@ -114,7 +114,9 @@ def draw_plan_and_framing(fig, params, calc):
     fig.subplots_adjust(left=0.04, right=0.96, top=0.91, bottom=0.08, wspace=0.12)
 
     # S21: Zone-aware plan view data
+    print(f"ZONE_DEBUG: zones={params.get('zones', 'MISSING')}, type={type(params.get('zones', []))}, len={len(params.get('zones', []))}")
     add_rects = get_additive_rects(params)
+    print(f"ZONE_DEBUG: add_rects={add_rects}")
     cut_rects = get_cutout_rects(params)
     exp_edges = get_exposed_edges(params)
     bbox = get_bounding_box(params)
