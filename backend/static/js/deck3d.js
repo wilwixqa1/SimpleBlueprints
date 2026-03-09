@@ -283,6 +283,44 @@ window.buildDeckScene = function(scene, p, c, THREE) {
     }
   });
 
+  // ── S21: Chamfer corner data for railing ──
+  var chamferCorners = [];
+  chamferZones.forEach(function(cz2) {
+    var bl = cz2.corners.BL && cz2.corners.BL.type === "chamfer" ? cz2.corners.BL.size : 0;
+    var brC = cz2.corners.BR && cz2.corners.BR.type === "chamfer" ? cz2.corners.BR.size : 0;
+    var fl = cz2.corners.FL && cz2.corners.FL.type === "chamfer" ? cz2.corners.FL.size : 0;
+    var frC = cz2.corners.FR && cz2.corners.FR.type === "chamfer" ? cz2.corners.FR.size : 0;
+    if (bl > 0) chamferCorners.push({ cx: cz2.wx, cz: cz2.wz, p1: [cz2.wx + bl, cz2.wz], p2: [cz2.wx, cz2.wz + bl] });
+    if (brC > 0) chamferCorners.push({ cx: cz2.wx + cz2.w, cz: cz2.wz, p1: [cz2.wx + cz2.w - brC, cz2.wz], p2: [cz2.wx + cz2.w, cz2.wz + brC] });
+    if (fl > 0) chamferCorners.push({ cx: cz2.wx, cz: cz2.wz + cz2.d, p1: [cz2.wx + fl, cz2.wz + cz2.d], p2: [cz2.wx, cz2.wz + cz2.d - fl] });
+    if (frC > 0) chamferCorners.push({ cx: cz2.wx + cz2.w, cz: cz2.wz + cz2.d, p1: [cz2.wx + cz2.w - frC, cz2.wz + cz2.d], p2: [cz2.wx + cz2.w, cz2.wz + cz2.d - frC] });
+  });
+
+  var adjustedCorners = {};
+
+  function adjustRailEnd(x, z, ox, oz) {
+    var tol = 0.15;
+    for (var i = 0; i < chamferCorners.length; i++) {
+      var cc = chamferCorners[i];
+      if (Math.abs(x - cc.cx) < tol && Math.abs(z - cc.cz) < tol) {
+        var isH = Math.abs(z - oz) < 0.1;
+        var key = cc.cx.toFixed(2) + "," + cc.cz.toFixed(2);
+        if (!adjustedCorners[key]) adjustedCorners[key] = { cc: cc, h: false, v: false };
+        if (isH) adjustedCorners[key].h = true; else adjustedCorners[key].v = true;
+        return isH ? cc.p1 : cc.p2;
+      }
+    }
+    return null;
+  }
+
+  function isAtChamferCorner(x, z) {
+    var tol = 0.15;
+    for (var i = 0; i < chamferCorners.length; i++) {
+      if (Math.abs(x - chamferCorners[i].cx) < tol && Math.abs(z - chamferCorners[i].cz) < tol) return true;
+    }
+    return false;
+  }
+
   function clipBoardForChamfers(boardWX, zStart, zEnd) {
     for (var ci = 0; ci < chamferZones.length; ci++) {
       var cz2 = chamferZones[ci];
@@ -349,16 +387,29 @@ window.buildDeckScene = function(scene, p, c, THREE) {
   var railTopW = 0.18, railBotW = 0.12, balW = 0.07, balSp = 0.5, postW = 0.3;
   var railZStart = isLedger ? cz + 0.3 : cz;
 
-  function addRail(x1, z1, x2, z2) {
+  function addRail(x1, z1, x2, z2, skipAdjust) {
+    // S21: Auto-adjust endpoints at chamfered corners
+    if (!skipAdjust) {
+      var a1 = adjustRailEnd(x1, z1, x2, z2);
+      if (a1) { x1 = a1[0]; z1 = a1[1]; }
+      var a2 = adjustRailEnd(x2, z2, x1, z1);
+      if (a2) { x2 = a2[0]; z2 = a2[1]; }
+    }
     var dx2 = x2 - x1, dz2 = z2 - z1;
     var len = Math.sqrt(dx2 * dx2 + dz2 * dz2);
     if (len < 0.05) return;
     var mx = (x1 + x2) / 2, mz = (z1 + z2) / 2;
-    var isX = Math.abs(dz2) < 0.01;
-    var topG = isX ? new THREE.BoxGeometry(len, railTopW, railTopW) : new THREE.BoxGeometry(railTopW, railTopW, len);
-    var topM = new THREE.Mesh(topG, mats.rail); topM.position.set(mx, trY, mz); scene.add(topM);
-    var botG = isX ? new THREE.BoxGeometry(len, railBotW, railBotW) : new THREE.BoxGeometry(railBotW, railBotW, len);
-    var botM = new THREE.Mesh(botG, mats.rail); botM.position.set(mx, brY, mz); scene.add(botM);
+    var isDiag = Math.abs(dx2) > 0.01 && Math.abs(dz2) > 0.01;
+    var angle = isDiag ? Math.atan2(dz2, dx2) : 0;
+    var isX = !isDiag && Math.abs(dz2) < 0.01;
+    var topG = (isDiag || isX) ? new THREE.BoxGeometry(len, railTopW, railTopW) : new THREE.BoxGeometry(railTopW, railTopW, len);
+    var topM = new THREE.Mesh(topG, mats.rail); topM.position.set(mx, trY, mz);
+    if (isDiag) topM.rotation.y = -angle;
+    scene.add(topM);
+    var botG = (isDiag || isX) ? new THREE.BoxGeometry(len, railBotW, railBotW) : new THREE.BoxGeometry(railBotW, railBotW, len);
+    var botM = new THREE.Mesh(botG, mats.rail); botM.position.set(mx, brY, mz);
+    if (isDiag) botM.rotation.y = -angle;
+    scene.add(botM);
     var balG = new THREE.BoxGeometry(balW, rH - 0.3, balW);
     var n = Math.max(1, Math.floor(len / balSp));
     for (var i = 0; i <= n; i++) {
@@ -422,7 +473,9 @@ window.buildDeckScene = function(scene, p, c, THREE) {
       outlineCorners[k2] = [cx + e.x2, cz + e.y2];
     });
     Object.keys(outlineCorners).forEach(function(k) {
-      addRailPost(outlineCorners[k][0], outlineCorners[k][1]);
+      if (!isAtChamferCorner(outlineCorners[k][0], outlineCorners[k][1])) {
+        addRailPost(outlineCorners[k][0], outlineCorners[k][1]);
+      }
     });
 
   } else {
@@ -457,8 +510,20 @@ window.buildDeckScene = function(scene, p, c, THREE) {
     var cornerPosts = isLedger
       ? [[z0wx, z0wz + D], [z0wx + W, z0wz + D]]
       : [[z0wx, z0wz], [z0wx + W, z0wz], [z0wx, z0wz + D], [z0wx + W, z0wz + D]];
-    cornerPosts.forEach(function(pt) { addRailPost(pt[0], pt[1]); });
+    cornerPosts.forEach(function(pt) {
+      if (!isAtChamferCorner(pt[0], pt[1])) addRailPost(pt[0], pt[1]);
+    });
   }
+
+  // ── S21: Diagonal railing at chamfered corners ──
+  Object.keys(adjustedCorners).forEach(function(key) {
+    var ac = adjustedCorners[key];
+    if (ac.h && ac.v) {
+      addRail(ac.cc.p1[0], ac.cc.p1[1], ac.cc.p2[0], ac.cc.p2[1], true);
+      addRailPost(ac.cc.p1[0], ac.cc.p1[1]);
+      addRailPost(ac.cc.p2[0], ac.cc.p2[1]);
+    }
+  });
 
   // ── Stairs 3D (zone 0 only — unchanged) ──
   var V_TREAD_RUN = 10.5 / 12;
