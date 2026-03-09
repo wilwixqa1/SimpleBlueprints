@@ -16,6 +16,7 @@ import numpy as np
 # Import our calculation engine
 from .calc_engine import calculate_structure
 from .stair_utils import get_stair_placement, get_stair_exit_side
+from .zone_utils import get_additive_rects, get_cutout_rects, get_exposed_edges, get_bounding_box
 
 # ============================================================
 # DRAWING CONSTANTS
@@ -112,14 +113,19 @@ def draw_plan_and_framing(fig, params, calc):
     ax1, ax2 = fig.subplots(1, 2)
     fig.subplots_adjust(left=0.04, right=0.96, top=0.91, bottom=0.08, wspace=0.12)
 
-    # Compute margins based on deck size
-    margin_x = max(W * 0.18, 5)
-    margin_y = max(D * 0.25, 4)
+    # S21: Zone-aware plan view data
+    add_rects = get_additive_rects(params)
+    cut_rects = get_cutout_rects(params)
+    exp_edges = get_exposed_edges(params)
+    bbox = get_bounding_box(params)
+
+    margin_x = max(bbox["w"] * 0.18, 5)
+    margin_y = max(bbox["d"] * 0.25, 4)
     house_depth = min(D * 0.6, 10)  # visual house depth, proportional
 
     for ax, title, is_framing in [(ax1, "MAIN LEVEL DECK PLAN", False), (ax2, "DECK FRAMING", True)]:
-        ax.set_xlim(-margin_x, W + margin_x)
-        ax.set_ylim(-house_depth - margin_y * 0.5, D + margin_y)
+        ax.set_xlim(bbox["x"] - margin_x, bbox["x"] + bbox["w"] + margin_x)
+        ax.set_ylim(-house_depth - margin_y * 0.5, bbox["y"] + bbox["d"] + margin_y)
         ax.set_aspect('equal')
         ax.axis('off')
         ax.set_facecolor('white')
@@ -143,14 +149,20 @@ def draw_plan_and_framing(fig, params, calc):
             ax.add_patch(patches.Rectangle((0, 0), W, D,
                          fc='#fcfaf5', ec=BRAND["dark"], lw=2))
         else:
-            ax.add_patch(patches.Rectangle((0, 0), W, D,
-                         fc=BRAND["deck"], ec=BRAND["dark"], lw=2))
-            # Board lines
-            board_w = 5.5 / 12
-            for i in range(int(D / board_w) + 1):
-                by = i * board_w
-                if by <= D:
-                    ax.plot([0, W], [by, by], color=BRAND["deck_board"], lw=0.2)
+            # S21: Zone-aware deck rendering
+            for ar in add_rects:
+                r = ar["rect"]
+                ax.add_patch(patches.Rectangle((r["x"], r["y"]), r["w"], r["d"],
+                             fc=BRAND["deck"], ec=BRAND["dark"], lw=2))
+                board_w = 5.5 / 12
+                for bi in range(int(r["d"] / board_w) + 1):
+                    by = r["y"] + bi * board_w
+                    if by <= r["y"] + r["d"]:
+                        ax.plot([r["x"], r["x"] + r["w"]], [by, by], color=BRAND["deck_board"], lw=0.2)
+            for cr in cut_rects:
+                r = cr["rect"]
+                ax.add_patch(patches.Rectangle((r["x"], r["y"]), r["w"], r["d"],
+                             fc='white', ec=BRAND["dark"], lw=1.5, ls='--'))
 
         # Ledger
         if attachment == "ledger":
@@ -281,12 +293,9 @@ def draw_plan_and_framing(fig, params, calc):
             ax.text(W / 2, D / 2 - 0.8, f'{calc["rail_height"]}" GUARD RAIL SYSTEM',
                     ha='center', fontsize=5, fontfamily='monospace', color='#666')
 
-        # Railing (3 sides for ledger, 4 for freestanding)
-        rail_sides = [(0, 0, 0, D), (0, D, W, D), (W, 0, W, D)]
-        if attachment == "freestanding":
-            rail_sides.append((0, 0, W, 0))
-        for x1, y1, x2, y2 in rail_sides:
-            ax.plot([x1, x2], [y1, y2], color=BRAND["rail"], lw=3.5)
+        # Railing (S21: zone-aware exposed edges)
+        for e in exp_edges:
+            ax.plot([e["x1"], e["x2"]], [e["y1"], e["y2"]], color=BRAND["rail"], lw=3.5)
 
         # Stairs (parametric)
         if has_stairs and calc.get("stairs"):
