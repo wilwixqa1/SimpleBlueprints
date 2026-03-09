@@ -59,6 +59,62 @@ function Spec({ l, v, color }) {
   return <div style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", borderBottom: `1px solid ${_br.wr}` }}><span style={{ fontSize: 11, color: _br.mu, fontFamily: _mono }}>{l}</span><span style={{ fontSize: 11, fontWeight: 700, color: color || _br.tx, fontFamily: _mono }}>{v}</span></div>;
 }
 
+// ── Stair template icons ──
+function stairIcon(key) {
+  var c = "#3d5a2e", f = "#faf8f3", lc = "#e8e6d8", s = 0.8, ao = 0.6;
+  if (key === "straight") return (
+    <svg width={28} height={24} viewBox="0 0 28 24">
+      <rect x={9} y={1} width={10} height={22} fill={f} stroke={c} strokeWidth={s} rx={1}/>
+      <polygon points="14,18 11,14 17,14" fill={c} opacity={ao}/>
+    </svg>
+  );
+  if (key === "lLeft") return (
+    <svg width={28} height={24} viewBox="0 0 28 24">
+      <rect x={14} y={1} width={10} height={14} fill={f} stroke={c} strokeWidth={s} rx={1}/>
+      <rect x={4} y={12} width={12} height={11} fill={f} stroke={c} strokeWidth={s} rx={1}/>
+      <polygon points="19,11 17,8 21,8" fill={c} opacity={ao}/>
+      <polygon points="7,17.5 10.5,15.5 10.5,19.5" fill={c} opacity={ao}/>
+    </svg>
+  );
+  if (key === "lRight") return (
+    <svg width={28} height={24} viewBox="0 0 28 24">
+      <rect x={4} y={1} width={10} height={14} fill={f} stroke={c} strokeWidth={s} rx={1}/>
+      <rect x={12} y={12} width={12} height={11} fill={f} stroke={c} strokeWidth={s} rx={1}/>
+      <polygon points="9,11 7,8 11,8" fill={c} opacity={ao}/>
+      <polygon points="21,17.5 17.5,15.5 17.5,19.5" fill={c} opacity={ao}/>
+    </svg>
+  );
+  if (key === "switchback") return (
+    <svg width={28} height={24} viewBox="0 0 28 24">
+      <rect x={3} y={1} width={9} height={17} fill={f} stroke={c} strokeWidth={s} rx={1}/>
+      <rect x={16} y={6} width={9} height={17} fill={f} stroke={c} strokeWidth={s} rx={1}/>
+      <rect x={10} y={13} width={8} height={5} fill={lc} stroke={c} strokeWidth={s} rx={1}/>
+      <polygon points="7.5,14 5.5,10 9.5,10" fill={c} opacity={ao}/>
+      <polygon points="20.5,10 18.5,14 22.5,14" fill={c} opacity={ao}/>
+    </svg>
+  );
+  if (key === "wrapAround") return (
+    <svg width={28} height={24} viewBox="0 0 28 24">
+      <rect x={15} y={1} width={9} height={10} fill={f} stroke={c} strokeWidth={s} rx={1}/>
+      <rect x={4} y={9} width={13} height={6} fill={lc} stroke={c} strokeWidth={s} rx={1}/>
+      <rect x={4} y={13} width={9} height={10} fill={f} stroke={c} strokeWidth={s} rx={1}/>
+      <polygon points="19.5,8 17.5,5 21.5,5" fill={c} opacity={ao}/>
+      <polygon points="7,12.5 10,10.5 10,14.5" fill={c} opacity={ao}/>
+      <polygon points="8.5,17 10.5,20 6.5,20" fill={c} opacity={ao}/>
+    </svg>
+  );
+  if (key === "wideLanding") return (
+    <svg width={28} height={24} viewBox="0 0 28 24">
+      <rect x={9} y={1} width={10} height={8} fill={f} stroke={c} strokeWidth={s} rx={1}/>
+      <rect x={6} y={8} width={16} height={7} fill={lc} stroke={c} strokeWidth={s} rx={1}/>
+      <rect x={9} y={14} width={10} height={9} fill={f} stroke={c} strokeWidth={s} rx={1}/>
+      <polygon points="14,6.5 12,4 16,4" fill={c} opacity={ao}/>
+      <polygon points="14,20 12,17.5 16,17.5" fill={c} opacity={ao}/>
+    </svg>
+  );
+  return null;
+}
+
 // ── Step Content ──
 function StepContent(props) {
   const { step, p, u, c, m, info, setI, showAdvanced, setShowAdvanced,
@@ -96,7 +152,7 @@ function StepContent(props) {
               background: p.stairTemplate === key ? "#edf5e8" : "#fff",
               fontFamily: _mono, transition: "all 0.15s",
             }}>
-              <div style={{ fontSize: 16, marginBottom: 2 }}>{icon}</div>
+              <div style={{ marginBottom: 2 }}>{stairIcon(key)}</div>
               <div style={{ fontSize: 9, fontWeight: 700, color: p.stairTemplate === key ? _br.gn : _br.tx }}>{name}</div>
             </button>
           ))}
