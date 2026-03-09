@@ -424,7 +424,9 @@ window.buildDeckScene = function(scene, p, c, THREE) {
       lCumR += sg.runs[li].risers;
       var lElev = H - lCumR * riseFt;
       var lr = landing.rect;
+      var lSurf = lElev + treadTh;  // landing surface elevation
 
+      // Landing platform
       var platM = new THREE.Mesh(
         new THREE.BoxGeometry(lr.w, treadTh * 2, lr.h), mats.deck
       );
@@ -432,21 +434,93 @@ window.buildDeckScene = function(scene, p, c, THREE) {
       platM.receiveShadow = true; platM.castShadow = true;
       stGrp.add(platM);
 
+      // Landing support posts + piers
       var lpSz = postSize === "6x6" ? 5.5 / 12 : 3.5 / 12;
-      var corners = [
+      var lCorners = [
         [lr.x + lpSz / 2, lr.y + lpSz / 2],
         [lr.x + lr.w - lpSz / 2, lr.y + lpSz / 2],
         [lr.x + lpSz / 2, lr.y + lr.h - lpSz / 2],
         [lr.x + lr.w - lpSz / 2, lr.y + lr.h - lpSz / 2]
       ];
-      corners.forEach(function(pt) {
+      lCorners.forEach(function(pt) {
         var lpm = new THREE.Mesh(new THREE.BoxGeometry(lpSz, lElev, lpSz), mats.post);
         lpm.position.set(pt[0], lElev / 2, pt[1]);
         lpm.castShadow = true;
         stGrp.add(lpm);
-        stGrp.add(new THREE.Mesh(
-          new THREE.CylinderGeometry(pR, pR, 0.35, 12), mats.concrete
-        )).position.set(pt[0], 0.175, pt[1]);
+        var pier = new THREE.Mesh(new THREE.CylinderGeometry(pR, pR, 0.35, 12), mats.concrete);
+        pier.position.set(pt[0], 0.175, pt[1]);
+        stGrp.add(pier);
+      });
+
+      // ── Landing railings on open edges ──
+      // Determine which edges connect to runs (not open)
+      var runBefore = sg.runs[li];
+      var runAfter = sg.runs[li + 1];
+      var adjRuns = [runBefore];
+      if (runAfter) adjRuns.push(runAfter);
+
+      // 4 edges of the landing rect
+      var landingEdges = [
+        { name: 'minY', x1: lr.x, z1: lr.y,        x2: lr.x + lr.w, z2: lr.y },
+        { name: 'maxY', x1: lr.x, z1: lr.y + lr.h,  x2: lr.x + lr.w, z2: lr.y + lr.h },
+        { name: 'minX', x1: lr.x, z1: lr.y,          x2: lr.x,        z2: lr.y + lr.h },
+        { name: 'maxX', x1: lr.x + lr.w, z1: lr.y,   x2: lr.x + lr.w, z2: lr.y + lr.h }
+      ];
+
+      var lrTol = 0.3;
+      landingEdges.forEach(function(edge) {
+        var connected = false;
+        adjRuns.forEach(function(run) {
+          if (!run) return;
+          var rr = run.rect;
+          // Check if run rect is adjacent to this edge (shares the edge boundary + overlaps in the other axis)
+          if (edge.name === 'minY' && Math.abs(rr.y + rr.h - lr.y) < lrTol && rr.x + rr.w > lr.x + lrTol && rr.x < lr.x + lr.w - lrTol) connected = true;
+          if (edge.name === 'maxY' && Math.abs(rr.y - (lr.y + lr.h)) < lrTol && rr.x + rr.w > lr.x + lrTol && rr.x < lr.x + lr.w - lrTol) connected = true;
+          if (edge.name === 'minX' && Math.abs(rr.x + rr.w - lr.x) < lrTol && rr.y + rr.h > lr.y + lrTol && rr.y < lr.y + lr.h - lrTol) connected = true;
+          if (edge.name === 'maxX' && Math.abs(rr.x - (lr.x + lr.w)) < lrTol && rr.y + rr.h > lr.y + lrTol && rr.y < lr.y + lr.h - lrTol) connected = true;
+        });
+
+        if (!connected) {
+          // Add railing on this open edge
+          var ex1 = edge.x1, ez1 = edge.z1, ex2 = edge.x2, ez2 = edge.z2;
+          var edx = ex2 - ex1, edz = ez2 - ez1;
+          var eLen = Math.sqrt(edx * edx + edz * edz);
+          if (eLen < 0.1) return;
+          var emx = (ex1 + ex2) / 2, emz = (ez1 + ez2) / 2;
+          var isHEdge = Math.abs(edz) < 0.01;
+          var lrH = 3.0;  // 36" railing height
+
+          // Top rail
+          var lTopG = isHEdge ? new THREE.BoxGeometry(eLen, 0.15, 0.15) : new THREE.BoxGeometry(0.15, 0.15, eLen);
+          var lTopM = new THREE.Mesh(lTopG, mats.rail);
+          lTopM.position.set(emx, lSurf + lrH, emz);
+          stGrp.add(lTopM);
+
+          // Bottom rail
+          var lBotG = isHEdge ? new THREE.BoxGeometry(eLen, 0.1, 0.1) : new THREE.BoxGeometry(0.1, 0.1, eLen);
+          var lBotM = new THREE.Mesh(lBotG, mats.rail);
+          lBotM.position.set(emx, lSurf + 0.25, emz);
+          stGrp.add(lBotM);
+
+          // Balusters
+          var lBalG = new THREE.BoxGeometry(0.07, lrH - 0.3, 0.07);
+          var lN = Math.max(1, Math.floor(eLen / 0.33));
+          for (var bi = 0; bi <= lN; bi++) {
+            var bt = lN > 0 ? bi / lN : 0.5;
+            var lbm = new THREE.Mesh(lBalG, mats.rail);
+            lbm.position.set(ex1 + edx * bt, lSurf + lrH / 2 + 0.1, ez1 + edz * bt);
+            stGrp.add(lbm);
+          }
+
+          // Posts at edge endpoints
+          var lPostG = new THREE.BoxGeometry(0.2, lrH + 0.3, 0.2);
+          var lp1 = new THREE.Mesh(lPostG, mats.rail);
+          lp1.position.set(ex1, lSurf + lrH / 2, ez1);
+          stGrp.add(lp1);
+          var lp2 = new THREE.Mesh(lPostG, mats.rail);
+          lp2.position.set(ex2, lSurf + lrH / 2, ez2);
+          stGrp.add(lp2);
+        }
       });
     });
 
@@ -570,8 +644,8 @@ window.capture3D = function(p, c) {
       var phi = 0.55;
       var theta;
       switch (result.exitSide) {
-        case "right": theta = 0.3;  break;  // shift right to see right-exit stairs
-        case "left":  theta = 1.1;  break;  // shift left to see left-exit stairs
+        case "right": theta = 0.5;  break;  // slight shift to show right-exit stairs
+        case "left":  theta = 0.9;  break;  // slight shift to show left-exit stairs
         case "back":  theta = 3.84; break;  // opposite side (0.7 + PI)
         default:      theta = 0.7;  break;  // front or no stairs — matches old capture3D
       }
