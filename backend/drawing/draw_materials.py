@@ -62,8 +62,28 @@ def estimate_materials(params, calc):
     # Framing
     jL = math.ceil(D)
     jCost = 22 if jL <= 10 else (32 if jL <= 12 else 42)
+    # Lateral load connectors for ledger decks
+    if calc.get("attachment") == "ledger":
+        items.append({
+            "cat": "LEDGER",
+            "item": "Lateral Load Connectors (DTT2Z)",
+            "qty": 2,
+            "unit_cost": 32.00,
+        })
+
     items.append({"cat": "Framing", "item": f"{joistSize} Joists {jL}'", "qty": nJ + 4, "cost": jCost})
     items.append({"cat": "Framing", "item": "Rim Joists", "qty": math.ceil(W / 12) + 2, "cost": 32})
+
+    # Mid-span blocking (when joist span > 7ft)
+    if calc.get("mid_span_blocking", False):
+        blocking_count = calc.get("blocking_count", 0)
+        if blocking_count > 0:
+            items.append({
+                "cat": "FRAMING",
+                "item": f'{calc["joist_size"]} Blocking (mid-span)',
+                "qty": blocking_count,
+                "unit_cost": 8.00,
+            })
 
     # Hardware
     items.append({"cat": "Hardware", "item": "Joist Hangers", "qty": nJ * 2, "cost": 6})
