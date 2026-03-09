@@ -213,12 +213,12 @@ function ElevationView({ c, p }) {
           <line x1={dX-8} y1={gnd} x2={dX-8} y2={dY} stroke="#1565c0" strokeWidth="0.4" />
           <line x1={dX-10} y1={gnd} x2={dX-6} y2={gnd} stroke="#1565c0" strokeWidth="0.4" />
           <line x1={dX-10} y1={dY} x2={dX-6} y2={dY} stroke="#1565c0" strokeWidth="0.4" />
-          <text x={dX-12} y={(gnd+dY)/2+2} textAnchor="middle" transform={`rotate(-90,${dX-12},${(gnd+dY)/2})`} style={{ fontSize: 5.5, fill: "#1565c0", fontWeight: 700, fontFamily: "monospace" }}>{Math.floor(H)}'-{Math.round((H%1)*12)}"</text>
+          <text x={dX-12} y={(gnd+dY)/2+2} textAnchor="middle" transform={`rotate(-90,${dX-12},${(gnd+dY)/2})`} style={{ fontSize: 5.5, fill: "#1565c0", fontWeight: 700, fontFamily: "monospace" }}>{window.fmtFtIn(H)}</text>
 
           <line x1={dX} y1={rTop-6} x2={dX+dSW} y2={rTop-6} stroke="#c62828" strokeWidth="0.4" />
           <line x1={dX} y1={rTop-8} x2={dX} y2={rTop-4} stroke="#c62828" strokeWidth="0.4" />
           <line x1={dX+dSW} y1={rTop-8} x2={dX+dSW} y2={rTop-4} stroke="#c62828" strokeWidth="0.4" />
-          <text x={dX+dSW/2} y={rTop-9} textAnchor="middle" style={{ fontSize: 5.5, fill: "#c62828", fontWeight: 700, fontFamily: "monospace" }}>{spanFt}'-0"</text>
+          <text x={dX+dSW/2} y={rTop-9} textAnchor="middle" style={{ fontSize: 5.5, fill: "#c62828", fontWeight: 700, fontFamily: "monospace" }}>{window.fmtFtIn(spanFt)}</text>
 
           {/* Architectural label + compass direction */}
           <text x={svgW/2} y={svgH-10} textAnchor="middle" style={{ fontSize: 5.5, fill: "#333", fontFamily: "monospace", fontWeight: 800, letterSpacing: 0.8 }}>{label}</text>
