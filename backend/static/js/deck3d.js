@@ -79,7 +79,8 @@ window.buildDeckScene = function(scene, p, c, THREE) {
 
   // House
   var hW = p.houseWidth, hD = 14, hH = Math.max(H + 8, 12);
-  var hX = cx + (W - hW) / 2, hZ = cz - hD;
+  var dOff = p.deckOffset || 0;
+  var hX = cx + (W - hW) / 2 - dOff, hZ = cz - hD;
   var hm = new THREE.Mesh(new THREE.BoxGeometry(hW, hH, hD), mats.house); hm.position.set(hX + hW / 2, hH / 2, hZ + hD / 2); hm.castShadow = true; scene.add(hm);
   var ov = 1.5, rpk = 5;
   var rx1 = hX - ov, rx2 = hX + hW + ov, rxM = hX + hW / 2, ry = hH, ryP = hH + rpk, rz1 = hZ - 1, rz2 = hZ + hD + 1;
@@ -87,7 +88,7 @@ window.buildDeckScene = function(scene, p, c, THREE) {
   var rg = new THREE.BufferGeometry(); rg.setAttribute('position', new THREE.BufferAttribute(rv, 3)); rg.computeVertexNormals();
   scene.add(new THREE.Mesh(rg, mats.roof));
   for (var wx = 0.2; wx < 0.9; wx += 0.3) { scene.add(new THREE.Mesh(new THREE.PlaneGeometry(3, 4), mats.win)).position.set(hX + hW * wx, H + 5, hZ + hD + 0.05); }
-  scene.add(new THREE.Mesh(new THREE.PlaneGeometry(4, 6.5), mats.win)).position.set(cx + W / 2, H - 6.5 / 2 + 6.7, cz + 0.05);
+  scene.add(new THREE.Mesh(new THREE.PlaneGeometry(4, 6.5), mats.win)).position.set(hX + hW / 2, H - 6.5 / 2 + 6.7, cz + 0.05);
 
   // Piers + Posts + Caps
   var pR = (fDiam / 12) / 2, pD = postSize === "6x6" ? 5.5 / 12 : 3.5 / 12;
@@ -595,7 +596,7 @@ function Deck3D({ c, p }) {
 
     // Cleanup
     return () => { cancelAnimationFrame(frameRef.current); cv.removeEventListener("mousedown", onD); cv.removeEventListener("mousemove", onM); cv.removeEventListener("mouseup", onU); cv.removeEventListener("mouseleave", onU); cv.removeEventListener("wheel", onW); cv.removeEventListener("touchstart", onD); cv.removeEventListener("touchmove", onM); cv.removeEventListener("touchend", onU); ren.dispose(); };
-  }, [W, D, H, c.nP, c.pp, c.postSize, c.beamSize, c.sp, c.fDiam, p.deckingType, p.hasStairs, p.stairTemplate, p.stairWidth, p.numStringers, p.stairAnchorX, p.stairAnchorY, p.stairAngle, p.stairLocation, p.stairOffset, p.stairRunSplit, p.stairLandingDepth, p.stairGap, p.height]);
+  }, [W, D, H, c.nP, c.pp, c.postSize, c.beamSize, c.sp, c.fDiam, p.deckingType, p.hasStairs, p.stairTemplate, p.stairWidth, p.numStringers, p.stairAnchorX, p.stairAnchorY, p.stairAngle, p.stairLocation, p.stairOffset, p.stairRunSplit, p.stairLandingDepth, p.stairGap, p.height, p.deckOffset]);
 
   return <div ref={ref} style={{ width: "100%", height: 380, borderRadius: 6, overflow: "hidden" }} />;
 }
