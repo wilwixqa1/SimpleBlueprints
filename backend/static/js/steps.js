@@ -11,6 +11,7 @@ function fmtFtIn(v) {
   if (inches === 12) { ft += 1; inches = 0; }
   return inches === 0 ? ft + "'" : ft + "'-" + inches + '"';
 }
+window.fmtFtIn = fmtFtIn;
 
 // ── Shared UI helpers ──
 function Label({ children }) {
