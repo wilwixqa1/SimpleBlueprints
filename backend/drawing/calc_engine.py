@@ -82,7 +82,7 @@ def calculate_structure(params):
     beam_size = params.get("overBeam") or auto_beam
 
     # Auto post size
-    auto_post_size = "6x6" if height > 8 else ("6x6" if TL > 60 and height > 5 else "4x4")
+    auto_post_size = "6x6"  # Billy Rule 8: 6x6 minimum per IRC R507.8
     post_size = params.get("overPostSize") or auto_post_size
 
     post_positions = []
@@ -146,6 +146,9 @@ def calculate_structure(params):
     # Joist hanger count for flush beams
     joist_hangers_for_beam = num_joists * 2 if beam_type == "flush" else 0
 
+    mid_span_blocking = joist_span > 7
+    blocking_count = math.ceil(width / (joist_spacing / 12)) - 1 if mid_span_blocking else 0
+
     warnings = []
     max_span_available = joist_spans.get("2x12", {}).get(joist_spacing, 0)
     if joist_span > max_span_available:
@@ -166,6 +169,7 @@ def calculate_structure(params):
         "footing_diam": footing_diam, "footing_depth": footing_depth,
         "num_footings": total_posts, "ledger_size": ledger_size,
         "rail_length": round(rail_length, 1), "rail_height": 36,
+        "mid_span_blocking": mid_span_blocking, "blocking_count": blocking_count,
         "stairs": stair_info, "warnings": warnings,
         "joist_hangers_for_beam": joist_hangers_for_beam,
         "auto": {
