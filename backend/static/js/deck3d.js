@@ -549,7 +549,7 @@ window.buildDeckScene = function(scene, p, c, THREE) {
 // ============================================================
 function Deck3D({ c, p }) {
   const ref = _d3UR(null); const frameRef = _d3UR(null);
-  const orbit = _d3UR({ theta: -0.6, phi: 0.5, dist: 0, drag: false, lx: 0, ly: 0 });
+  const orbit = _d3UR(window._deckOrbit || { theta: -0.6, phi: 0.5, dist: 0, drag: false, lx: 0, ly: 0 });
   const { W, D, H } = c;
 
   _d3UE(() => {
@@ -561,7 +561,7 @@ function Deck3D({ c, p }) {
     // Scene + renderer
     const scene = new THREE.Scene(); scene.background = new THREE.Color(0xf5f2eb); scene.fog = new THREE.Fog(0xf5f2eb, 60, 120);
     const cam = new THREE.PerspectiveCamera(45, cW / cH, 0.1, 200);
-    orbit.current.dist = Math.max(W, D, H * 2) * 1.8;
+    if (!window._deckOrbit) orbit.current.dist = Math.max(W, D, H * 2) * 1.8;
     const ren = new THREE.WebGLRenderer({ antialias: true }); ren.setSize(cW, cH); ren.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     ren.shadowMap.enabled = true; ren.shadowMap.type = THREE.PCFSoftShadowMap;
     el.innerHTML = ""; el.appendChild(ren.domElement);
@@ -595,7 +595,7 @@ function Deck3D({ c, p }) {
     anim();
 
     // Cleanup
-    return () => { cancelAnimationFrame(frameRef.current); cv.removeEventListener("mousedown", onD); cv.removeEventListener("mousemove", onM); cv.removeEventListener("mouseup", onU); cv.removeEventListener("mouseleave", onU); cv.removeEventListener("wheel", onW); cv.removeEventListener("touchstart", onD); cv.removeEventListener("touchmove", onM); cv.removeEventListener("touchend", onU); ren.dispose(); };
+    return () => { cancelAnimationFrame(frameRef.current); cv.removeEventListener("mousedown", onD); cv.removeEventListener("mousemove", onM); cv.removeEventListener("mouseup", onU); cv.removeEventListener("mouseleave", onU); cv.removeEventListener("wheel", onW); cv.removeEventListener("touchstart", onD); cv.removeEventListener("touchmove", onM); cv.removeEventListener("touchend", onU); window._deckOrbit = { theta: orbit.current.theta, phi: orbit.current.phi, dist: orbit.current.dist, drag: false, lx: 0, ly: 0 }; ren.dispose(); };
   }, [W, D, H, c.nP, c.pp, c.postSize, c.beamSize, c.sp, c.fDiam, p.deckingType, p.hasStairs, p.stairTemplate, p.stairWidth, p.numStringers, p.stairAnchorX, p.stairAnchorY, p.stairAngle, p.stairLocation, p.stairOffset, p.stairRunSplit, p.stairLandingDepth, p.stairGap, p.height, p.deckOffset]);
 
   return <div ref={ref} style={{ width: "100%", height: 380, borderRadius: 6, overflow: "hidden" }} />;
