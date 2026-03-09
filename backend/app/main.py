@@ -97,6 +97,7 @@ class DeckParams(BaseModel):
     stairAnchorX: Optional[float] = None; stairAnchorY: Optional[float] = None
     stairAngle: Optional[float] = None
     sitePlanMode: Optional[str] = "generate"; sitePlanFile: Optional[str] = None
+    zones: list = []
 
 
 # ============================================================
