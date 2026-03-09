@@ -169,6 +169,19 @@ def draw_plan_and_framing(fig, params, calc):
                 if jx < W - 0.3:
                     ax.plot([jx, jx], [0.1, beam_y], color=BRAND["light"], lw=0.4)
 
+            # Mid-span blocking (when joist span > 7ft)
+            j_span = D - 1.5 if attachment == "ledger" else D / 2 - 0.75
+            if j_span > 7:
+                block_y = j_span / 2  # midpoint of joist span
+                sp_ft = calc["joist_spacing"] / 12
+                for jx in np.arange(sp_ft, W, sp_ft):
+                    if jx < W - 0.3 and jx + sp_ft < W:
+                        ax.plot([jx, jx + sp_ft], [block_y, block_y],
+                                color=BRAND["dark"], lw=0.6, ls='--', dashes=(1.5, 1.5))
+                ax.text(W + 1, block_y,
+                        f'{calc["joist_size"]} SOLID BLOCKING\nAT MID-SPAN',
+                        fontsize=3.5, fontfamily='monospace', color=BRAND["dark"], va='center')
+
             # Joist label
             ax.text(W / 2, D / 2 - 1.5,
                     f'P.T. {calc["joist_size"]} @ {calc["joist_spacing"]}" O.C.',
