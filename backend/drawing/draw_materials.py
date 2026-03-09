@@ -68,7 +68,7 @@ def estimate_materials(params, calc):
             "cat": "LEDGER",
             "item": "Lateral Load Connectors (DTT2Z)",
             "qty": 2,
-            "unit_cost": 32.00,
+            "cost": 32.00,
         })
 
     items.append({"cat": "Framing", "item": f"{joistSize} Joists {jL}'", "qty": nJ + 4, "cost": jCost})
@@ -82,7 +82,7 @@ def estimate_materials(params, calc):
                 "cat": "FRAMING",
                 "item": f'{calc["joist_size"]} Blocking (mid-span)',
                 "qty": blocking_count,
-                "unit_cost": 8.00,
+                "cost": 8.00,
             })
 
     # Hardware
