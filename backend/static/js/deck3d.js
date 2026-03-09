@@ -270,6 +270,45 @@ window.buildDeckScene = function(scene, p, c, THREE) {
     }
   });
 
+  // ── S20: Chamfer data for 3D board trimming ──
+  var chamferZones = [];
+  addRects.forEach(function(ar) {
+    var zr = ar.rect;
+    var corners = (ar.id === 0) ? (p.mainCorners || {}) : (ar.zone.corners || {});
+    var hasChamfer = ["BL","BR","FL","FR"].some(function(k) {
+      return corners[k] && corners[k].type === "chamfer" && corners[k].size > 0;
+    });
+    if (hasChamfer) {
+      chamferZones.push({ wx: cx + zr.x, wz: cz + zr.y, w: zr.w, d: zr.d, corners: corners });
+    }
+  });
+
+  function clipBoardForChamfers(boardWX, zStart, zEnd) {
+    for (var ci = 0; ci < chamferZones.length; ci++) {
+      var cz2 = chamferZones[ci];
+      if (boardWX < cz2.wx - 0.01 || boardWX > cz2.wx + cz2.w + 0.01) continue;
+      var lx2 = boardWX - cz2.wx;
+      var bl = cz2.corners.BL && cz2.corners.BL.type === "chamfer" ? cz2.corners.BL.size : 0;
+      if (bl > 0 && lx2 < bl) zStart = Math.max(zStart, cz2.wz + (bl - lx2));
+      var br = cz2.corners.BR && cz2.corners.BR.type === "chamfer" ? cz2.corners.BR.size : 0;
+      if (br > 0 && (cz2.w - lx2) < br) zStart = Math.max(zStart, cz2.wz + (br - (cz2.w - lx2)));
+      var fl = cz2.corners.FL && cz2.corners.FL.type === "chamfer" ? cz2.corners.FL.size : 0;
+      if (fl > 0 && lx2 < fl) zEnd = Math.min(zEnd, cz2.wz + cz2.d - (fl - lx2));
+      var fr = cz2.corners.FR && cz2.corners.FR.type === "chamfer" ? cz2.corners.FR.size : 0;
+      if (fr > 0 && (cz2.w - lx2) < fr) zEnd = Math.min(zEnd, cz2.wz + cz2.d - (fr - (cz2.w - lx2)));
+    }
+    return { zStart: zStart, zEnd: zEnd };
+  }
+
+  function addDeckBoard(bx2, zStart, zEnd) {
+    var clip = clipBoardForChamfers(bx2, zStart, zEnd);
+    var len = clip.zEnd - clip.zStart;
+    if (len < 0.1) return;
+    var b = new THREE.Mesh(new THREE.BoxGeometry(bdW - 0.02, bdH, len), mats.deck);
+    b.position.set(bx2, H + bdH / 2, clip.zStart + len / 2);
+    b.receiveShadow = true; scene.add(b);
+  }
+
   // ── S20: Decking boards — iterate over composite outline rects ──
   var bdW = 5.5 / 12, bdH = 1 / 12;
   composite.forEach(function(cr) {
@@ -283,43 +322,25 @@ window.buildDeckScene = function(scene, p, c, THREE) {
 
       // Check if this board X falls within zone 0 and has a stair gap
       if (inZone0(bx, z0wz + D / 2)) {
-        // Apply stair gap clipping from zone 0
         if (frontGap && stairClipD > 0.1 && bx > frontGap.min + 0.02 && bx < frontGap.max - 0.02) {
-          // Board is in the stair gap X range — split around gap
-          var seg1Len = Math.max(0, frontGap.zMin - crwz);
-          if (seg1Len > 0.2) {
-            var b1 = new THREE.Mesh(new THREE.BoxGeometry(bdW - 0.02, bdH, seg1Len), mats.deck);
-            b1.position.set(bx, H + bdH / 2, crwz + seg1Len / 2); b1.receiveShadow = true; scene.add(b1);
-          }
-          var seg2Start = Math.max(crwz, frontGap.zMax);
-          var seg2Len = (crwz + crD) - seg2Start;
-          if (seg2Len > 0.2) {
-            var b2 = new THREE.Mesh(new THREE.BoxGeometry(bdW - 0.02, bdH, seg2Len), mats.deck);
-            b2.position.set(bx, H + bdH / 2, seg2Start + seg2Len / 2); b2.receiveShadow = true; scene.add(b2);
-          }
+          addDeckBoard(bx, crwz, frontGap.zMin);
+          addDeckBoard(bx, Math.max(crwz, frontGap.zMax), crwz + crD);
           continue;
         }
         if (leftGap && bx > leftGap.xMin + 0.02 && bx < leftGap.xMax - 0.02) {
-          var seg1 = Math.max(0, leftGap.min - crwz);
-          var seg2s = Math.max(crwz, leftGap.max);
-          var seg2 = (crwz + crD) - seg2s;
-          if (seg1 > 0.1) { var b1 = new THREE.Mesh(new THREE.BoxGeometry(bdW - 0.02, bdH, seg1), mats.deck); b1.position.set(bx, H + bdH / 2, crwz + seg1 / 2); b1.receiveShadow = true; scene.add(b1); }
-          if (seg2 > 0.1) { var b2 = new THREE.Mesh(new THREE.BoxGeometry(bdW - 0.02, bdH, seg2), mats.deck); b2.position.set(bx, H + bdH / 2, seg2s + seg2 / 2); b2.receiveShadow = true; scene.add(b2); }
+          addDeckBoard(bx, crwz, leftGap.min);
+          addDeckBoard(bx, Math.max(crwz, leftGap.max), crwz + crD);
           continue;
         }
         if (rightGap && bx > rightGap.xMin + 0.02 && bx < rightGap.xMax - 0.02) {
-          var seg1 = Math.max(0, rightGap.min - crwz);
-          var seg2s = Math.max(crwz, rightGap.max);
-          var seg2 = (crwz + crD) - seg2s;
-          if (seg1 > 0.1) { var b1 = new THREE.Mesh(new THREE.BoxGeometry(bdW - 0.02, bdH, seg1), mats.deck); b1.position.set(bx, H + bdH / 2, crwz + seg1 / 2); b1.receiveShadow = true; scene.add(b1); }
-          if (seg2 > 0.1) { var b2 = new THREE.Mesh(new THREE.BoxGeometry(bdW - 0.02, bdH, seg2), mats.deck); b2.position.set(bx, H + bdH / 2, seg2s + seg2 / 2); b2.receiveShadow = true; scene.add(b2); }
+          addDeckBoard(bx, crwz, rightGap.min);
+          addDeckBoard(bx, Math.max(crwz, rightGap.max), crwz + crD);
           continue;
         }
       }
 
       // No gap — full board for this composite rect
-      var b = new THREE.Mesh(new THREE.BoxGeometry(bdW - 0.02, bdH, crD + 0.1), mats.deck);
-      b.position.set(bx, H + bdH / 2, crwz + crD / 2); b.receiveShadow = true; scene.add(b);
+      addDeckBoard(bx, crwz, crwz + crD);
     }
   });
 
