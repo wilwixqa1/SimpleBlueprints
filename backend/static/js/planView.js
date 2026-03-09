@@ -310,14 +310,14 @@ function PlanView({ p, c, mode, u }) {
         return <g ref={stairGroupRef}>{els}</g>;
       })()}
 
-      <line x1={pad} y1={pad + sd + 25} x2={pad + sw} y2={pad + sd + 25} stroke="#c62828" strokeWidth="0.6" />
-      <line x1={pad} y1={pad + sd + 22} x2={pad} y2={pad + sd + 28} stroke="#c62828" strokeWidth="0.6" />
-      <line x1={pad + sw} y1={pad + sd + 22} x2={pad + sw} y2={pad + sd + 28} stroke="#c62828" strokeWidth="0.6" />
-      <text x={pad + sw / 2} y={pad + sd + 37} textAnchor="middle" style={{ fontSize: 9, fill: "#c62828", fontWeight: 800, fontFamily: "'DM Mono', monospace" }}>{window.fmtFtIn(c.W)}</text>
-      <line x1={pad + sw + 20} y1={pad} x2={pad + sw + 20} y2={pad + sd} stroke="#1565c0" strokeWidth="0.6" />
-      <line x1={pad + sw + 17} y1={pad} x2={pad + sw + 23} y2={pad} stroke="#1565c0" strokeWidth="0.6" />
-      <line x1={pad + sw + 17} y1={pad + sd} x2={pad + sw + 23} y2={pad + sd} stroke="#1565c0" strokeWidth="0.6" />
-      <text x={pad + sw + 32} y={pad + sd / 2 + 3} textAnchor="middle" style={{ fontSize: 9, fill: "#1565c0", fontWeight: 800, fontFamily: "'DM Mono', monospace" }} transform={`rotate(90, ${pad + sw + 32}, ${pad + sd / 2})`}>{window.fmtFtIn(c.D)}</text>
+      <line x1={dx} y1={pad + sd + 25} x2={dx + sw} y2={pad + sd + 25} stroke="#c62828" strokeWidth="0.6" />
+      <line x1={dx} y1={pad + sd + 22} x2={dx} y2={pad + sd + 28} stroke="#c62828" strokeWidth="0.6" />
+      <line x1={dx + sw} y1={pad + sd + 22} x2={dx + sw} y2={pad + sd + 28} stroke="#c62828" strokeWidth="0.6" />
+      <text x={dx + sw / 2} y={pad + sd + 37} textAnchor="middle" style={{ fontSize: 9, fill: "#c62828", fontWeight: 800, fontFamily: "'DM Mono', monospace" }}>{window.fmtFtIn(c.W)}</text>
+      <line x1={dx + sw + 20} y1={pad} x2={dx + sw + 20} y2={pad + sd} stroke="#1565c0" strokeWidth="0.6" />
+      <line x1={dx + sw + 17} y1={pad} x2={dx + sw + 23} y2={pad} stroke="#1565c0" strokeWidth="0.6" />
+      <line x1={dx + sw + 17} y1={pad + sd} x2={dx + sw + 23} y2={pad + sd} stroke="#1565c0" strokeWidth="0.6" />
+      <text x={dx + sw + 32} y={pad + sd / 2 + 3} textAnchor="middle" style={{ fontSize: 9, fill: "#1565c0", fontWeight: 800, fontFamily: "'DM Mono', monospace" }} transform={`rotate(90, ${dx + sw + 32}, ${pad + sd / 2})`}>{window.fmtFtIn(c.D)}</text>
       <g transform={`translate(${svgW - 28}, 25)`}><line x1="0" y1="14" x2="0" y2="0" stroke="#444" strokeWidth="1.5" /><polygon points="-3.5,4 0,0 3.5,4" fill="#444" /><text x="0" y="-4" textAnchor="middle" style={{ fontSize: 7, fontWeight: 800, fill: "#444" }}>N</text></g>
     </svg>
   );
