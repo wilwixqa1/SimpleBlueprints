@@ -3,6 +3,8 @@
 // ============================================================
 const { useState, useMemo, useEffect, useRef } = React;
 
+const DEF_CORNERS = { BL: { type: "square", size: 0 }, BR: { type: "square", size: 0 }, FL: { type: "square", size: 0 }, FR: { type: "square", size: 0 } };
+
 const App = function SimpleBlueprints() {
   const { br, mono, sans } = window.SB;
   const [page, setPage] = useState("home");
@@ -10,9 +12,29 @@ const App = function SimpleBlueprints() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [view, setView] = useState("plan");
   const [planMode, setPlanMode] = useState("plan");
-  const [p, setP] = useState({ width: 20, depth: 12, height: 4, houseWidth: 40, houseDepth: 30, attachment: "ledger", hasStairs: true, stairLocation: "front", stairWidth: 4, numStringers: 3, hasLanding: false, joistSpacing: 16, deckingType: "composite", railType: "fortress", snowLoad: "moderate", frostZone: "cold", lotWidth: 80, lotDepth: 120, setbackFront: 25, setbackSide: 5, setbackRear: 20, houseOffsetSide: 20, deckOffset: 0, stairOffset: 0, beamType: "dropped", stairTemplate: "straight", stairRunSplit: null, stairLandingDepth: null, stairLandingWidth: null, stairGap: 0.5, stairRotation: 0, stairAnchorX: null, stairAnchorY: null, stairAngle: null });
+  const [zoneMode, setZoneMode] = useState("select"); // "select" | "add" | "cut" | "chamfer"
+  const [p, setP] = useState({ width: 20, depth: 12, height: 4, houseWidth: 40, houseDepth: 30, attachment: "ledger", hasStairs: true, stairLocation: "front", stairWidth: 4, numStringers: 3, hasLanding: false, joistSpacing: 16, deckingType: "composite", railType: "fortress", snowLoad: "moderate", frostZone: "cold", lotWidth: 80, lotDepth: 120, setbackFront: 25, setbackSide: 5, setbackRear: 20, houseOffsetSide: 20, deckOffset: 0, stairOffset: 0, beamType: "dropped", stairTemplate: "straight", stairRunSplit: null, stairLandingDepth: null, stairLandingWidth: null, stairGap: 0.5, stairRotation: 0, stairAnchorX: null, stairAnchorY: null, stairAngle: null,
+    // Zone system — S19
+    zones: [], activeZone: 0, nextZoneId: 1, mainCorners: { BL: { type: "square", size: 0 }, BR: { type: "square", size: 0 }, FL: { type: "square", size: 0 }, FR: { type: "square", size: 0 } }
+  });
+
+  // Zone-aware updater
   const u = (k, v) => setP(prev => {
     const next = { ...prev, [k]: v };
+
+    // Route zone-specific keys to active zone when activeZone > 0
+    if (next.activeZone > 0) {
+      const zoneKeyMap = { width: "w", depth: "d", height: "h" };
+      if (zoneKeyMap[k]) {
+        next[k] = prev[k]; // restore original flat param
+        next.zones = prev.zones.map(function(z) {
+          if (z.id !== prev.activeZone) return z;
+          return Object.assign({}, z, { [zoneKeyMap[k]]: v });
+        });
+        return next;
+      }
+    }
+
     if (k === "stairLocation") { next.stairOffset = 0; next.stairAnchorX = null; next.stairAnchorY = null; next.stairAngle = null; }
     if (k === "stairAngle" && v != null) {
       if (v === 0) next.stairLocation = "front";
@@ -37,6 +59,93 @@ const App = function SimpleBlueprints() {
     }
     return next;
   });
+
+  // ── Zone management functions ──
+  const addZone = (parentId, edge) => setP(prev => {
+    var parentP = Object.assign({}, prev, { deckWidth: prev.width, deckDepth: prev.depth });
+    var defaults = window.addZoneDefaults(parentId, edge, "add", parentP);
+    if (!defaults) return prev;
+    defaults.id = prev.nextZoneId;
+    defaults.label = "Zone " + prev.nextZoneId;
+    return {
+      ...prev,
+      zones: prev.zones.concat([defaults]),
+      activeZone: prev.nextZoneId,
+      nextZoneId: prev.nextZoneId + 1
+    };
+  });
+
+  const addCutout = (parentId, edge) => setP(prev => {
+    var parentP = Object.assign({}, prev, { deckWidth: prev.width, deckDepth: prev.depth });
+    var defaults = window.addZoneDefaults(parentId, edge, "cutout", parentP);
+    if (!defaults) return prev;
+    defaults.id = prev.nextZoneId;
+    defaults.label = "Cutout " + prev.nextZoneId;
+    return {
+      ...prev,
+      zones: prev.zones.concat([defaults]),
+      activeZone: prev.nextZoneId,
+      nextZoneId: prev.nextZoneId + 1
+    };
+  });
+
+  const removeZone = (zoneId) => setP(prev => {
+    if (zoneId === 0) return prev;
+    var toRemove = new Set([zoneId]);
+    var changed = true;
+    while (changed) {
+      changed = false;
+      prev.zones.forEach(function(z) {
+        if (toRemove.has(z.attachTo) && !toRemove.has(z.id)) { toRemove.add(z.id); changed = true; }
+      });
+    }
+    return {
+      ...prev,
+      zones: prev.zones.filter(function(z) { return !toRemove.has(z.id); }),
+      activeZone: 0
+    };
+  });
+
+  const updateZone = (zoneId, key, val) => setP(prev => {
+    if (zoneId === 0) {
+      // For zone 0, update flat params or mainCorners
+      if (key === "corners") return { ...prev, mainCorners: val };
+      return prev; // zone 0 uses flat params via u()
+    }
+    return {
+      ...prev,
+      zones: prev.zones.map(function(z) {
+        if (z.id !== zoneId) return z;
+        return Object.assign({}, z, { [key]: val });
+      })
+    };
+  });
+
+  const setCorner = (zoneId, corner, type, size) => {
+    var upd = { type: type, size: type === "square" ? 0 : size };
+    if (zoneId === 0) {
+      setP(prev => ({ ...prev, mainCorners: Object.assign({}, prev.mainCorners, { [corner]: upd }) }));
+    } else {
+      setP(prev => ({
+        ...prev,
+        zones: prev.zones.map(function(z) {
+          if (z.id !== zoneId) return z;
+          return Object.assign({}, z, { corners: Object.assign({}, z.corners || DEF_CORNERS, { [corner]: upd }) });
+        })
+      }));
+    }
+  };
+
+  const getCorners = (zoneId) => {
+    if (zoneId === 0) return p.mainCorners || DEF_CORNERS;
+    var z = p.zones.find(function(z) { return z.id === zoneId; });
+    return (z && z.corners) || DEF_CORNERS;
+  };
+
+  // ── Provide deckWidth/deckDepth aliases for zoneUtils ──
+  // zoneUtils reads p.deckWidth/p.deckDepth, but our flat params use width/depth
+  const pForZones = useMemo(() => Object.assign({}, p, { deckWidth: p.width, deckDepth: p.depth, deckHeight: p.height }), [p]);
+
   const c = useMemo(() => window.calcStructure(p), [p]);
   const m = useMemo(() => window.estMaterials(p, c), [p, c]);
   const [genStatus, setGenStatus] = useState("idle");
@@ -144,7 +253,10 @@ const App = function SimpleBlueprints() {
               isProduction={isProduction} feedbackDone={feedbackDone} setFeedbackDone={setFeedbackDone}
               feedback={feedback} setFeedback={setFeedback} submitFeedback={submitFeedback}
               genStatus={genStatus} genError={genError} generateBlueprint={generateBlueprint}
-              user={user} API={API} />
+              user={user} API={API}
+              zoneMode={zoneMode} setZoneMode={setZoneMode}
+              addZone={addZone} addCutout={addCutout} removeZone={removeZone} updateZone={updateZone}
+              setCorner={setCorner} getCorners={getCorners} pForZones={pForZones} />
 
             <div style={{ display: "flex", justifyContent: "space-between", marginTop: 20 }}>
               <button onClick={() => step > 0 ? setStep(step - 1) : setPage("home")} style={{ padding: "9px 18px", border: `1px solid ${br.bd}`, borderRadius: 6, background: "transparent", color: br.mu, cursor: "pointer", fontFamily: mono, fontSize: 11, fontWeight: 600 }}>{"\u2190"} {step > 0 ? "Back" : "Home"}</button>
@@ -165,12 +277,20 @@ const App = function SimpleBlueprints() {
 
             <div style={{ background: view === "3d" ? "transparent" : br.cr, border: view === "3d" ? "none" : `1px solid ${br.bd}`, borderRadius: 6, padding: view === "3d" ? 0 : 12, minHeight: 320 }}>
               {view === "plan" && <>
-                <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
+                <div style={{ display: "flex", gap: 4, marginBottom: 8, flexWrap: "wrap" }}>
                   {[["plan", "Deck Plan"], ["framing", "Framing"]].map(([id, label]) => <button key={id} onClick={() => setPlanMode(id)} style={{ padding: "4px 10px", fontSize: 9, fontFamily: mono, cursor: "pointer", border: planMode === id ? `1px solid ${br.gn}` : `1px solid ${br.bd}`, background: planMode === id ? br.gn : "transparent", color: planMode === id ? "#fff" : br.mu, borderRadius: 4, fontWeight: planMode === id ? 700 : 400 }}>{label}</button>)}
+                  <div style={{ flex: 1 }} />
+                  {planMode === "plan" && [["select", "\u25C7"], ["add", "+"], ["cut", "\u2702"], ["chamfer", "\u25E3"]].map(([id, icon]) => <button key={id} onClick={() => setZoneMode(id)} style={{ padding: "4px 10px", fontSize: 9, fontFamily: mono, cursor: "pointer", border: zoneMode === id ? `1px solid ${id === "cut" ? "#dc2626" : id === "chamfer" ? "#7c3aed" : id === "add" ? "#16a34a" : br.gn}` : `1px solid ${br.bd}`, background: zoneMode === id ? (id === "cut" ? "#fef2f2" : id === "chamfer" ? "#faf5ff" : id === "add" ? "#f0fdf4" : "#edf5e8") : "transparent", color: zoneMode === id ? (id === "cut" ? "#dc2626" : id === "chamfer" ? "#7c3aed" : id === "add" ? "#16a34a" : br.gn) : br.mu, borderRadius: 4, fontWeight: zoneMode === id ? 700 : 400, minWidth: 28, textAlign: "center" }}>{icon}</button>)}
                 </div>
-                <PlanView p={p} c={c} mode={planMode} u={u} />
+                <PlanView p={p} c={c} mode={planMode} u={u}
+                  zoneMode={zoneMode} pForZones={pForZones}
+                  addZone={addZone} addCutout={addCutout}
+                  getCorners={getCorners} setCorner={setCorner} />
                 {planMode === "plan" && <div style={{ textAlign: "center", fontSize: 9, color: br.mu, fontFamily: mono, marginTop: 4, opacity: 0.7 }}>
-                  Drag the <span style={{ color: "#3d5a2e", fontWeight: 700 }}>green</span> handle to slide the deck · Click <span style={{ color: "#c62828", fontWeight: 700 }}>stairs</span> to select, drag to move, grab <span style={{ color: "#3d5a2e", fontWeight: 700 }}>{"\u21BB"}</span> to rotate
+                  {zoneMode === "select" && <>Drag the <span style={{ color: "#3d5a2e", fontWeight: 700 }}>green</span> handle to slide the deck · Click <span style={{ color: "#c62828", fontWeight: 700 }}>stairs</span> to select, drag to move, grab <span style={{ color: "#3d5a2e", fontWeight: 700 }}>{"\u21BB"}</span> to rotate</>}
+                  {zoneMode === "add" && <>Click <span style={{ color: "#16a34a", fontWeight: 700 }}>+</span> on any edge to add a deck zone</>}
+                  {zoneMode === "cut" && <>Click <span style={{ color: "#dc2626", fontWeight: 700 }}>{"\u2702"}</span> on corners for house wraps, center for openings</>}
+                  {zoneMode === "chamfer" && <>Click <span style={{ color: "#7c3aed", fontWeight: 700 }}>{"\u25E3"}</span> on corners to toggle 45{"\u00B0"} chamfers</>}
                 </div>}
               </>}
               {view === "elevation" && <ElevationView c={c} p={p} />}
