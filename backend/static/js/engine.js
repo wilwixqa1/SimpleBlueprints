@@ -48,7 +48,7 @@ function calcStructure(p) {
   if (p.overBeam) { beamSize = p.overBeam; }
 
   // === POST SIZE (overridable) ===
-  let postSize = H > 8 ? "6x6" : (TL > 60 && H > 5 ? "6x6" : "4x4");
+  let postSize = "6x6";  // Billy Rule 8: 6x6 minimum per IRC R507.8
   const autoPostSize = postSize;
   if (p.overPostSize) { postSize = p.overPostSize; }
 
@@ -87,6 +87,8 @@ function calcStructure(p) {
       numLandings: stairGeom ? stairGeom.landings.length : 0,
     };
   }
+  const midSpanBlocking = jSpan > 7;
+  const blockingCount = midSpanBlocking ? Math.ceil(W / (sp / 12)) - 1 : 0;
   const warnings = [];
   const maxSpan = (table["2x12"] || {})[sp] || 0;
   if (jSpan > maxSpan) warnings.push(`Joist span (${jSpan.toFixed(1)}') exceeds IRC at ${TL} PSF. Engineering required.`);
@@ -112,7 +114,7 @@ function calcStructure(p) {
     warnings.push(`⬇ Fewer posts (${p.overPostCount}) than recommended (${autoNP}). May not meet code.`);
   }
 
-  return { W, D, H, area, LL, DL, TL, joistSize, sp, jSpan: +jSpan.toFixed(1), nJ, beamSize, bSpan: +bSpan.toFixed(1), postSize, nP, totalPosts, pp, fDiam, fDepth, nF: totalPosts, ledgerSize: joistSize, railLen: +railLen.toFixed(1), stairs, warnings, attachment,
+  return { W, D, H, area, LL, DL, TL, joistSize, sp, jSpan: +jSpan.toFixed(1), nJ, beamSize, bSpan: +bSpan.toFixed(1), postSize, nP, totalPosts, pp, fDiam, fDepth, nF: totalPosts, ledgerSize: joistSize, railLen: +railLen.toFixed(1), midSpanBlocking, blockingCount, stairs, warnings, attachment,
     auto: { joist: autoJoist, beam: autoBeam, postSize: autoPostSize, postCount: autoNP, footing: autoFDiam }
   };
 }
@@ -131,10 +133,14 @@ function estMaterials(p, c) {
     items.push({ cat: "Ledger", item: `${c.ledgerSize} PT Ledger`, qty: Math.ceil(c.W / 12), cost: 32 });
     items.push({ cat: "Ledger", item: "LedgerLok Screws (box)", qty: Math.ceil(c.W / (16 / 12) * 2 / 50), cost: 85 });
     items.push({ cat: "Ledger", item: "Flashing", qty: 1, cost: 55 });
+    items.push({ cat: "Ledger", item: "Lateral Load Connectors (DTT2Z)", qty: 2, cost: 32 });
   }
   const jL = Math.ceil(c.D);
   items.push({ cat: "Framing", item: `${c.joistSize} Joists ${jL}'`, qty: c.nJ + 4, cost: jL <= 10 ? 22 : jL <= 12 ? 32 : 42 });
   items.push({ cat: "Framing", item: "Rim Joists", qty: Math.ceil(c.W / 12) + 2, cost: 32 });
+  if (c.midSpanBlocking) {
+    items.push({ cat: "Framing", item: c.joistSize + " Blocking (mid-span)", qty: c.blockingCount, cost: 8 });
+  }
   items.push({ cat: "Hardware", item: "Joist Hangers", qty: c.nJ * 2, cost: 6 });
   items.push({ cat: "Hardware", item: "Hurricane Ties + Nails", qty: 1, cost: c.nJ * 2.75 + 50 });
   const bds = Math.ceil(c.W / (5.5 / 12)) * 1.1;
