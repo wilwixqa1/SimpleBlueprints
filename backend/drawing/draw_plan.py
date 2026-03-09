@@ -235,6 +235,45 @@ def draw_plan_and_framing(fig, params, calc):
                     fontsize=4.5, color=BRAND["dark"])
             ax.text(lbx + 0.3, lby + 0.7, f'T.L. = {calc["TL"]} PSF',
                     fontsize=4.5, fontweight='bold', color=BRAND["red"])
+
+            # ── BUILDER DIMENSION CALLOUTS (S17) ──
+            beam_setback = 1.5  # beam is 1.5ft from front edge
+            pp = calc["post_positions"]
+
+            # Post-to-corner dimensions (below deck outline)
+            dim_y_base = -1.5  # below the deck
+            for i, px in enumerate(pp):
+                if i == 0:
+                    # First post: distance from left edge
+                    if px > 0.5:
+                        draw_dimension_h(ax, 0, px, dim_y_base, format_feet_inches(px),
+                                         offset=-1.8, color='#555', fontsize=4.5)
+                elif i == len(pp) - 1:
+                    # Last post: distance from right edge
+                    if W - px > 0.5:
+                        draw_dimension_h(ax, px, W, dim_y_base, format_feet_inches(W - px),
+                                         offset=-1.8, color='#555', fontsize=4.5)
+
+            # Footing center-to-center spacing (below post dims)
+            if len(pp) > 1:
+                for i in range(len(pp) - 1):
+                    spacing = pp[i + 1] - pp[i]
+                    draw_dimension_h(ax, pp[i], pp[i + 1], dim_y_base,
+                                     format_feet_inches(spacing),
+                                     offset=-3.5, color='#777', fontsize=4)
+
+            # Beam setback dimension (right side, vertical)
+            draw_dimension_v(ax, W, D - beam_setback, D,
+                             format_feet_inches(beam_setback),
+                             offset=max(W * 0.08, 3.5), color='#8B6914', fontsize=4.5)
+
+            # Joist count label
+            n_joists = int(W / (calc["joist_spacing"] / 12)) + 1
+            if n_joists > 0:
+                ax.text(W / 2, D / 2 - 3.8,
+                        f'{n_joists} JOISTS',
+                        ha='center', fontsize=4.5, fontfamily='monospace',
+                        color='#999', fontweight='bold')
         else:
             # Plan view labels
             ax.text(W / 2, D / 2 + 0.8, '1 × 6 COMPOSITE DECKING',
@@ -347,6 +386,29 @@ def draw_plan_and_framing(fig, params, calc):
                 ax.text(sx + stair_run / 2, sy - 0.8,
                         f'({n_stringers}) 2×12 PT STRINGERS · {st["actual_rise"]:.1f}" RISE · {st["tread_depth"]}" RUN',
                         ha='center', fontsize=3.5, fontfamily='monospace', color=BRAND["dark"])
+
+        # Stair opening width callout on framing plan
+        if is_framing and has_stairs and calc.get("stairs"):
+            st = calc["stairs"]
+            sw_ft = st.get("width", 4)
+            placement = get_stair_placement(params, {"width": W, "depth": D})
+            s_loc = get_stair_exit_side(placement["angle"])
+            if s_loc == "front":
+                sx = placement["anchor_x"] - sw_ft / 2
+                # Opening width dim along front edge
+                draw_dimension_h(ax, sx, sx + sw_ft, D,
+                                 f'{format_feet_inches(sw_ft)} OPENING',
+                                 offset=max(D * 0.08, 1.2), color='#c62828', fontsize=4.5)
+            elif s_loc == "left":
+                sy = placement["anchor_y"] - sw_ft / 2
+                draw_dimension_v(ax, 0, sy, sy + sw_ft,
+                                 f'{format_feet_inches(sw_ft)} OPENING',
+                                 offset=-3.5, color='#c62828', fontsize=4.5)
+            elif s_loc == "right":
+                sy = placement["anchor_y"] - sw_ft / 2
+                draw_dimension_v(ax, W, sy, sy + sw_ft,
+                                 f'{format_feet_inches(sw_ft)} OPENING',
+                                 offset=max(W * 0.08, 3), color='#c62828', fontsize=4.5)
 
         # Dimensions
         draw_dimension_h(ax, 0, W, D, format_feet_inches(W),
