@@ -186,8 +186,8 @@ function PlanView({ p, c, mode, u }) {
       {mode === "plan" && Array.from({ length: Math.ceil(sd / (5.5 / 12 * sc)) }, (_, i) => i * 5.5 / 12 * sc).filter(y => y <= sd).map((y, i) => (
         <line key={i} x1={dx} y1={pad + y} x2={dx + sw} y2={pad + y} stroke="#c9ad7a" strokeWidth="0.3" />
       ))}
-      {c.attachment === "ledger" && <><line x1={dx} y1={pad} x2={dx + sw} y2={pad} stroke="#2e7d32" strokeWidth="3.5" />
-        <text x={dx + sw / 2} y={pad - 5} textAnchor="middle" style={{ fontSize: 5, fill: "#2e7d32", fontWeight: 700, fontFamily: "monospace" }}>LEDGER</text></>}
+      {c.attachment === "ledger" && <><line x1={dx} y1={pad} x2={dx + sw} y2={pad} stroke="#2e7d32" strokeWidth="3.5" style={{ pointerEvents: "none" }} />
+        <text x={dx + sw / 2} y={pad - 5} textAnchor="middle" style={{ fontSize: 5, fill: "#2e7d32", fontWeight: 700, fontFamily: "monospace", pointerEvents: "none" }}>LEDGER</text></>}
       {mode === "framing" && <>
         {jLines.map((x, i) => <line key={i} x1={dx + x} y1={pad + 1} x2={dx + x} y2={pad + bY} stroke="#bbb" strokeWidth="0.4" />)}
         <line x1={dx + 1 * sc} y1={pad + bY} x2={dx + sw - 1 * sc} y2={pad + bY} stroke="#c4960a" strokeWidth="4" strokeLinecap="round" />
@@ -313,11 +313,11 @@ function PlanView({ p, c, mode, u }) {
       <line x1={pad} y1={pad + sd + 25} x2={pad + sw} y2={pad + sd + 25} stroke="#c62828" strokeWidth="0.6" />
       <line x1={pad} y1={pad + sd + 22} x2={pad} y2={pad + sd + 28} stroke="#c62828" strokeWidth="0.6" />
       <line x1={pad + sw} y1={pad + sd + 22} x2={pad + sw} y2={pad + sd + 28} stroke="#c62828" strokeWidth="0.6" />
-      <text x={pad + sw / 2} y={pad + sd + 37} textAnchor="middle" style={{ fontSize: 9, fill: "#c62828", fontWeight: 800, fontFamily: "'DM Mono', monospace" }}>{c.W}'-0"</text>
+      <text x={pad + sw / 2} y={pad + sd + 37} textAnchor="middle" style={{ fontSize: 9, fill: "#c62828", fontWeight: 800, fontFamily: "'DM Mono', monospace" }}>{window.fmtFtIn(c.W)}</text>
       <line x1={pad + sw + 20} y1={pad} x2={pad + sw + 20} y2={pad + sd} stroke="#1565c0" strokeWidth="0.6" />
       <line x1={pad + sw + 17} y1={pad} x2={pad + sw + 23} y2={pad} stroke="#1565c0" strokeWidth="0.6" />
       <line x1={pad + sw + 17} y1={pad + sd} x2={pad + sw + 23} y2={pad + sd} stroke="#1565c0" strokeWidth="0.6" />
-      <text x={pad + sw + 32} y={pad + sd / 2 + 3} textAnchor="middle" style={{ fontSize: 9, fill: "#1565c0", fontWeight: 800, fontFamily: "'DM Mono', monospace" }} transform={`rotate(90, ${pad + sw + 32}, ${pad + sd / 2})`}>{c.D}'-0"</text>
+      <text x={pad + sw + 32} y={pad + sd / 2 + 3} textAnchor="middle" style={{ fontSize: 9, fill: "#1565c0", fontWeight: 800, fontFamily: "'DM Mono', monospace" }} transform={`rotate(90, ${pad + sw + 32}, ${pad + sd / 2})`}>{window.fmtFtIn(c.D)}</text>
       <g transform={`translate(${svgW - 28}, 25)`}><line x1="0" y1="14" x2="0" y2="0" stroke="#444" strokeWidth="1.5" /><polygon points="-3.5,4 0,0 3.5,4" fill="#444" /><text x="0" y="-4" textAnchor="middle" style={{ fontSize: 7, fontWeight: 800, fill: "#444" }}>N</text></g>
     </svg>
   );
