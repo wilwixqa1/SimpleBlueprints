@@ -424,6 +424,7 @@ function StepContent(props) {
       {["Foundation", "Posts", "Beam", "Ledger", "Framing", "Hardware", "Decking", "Railing", "Misc"].map(cat => { const t = m.items.filter(i => i.cat === cat).reduce((s, i) => s + i.qty * i.cost, 0); return t > 0 ? <Spec key={cat} l={cat} v={`$${t.toFixed(0)}`} /> : null; })}
       <div style={{ height: 2, background: _br.gn, margin: "8px 0", opacity: 0.3 }} />
       <Spec l="Subtotal" v={`$${m.sub.toFixed(0)}`} /><Spec l="Tax + Contingency" v={`$${(m.tax + m.cont).toFixed(0)}`} /><Spec l="TOTAL" v={`$${m.total.toFixed(0)}`} color={_br.gn} />
+      <div style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, marginTop: 6, fontStyle: "italic" }}>Based on typical national pricing.</div>
     </div>
   </>;
 
