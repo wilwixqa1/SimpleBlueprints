@@ -365,7 +365,7 @@ function StepContent(props) {
               <line x1="32" y1={20 + Math.min(80, c.D * 5) - 8} x2={28 + Math.min(140, c.W * 3.5)} y2={20 + Math.min(80, c.D * 5) - 8} stroke="#c4960a" strokeWidth="1.5" />
               {c.pp.map((px, i) => <circle key={i} cx={30 + (px / c.W) * Math.min(140, c.W * 3.5)} cy={20 + Math.min(80, c.D * 5) - 8} r="2" fill="#c4a060" stroke="#444" strokeWidth="0.3" />)}
               <text x={30 + Math.min(140, c.W * 3.5) / 2} y={20 + Math.min(80, c.D * 5) / 2} textAnchor="middle" style={{ fontSize: 5, fill: "#888" }}>{c.joistSize} @ {c.sp}" O.C.</text>
-              <text x={30 + Math.min(140, c.W * 3.5) / 2} y={20 + Math.min(80, c.D * 5) + 8} textAnchor="middle" style={{ fontSize: 5, fill: "#c62828", fontWeight: 700 }}>{c.W}'-0"</text>
+              <text x={30 + Math.min(140, c.W * 3.5) / 2} y={20 + Math.min(80, c.D * 5) + 8} textAnchor="middle" style={{ fontSize: 5, fill: "#c62828", fontWeight: 700 }}>{fmtFtIn(c.W)}</text>
             </svg>
           </div>
           <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
@@ -387,8 +387,8 @@ function StepContent(props) {
                 <rect x={dx + 2} y={dy + 1} width={dw - 4} height={3} fill="#c4960a" fillOpacity="0.8" stroke="#444" strokeWidth="0.2" />
                 <line x1={dx} y1={dy} x2={dx + dw} y2={dy} stroke="#6B5340" strokeWidth="1.5" />
                 <line x1={dx} y1={dy - c.H * hSc * 0.4} x2={dx + dw} y2={dy - c.H * hSc * 0.4} stroke="#333" strokeWidth="0.8" />
-                <text x={dx + dw + 4} y={(85 + dy) / 2 + 1} style={{ fontSize: 5, fill: "#1565c0", fontWeight: 700 }}>{c.H}'</text>
-                <text x={dx + dw / 2} y="97" textAnchor="middle" style={{ fontSize: 5, fill: "#c62828", fontWeight: 700 }}>{c.W}'-0"</text>
+                <text x={dx + dw + 4} y={(85 + dy) / 2 + 1} style={{ fontSize: 5, fill: "#1565c0", fontWeight: 700 }}>{fmtFtIn(c.H)}</text>
+                <text x={dx + dw / 2} y="97" textAnchor="middle" style={{ fontSize: 5, fill: "#c62828", fontWeight: 700 }}>{fmtFtIn(c.W)}</text>
               </>); })()}
             </svg>
           </div>
