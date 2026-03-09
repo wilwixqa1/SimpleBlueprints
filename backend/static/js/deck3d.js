@@ -217,50 +217,82 @@ window.buildDeckScene = function(scene, p, c, THREE) {
     b.position.set(bx, H + bdH / 2, cz + D / 2); b.receiveShadow = true; scene.add(b);
   }
 
-  // Railing with gaps — no back rail for ledger-attached decks
+  // ── RAILING ── rewritten S17 — explicit mesh creation, no chaining
+  // No back rail for ledger-attached decks
   var rH = 3, trY = H + bdH + rH, brY = H + bdH + 0.25;
   var railTopW = 0.18, railBotW = 0.12, balW = 0.07, balSp = 0.5, postW = 0.3;
   var railZStart = isLedger ? cz + 0.3 : cz;
+
+  // Helper: add a railing run between two points (top rail, bottom rail, balusters)
   function addRail(x1, z1, x2, z2) {
-    var dx2 = x2 - x1, dz2 = z2 - z1, len = Math.sqrt(dx2 * dx2 + dz2 * dz2);
+    var dx = x2 - x1, dz = z2 - z1;
+    var len = Math.sqrt(dx * dx + dz * dz);
     if (len < 0.05) return;
-    var mx = (x1 + x2) / 2, mz = (z1 + z2) / 2, isX = Math.abs(dz2) < 0.01;
-    scene.add(new THREE.Mesh(isX ? new THREE.BoxGeometry(len, railTopW, railTopW) : new THREE.BoxGeometry(railTopW, railTopW, len), mats.rail)).position.set(mx, trY, mz);
-    scene.add(new THREE.Mesh(isX ? new THREE.BoxGeometry(len, railBotW, railBotW) : new THREE.BoxGeometry(railBotW, railBotW, len), mats.rail)).position.set(mx, brY, mz);
-    var bG = new THREE.BoxGeometry(balW, rH - 0.3, balW), n = Math.max(1, Math.floor(len / balSp));
-    for (var i = 0; i <= n; i++) { var t = n > 0 ? i / n : 0.5; scene.add(new THREE.Mesh(bG, mats.rail)).position.set(x1 + dx2 * t, H + bdH + rH / 2 + 0.1, z1 + dz2 * t); }
+    var mx = (x1 + x2) / 2, mz = (z1 + z2) / 2;
+    var isX = Math.abs(dz) < 0.01;
+    // Top rail
+    var topG = isX ? new THREE.BoxGeometry(len, railTopW, railTopW) : new THREE.BoxGeometry(railTopW, railTopW, len);
+    var topM = new THREE.Mesh(topG, mats.rail);
+    topM.position.set(mx, trY, mz);
+    scene.add(topM);
+    // Bottom rail
+    var botG = isX ? new THREE.BoxGeometry(len, railBotW, railBotW) : new THREE.BoxGeometry(railBotW, railBotW, len);
+    var botM = new THREE.Mesh(botG, mats.rail);
+    botM.position.set(mx, brY, mz);
+    scene.add(botM);
+    // Balusters
+    var balG = new THREE.BoxGeometry(balW, rH - 0.3, balW);
+    var n = Math.max(1, Math.floor(len / balSp));
+    for (var i = 0; i <= n; i++) {
+      var t = n > 0 ? i / n : 0.5;
+      var bm = new THREE.Mesh(balG, mats.rail);
+      bm.position.set(x1 + dx * t, H + bdH + rH / 2 + 0.1, z1 + dz * t);
+      scene.add(bm);
+    }
   }
+
+  // Helper: add a railing post at a point
+  function addRailPost(px, pz) {
+    var pm = new THREE.Mesh(new THREE.BoxGeometry(postW, rH + 0.3, postW), mats.rail);
+    pm.position.set(px, H + bdH + rH / 2, pz);
+    scene.add(pm);
+  }
+
+  // Front railing (with stair gap if front exit)
   if (frontGap && frontGap.zMax >= cz + D - 0.1) {
     if (frontGap.min - cx > 0.1) addRail(cx, cz + D, frontGap.min, cz + D);
     if ((cx + W) - frontGap.max > 0.1) addRail(frontGap.max, cz + D, cx + W, cz + D);
-  } else addRail(cx, cz + D, cx + W, cz + D);
+    addRailPost(frontGap.min, cz + D);
+    addRailPost(frontGap.max, cz + D);
+  } else {
+    addRail(cx, cz + D, cx + W, cz + D);
+  }
+
+  // Left railing (with stair gap if left exit at edge)
   if (leftAtEdge) {
     if (leftGap.min - railZStart > 0.1) addRail(cx, railZStart, cx, leftGap.min);
     if ((cz + D) - leftGap.max > 0.1) addRail(cx, leftGap.max, cx, cz + D);
-  } else addRail(cx, railZStart, cx, cz + D);
+    addRailPost(cx, leftGap.min);
+    addRailPost(cx, leftGap.max);
+  } else {
+    addRail(cx, railZStart, cx, cz + D);
+  }
+
+  // Right railing (with stair gap if right exit at edge)
   if (rightAtEdge) {
     if (rightGap.min - railZStart > 0.1) addRail(cx + W, railZStart, cx + W, rightGap.min);
     if ((cz + D) - rightGap.max > 0.1) addRail(cx + W, rightGap.max, cx + W, cz + D);
-  } else addRail(cx + W, railZStart, cx + W, cz + D);
-  // Corner posts — skip back corners for ledger attachment
+    addRailPost(cx + W, rightGap.min);
+    addRailPost(cx + W, rightGap.max);
+  } else {
+    addRail(cx + W, railZStart, cx + W, cz + D);
+  }
+
+  // Corner posts — skip back corners (house wall side) for ledger attachment
   var cornerPosts = isLedger
     ? [[cx, cz + D], [cx + W, cz + D]]
     : [[cx, cz], [cx + W, cz], [cx, cz + D], [cx + W, cz + D]];
-  cornerPosts.forEach(function(pt) {
-    scene.add(new THREE.Mesh(new THREE.BoxGeometry(postW, rH + 0.3, postW), mats.rail)).position.set(pt[0], H + bdH + rH / 2, pt[1]);
-  });
-  if (frontGap && frontGap.zMax >= cz + D - 0.1) {
-    scene.add(new THREE.Mesh(new THREE.BoxGeometry(postW, rH + 0.3, postW), mats.rail)).position.set(frontGap.min, H + bdH + rH / 2, cz + D);
-    scene.add(new THREE.Mesh(new THREE.BoxGeometry(postW, rH + 0.3, postW), mats.rail)).position.set(frontGap.max, H + bdH + rH / 2, cz + D);
-  }
-  if (leftAtEdge) {
-    scene.add(new THREE.Mesh(new THREE.BoxGeometry(postW, rH + 0.3, postW), mats.rail)).position.set(cx, H + bdH + rH / 2, leftGap.min);
-    scene.add(new THREE.Mesh(new THREE.BoxGeometry(postW, rH + 0.3, postW), mats.rail)).position.set(cx, H + bdH + rH / 2, leftGap.max);
-  }
-  if (rightAtEdge) {
-    scene.add(new THREE.Mesh(new THREE.BoxGeometry(postW, rH + 0.3, postW), mats.rail)).position.set(cx + W, H + bdH + rH / 2, rightGap.min);
-    scene.add(new THREE.Mesh(new THREE.BoxGeometry(postW, rH + 0.3, postW), mats.rail)).position.set(cx + W, H + bdH + rH / 2, rightGap.max);
-  }
+  cornerPosts.forEach(function(pt) { addRailPost(pt[0], pt[1]); });
 
   // Stairs 3D
   var V_TREAD_RUN = 10.5 / 12;
