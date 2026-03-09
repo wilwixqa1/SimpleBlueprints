@@ -545,6 +545,12 @@ function StepContent(props) {
         </button>
       </div>}
     </div>
+
+    <div style={{ marginTop: 10, padding: "10px 16px", textAlign: "center" }}>
+      <p style={{ fontSize: 8, color: _br.mu, fontFamily: _mono, lineHeight: 1.6, margin: 0 }}>
+        SimpleBlueprints generates draft plans to help you through the permit process. All deck projects require approval from your local building department before construction {"\u2014"} your permit office reviews plans for local code compliance. We recommend consulting a qualified professional for unique site conditions. Plans are provided as a drafting aid and do not constitute professional engineering certification.
+      </p>
+    </div>
   </>;
 
   return null;
