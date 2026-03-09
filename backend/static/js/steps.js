@@ -122,6 +122,9 @@ function StepContent(props) {
     isProduction, feedbackDone, setFeedbackDone, feedback, setFeedback, submitFeedback,
     genStatus, genError, generateBlueprint, user, API } = props;
 
+  const [showDisclaimer, setShowDisclaimer] = _stUS(false);
+  const [disclaimerAcked, setDisclaimerAcked] = _stUS(false);
+
   if (step === 0) return <>
     <Slider label="Width (along house)" value={p.width} min={8} max={50} step={0.5} fmt={fmtFtIn} field="width" u={u} p={p} />
     <Slider label="Depth (from house)" value={p.depth} min={6} max={24} step={0.5} fmt={fmtFtIn} field="depth" u={u} p={p} />
@@ -584,7 +587,7 @@ function StepContent(props) {
       </div>
       {user ? <>
       <button
-        onClick={generateBlueprint}
+        onClick={() => disclaimerAcked ? generateBlueprint() : setShowDisclaimer(true)}
         disabled={genStatus === "generating" || (isProduction && !feedbackDone)}
         style={{ padding: "14px 40px", background: genStatus === "generating" ? "#555" : genStatus === "done" ? "#2e7d32" : _br.gn, color: "#fff", border: "none", borderRadius: 8, fontSize: 16, fontWeight: 800, cursor: genStatus === "generating" ? "wait" : "pointer", fontFamily: _mono, letterSpacing: "1px", boxShadow: "0 4px 20px rgba(61,90,46,0.4)", transition: "all 0.2s" }}>
         {genStatus === "generating" ? "Generating PDF..." : genStatus === "done" ? "\u2713 Download Complete — Generate Again?" : "Generate Blueprint — FREE BETA"}
@@ -602,11 +605,23 @@ function StepContent(props) {
       </div>}
     </div>
 
-    <div style={{ marginTop: 10, padding: "10px 16px", textAlign: "center" }}>
-      <p style={{ fontSize: 8, color: _br.mu, fontFamily: _mono, lineHeight: 1.6, margin: 0 }}>
-        SimpleBlueprints generates draft plans to help you through the permit process. All deck projects require approval from your local building department before construction {"\u2014"} your permit office reviews plans for local code compliance. We recommend consulting a qualified professional for unique site conditions. Plans are provided as a drafting aid and do not constitute professional engineering certification.
-      </p>
-    </div>
+    {showDisclaimer && <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }} onClick={() => setShowDisclaimer(false)}>
+      <div style={{ background: "#fff", borderRadius: 12, padding: 28, maxWidth: 440, margin: "0 20px", boxShadow: "0 8px 40px rgba(0,0,0,0.25)" }} onClick={e => e.stopPropagation()}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: _br.gn, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 14 }}>Before You Download</div>
+        <p style={{ fontSize: 12, color: _br.tx, fontFamily: _sans, lineHeight: 1.7, margin: "0 0 10px" }}>
+          SimpleBlueprints generates draft deck plans to assist with the permitting process. By downloading, you acknowledge that:
+        </p>
+        <ul style={{ fontSize: 11, color: _br.tx, fontFamily: _sans, lineHeight: 1.8, margin: "0 0 18px", paddingLeft: 18 }}>
+          <li>All deck projects require review and approval by your local building department before construction.</li>
+          <li>Plans should be verified for accuracy before submission.</li>
+          <li>This tool is a drafting aid and does not constitute professional engineering certification.</li>
+        </ul>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          <button onClick={() => setShowDisclaimer(false)} style={{ padding: "10px 18px", background: "none", border: "1px solid " + _br.bd, borderRadius: 6, fontSize: 11, fontFamily: _mono, color: _br.mu, cursor: "pointer" }}>Cancel</button>
+          <button onClick={() => { setDisclaimerAcked(true); setShowDisclaimer(false); generateBlueprint(); }} style={{ padding: "10px 24px", background: _br.gn, border: "none", borderRadius: 6, fontSize: 11, fontFamily: _mono, color: "#fff", fontWeight: 700, cursor: "pointer", boxShadow: "0 2px 12px rgba(61,90,46,0.3)" }}>I Understand {"\u2014"} Generate Blueprint</button>
+        </div>
+      </div>
+    </div>}
   </>;
 
   return null;
