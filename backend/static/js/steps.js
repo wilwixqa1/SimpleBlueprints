@@ -311,7 +311,7 @@ function StepContent(props) {
   if (step === 1) return <>
     <Chips label="Joist spacing" field="joistSpacing" opts={[[12, '12" O.C.'], [16, '16" O.C.'], [24, '24" O.C.']]} u={u} p={p} />
     <Chips label="Snow load" field="snowLoad" opts={[["none", "None"], ["light", "Light"], ["moderate", "Moderate"], ["heavy", "Heavy"]]} u={u} p={p} />
-    <Chips label="Frost zone" field="frostZone" opts={[["warm", '12"'], ["moderate", '24"'], ["cold", '36"'], ["severe", '48"']]} u={u} p={p} />
+    <Chips label="Footing depth (frost line)" field="frostZone" opts={[["warm", '12"'], ["moderate", '24"'], ["cold", '36"'], ["severe", '48"']]} u={u} p={p} />
 
     <div style={{ marginTop: 16, padding: 14, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}` }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
