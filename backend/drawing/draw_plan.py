@@ -2,7 +2,7 @@
 """
 SimpleBlueprints — Parametric PDF Drawing Engine
 Step 1b: Plan View + Framing Plan (Sheet 1 of 4)
-Tests with 3 different configs to verify scaling and member sizing
+S22: Zone-aware rendering with visual differentiation + adaptive layout
 """
 
 import matplotlib
@@ -43,6 +43,21 @@ BRAND = {
     "wood": "#d4b87a",
     "light": "#cccccc",
 }
+
+# S22: Per-zone fill colors for visual differentiation
+ZONE_FILLS = [
+    "#efe5d5",  # zone 0: warm original
+    "#e5ebd5",  # zone 1: subtle green tint
+    "#dde5ef",  # zone 2: subtle blue tint
+    "#efe5df",  # zone 3: subtle pink tint
+]
+
+ZONE_BOARD_COLORS = [
+    "#c9ad7a",  # zone 0
+    "#a9b98a",  # zone 1
+    "#9aabbf",  # zone 2
+    "#c9a98a",  # zone 3
+]
 
 
 def draw_dimension_h(ax, x1, x2, y, text, offset=1.5, color="#333", fontsize=6):
@@ -109,33 +124,34 @@ def draw_plan_and_framing(fig, params, calc):
     attachment = calc["attachment"]
     has_stairs = params.get("hasStairs", False)
     stair_loc = params.get("stairLocation", "front")
+    has_zones = len(params.get("zones", [])) > 0
 
     ax1, ax2 = fig.subplots(1, 2)
     fig.subplots_adjust(left=0.04, right=0.96, top=0.91, bottom=0.08, wspace=0.12)
 
     # S21: Zone-aware plan view data
-    print(f"ZONE_DEBUG: zones={params.get('zones', 'MISSING')}, type={type(params.get('zones', []))}, len={len(params.get('zones', []))}")
     add_rects = get_additive_rects(params)
-    print(f"ZONE_DEBUG: add_rects={add_rects}")
     cut_rects = get_cutout_rects(params)
     exp_edges = get_exposed_edges(params)
     bbox = get_bounding_box(params)
 
-    margin_x = max(bbox["w"] * 0.18, 5)
-    margin_y = max(bbox["d"] * 0.25, 4)
-    house_depth = min(D * 0.6, 10)  # visual house depth, proportional
+    # S22: Adaptive margins — wider multi-zone decks need proportionally more room
+    margin_x = max(bbox["w"] * 0.20, 5)
+    margin_y = max(bbox["d"] * 0.30, 4)
+    house_depth = min(D * 0.5, 8)
 
     for ax, title, is_framing in [(ax1, "MAIN LEVEL DECK PLAN", False), (ax2, "DECK FRAMING", True)]:
         ax.set_xlim(bbox["x"] - margin_x, bbox["x"] + bbox["w"] + margin_x)
-        ax.set_ylim(-house_depth - margin_y * 0.5, bbox["y"] + bbox["d"] + margin_y)
+        ax.set_ylim(-house_depth - margin_y * 0.4, bbox["y"] + bbox["d"] + margin_y)
         ax.set_aspect('equal')
         ax.axis('off')
         ax.set_facecolor('white')
 
-        # Title
-        ax.text(0, D + margin_y - 1, title, fontsize=10, fontweight='bold',
+        # S22: Title positioned relative to bbox top, not hardcoded D
+        title_y = bbox["y"] + bbox["d"] + margin_y - 1
+        ax.text(bbox["x"], title_y, title, fontsize=10, fontweight='bold',
                 fontfamily='monospace', color=BRAND["dark"])
-        ax.text(0, D + margin_y - 2.2, 'SCALE: 1/4" = 1\'-0"', fontsize=5.5,
+        ax.text(bbox["x"], title_y - 1.2, 'SCALE: 1/4" = 1\'-0"', fontsize=5.5,
                 fontfamily='monospace', color=BRAND["mute"])
 
         # House
@@ -148,19 +164,60 @@ def draw_plan_and_framing(fig, params, calc):
 
         # Deck body
         if is_framing:
+            # Zone 0 framing area
             ax.add_patch(patches.Rectangle((0, 0), W, D,
                          fc='#fcfaf5', ec=BRAND["dark"], lw=2))
+            # S22: Show add zones as dashed outlines on framing view
+            if has_zones:
+                for ar in add_rects:
+                    if ar["id"] == 0:
+                        continue
+                    r = ar["rect"]
+                    ax.add_patch(patches.Rectangle((r["x"], r["y"]), r["w"], r["d"],
+                                 fc='#f8f8f4', ec=BRAND["mute"], lw=1, ls='--'))
+                    label = ar["zone"].get("label", f"Zone {ar['id']}")
+                    ax.text(r["x"] + r["w"] / 2, r["y"] + r["d"] / 2,
+                            f'{label}\n(FRAMING TBD)',
+                            ha='center', va='center', fontsize=4,
+                            fontfamily='monospace', color=BRAND["mute"], fontstyle='italic')
         else:
-            # S21: Zone-aware deck rendering
-            for ar in add_rects:
+            # S22: Zone-aware plan view with color differentiation
+            for idx, ar in enumerate(add_rects):
                 r = ar["rect"]
+                fill = ZONE_FILLS[idx % len(ZONE_FILLS)]
+                board_color = ZONE_BOARD_COLORS[idx % len(ZONE_BOARD_COLORS)]
+
                 ax.add_patch(patches.Rectangle((r["x"], r["y"]), r["w"], r["d"],
-                             fc=BRAND["deck"], ec=BRAND["dark"], lw=2))
+                             fc=fill, ec=BRAND["dark"], lw=2))
+
+                # Board lines
                 board_w = 5.5 / 12
                 for bi in range(int(r["d"] / board_w) + 1):
                     by = r["y"] + bi * board_w
                     if by <= r["y"] + r["d"]:
-                        ax.plot([r["x"], r["x"] + r["w"]], [by, by], color=BRAND["deck_board"], lw=0.2)
+                        ax.plot([r["x"], r["x"] + r["w"]], [by, by],
+                                color=board_color, lw=0.2)
+
+                # S22: Zone labels + per-zone dimensions for add zones
+                if ar["id"] != 0 and has_zones:
+                    label = ar["zone"].get("label", f"Zone {ar['id']}")
+                    ax.text(r["x"] + r["w"] / 2, r["y"] + r["d"] / 2,
+                            label.upper(),
+                            ha='center', va='center', fontsize=5,
+                            fontfamily='monospace', color=BRAND["mute"],
+                            fontweight='bold',
+                            bbox=dict(boxstyle='square,pad=0.3', fc='white',
+                                      ec=BRAND["border"], alpha=0.85))
+                    # Per-zone width
+                    draw_dimension_h(ax, r["x"], r["x"] + r["w"], r["y"],
+                                     format_feet_inches(r["w"]),
+                                     offset=-1.5, color=BRAND["mute"], fontsize=4.5)
+                    # Per-zone depth
+                    draw_dimension_v(ax, r["x"] + r["w"], r["y"], r["y"] + r["d"],
+                                     format_feet_inches(r["d"]),
+                                     offset=0.8, color=BRAND["mute"], fontsize=4.5)
+
+            # Cutouts
             for cr in cut_rects:
                 r = cr["rect"]
                 ax.add_patch(patches.Rectangle((r["x"], r["y"]), r["w"], r["d"],
@@ -192,7 +249,9 @@ def draw_plan_and_framing(fig, params, calc):
                     if jx < W - 0.3 and jx + sp_ft < W:
                         ax.plot([jx, jx + sp_ft], [block_y, block_y],
                                 color=BRAND["dark"], lw=0.6, ls='--', dashes=(1.5, 1.5))
-                ax.text(W + 1, block_y,
+                # S22: Position blocking label relative to bbox right edge
+                block_label_x = bbox["x"] + bbox["w"] + margin_x * 0.3
+                ax.text(block_label_x, block_y,
                         f'{calc["joist_size"]} SOLID BLOCKING\nAT MID-SPAN',
                         fontsize=3.5, fontfamily='monospace', color=BRAND["dark"], va='center')
 
@@ -219,8 +278,8 @@ def draw_plan_and_framing(fig, params, calc):
                                   fill=False, ec=BRAND["dark"], lw=0.5, ls='--')
                 ax.add_patch(pier)
 
-            # Hardware labels (right side)
-            label_x = W + 1
+            # S22: Hardware labels — position relative to bbox right edge
+            label_x = bbox["x"] + bbox["w"] + margin_x * 0.3
             ax.text(label_x, beam_y + 0.5,
                     f'{calc["post_size"]} PT POSTS W/ SIMPSON',
                     fontsize=4, color=BRAND["dark"])
@@ -238,7 +297,8 @@ def draw_plan_and_framing(fig, params, calc):
                     fontsize=4, color=BRAND["dark"])
 
             # Loads box
-            lbx, lby = W + 1, 0.5
+            lbx = label_x
+            lby = 0.5
             ax.add_patch(patches.Rectangle((lbx, lby), 8, 3.5,
                          fc='#fafaf8', ec=BRAND["dark"], lw=0.5))
             ax.text(lbx + 0.3, lby + 2.9, 'DECK LOADS:', fontsize=5,
@@ -289,7 +349,7 @@ def draw_plan_and_framing(fig, params, calc):
                         ha='center', fontsize=4.5, fontfamily='monospace',
                         color='#999', fontweight='bold')
         else:
-            # Plan view labels
+            # Plan view labels (zone 0 center)
             ax.text(W / 2, D / 2 + 0.8, '1 × 6 COMPOSITE DECKING',
                     ha='center', fontsize=5.5, fontfamily='monospace', color='#666')
             ax.text(W / 2, D / 2 - 0.8, f'{calc["rail_height"]}" GUARD RAIL SYSTEM',
@@ -421,15 +481,16 @@ def draw_plan_and_framing(fig, params, calc):
                                  f'{format_feet_inches(sw_ft)} OPENING',
                                  offset=max(W * 0.08, 3), color='#c62828', fontsize=4.5)
 
-        # Dimensions
+        # Dimensions (zone 0 overall)
         draw_dimension_h(ax, 0, W, D, format_feet_inches(W),
                          offset=max(D * 0.15, 2), color=BRAND["red"], fontsize=7)
         draw_dimension_v(ax, W, 0, D, format_feet_inches(D),
                          offset=max(W * 0.06, 2), color=BRAND["blue"], fontsize=7)
 
-        # North arrow + scale bar
-        draw_north_arrow(ax, W + margin_x - 2, D + margin_y - 5)
-        draw_scale_bar(ax, 0, -house_depth - margin_y * 0.3)
+        # S22: North arrow + scale bar — position relative to bbox
+        draw_north_arrow(ax, bbox["x"] + bbox["w"] + margin_x - 2,
+                         bbox["y"] + bbox["d"] + margin_y - 5)
+        draw_scale_bar(ax, bbox["x"], -house_depth - margin_y * 0.25)
 
     # Sheet label
     fig.text(0.5, 0.02,
