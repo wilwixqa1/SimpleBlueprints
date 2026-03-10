@@ -74,6 +74,16 @@ async def https_redirect(request: Request, call_next):
 
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
+@app.middleware("http")
+async def cache_control(request: Request, call_next):
+    response = await call_next(request)
+    path = request.url.path
+    if path.startswith("/js/"):
+        response.headers["Cache-Control"] = "no-cache, must-revalidate"
+    elif path.startswith("/api/download/"):
+        response.headers["Cache-Control"] = "no-store"
+    return response
+
 # ============================================================
 # MODELS
 # ============================================================
@@ -263,7 +273,8 @@ async def download(file_id: str):
     safe_id = file_id.replace("/","").replace("..","")
     path = PDF_DIR / f"{safe_id}.pdf"
     if not path.exists(): raise HTTPException(status_code=404)
-    return FileResponse(str(path), media_type="application/pdf", filename=f"SimpleBlueprints-{safe_id[:8]}.pdf")
+    return FileResponse(str(path), media_type="application/pdf", filename=f"SimpleBlueprints-{safe_id[:8]}.pdf",
+                        headers={"Cache-Control": "no-store"})
 
 @app.post("/api/checkout")
 async def checkout(params: DeckParams):
