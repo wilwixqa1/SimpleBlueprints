@@ -8,6 +8,8 @@ import json
 import base64
 from datetime import date
 from PIL import Image
+import math
+from .zone_utils import get_additive_rects, get_cutout_rects
 
 import matplotlib
 matplotlib.use('Agg')
@@ -159,14 +161,28 @@ def draw_cover_sheet(fig, params, calc, project_info=None, cover_image_b64=None)
         st = calc["stairs"]
         stair_desc = f'{st.get("location","front").upper()} \u2014 {st["width"]}\' WIDE, {st["num_stringers"]} STRINGERS'
 
+    # S22: Compute zone-aware totals
+    zones = params.get('zones', [])
+    add_rects = get_additive_rects(params)
+    cut_rects = get_cutout_rects(params)
+    total_area = round(sum(r['rect']['w'] * r['rect']['d'] for r in add_rects) - sum(r['rect']['w'] * r['rect']['d'] for r in cut_rects))
+    extra_posts = 0
+    for z in zones:
+        if z.get('type') == 'cutout': continue
+        edge = z.get('attachEdge', 'front')
+        dim = z.get('d', 6) if edge in ('right', 'left') else z.get('w', 8)
+        extra_posts += max(2, math.ceil(dim / 8) + 1)
+    total_posts = calc['total_posts'] + extra_posts
+    total_footings = calc['num_footings'] + extra_posts
+
     specs = [
-        ("DECK SIZE", f'{format_feet_inches(W)} \u00d7 {format_feet_inches(D)}  ({calc["area"]} SF)'),
+        ("DECK SIZE", f'{format_feet_inches(W)} \u00d7 {format_feet_inches(D)}  ({total_area} SF)'),
         ("HEIGHT", f'{format_feet_inches(H)} ABOVE GRADE'),
         ("ATTACHMENT", attachment.upper()),
         ("JOISTS", f'{calc["joist_size"]} @ {calc["joist_spacing"]}" O.C.'),
         ("BEAM", calc["beam_size"].upper()),
-        ("POSTS", f'{calc["post_size"]}  ({calc["total_posts"]} TOTAL)'),
-        ("FOOTINGS", f'{calc["footing_diam"]}" \u00d8 \u00d7 {calc["footing_depth"]}" DEEP  ({calc["num_footings"]})'),
+        ("POSTS", f'{calc["post_size"]}  ({total_posts} TOTAL)'),
+        ("FOOTINGS", f'{calc["footing_diam"]}" \u00d8 \u00d7 {calc["footing_depth"]}" DEEP  ({total_footings})'),
         ("STAIRS", stair_desc),
     ]
 
