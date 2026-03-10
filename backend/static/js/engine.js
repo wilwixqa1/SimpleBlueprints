@@ -57,7 +57,7 @@ function calcStructure(p) {
   const reqD = Math.sqrt(trib * TL / 1500 / Math.PI) * 2 * 12;
 
   // === FOOTINGS (overridable) ===
-  let fDiam = [12, 16, 18, 21, 24, 30].find(s => s >= reqD) || 30;
+  let fDiam = [12, 16, 18, 21, 24, 30, 36, 42].find(s => s >= reqD) || 42;
   const autoFDiam = fDiam;
   if (p.overFooting) { fDiam = p.overFooting; }
   const fDepth = FROST[frostZone] || 30;
