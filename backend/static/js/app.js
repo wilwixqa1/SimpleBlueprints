@@ -148,6 +148,7 @@ const App = function SimpleBlueprints() {
 
   const c = useMemo(() => window.calcStructure(p), [p]);
   const m = useMemo(() => window.estMaterials(p, c), [p, c]);
+  const zc = useMemo(() => window.calcAllZones ? window.calcAllZones(p, c) : null, [p, c]);
   const [genStatus, setGenStatus] = useState("idle");
   const [info, setInfo] = useState({ owner: "", address: "", city: "", state: "", zip: "", lot: "", contractor: "" });
   const setI = (f, v) => setInfo(prev => ({ ...prev, [f]: v }));
@@ -298,7 +299,7 @@ const App = function SimpleBlueprints() {
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, marginTop: 12 }}>
-              {[["Area", `${c.area} SF`, br.dk], ["Joists", c.joistSize, br.bl], ["Beam", c.beamSize.replace("3-ply ", "3\u00D7").replace("2-ply ", "2\u00D7"), br.ac], ["Posts", `${c.postSize}\u00D7${c.nP}`, "#8B6508"], ["Footings", `${c.fDiam}"\u00D8`, "#777"], ["Est. Cost", `$${m.total.toFixed(0)}`, br.gn]].map(([l, v, cl]) => (
+              {[["Area", `${zc ? zc.totalArea : c.area} SF`, br.dk], ["Joists", c.joistSize, br.bl], ["Beam", c.beamSize.replace("3-ply ", "3\u00D7").replace("2-ply ", "2\u00D7"), br.ac], ["Posts", `${c.postSize}\u00D7${zc ? c.nP + zc.extraPosts : c.nP}`, "#8B6508"], ["Footings", `${c.fDiam}"\u00D8`, "#777"], ["Est. Cost", `$${(zc ? m.total + zc.extraTotal : m.total).toFixed(0)}`, br.gn]].map(([l, v, cl]) => (
                 <div key={l} style={{ padding: "8px 10px", background: br.cr, borderRadius: 6, border: `1px solid ${br.bd}`, textAlign: "center" }}>
                   <div style={{ fontSize: 8, color: br.mu, fontFamily: mono, textTransform: "uppercase", letterSpacing: "0.5px" }}>{l}</div>
                   <div style={{ fontSize: 11, fontWeight: 800, color: cl, fontFamily: mono, marginTop: 1 }}>{v}</div>
@@ -311,7 +312,7 @@ const App = function SimpleBlueprints() {
               <div style={{ maxHeight: 200, overflowY: "auto", borderRadius: 6, border: `1px solid ${br.bd}` }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: mono, fontSize: 10 }}>
                   <thead><tr style={{ background: br.wr }}><th style={{ textAlign: "left", padding: "5px 8px", color: br.mu, fontSize: 8 }}>ITEM</th><th style={{ textAlign: "center", padding: "5px 8px", color: br.mu, fontSize: 8 }}>QTY</th><th style={{ textAlign: "right", padding: "5px 8px", color: br.mu, fontSize: 8 }}>EXT</th></tr></thead>
-                  <tbody>{m.items.map((it, i) => <tr key={i} style={{ borderBottom: `1px solid ${br.wr}` }}><td style={{ padding: "4px 8px", color: br.tx }}>{it.item}</td><td style={{ padding: "4px 8px", textAlign: "center", color: br.bl, fontWeight: 700 }}>{it.qty}</td><td style={{ padding: "4px 8px", textAlign: "right", color: br.dk }}>${(it.qty * it.cost).toFixed(0)}</td></tr>)}</tbody>
+                  <tbody>{(zc ? m.items.concat(zc.extraItems) : m.items).map((it, i) => <tr key={i} style={{ borderBottom: `1px solid ${br.wr}` }}><td style={{ padding: "4px 8px", color: br.tx }}>{it.item}</td><td style={{ padding: "4px 8px", textAlign: "center", color: br.bl, fontWeight: 700 }}>{it.qty}</td><td style={{ padding: "4px 8px", textAlign: "right", color: br.dk }}>${(it.qty * it.cost).toFixed(0)}</td></tr>)}</tbody>
                 </table>
               </div>
             </div>}
