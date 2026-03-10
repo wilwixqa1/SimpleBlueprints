@@ -12,6 +12,7 @@ import matplotlib.patches as patches
 from matplotlib.patches import Polygon
 from matplotlib.backends.backend_pdf import PdfPages
 import numpy as np
+import math
 
 # Import our calculation engine
 from .calc_engine import calculate_structure
@@ -114,6 +115,101 @@ def format_feet_inches(feet):
 
 
 # ============================================================
+# S22: ZONE FRAMING HELPERS
+# ============================================================
+BEAM_SETBACK = 1.5  # beam inset from far edge (ft)
+
+
+def compute_zone_framing(zone, rect, joist_spacing_in=16):
+    """
+    Compute framing layout for an add zone.
+    Returns beam position, post positions, and joist lines.
+    """
+    edge = zone.get("attachEdge", "front")
+    x, y, w, d = rect["x"], rect["y"], rect["w"], rect["d"]
+    sp = joist_spacing_in / 12  # spacing in feet
+
+    if edge == "right":
+        beam_x = x + w - BEAM_SETBACK
+        beam_y1, beam_y2 = y + 0.5, y + d - 0.5
+        n_posts = max(2, math.ceil(d / 8) + 1)
+        post_ys = np.linspace(y + 1, y + d - 1, n_posts)
+        posts = [{"x": beam_x, "y": py} for py in post_ys]
+        joist_lines = []
+        for jy in np.arange(y + sp, y + d, sp):
+            if jy < y + d - 0.3:
+                joist_lines.append({"x1": x + 0.1, "y1": jy, "x2": beam_x, "y2": jy})
+        return {"beam": {"x1": beam_x, "y1": beam_y1, "x2": beam_x, "y2": beam_y2},
+                "posts": posts, "joist_lines": joist_lines}
+
+    elif edge == "left":
+        beam_x = x + BEAM_SETBACK
+        beam_y1, beam_y2 = y + 0.5, y + d - 0.5
+        n_posts = max(2, math.ceil(d / 8) + 1)
+        post_ys = np.linspace(y + 1, y + d - 1, n_posts)
+        posts = [{"x": beam_x, "y": py} for py in post_ys]
+        joist_lines = []
+        for jy in np.arange(y + sp, y + d, sp):
+            if jy < y + d - 0.3:
+                joist_lines.append({"x1": beam_x, "y1": jy, "x2": x + w - 0.1, "y2": jy})
+        return {"beam": {"x1": beam_x, "y1": beam_y1, "x2": beam_x, "y2": beam_y2},
+                "posts": posts, "joist_lines": joist_lines}
+
+    elif edge == "front":
+        beam_y = y + d - BEAM_SETBACK
+        beam_x1, beam_x2 = x + 0.5, x + w - 0.5
+        n_posts = max(2, math.ceil(w / 8) + 1)
+        post_xs = np.linspace(x + 1, x + w - 1, n_posts)
+        posts = [{"x": px, "y": beam_y} for px in post_xs]
+        joist_lines = []
+        for jx in np.arange(x + sp, x + w, sp):
+            if jx < x + w - 0.3:
+                joist_lines.append({"x1": jx, "y1": y + 0.1, "x2": jx, "y2": beam_y})
+        return {"beam": {"x1": beam_x1, "y1": beam_y, "x2": beam_x2, "y2": beam_y},
+                "posts": posts, "joist_lines": joist_lines}
+
+    return None
+
+
+def draw_zone_framing(ax, zone, rect, calc):
+    """Draw framing elements (outline, joists, beam, posts, piers) for an add zone."""
+    framing = compute_zone_framing(zone, rect, calc.get("joist_spacing", 16))
+    if not framing:
+        return
+    footing_diam = calc.get("footing_diam", 30)
+    b = framing["beam"]
+
+    # Zone outline
+    ax.add_patch(patches.Rectangle(
+        (rect["x"], rect["y"]), rect["w"], rect["d"],
+        fc='#fcfaf5', ec=BRAND["dark"], lw=1.5))
+
+    # Joists
+    for jl in framing["joist_lines"]:
+        ax.plot([jl["x1"], jl["x2"]], [jl["y1"], jl["y2"]],
+                color=BRAND["light"], lw=0.4)
+
+    # Beam
+    ax.plot([b["x1"], b["x2"]], [b["y1"], b["y2"]],
+            color=BRAND["beam"], lw=3)
+
+    # Posts + piers
+    for p in framing["posts"]:
+        ax.plot(p["x"], p["y"], 'o', ms=4, color=BRAND["post"],
+                mec=BRAND["dark"], mew=0.7)
+        pier = plt.Circle((p["x"], p["y"]), footing_diam / 24,
+                          fill=False, ec=BRAND["dark"], lw=0.4, ls='--')
+        ax.add_patch(pier)
+
+    # Zone label with joist callout
+    label = zone.get("label", f"Zone {zone.get('id', '?')}")
+    ax.text(rect["x"] + rect["w"] / 2, rect["y"] + rect["d"] / 2,
+            f'{label}\n{calc.get("joist_size", "2x12")} @ {calc.get("joist_spacing", 16)}" O.C.',
+            ha='center', va='center', fontsize=3.5,
+            fontfamily='monospace', color=BRAND["mute"], fontstyle='italic')
+
+
+# ============================================================
 # SHEET 1: DECK PLAN + FRAMING (side by side)
 # ============================================================
 def draw_plan_and_framing(fig, params, calc):
@@ -167,19 +263,12 @@ def draw_plan_and_framing(fig, params, calc):
             # Zone 0 framing area
             ax.add_patch(patches.Rectangle((0, 0), W, D,
                          fc='#fcfaf5', ec=BRAND["dark"], lw=2))
-            # S22: Show add zones as dashed outlines on framing view
+            # S22: Draw framing for add zones
             if has_zones:
                 for ar in add_rects:
                     if ar["id"] == 0:
                         continue
-                    r = ar["rect"]
-                    ax.add_patch(patches.Rectangle((r["x"], r["y"]), r["w"], r["d"],
-                                 fc='#f8f8f4', ec=BRAND["mute"], lw=1, ls='--'))
-                    label = ar["zone"].get("label", f"Zone {ar['id']}")
-                    ax.text(r["x"] + r["w"] / 2, r["y"] + r["d"] / 2,
-                            f'{label}\n(FRAMING TBD)',
-                            ha='center', va='center', fontsize=4,
-                            fontfamily='monospace', color=BRAND["mute"], fontstyle='italic')
+                    draw_zone_framing(ax, ar["zone"], ar["rect"], calc)
         else:
             # S22: Zone-aware plan view with color differentiation
             for idx, ar in enumerate(add_rects):
