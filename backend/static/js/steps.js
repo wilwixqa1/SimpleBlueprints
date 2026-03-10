@@ -78,7 +78,7 @@ function StepContent(props) {
     sitePlanMode, setSitePlanMode, sitePlanFile, setSitePlanFile, setSitePlanB64,
     isProduction, feedbackDone, setFeedbackDone, feedback, setFeedback, submitFeedback,
     genStatus, genError, generateBlueprint, user, API,
-    zoneMode, setZoneMode, addZone, addCutout, removeZone, updateZone, setCorner, getCorners, pForZones } = props;
+    zoneMode, setZoneMode, addZone, addCutout, removeZone, updateZone, setCorner, getCorners, pForZones, zc } = props;
 
   const [showDisclaimer, setShowDisclaimer] = _stUS(false);
   const [disclaimerAcked, setDisclaimerAcked] = _stUS(false);
@@ -421,9 +421,9 @@ function StepContent(props) {
     <Chips label="Railing" field="railType" opts={[["fortress", "Fortress Iron"], ["wood", "Wood"]]} u={u} p={p} />
     <div style={{ marginTop: 16, padding: 14, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}` }}>
       <div style={{ fontSize: 10, fontWeight: 700, color: _br.gn, marginBottom: 6, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>Cost Breakdown</div>
-      {["Foundation", "Posts", "Beam", "Ledger", "Framing", "Hardware", "Decking", "Railing", "Misc"].map(cat => { const t = m.items.filter(i => i.cat === cat).reduce((s, i) => s + i.qty * i.cost, 0); return t > 0 ? <Spec key={cat} l={cat} v={`$${t.toFixed(0)}`} /> : null; })}
+      {(() => { var allItems = zc ? m.items.concat(zc.extraItems) : m.items; return ["Foundation", "Posts", "Beam", "Ledger", "Framing", "Hardware", "Decking", "Railing", "Misc"].map(cat => { const t = allItems.filter(i => i.cat === cat).reduce((s, i) => s + i.qty * i.cost, 0); return t > 0 ? <Spec key={cat} l={cat} v={`${t.toFixed(0)}`} /> : null; }); })()}
       <div style={{ height: 2, background: _br.gn, margin: "8px 0", opacity: 0.3 }} />
-      <Spec l="Subtotal" v={`$${m.sub.toFixed(0)}`} /><Spec l="Tax + Contingency" v={`$${(m.tax + m.cont).toFixed(0)}`} /><Spec l="TOTAL" v={`$${m.total.toFixed(0)}`} color={_br.gn} />
+      <Spec l="Subtotal" v={`${(zc ? m.sub + zc.extraSub : m.sub).toFixed(0)}`} /><Spec l="Tax + Contingency" v={`${(zc ? (m.tax + m.cont) + (zc.extraTotal - zc.extraSub) : (m.tax + m.cont)).toFixed(0)}`} /><Spec l="TOTAL" v={`${(zc ? m.total + zc.extraTotal : m.total).toFixed(0)}`} color={_br.gn} />
       <div style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, marginTop: 6, fontStyle: "italic" }}>Based on typical national pricing.</div>
     </div>
   </>;
@@ -470,11 +470,11 @@ function StepContent(props) {
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10, marginBottom: 14 }}>
       <div style={{ padding: 12, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}` }}>
         <div style={{ fontSize: 9, fontWeight: 700, color: _br.gn, marginBottom: 6, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>Project</div>
-        <Spec l="Size" v={`${fmtFtIn(c.W)}\u00D7${fmtFtIn(c.D)} (${c.area} SF)`} /><Spec l="Height" v={fmtFtIn(c.H)} /><Spec l="Attach" v={c.attachment === "ledger" ? "Ledger" : "Free"} /><Spec l="Stairs" v={p.hasStairs ? `${p.stairLocation} ${fmtFtIn(p.stairWidth || 4)} \u00B7 ${p.numStringers || 3} stringers${p.hasLanding ? " \u00B7 landing" : ""}` : "None"} /><Spec l="Deck" v={p.deckingType === "composite" ? "Composite" : "PT"} /><Spec l="Rail" v={p.railType === "fortress" ? "Fortress" : "Wood"} />
+        <Spec l="Size" v={`${fmtFtIn(c.W)}\u00D7${fmtFtIn(c.D)} (${zc ? zc.totalArea : c.area} SF)`} /><Spec l="Height" v={fmtFtIn(c.H)} /><Spec l="Attach" v={c.attachment === "ledger" ? "Ledger" : "Free"} /><Spec l="Stairs" v={p.hasStairs ? `${p.stairLocation} ${fmtFtIn(p.stairWidth || 4)} \u00B7 ${p.numStringers || 3} stringers${p.hasLanding ? " \u00B7 landing" : ""}` : "None"} /><Spec l="Deck" v={p.deckingType === "composite" ? "Composite" : "PT"} /><Spec l="Rail" v={p.railType === "fortress" ? "Fortress" : "Wood"} />
       </div>
       <div style={{ padding: 12, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}` }}>
         <div style={{ fontSize: 9, fontWeight: 700, color: _br.gn, marginBottom: 6, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>Structure</div>
-        <Spec l="Joists" v={`${c.joistSize}@${c.sp}"`} /><Spec l="Beam" v={c.beamSize.replace("3-ply ","3\u00D7").replace("2-ply ","2\u00D7")} /><Spec l="Posts" v={`${c.postSize}\u00D7${c.nP}`} /><Spec l="Footings" v={`${c.fDiam}"\u00D8\u00D7${c.nF}`} /><Spec l="Load" v={`${c.TL} PSF`} color={_br.rd} />
+        <Spec l="Joists" v={`${c.joistSize}@${c.sp}"`} /><Spec l="Beam" v={c.beamSize.replace("3-ply ","3\u00D7").replace("2-ply ","2\u00D7")} /><Spec l="Posts" v={`${c.postSize}\u00D7${zc ? c.nP + zc.extraPosts : c.nP}`} /><Spec l="Footings" v={`${c.fDiam}"\u00D8\u00D7${c.nF}`} /><Spec l="Load" v={`${c.TL} PSF`} color={_br.rd} />
         {c.warnings.length > 0 && <div style={{ fontSize: 8, color: _br.rd, marginTop: 4, fontFamily: _mono }}>{"\u26A0\uFE0F"} {c.warnings.length} warning{c.warnings.length > 1 ? "s" : ""}</div>}
       </div>
     </div>
@@ -511,7 +511,7 @@ function StepContent(props) {
 
     <div style={{padding:16,background:"#e8f5e9",borderRadius:8,border:"1px solid #c8e6c9",textAlign:"center",marginBottom:10}}>
       <div style={{fontSize:10,fontFamily:_mono,color:_br.gn,fontWeight:700,letterSpacing:"1px",textTransform:"uppercase"}}>Estimated Materials</div>
-      <div style={{fontSize:36,fontWeight:900,color:_br.gn,fontFamily:_mono}}>${m.total.toFixed(0)}</div>
+      <div style={{fontSize:36,fontWeight:900,color:_br.gn,fontFamily:_mono}}>${(zc ? m.total + zc.extraTotal : m.total).toFixed(0)}</div>
       <div style={{fontSize:10,color:"#66bb6a",fontFamily:_mono}}>Includes tax + 5% contingency</div>
     </div>
 
