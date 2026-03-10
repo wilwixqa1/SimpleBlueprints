@@ -147,7 +147,17 @@ const App = function SimpleBlueprints() {
   const pForZones = useMemo(() => Object.assign({}, p, { deckWidth: p.width, deckDepth: p.depth, deckHeight: p.height }), [p]);
 
   const c = useMemo(() => window.calcStructure(p), [p]);
-  const m = useMemo(() => window.estMaterials(p, c), [p, c]);
+  const cAdj = useMemo(function() {
+    if (!p.zones || !p.zones.length || !window.getExposedEdges) return c;
+    var pz = Object.assign({}, p, { deckWidth: p.width, deckDepth: p.depth, deckHeight: p.height });
+    var edges = window.getExposedEdges(pz);
+    var totalLen = edges.reduce(function(s, e) {
+      return s + (e.dir === "h" ? Math.abs(e.x2 - e.x1) : Math.abs(e.y2 - e.y1));
+    }, 0);
+    if (p.hasStairs) totalLen -= (p.stairWidth || 4);
+    return Object.assign({}, c, { railLen: +totalLen.toFixed(1) });
+  }, [p, c]);
+  const m = useMemo(() => window.estMaterials(p, cAdj), [p, cAdj]);
   const zc = useMemo(() => window.calcAllZones ? window.calcAllZones(p, c) : null, [p, c]);
   const [genStatus, setGenStatus] = useState("idle");
   const [info, setInfo] = useState({ owner: "", address: "", city: "", state: "", zip: "", lot: "", contractor: "" });
