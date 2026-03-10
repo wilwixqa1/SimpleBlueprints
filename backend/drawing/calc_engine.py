@@ -98,14 +98,14 @@ def calculate_structure(params):
     footing_load = trib_area * TL
     required_area = footing_load / 1500
     required_diam_in = math.sqrt(required_area / math.pi) * 2 * 12
-    standard_sizes = [12, 16, 18, 21, 24, 30]
+    standard_sizes = [12, 16, 18, 21, 24, 30, 36, 42]
     auto_footing = 12
     for s in standard_sizes:
         if s >= required_diam_in:
             auto_footing = s
             break
     else:
-        auto_footing = 30
+        auto_footing = 42
     footing_diam = params.get("overFooting") or auto_footing
 
     footing_depth = max(frost, 12)
