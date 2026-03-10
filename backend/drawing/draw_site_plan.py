@@ -1,6 +1,7 @@
 """
 SimpleBlueprints — Sheet A-5: Site Plan
 Shows property boundaries, setbacks, house footprint, and deck placement.
+S24: Zone-aware — draws composite deck outline for multi-zone configs.
 """
 
 import matplotlib
@@ -9,6 +10,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from matplotlib.patches import FancyArrowPatch
 import numpy as np
+from .zone_utils import get_additive_rects, get_cutout_rects, get_bounding_box
 
 BRAND = {
     "dark": "#1a1f16", "green": "#3d5a2e", "cream": "#faf8f3",
@@ -41,6 +43,7 @@ def draw_site_plan(fig, params, calc):
     deck_w = calc["width"]
     deck_d = calc["depth"]
     attachment = calc.get("attachment", "ledger")
+    zones = params.get("zones", [])
 
     ax = fig.add_axes([0.08, 0.08, 0.72, 0.82])
     ax.set_aspect('equal')
@@ -141,65 +144,99 @@ def draw_site_plan(fig, params, calc):
             ha='center', fontsize=6, fontfamily='monospace', color=BRAND["mute"],
             fontweight='bold', rotation=90)
 
-    # === PROPOSED DECK ===
-    # Deck attaches to rear of house, centered on house
-    deck_x = house_x + (house_w - deck_w) / 2
-    deck_y = house_y + house_d  # rear of house
+    # === PROPOSED DECK (zone-aware) ===
+    # Zone 0 origin: centered on house rear wall
+    z0_x = house_x + (house_w - deck_w) / 2
+    z0_y = house_y + house_d
 
-    deck_rect = patches.Rectangle(
-        (deck_x, deck_y), deck_w, deck_d,
-        fc='#d4c4a0', ec=BRAND["green"], lw=2, zorder=3
-    )
-    ax.add_patch(deck_rect)
+    # Get zone rects from zone_utils
+    add_rects = get_additive_rects(params)
+    cut_rects = get_cutout_rects(params)
 
-    ax.text(deck_x + deck_w / 2, deck_y + deck_d / 2,
-            f"PROPOSED DECK\n{deck_w}'×{deck_d}'",
+    # Draw each additive zone rect
+    for ar in add_rects:
+        r = ar["rect"]
+        rx, ry = z0_x + r["x"], z0_y + r["y"]
+        rect_patch = patches.Rectangle(
+            (rx, ry), r["w"], r["d"],
+            fc='#d4c4a0', ec=BRAND["green"], lw=2, zorder=3
+        )
+        ax.add_patch(rect_patch)
+
+    # Draw cutout rects (punch holes with lot background)
+    for cr in cut_rects:
+        r = cr["rect"]
+        rx, ry = z0_x + r["x"], z0_y + r["y"]
+        rect_patch = patches.Rectangle(
+            (rx, ry), r["w"], r["d"],
+            fc='white', ec=BRAND["green"], lw=1.5, linestyle='--', zorder=4
+        )
+        ax.add_patch(rect_patch)
+
+    # Bounding box in site-plan coords (for dims + distances)
+    bb = get_bounding_box(params)
+    bb_x = z0_x + bb["x"]
+    bb_y = z0_y + bb["y"]
+    bb_w = bb["w"]
+    bb_d = bb["d"]
+
+    # Total area for label
+    total_area = sum(r["rect"]["w"] * r["rect"]["d"] for r in add_rects)
+    total_area -= sum(r["rect"]["w"] * r["rect"]["d"] for r in cut_rects)
+
+    # Deck label (centered on zone 0)
+    if zones:
+        label = f"PROPOSED DECK\n{total_area:.0f} S.F."
+    else:
+        label = f"PROPOSED DECK\n{deck_w}'×{deck_d}'"
+
+    ax.text(z0_x + deck_w / 2, z0_y + deck_d / 2, label,
             ha='center', va='center', fontsize=7, fontweight='bold',
-            fontfamily='monospace', color=BRAND["green"], zorder=4)
+            fontfamily='monospace', color=BRAND["green"], zorder=5)
 
-    # Deck dimensions
-    ax.annotate('', xy=(deck_x + deck_w, deck_y + deck_d + 3),
-                xytext=(deck_x, deck_y + deck_d + 3),
+    # Deck dimensions (bounding box)
+    ax.annotate('', xy=(bb_x + bb_w, bb_y + bb_d + 3),
+                xytext=(bb_x, bb_y + bb_d + 3),
                 arrowprops=dict(arrowstyle='<->', color=BRAND["blue"], lw=0.8))
-    ax.text(deck_x + deck_w / 2, deck_y + deck_d + 4.5, f"{deck_w}'",
+    ax.text(bb_x + bb_w / 2, bb_y + bb_d + 4.5, f"{bb_w:.0f}'",
             ha='center', fontsize=6, fontweight='bold', fontfamily='monospace',
             color=BRAND["blue"])
 
-    ax.annotate('', xy=(deck_x + deck_w + 3, deck_y + deck_d),
-                xytext=(deck_x + deck_w + 3, deck_y),
+    ax.annotate('', xy=(bb_x + bb_w + 3, bb_y + bb_d),
+                xytext=(bb_x + bb_w + 3, bb_y),
                 arrowprops=dict(arrowstyle='<->', color=BRAND["blue"], lw=0.8))
-    ax.text(deck_x + deck_w + 5, deck_y + deck_d / 2, f"{deck_d}'",
+    ax.text(bb_x + bb_w + 5, bb_y + bb_d / 2, f"{bb_d:.0f}'",
             ha='center', fontsize=6, fontweight='bold', fontfamily='monospace',
             color=BRAND["blue"], rotation=90)
 
-    # === DISTANCE TO PROPERTY LINES from deck ===
+    # === DISTANCE TO PROPERTY LINES from deck bounding box ===
     # Deck to rear property line
-    rear_dist = lot_d - (deck_y + deck_d)
+    rear_dist = lot_d - (bb_y + bb_d)
     if rear_dist > 0:
-        mid_y = deck_y + deck_d + rear_dist / 2
-        ax.plot([deck_x + deck_w / 2, deck_x + deck_w / 2],
-                [deck_y + deck_d, lot_d],
+        mid_y = bb_y + bb_d + rear_dist / 2
+        ax.plot([bb_x + bb_w / 2, bb_x + bb_w / 2],
+                [bb_y + bb_d, lot_d],
                 color=BRAND["mute"], lw=0.5, linestyle=':')
-        ax.text(deck_x + deck_w / 2 + 3, mid_y, f"{rear_dist:.0f}'",
+        ax.text(bb_x + bb_w / 2 + 3, mid_y, f"{rear_dist:.0f}'",
                 ha='left', fontsize=6, fontfamily='monospace', color=BRAND["mute"],
                 fontweight='bold')
 
     # Deck to left property line
-    left_dist = deck_x
+    left_dist = bb_x
     if left_dist > 0:
-        ax.plot([0, deck_x], [deck_y + deck_d / 2, deck_y + deck_d / 2],
+        ax.plot([0, bb_x], [bb_y + bb_d / 2, bb_y + bb_d / 2],
                 color=BRAND["mute"], lw=0.5, linestyle=':')
-        ax.text(left_dist / 2, deck_y + deck_d / 2 - 2, f"{left_dist:.0f}'",
+        ax.text(left_dist / 2, bb_y + bb_d / 2 - 2, f"{left_dist:.0f}'",
                 ha='center', fontsize=6, fontfamily='monospace', color=BRAND["mute"],
                 fontweight='bold')
 
     # Deck to right property line
-    right_dist = lot_w - (deck_x + deck_w)
+    right_dist = lot_w - (bb_x + bb_w)
     if right_dist > 0:
-        ax.plot([deck_x + deck_w, lot_w],
-                [deck_y + deck_d / 2, deck_y + deck_d / 2],
+        ax.plot([bb_x + bb_w, lot_w],
+                [bb_y + bb_d / 2, bb_y + bb_d / 2],
                 color=BRAND["mute"], lw=0.5, linestyle=':')
-        ax.text(deck_x + deck_w + right_dist / 2, deck_y + deck_d / 2 - 2,
+        ax.text(bb_x + bb_w + right_dist / 2, bb_y + bb_d / 2 - 2,
                 f"{right_dist:.0f}'",
                 ha='center', fontsize=6, fontfamily='monospace', color=BRAND["mute"],
                 fontweight='bold')
