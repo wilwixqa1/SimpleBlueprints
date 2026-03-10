@@ -1,6 +1,7 @@
 """
-SimpleBlueprints — Sheet A-4: Material List
+SimpleBlueprints — Sheet A-5: Material List
 Professional itemized material table with cost estimate
+S23: Zone-aware materials — ports calcAllZones logic from engine.js
 """
 
 import math
@@ -8,8 +9,6 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
-
-from .calc_engine import calculate_structure
 
 BRAND = {
     "dark": "#1a1f16", "green": "#3d5a2e", "cream": "#faf8f3",
@@ -127,6 +126,113 @@ def estimate_materials(params, calc):
             "contingency": round(sub * 0.05, 2), "total": round(sub * 1.13, 2)}
 
 
+def estimate_zone_materials(params, calc):
+    """
+    Compute extra materials for add zones (Python port of calcAllZones from engine.js).
+    Returns None if no zones, otherwise dict with extraItems, extraPosts, etc.
+    """
+    zones = params.get("zones", [])
+    if not zones:
+        return None
+
+    W = params.get("width", 20)
+    D = params.get("depth", 12)
+    BS = 1.5  # beam setback, matches zone 0 and draw_plan.py
+
+    add_area = 0
+    cut_area = 0
+    extra_posts = 0
+    extra_footings = 0
+    extra_items = []
+
+    # Pull base calc values for consistency
+    sp = calc.get("joist_spacing", 16)
+    fDiam = calc.get("footing_diam", 30)
+    fDepth = calc.get("footing_depth", 36)
+    post_size = calc.get("post_size", "6x6")
+    beam_size = calc.get("beam_size", "3-ply 2x10")
+    joist_size = calc.get("joist_size", "2x12")
+
+    for z in zones:
+        edge = z.get("attachEdge", "front")
+        zw = z.get("w", 8)
+        zd = z.get("d", 6)
+
+        # Cutouts subtract area only
+        if z.get("type") == "cutout":
+            cut_area += zw * zd
+            continue
+
+        add_area += zw * zd
+
+        # Compute framing geometry by edge (matches engine.js + draw_plan.py)
+        if edge in ("right", "left"):
+            beam_len = zd
+            j_span = zw - BS
+            n_joists = math.ceil(zd / (sp / 12)) + 1
+            n_posts = max(2, math.ceil(zd / 8) + 1)
+        else:
+            # front (and any future "back")
+            beam_len = zw
+            j_span = zd - BS
+            n_joists = math.ceil(zw / (sp / 12)) + 1
+            n_posts = max(2, math.ceil(zw / 8) + 1)
+
+        extra_posts += n_posts
+        extra_footings += n_posts
+
+        label = z.get("label", f'Zone {z.get("id", "?")}')
+        jL = math.ceil(j_span)
+
+        # Foundation
+        bags = math.ceil((math.pi * (fDiam / 24) ** 2 * (fDepth / 12)) / 0.6) * n_posts
+        extra_items.append({"cat": "Foundation", "item": f"Concrete bags ({label})", "qty": bags, "cost": 6.50})
+        extra_items.append({"cat": "Foundation", "item": f"Sonotube ({label})", "qty": n_posts, "cost": 28 if fDiam > 18 else 18})
+        extra_items.append({"cat": "Foundation", "item": f"Post Base ({label})", "qty": n_posts, "cost": 42 if post_size == "6x6" else 28})
+
+        # Posts
+        extra_items.append({"cat": "Posts", "item": f"{post_size} Posts ({label})", "qty": n_posts, "cost": 48 if post_size == "6x6" else 24})
+        extra_items.append({"cat": "Posts", "item": f"Post Caps ({label})", "qty": n_posts, "cost": 38 if post_size == "6x6" else 22})
+
+        # Beam
+        plies = int(beam_size[0])
+        is_lvl = "LVL" in beam_size
+        extra_items.append({"cat": "Beam", "item": f'{"LVL" if is_lvl else "PT Beam"} ({label})',
+                            "qty": math.ceil(beam_len / 20) * plies, "cost": 95 if is_lvl else 55})
+
+        # Joists + rim
+        j_cost = 22 if jL <= 10 else (32 if jL <= 12 else 42)
+        extra_items.append({"cat": "Framing", "item": f"{joist_size} Joists {jL}' ({label})", "qty": n_joists + 2, "cost": j_cost})
+        extra_items.append({"cat": "Framing", "item": f"Rim Joists ({label})", "qty": 3, "cost": 32})
+
+        # Decking
+        board_dim = max(zw, zd)
+        board_len = math.ceil(min(zw, zd) + 2)
+        bds = math.ceil(board_dim / (5.5 / 12)) * 1.1
+        if params.get("deckingType") == "composite":
+            extra_items.append({"cat": "Decking", "item": f"Composite {board_len}' ({label})",
+                                "qty": math.ceil(bds), "cost": 28 if board_len <= 10 else 38})
+        else:
+            extra_items.append({"cat": "Decking", "item": f"5/4x6 PT {board_len}' ({label})",
+                                "qty": math.ceil(bds), "cost": 12 if board_len <= 10 else 18})
+
+        # Hardware
+        extra_items.append({"cat": "Hardware", "item": f"Joist Hangers ({label})", "qty": n_joists * 2, "cost": 6})
+
+    extra_sub = sum(i["qty"] * i["cost"] for i in extra_items)
+    base_area = calc.get("area", W * D)
+    total_area = round(base_area + add_area - cut_area)
+
+    return {
+        "totalArea": total_area,
+        "extraPosts": extra_posts,
+        "extraFootings": extra_footings,
+        "extraItems": extra_items,
+        "extraSub": round(extra_sub, 2),
+        "extraTotal": round(extra_sub * 1.13, 2),
+    }
+
+
 def format_feet_inches(feet):
     ft = int(feet)
     inches = (feet - ft) * 12
@@ -137,9 +243,25 @@ def format_feet_inches(feet):
 
 
 def draw_materials_sheet(fig, params, calc):
-    """Draw Sheet A-5: Material list table with cost breakdown."""
+    """Draw Sheet A-5: Material list table with cost breakdown (zone-aware)."""
     mat = estimate_materials(params, calc)
-    items = mat["items"]
+    zc = estimate_zone_materials(params, calc)
+
+    # Combine items and totals
+    if zc:
+        all_items = mat["items"] + zc["extraItems"]
+        combined_sub = mat["subtotal"] + zc["extraSub"]
+        display_area = zc["totalArea"]
+    else:
+        all_items = mat["items"]
+        combined_sub = mat["subtotal"]
+        display_area = calc["area"]
+
+    combined_tax = round(combined_sub * 0.08, 2)
+    combined_cont = round(combined_sub * 0.05, 2)
+    combined_total = round(combined_sub * 1.13, 2)
+
+    items = all_items
     W = calc["width"]
     D = calc["depth"]
 
@@ -149,10 +271,10 @@ def draw_materials_sheet(fig, params, calc):
     ax.axis('off')
     ax.set_facecolor('white')
 
-    # Title
+    # Title — uses total area (zone-aware)
     ax.text(50, 67, 'MATERIAL LIST & COST ESTIMATE', ha='center', fontsize=14,
             fontweight='bold', fontfamily='monospace', color=BRAND["dark"])
-    ax.text(50, 65.2, f'{format_feet_inches(W)} \u00d7 {format_feet_inches(D)} DECK  \u00b7  {calc["area"]} SF',
+    ax.text(50, 65.2, f'{format_feet_inches(W)} \u00d7 {format_feet_inches(D)} DECK  \u00b7  {display_area} SF',
             ha='center', fontsize=8, fontfamily='monospace', color=BRAND["mute"])
 
     # Table header
@@ -162,12 +284,18 @@ def draw_materials_sheet(fig, params, calc):
     for label, x in cols:
         ax.text(x, hY, label, fontsize=6, fontweight='bold', fontfamily='monospace', color='white', va='center')
 
+    # Determine row height — shrink if many items to fit on page
+    total_rows = len(items)
+    available_height = 63 - 8  # from hY down to summary area
+    row_h = min(2.2, available_height / max(total_rows + 1, 1))
+    row_h = max(row_h, 1.2)  # minimum readable height
+    font_size = 5.5 if row_h >= 1.8 else 4.5
+
     # Table rows
     y = hY - 2.5
-    row_h = 2.2
     last_cat = ""
     for i, item in enumerate(items):
-        if y < 6:
+        if y < 8:
             break
 
         bg = '#fafaf8' if i % 2 == 0 else 'white'
@@ -175,29 +303,29 @@ def draw_materials_sheet(fig, params, calc):
 
         # Category (only show when it changes)
         if item["cat"] != last_cat:
-            ax.text(5, y, item["cat"].upper(), fontsize=5.5, fontweight='bold',
+            ax.text(5, y, item["cat"].upper(), fontsize=font_size, fontweight='bold',
                     fontfamily='monospace', color=BRAND["green"], va='center')
             last_cat = item["cat"]
 
-        ax.text(22, y, item["item"], fontsize=5.5, fontfamily='monospace', color=BRAND["dark"], va='center')
-        ax.text(65, y, str(item["qty"]), fontsize=5.5, fontfamily='monospace', color=BRAND["dark"], va='center', ha='center')
-        ax.text(75, y, f'${item["cost"]:.2f}', fontsize=5.5, fontfamily='monospace', color=BRAND["mute"], va='center', ha='center')
+        ax.text(22, y, item["item"], fontsize=font_size, fontfamily='monospace', color=BRAND["dark"], va='center')
+        ax.text(65, y, str(item["qty"]), fontsize=font_size, fontfamily='monospace', color=BRAND["dark"], va='center', ha='center')
+        ax.text(75, y, f'${item["cost"]:.2f}', fontsize=font_size, fontfamily='monospace', color=BRAND["mute"], va='center', ha='center')
         line_total = item["qty"] * item["cost"]
-        ax.text(90, y, f'${line_total:,.2f}', fontsize=5.5, fontweight='bold', fontfamily='monospace',
+        ax.text(90, y, f'${line_total:,.2f}', fontsize=font_size, fontweight='bold', fontfamily='monospace',
                 color=BRAND["dark"], va='center', ha='right')
 
         # Separator line
         ax.plot([3, 97], [y - row_h / 2 - 0.3, y - row_h / 2 - 0.3], color='#eee', lw=0.3)
         y -= row_h
 
-    # Bottom summary box
+    # Bottom summary box — uses combined totals
     bY = max(y - 1, 3)
     ax.plot([3, 97], [bY + 1.5, bY + 1.5], color=BRAND["dark"], lw=1)
 
     summary_items = [
-        ("SUBTOTAL", mat["subtotal"]),
-        ("SALES TAX (8%)", mat["tax"]),
-        ("CONTINGENCY (5%)", mat["contingency"]),
+        ("SUBTOTAL", combined_sub),
+        ("SALES TAX (8%)", combined_tax),
+        ("CONTINGENCY (5%)", combined_cont),
     ]
     for j, (label, val) in enumerate(summary_items):
         sy = bY - j * 1.8
@@ -209,7 +337,7 @@ def draw_materials_sheet(fig, params, calc):
     ax.add_patch(patches.Rectangle((55, tY - 0.8), 42, 2.5, fc=BRAND["green"], ec='none', alpha=0.1))
     ax.text(65, tY + 0.3, 'ESTIMATED TOTAL', fontsize=7, fontweight='bold',
             fontfamily='monospace', color=BRAND["green"], va='center', ha='right')
-    ax.text(90, tY + 0.3, f'${mat["total"]:,.2f}', fontsize=10, fontweight='bold',
+    ax.text(90, tY + 0.3, f'${combined_total:,.2f}', fontsize=10, fontweight='bold',
             fontfamily='monospace', color=BRAND["green"], va='center', ha='right')
 
     # Disclaimer
