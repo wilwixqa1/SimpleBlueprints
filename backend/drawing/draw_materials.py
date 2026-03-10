@@ -10,6 +10,8 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
+from .zone_utils import get_exposed_edges
+
 BRAND = {
     "dark": "#1a1f16", "green": "#3d5a2e", "cream": "#faf8f3",
     "mute": "#7a8068", "border": "#ddd8cc", "red": "#c62828",
@@ -35,6 +37,18 @@ def estimate_materials(params, calc):
     railLen = c["rail_length"]
     attachment = c["attachment"]
     ledgerSize = c["ledger_size"]
+
+    # Zone-aware railing: use exposed edges total length
+    zones = params.get("zones", [])
+    if zones:
+        edges = get_exposed_edges(params)
+        total_len = sum(
+            abs(e["x2"] - e["x1"]) if e["dir"] == "h" else abs(e["y2"] - e["y1"])
+            for e in edges
+        )
+        if params.get("hasStairs"):
+            total_len -= params.get("stairWidth", 4)
+        railLen = round(total_len, 1)
 
     # Foundation
     bags = math.ceil((math.pi * (fDiam / 24) ** 2 * (fDepth / 12)) / 0.6) * nF
