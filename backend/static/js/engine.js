@@ -181,9 +181,63 @@ function estMaterials(p, c) {
   return { items, sub, tax: sub * 0.08, cont: sub * 0.05, total: sub * 1.13 };
 }
 
+
+function calcAllZones(p, baseCalc) {
+  var zones = p.zones || [];
+  if (!zones.length) return null;
+  var W = p.width, D = p.depth;
+  var addArea = 0, cutArea = 0;
+  var extraPosts = 0, extraFootings = 0;
+  var extraItems = [];
+  var BS = 1.5;
+  for (var i = 0; i < zones.length; i++) {
+    var z = zones[i];
+    var edge = z.attachEdge || "front";
+    var zw = z.w || 8, zd = z.d || 6;
+    if (z.type === "cutout") { cutArea += zw * zd; continue; }
+    addArea += zw * zd;
+    var sp = baseCalc.sp || 16;
+    var beamLen, jSpan, nJoists, nPosts;
+    if (edge === "right" || edge === "left") {
+      beamLen = zd; jSpan = zw - BS;
+      nJoists = Math.ceil(zd / (sp / 12)) + 1;
+      nPosts = Math.max(2, Math.ceil(zd / 8) + 1);
+    } else {
+      beamLen = zw; jSpan = zd - BS;
+      nJoists = Math.ceil(zw / (sp / 12)) + 1;
+      nPosts = Math.max(2, Math.ceil(zw / 8) + 1);
+    }
+    extraPosts += nPosts; extraFootings += nPosts;
+    var label = z.label || ("Zone " + z.id);
+    var jL = Math.ceil(jSpan);
+    var fD = baseCalc.fDiam, fDp = baseCalc.fDepth;
+    var bags = Math.ceil((Math.PI * Math.pow(fD / 24, 2) * (fDp / 12)) / 0.6) * nPosts;
+    extraItems.push({ cat: "Foundation", item: "Concrete bags (" + label + ")", qty: bags, cost: 6.5 });
+    extraItems.push({ cat: "Foundation", item: "Sonotube (" + label + ")", qty: nPosts, cost: fD > 18 ? 28 : 18 });
+    extraItems.push({ cat: "Foundation", item: "Post Base (" + label + ")", qty: nPosts, cost: baseCalc.postSize === "6x6" ? 42 : 28 });
+    extraItems.push({ cat: "Posts", item: baseCalc.postSize + " Posts (" + label + ")", qty: nPosts, cost: baseCalc.postSize === "6x6" ? 48 : 24 });
+    extraItems.push({ cat: "Posts", item: "Post Caps (" + label + ")", qty: nPosts, cost: baseCalc.postSize === "6x6" ? 38 : 22 });
+    var plies = parseInt(baseCalc.beamSize[0]); var isLVL = baseCalc.beamSize.includes("LVL");
+    extraItems.push({ cat: "Beam", item: (isLVL ? "LVL" : "PT Beam") + " (" + label + ")", qty: Math.ceil(beamLen / 20) * plies, cost: isLVL ? 95 : 55 });
+    extraItems.push({ cat: "Framing", item: baseCalc.joistSize + " Joists " + jL + "' (" + label + ")", qty: nJoists + 2, cost: jL <= 10 ? 22 : jL <= 12 ? 32 : 42 });
+    extraItems.push({ cat: "Framing", item: "Rim Joists (" + label + ")", qty: 3, cost: 32 });
+    var boardDim = Math.max(zw, zd); var boardLen = Math.ceil(Math.min(zw, zd) + 2);
+    var bds = Math.ceil(boardDim / (5.5 / 12)) * 1.1;
+    if (p.deckingType === "composite") {
+      extraItems.push({ cat: "Decking", item: "Composite " + boardLen + "' (" + label + ")", qty: Math.ceil(bds), cost: boardLen <= 10 ? 28 : 38 });
+    } else {
+      extraItems.push({ cat: "Decking", item: "5/4x6 PT " + boardLen + "' (" + label + ")", qty: Math.ceil(bds), cost: boardLen <= 10 ? 12 : 18 });
+    }
+    extraItems.push({ cat: "Hardware", item: "Joist Hangers (" + label + ")", qty: nJoists * 2, cost: 6 });
+  }
+  var extraSub = 0;
+  for (var j = 0; j < extraItems.length; j++) extraSub += extraItems[j].qty * extraItems[j].cost;
+  return { totalArea: Math.round(baseCalc.area + addArea - cutArea), extraPosts: extraPosts, extraFootings: extraFootings, extraItems: extraItems, extraSub: extraSub, extraTotal: extraSub * 1.13 };
+}
 // Export to window
 window.JOIST_SPANS = JOIST_SPANS;
 window.FROST = FROST;
 window.SNOW = SNOW;
 window.calcStructure = calcStructure;
 window.estMaterials = estMaterials;
+window.calcAllZones = calcAllZones;
