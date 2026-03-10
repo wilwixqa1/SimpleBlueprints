@@ -38,6 +38,7 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
   }, [pForZones, hasZones, c.W, c.D]);
   var addRects = allRects.filter(function(r) { return r.zone.type !== "cutout"; });
   var cutRects = allRects.filter(function(r) { return r.zone.type === "cutout"; });
+  var totalArea = Math.round(addRects.reduce(function(s, a) { return s + a.rect.w * a.rect.d; }, 0) - cutRects.reduce(function(s, a) { return s + a.rect.w * a.rect.d; }, 0));
 
   const dragRef = _pvUR(null);
   const svgRef = _pvUR(null);
@@ -325,7 +326,7 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
       </>}
 
       {/* Area label */}
-      {mode === "plan" && <text x={dx + sw / 2} y={pad + sd / 2 + 3} textAnchor="middle" style={{ fontSize: 10, fill: "#666", fontFamily: "monospace", fontWeight: 700 }}>{c.area} S.F.</text>}
+      {mode === "plan" && <text x={dx + sw / 2} y={pad + sd / 2 + 3} textAnchor="middle" style={{ fontSize: 10, fill: "#666", fontFamily: "monospace", fontWeight: 700 }}>{totalArea} S.F.</text>}
 
       {/* Rim joist outlines (zone 0 edges) */}
       {[[dx, pad, dx, pad + sd], [dx, pad + sd, dx + sw, pad + sd], [dx + sw, pad, dx + sw, pad + sd]].map(([x1, y1, x2, y2], i) => (
