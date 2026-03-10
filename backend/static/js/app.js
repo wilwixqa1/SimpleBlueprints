@@ -299,7 +299,7 @@ const App = function SimpleBlueprints() {
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, marginTop: 12 }}>
-              {[["Area", `${zc ? zc.totalArea : c.area} SF`, br.dk], ["Joists", c.joistSize, br.bl], ["Beam", c.beamSize.replace("3-ply ", "3\u00D7").replace("2-ply ", "2\u00D7"), br.ac], ["Posts", `${c.postSize}\u00D7${zc ? c.nP + zc.extraPosts : c.nP}`, "#8B6508"], ["Footings", `${c.fDiam}"\u00D8`, "#777"], ["Est. Cost", `$${(zc ? m.total + zc.extraTotal : m.total).toFixed(0)}`, br.gn]].map(([l, v, cl]) => (
+              {[["Area", `${zc ? zc.totalArea : c.area} SF`, br.dk], ["Joists", c.joistSize, br.bl], ["Beam", c.beamSize.replace("3-ply ", "3\u00D7").replace("2-ply ", "2\u00D7"), br.ac], ["Posts", `${c.postSize}\u00D7${zc ? c.nP + zc.extraPosts : c.nP}`, "#8B6508"], ["Footings", `${c.fDiam}"\u00D8\u00D7${zc ? c.nF + zc.extraFootings : c.nF}`, "#777"], ["Est. Cost", `$${(zc ? m.total + zc.extraTotal : m.total).toFixed(0)}`, br.gn]].map(([l, v, cl]) => (
                 <div key={l} style={{ padding: "8px 10px", background: br.cr, borderRadius: 6, border: `1px solid ${br.bd}`, textAlign: "center" }}>
                   <div style={{ fontSize: 8, color: br.mu, fontFamily: mono, textTransform: "uppercase", letterSpacing: "0.5px" }}>{l}</div>
                   <div style={{ fontSize: 11, fontWeight: 800, color: cl, fontFamily: mono, marginTop: 1 }}>{v}</div>
