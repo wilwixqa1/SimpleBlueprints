@@ -247,7 +247,7 @@ const App = function SimpleBlueprints() {
           <div style={{ background: "#fff", borderRadius: 10, padding: 22, border: `1px solid ${br.bd}`, boxShadow: "0 1px 8px rgba(0,0,0,0.04)" }}>
             <h2 style={{ margin: "0 0 18px", fontSize: 15, fontWeight: 800, color: br.dk, fontFamily: sans, borderBottom: `2px solid ${br.gn}`, paddingBottom: 8 }}>{steps[step].i} {steps[step].t}</h2>
 
-            <StepContent step={step} p={p} u={u} c={c} m={m} info={info} setI={setI}
+            <StepContent step={step} p={p} u={u} c={c} m={m} zc={zc} info={info} setI={setI}
               showAdvanced={showAdvanced} setShowAdvanced={setShowAdvanced}
               sitePlanMode={sitePlanMode} setSitePlanMode={setSitePlanMode}
               sitePlanFile={sitePlanFile} setSitePlanFile={setSitePlanFile} setSitePlanB64={setSitePlanB64}
