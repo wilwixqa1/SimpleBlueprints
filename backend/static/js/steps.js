@@ -261,37 +261,92 @@ function StepContent(props) {
     </>}
   </>;
 
-  // ── Step 3: Site Plan (S27 — migrated from Step 0) ──
-  if (step === 3) return <>
-    <div style={{ marginBottom: 14, padding: 14, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}` }}>
-      <div style={{ fontSize: 10, fontWeight: 700, color: _br.gn, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 4 }}>Site Plan / Survey</div>
-      <div style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, marginBottom: 10, lineHeight: 1.5 }}>
-        Find lot dimensions and setbacks on your county assessor website or in your home's survey/closing documents. Setbacks come from your local zoning code.
-      </div>
-      <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
-        {[["generate", "Generate for me"], ["upload", "Upload my survey"]].map(([v, t]) => (
-          <button key={v} onClick={() => setSitePlanMode(v)} style={{ flex: 1, padding: "8px 12px", borderRadius: 6, fontSize: 11, fontFamily: _mono, cursor: "pointer", border: sitePlanMode === v ? `2px solid ${_br.gn}` : `1px solid ${_br.bd}`, background: sitePlanMode === v ? _br.gn : "#fff", color: sitePlanMode === v ? "#fff" : _br.tx, fontWeight: sitePlanMode === v ? 700 : 400, transition: "all 0.15s" }}>{t}</button>
-        ))}
+  // ── Step 3: Site Plan (S27 — 3-mode selector) ──
+  if (step === 3) {
+    // === SETBACK WARNINGS (computed from current params) ===
+    var spWarnings = [];
+    var deckCenterX = p.houseOffsetSide + p.houseWidth / 2 + (p.deckOffset || 0);
+    var deckLeftX = deckCenterX - p.width / 2;
+    var deckRightX = deckCenterX + p.width / 2;
+    var deckRearY = p.setbackFront + p.houseDepth + p.depth;
+    var rearGap = p.lotDepth - deckRearY;
+    var leftGap = deckLeftX;
+    var rightGap = p.lotWidth - deckRightX;
+    if (rearGap < 0) spWarnings.push("Deck extends past the rear property line by " + Math.abs(rearGap).toFixed(1) + "'");
+    else if (rearGap < p.setbackRear) spWarnings.push("Deck is " + rearGap.toFixed(1) + "' from rear property line (setback requires " + p.setbackRear + "')");
+    if (leftGap < 0) spWarnings.push("Deck extends past the left property line");
+    else if (leftGap < p.setbackSide) spWarnings.push("Deck is " + leftGap.toFixed(1) + "' from left property line (setback requires " + p.setbackSide + "')");
+    if (rightGap < 0) spWarnings.push("Deck extends past the right property line");
+    else if (rightGap < p.setbackSide) spWarnings.push("Deck is " + rightGap.toFixed(1) + "' from right property line (setback requires " + p.setbackSide + "')");
+    var lotArea = p.lotWidth * p.lotDepth;
+    var houseArea = p.houseWidth * p.houseDepth;
+    var deckArea = c.area || (p.width * p.depth);
+    var coveragePct = lotArea > 0 ? ((houseArea + deckArea) / lotArea * 100).toFixed(1) : 0;
+
+    // === MODE CARDS CONFIG ===
+    var modeCards = [
+      { id: "generate", icon: "\uD83D\uDCCF", title: "Enter Dimensions", desc: "Type in your lot and house size", sub: "Easiest option" },
+      { id: "upload", icon: "\uD83D\uDCC4", title: "Upload Survey", desc: "Have a PDF or image survey?", sub: "Most accurate" },
+      { id: "draw", icon: "\u270F\uFE0F", title: "Draw Site Plan", desc: "Full interactive editor", sub: "Coming soon" },
+    ];
+
+    return <>
+      {/* Intro */}
+      <div style={{ fontSize: 11, color: _br.tx, fontFamily: _sans, lineHeight: 1.7, marginBottom: 14 }}>
+        Your permit office needs a site plan showing your property, house, and proposed deck. Pick the option that works best for you:
       </div>
 
-      {sitePlanMode === "generate" && <>
-        <Slider label="Lot width" value={p.lotWidth} min={30} max={300} field="lotWidth" u={u} p={p} />
-        <Slider label="Lot depth" value={p.lotDepth} min={50} max={400} field="lotDepth" u={u} p={p} />
+      {/* 3-card mode selector */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 16 }}>
+        {modeCards.map(function(mc) {
+          var isSel = sitePlanMode === mc.id;
+          var isDraw = mc.id === "draw";
+          return <button key={mc.id} onClick={function() { if (!isDraw) setSitePlanMode(mc.id); }}
+            style={{
+              padding: "12px 8px", borderRadius: 8, cursor: isDraw ? "default" : "pointer", textAlign: "center",
+              border: isSel ? ("2px solid " + _br.gn) : ("1px solid " + _br.bd),
+              background: isSel ? "#edf5e8" : isDraw ? "#fafafa" : "#fff",
+              opacity: isDraw ? 0.6 : 1,
+              transition: "all 0.15s", position: "relative"
+            }}>
+            {isDraw && <span style={{ position: "absolute", top: 4, right: 4, fontSize: 7, fontFamily: _mono, fontWeight: 700, color: "#2563eb", background: "#e0edff", padding: "1px 5px", borderRadius: 3 }}>SOON</span>}
+            <div style={{ fontSize: 20, marginBottom: 4 }}>{mc.icon}</div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: isSel ? _br.gn : _br.tx, fontFamily: _mono }}>{mc.title}</div>
+            <div style={{ fontSize: 8, color: _br.mu, fontFamily: _mono, marginTop: 2, lineHeight: 1.4 }}>{mc.desc}</div>
+            <div style={{ fontSize: 7, color: isSel ? _br.gn : "#bbb", fontFamily: _mono, marginTop: 4, fontStyle: "italic" }}>{mc.sub}</div>
+          </button>;
+        })}
+      </div>
+
+      {/* === ENTER DIMENSIONS MODE === */}
+      {sitePlanMode === "generate" && <div style={{ padding: 14, background: _br.wr, borderRadius: 8, border: "1px solid " + _br.bd, marginBottom: 14 }}>
+        <div style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, marginBottom: 12, lineHeight: 1.6, padding: "8px 10px", background: "#fff", borderRadius: 6, border: "1px solid " + _br.bd }}>
+          {"\uD83D\uDCA1"} Don't know your exact lot size? Check your county assessor or tax records online, or look at your closing documents. Approximate dimensions are fine for planning.
+        </div>
+        <div style={{ fontSize: 9, fontWeight: 700, color: _br.mu, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 8 }}>Lot Dimensions</div>
+        <Slider label="Lot width (front to back neighbor)" value={p.lotWidth} min={30} max={300} field="lotWidth" u={u} p={p} />
+        <Slider label="Lot depth (street to back)" value={p.lotDepth} min={50} max={400} field="lotDepth" u={u} p={p} />
+        <div style={{ fontSize: 9, fontWeight: 700, color: _br.mu, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 8, marginTop: 12 }}>House Position</div>
         <Slider label="House depth" value={p.houseDepth} min={20} max={60} field="houseDepth" u={u} p={p} />
+        <Slider label="House offset from left property line" value={p.houseOffsetSide} min={5} max={Math.max(5, p.lotWidth - p.houseWidth - 5)} field="houseOffsetSide" u={u} p={p} />
+        <div style={{ fontSize: 9, fontWeight: 700, color: _br.mu, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 8, marginTop: 12 }}>Setbacks (from zoning code)</div>
         <Slider label="Front setback" value={p.setbackFront} min={0} max={50} field="setbackFront" u={u} p={p} />
         <Slider label="Side setback" value={p.setbackSide} min={0} max={30} field="setbackSide" u={u} p={p} />
         <Slider label="Rear setback" value={p.setbackRear} min={0} max={50} field="setbackRear" u={u} p={p} />
-        <Slider label="House offset from left" value={p.houseOffsetSide} min={5} max={Math.max(5, p.lotWidth - p.houseWidth - 5)} field="houseOffsetSide" u={u} p={p} />
-      </>}
+      </div>}
 
-      {sitePlanMode === "upload" && (
-        <div style={{ textAlign: "center", padding: 20, border: `2px dashed ${sitePlanFile ? _br.gn : _br.bd}`, borderRadius: 8, background: sitePlanFile ? "#edf5e8" : "#fff", cursor: "pointer", position: "relative" }}
-          onClick={() => document.getElementById("sitePlanInput").click()}>
-          <input id="sitePlanInput" type="file" accept=".pdf,.png,.jpg,.jpeg" style={{ display: "none" }} onChange={e => {
-            const file = e.target.files[0]; if (!file) return;
+      {/* === UPLOAD MODE === */}
+      {sitePlanMode === "upload" && <div style={{ padding: 14, background: _br.wr, borderRadius: 8, border: "1px solid " + _br.bd, marginBottom: 14 }}>
+        <div style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, marginBottom: 12, lineHeight: 1.6, padding: "8px 10px", background: "#fff", borderRadius: 6, border: "1px solid " + _br.bd }}>
+          {"\uD83D\uDCA1"} Upload your property survey, plat map, or site plan. This will be included as a separate sheet in your blueprint package. The dimensions above will still be used for setback calculations.
+        </div>
+        <div style={{ textAlign: "center", padding: 20, border: "2px dashed " + (sitePlanFile ? _br.gn : _br.bd), borderRadius: 8, background: sitePlanFile ? "#edf5e8" : "#fff", cursor: "pointer", position: "relative" }}
+          onClick={function() { document.getElementById("sitePlanInput").click(); }}>
+          <input id="sitePlanInput" type="file" accept=".pdf,.png,.jpg,.jpeg" style={{ display: "none" }} onChange={function(e) {
+            var file = e.target.files[0]; if (!file) return;
             setSitePlanFile(file);
-            const reader = new FileReader();
-            reader.onload = () => setSitePlanB64(reader.result.split(",")[1]);
+            var reader = new FileReader();
+            reader.onload = function() { setSitePlanB64(reader.result.split(",")[1]); };
             reader.readAsDataURL(file);
           }} />
           {sitePlanFile ? (
@@ -308,16 +363,37 @@ function StepContent(props) {
             </div>
           )}
         </div>
-      )}
-    </div>
+        <div style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, marginTop: 8, textAlign: "center" }}>You can also enter dimensions above to generate an additional site plan sheet.</div>
+      </div>}
 
-    <div style={{ padding: 14, background: "#f0f7ff", borderRadius: 8, border: "1px solid #bfdbfe" }}>
-      <div style={{ fontSize: 10, fontWeight: 700, color: "#2563eb", fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 6 }}>Coming Soon</div>
-      <div style={{ fontSize: 10, color: _br.mu, fontFamily: _mono, lineHeight: 1.6 }}>
-        Enhanced site plan editor with lot shape options, house positioning, setback violation warnings, element placement (driveways, sheds, trees, easements), and automatic lot coverage calculations. For now, use the controls above or upload your survey.
-      </div>
-    </div>
-  </>;
+      {/* === DRAW MODE (coming soon) === */}
+      {sitePlanMode === "draw" && <div style={{ padding: 14, background: "#f0f7ff", borderRadius: 8, border: "1px solid #bfdbfe", marginBottom: 14 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: "#2563eb", fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 6 }}>Interactive Editor (Coming Soon)</div>
+        <div style={{ fontSize: 10, color: _br.mu, fontFamily: _mono, lineHeight: 1.6 }}>
+          A full site plan editor where you can position your house, set lot shape, place driveways, sheds, trees, and easements, and see real-time setback violation warnings. Use "Enter Dimensions" or "Upload Survey" for now.
+        </div>
+      </div>}
+
+      {/* === SETBACK WARNINGS === */}
+      {sitePlanMode === "generate" && spWarnings.length > 0 && <div style={{ padding: 12, background: "#fff8e1", borderRadius: 8, border: "1px solid #ffe082", marginBottom: 14 }}>
+        <div style={{ fontSize: 9, fontWeight: 700, color: "#f57f17", fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 6 }}>{"\u26A0\uFE0F"} Setback Warnings</div>
+        {spWarnings.map(function(w, i) { return <div key={i} style={{ fontSize: 10, color: "#e65100", fontFamily: _mono, lineHeight: 1.6, marginBottom: 2 }}>{"\u2022"} {w}</div>; })}
+        <div style={{ fontSize: 8, color: "#f57f17", fontFamily: _mono, marginTop: 6, fontStyle: "italic" }}>Adjust your deck size in Step 1 or setbacks above to resolve.</div>
+      </div>}
+
+      {/* === LOT COVERAGE === */}
+      {sitePlanMode === "generate" && <div style={{ padding: 10, background: _br.wr, borderRadius: 8, border: "1px solid " + _br.bd }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontSize: 9, color: _br.mu, fontFamily: _mono }}>Lot Coverage (house + deck)</span>
+          <span style={{ fontSize: 11, fontWeight: 700, color: parseFloat(coveragePct) > 45 ? "#e65100" : _br.gn, fontFamily: _mono }}>{coveragePct}%</span>
+        </div>
+        <div style={{ height: 4, background: "#e0e0e0", borderRadius: 2, marginTop: 6 }}>
+          <div style={{ height: "100%", background: parseFloat(coveragePct) > 45 ? "#ff9800" : _br.gn, borderRadius: 2, width: Math.min(100, parseFloat(coveragePct)) + "%", transition: "width 0.3s" }} />
+        </div>
+        <div style={{ fontSize: 8, color: _br.mu, fontFamily: _mono, marginTop: 4 }}>Most codes cap at 30-50%. Check your local zoning ordinance.</div>
+      </div>}
+    </>;
+  }
 
   // ── Steps 1, 2 unchanged; Step 4 (Review) below ──
   if (step === 1) return <>
