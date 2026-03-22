@@ -48,6 +48,7 @@ from app.auth import (
 # CONFIG
 # ============================================================
 STRIPE_SECRET = os.getenv("STRIPE_SECRET_KEY", "")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
 SITE_URL = os.getenv("SITE_URL", "http://localhost:8000")
 BLUEPRINT_PRICE = 2900
@@ -102,6 +103,7 @@ class DeckParams(BaseModel):
     overJoist: Optional[str] = None; overBeam: Optional[str] = None
     overPostSize: Optional[str] = None; overPostCount: Optional[int] = None
     overFooting: Optional[int] = None
+    houseDistFromStreet: Optional[float] = None
     projectInfo: Optional[dict] = None; coverImage: Optional[str] = None
     beamType: str = "dropped"
     stairAnchorX: Optional[float] = None; stairAnchorY: Optional[float] = None
@@ -266,6 +268,99 @@ async def auth_unsubscribe(uid: int = 0):
 @app.post("/api/calculate")
 async def calculate(params: DeckParams):
     return calculate_structure(params.dict())
+
+# ============================================================
+# AI SURVEY EXTRACTION (S29)
+# ============================================================
+SURVEY_EXTRACT_PROMPT = """Analyze this property survey or plat map and extract dimensions. Return ONLY a JSON object with no markdown, no backticks, no other text.
+
+Required fields (use null if not found or not readable):
+- lotWidth: lot width in feet (number)
+- lotDepth: lot depth in feet (number)
+- houseWidth: house/dwelling width in feet (number)
+- houseDepth: house/dwelling depth in feet (number)
+- houseDistFromStreet: distance from house front wall to front property line in feet (number)
+- houseOffsetSide: distance from house left wall to left/west property line in feet (number)
+- setbackFront: front setback requirement if shown on survey (number)
+- setbackRear: rear setback requirement if shown on survey (number)
+- setbackSide: side setback requirement if shown on survey (number)
+- address: property address (string)
+- parcelId: lot or parcel number (string)
+- streetName: name of the street the property faces (string)
+
+Also include a "confidence" object with the same keys, each "high", "medium", or "low".
+
+IMPORTANT: Measure dimensions carefully from the survey markings. Property surveys show lot dimensions along boundary lines. House footprint may be labeled or estimated from the scale bar. Return ONLY valid JSON."""
+
+@app.post("/api/extract-survey")
+async def extract_survey(request: Request):
+    """AI-powered survey dimension extraction using Claude Vision."""
+    user_id = get_current_user_id(request)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Login required")
+
+    if not ANTHROPIC_API_KEY:
+        raise HTTPException(status_code=500, detail="AI extraction not configured")
+
+    try:
+        body = await request.json()
+        survey_b64 = body.get("surveyData", "")
+        file_type = body.get("fileType", "image")
+
+        if not survey_b64:
+            raise HTTPException(status_code=400, detail="No survey data provided")
+
+        # Build message content based on file type
+        if file_type == "pdf":
+            doc_block = {
+                "type": "document",
+                "source": {"type": "base64", "media_type": "application/pdf", "data": survey_b64}
+            }
+        else:
+            media_type = "image/png" if survey_b64[:4] == "iVBO" else "image/jpeg"
+            doc_block = {
+                "type": "image",
+                "source": {"type": "base64", "media_type": media_type, "data": survey_b64}
+            }
+
+        payload = {
+            "model": "claude-sonnet-4-20250514",
+            "max_tokens": 1024,
+            "messages": [{
+                "role": "user",
+                "content": [doc_block, {"type": "text", "text": SURVEY_EXTRACT_PROMPT}]
+            }]
+        }
+
+        import urllib.request, urllib.error
+        req = urllib.request.Request(
+            "https://api.anthropic.com/v1/messages",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "x-api-key": ANTHROPIC_API_KEY,
+                "anthropic-version": "2023-06-01"
+            }
+        )
+
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            result = json.loads(resp.read().decode("utf-8"))
+            text = result["content"][0]["text"]
+            text = text.strip()
+            if not text.startswith("{"):
+                start = text.find("{")
+                end = text.rfind("}") + 1
+                if start >= 0 and end > start:
+                    text = text[start:end]
+            extracted = json.loads(text)
+            return {"ok": True, "data": extracted}
+
+    except json.JSONDecodeError as e:
+        return {"ok": False, "error": "Failed to parse AI response: " + str(e)}
+    except Exception as e:
+        print("Survey extraction error: " + str(e))
+        return {"ok": False, "error": str(e)}
+
 
 @app.post("/api/generate-test")
 async def generate_test(request: Request):
