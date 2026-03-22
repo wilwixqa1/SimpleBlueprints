@@ -1,5 +1,5 @@
 // ============================================================
-// WIZARD STEPS — Step 0 (Size), Step 1 (Structure), Step 2 (Finishes),
+// WIZARD STEPS â Step 0 (Size), Step 1 (Structure), Step 2 (Finishes),
 //                Step 3 (Site Plan), Step 4 (Review)
 // Multi-zone support added S19, Site Plan step added S27
 // S28: Unified Step 3 flow (sliders first, collapsible upload)
@@ -7,7 +7,7 @@
 const { useState: _stUS, useEffect: _stUE, useMemo: _stUM } = React;
 const { br: _br, mono: _mono, sans: _sans } = window.SB;
 
-// ── Feet-inches formatter (20.5 → 20'-6") ──
+// ââ Feet-inches formatter (20.5 â 20'-6") ââ
 function fmtFtIn(v) {
   var ft = Math.floor(v);
   var inches = Math.round((v - ft) * 12);
@@ -16,7 +16,7 @@ function fmtFtIn(v) {
 }
 window.fmtFtIn = fmtFtIn;
 
-// ── Shared UI helpers ──
+// ââ Shared UI helpers ââ
 function Label({ children }) {
   return <label style={{ display: "block", fontSize: 10, fontWeight: 700, color: _br.mu, marginBottom: 4, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>{children}</label>;
 }
@@ -62,7 +62,7 @@ function Spec({ l, v, color }) {
   return <div style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", borderBottom: `1px solid ${_br.wr}` }}><span style={{ fontSize: 11, color: _br.mu, fontFamily: _mono }}>{l}</span><span style={{ fontSize: 11, fontWeight: 700, color: color || _br.tx, fontFamily: _mono }}>{v}</span></div>;
 }
 
-// ── Stair template icons (unchanged) ──
+// ââ Stair template icons (unchanged) ââ
 function stairIcon(key) {
   var c = "#3d5a2e", f = "#faf8f3", lc = "#e8e6d8", s = 0.8, ao = 0.6;
   if (key === "straight") return (<svg width={28} height={24} viewBox="0 0 28 24"><rect x={9} y={1} width={10} height={22} fill={f} stroke={c} strokeWidth={s} rx={1}/><polygon points="14,18 11,14 17,14" fill={c} opacity={ao}/></svg>);
@@ -74,7 +74,7 @@ function stairIcon(key) {
   return null;
 }
 
-// ── Step Content ──
+// ââ Step Content ââ
 function StepContent(props) {
   const { step, p, u, c, m, info, setI, showAdvanced, setShowAdvanced,
     sitePlanMode, setSitePlanMode, sitePlanFile, setSitePlanFile, setSitePlanB64,
@@ -86,7 +86,7 @@ function StepContent(props) {
   const [disclaimerAcked, setDisclaimerAcked] = _stUS(false);
   const [showUpload, setShowUpload] = _stUS(false);
 
-  // ── Active zone data ──
+  // ââ Active zone data ââ
   var activeZoneObj = p.activeZone > 0 ? p.zones.find(function(z) { return z.id === p.activeZone; }) : null;
   var isZone0 = p.activeZone === 0;
   var zoneW = activeZoneObj ? activeZoneObj.w : p.width;
@@ -96,7 +96,7 @@ function StepContent(props) {
   var isCutout = activeZoneObj && activeZoneObj.type === "cutout";
 
   if (step === 0) return <>
-    {/* ── Zone selector bar ── */}
+    {/* ââ Zone selector bar ââ */}
     {p.zones.length > 0 && <div style={{ marginBottom: 16, padding: 10, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}` }}>
       <div style={{ fontSize: 9, fontWeight: 700, color: _br.mu, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 6 }}>Zones</div>
       <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
@@ -132,7 +132,7 @@ function StepContent(props) {
       }}>Delete</button>
     </div>}
 
-    {/* Width / Depth / Height sliders — zone-aware */}
+    {/* Width / Depth / Height sliders â zone-aware */}
     <Slider label={isZone0 ? "Width (along house)" : "Width"} value={zoneW} min={isCutout ? 2 : 4} max={50} step={0.5} fmt={fmtFtIn} field="width" u={u} p={p} />
     <Slider label={isZone0 ? "Depth (from house)" : "Depth"} value={zoneD} min={isCutout ? 2 : 4} max={24} step={0.5} fmt={fmtFtIn} field="depth" u={u} p={p} />
     {isZone0 && <Slider label="Height above grade" value={p.height} min={1} max={14} step={0.5} fmt={fmtFtIn} field="height" u={u} p={p} />}
@@ -172,7 +172,7 @@ function StepContent(props) {
       </div>
     </>}
 
-    {/* ── Chamfer controls for active zone ── */}
+    {/* ââ Chamfer controls for active zone ââ */}
     {!isCutout && <div style={{ marginBottom: 16, padding: 12, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}` }}>
       <div style={{ fontSize: 9, fontWeight: 700, color: "#7c3aed", fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 8 }}>Corner Modifiers</div>
       <div style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, marginBottom: 8 }}>Toggle 45{"\u00B0"} chamfers on corners. Adjust size below.</div>
@@ -200,7 +200,7 @@ function StepContent(props) {
       </div>
     </div>}
 
-    {/* ── Zone 0 only: house width, attachment, stairs ── */}
+    {/* ââ Zone 0 only: house width, attachment, stairs ââ */}
     {isZone0 && <>
       <Slider label="House width" value={p.houseWidth} min={20} max={80} field="houseWidth" u={u} p={p} />
       <Chips label="Attachment" field="attachment" opts={[["ledger", "Ledger Board"], ["freestanding", "Freestanding"]]} u={u} p={p} />
@@ -263,7 +263,7 @@ function StepContent(props) {
     </>}
   </>;
 
-  // ── Step 3: Site Plan (S28 — unified flow, no mode cards) ──
+  // ââ Step 3: Site Plan (S28 â unified flow, no mode cards) ââ
   if (step === 3) {
     // === SETBACK WARNINGS (computed from current params) ===
     var spWarnings = [];
@@ -358,18 +358,20 @@ function StepContent(props) {
           <input value={info.address} onChange={function(e) { setI("address", e.target.value); }} placeholder="123 Main St" style={{ width: "100%", padding: "7px 10px", border: "1px solid " + _br.bd, borderRadius: 5, fontSize: 12, fontFamily: _mono, color: _br.tx, background: "#fff", outline: "none", boxSizing: "border-box" }} />
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <div style={{ flex: 1 }}>
-            <label style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, display: "block", marginBottom: 2 }}>City, State ZIP</label>
-            <input value={(info.city || "") + (info.state ? ", " + info.state : "") + (info.zip ? " " + info.zip : "")} onChange={function(e) {
-              var v = e.target.value;
-              var parts = v.split(",");
-              var city = (parts[0] || "").trim();
-              var rest = (parts[1] || "").trim().split(/\s+/);
-              var st = rest.length > 1 ? rest.slice(0, -1).join(" ") : (rest[0] || "");
-              var zip = rest.length > 1 ? rest[rest.length - 1] : "";
-              setI("city", city); setI("state", st); setI("zip", zip);
-            }} placeholder="Anytown, NY 10001" style={{ width: "100%", padding: "7px 10px", border: "1px solid " + _br.bd, borderRadius: 5, fontSize: 12, fontFamily: _mono, color: _br.tx, background: "#fff", outline: "none", boxSizing: "border-box" }} />
+          <div style={{ flex: 2 }}>
+            <label style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, display: "block", marginBottom: 2 }}>City</label>
+            <input value={info.city} onChange={function(e) { setI("city", e.target.value); }} placeholder="West Islip" style={{ width: "100%", padding: "7px 10px", border: "1px solid " + _br.bd, borderRadius: 5, fontSize: 12, fontFamily: _mono, color: _br.tx, background: "#fff", outline: "none", boxSizing: "border-box" }} />
           </div>
+          <div style={{ flex: 1 }}>
+            <label style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, display: "block", marginBottom: 2 }}>State</label>
+            <input value={info.state} onChange={function(e) { setI("state", e.target.value); }} placeholder="NY" style={{ width: "100%", padding: "7px 10px", border: "1px solid " + _br.bd, borderRadius: 5, fontSize: 12, fontFamily: _mono, color: _br.tx, background: "#fff", outline: "none", boxSizing: "border-box" }} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <label style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, display: "block", marginBottom: 2 }}>ZIP</label>
+            <input value={info.zip} onChange={function(e) { setI("zip", e.target.value); }} placeholder="11795" style={{ width: "100%", padding: "7px 10px", border: "1px solid " + _br.bd, borderRadius: 5, fontSize: 12, fontFamily: _mono, color: _br.tx, background: "#fff", outline: "none", boxSizing: "border-box" }} />
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
           <div style={{ flex: 1 }}>
             <label style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, display: "block", marginBottom: 2 }}>Lot / Parcel #</label>
             <input value={info.lot} onChange={function(e) { setI("lot", e.target.value); }} placeholder="Optional" style={{ width: "100%", padding: "7px 10px", border: "1px solid " + _br.bd, borderRadius: 5, fontSize: 12, fontFamily: _mono, color: _br.tx, background: "#fff", outline: "none", boxSizing: "border-box" }} />
@@ -399,7 +401,7 @@ function StepContent(props) {
     </>;
   }
 
-  // ── Steps 1, 2 unchanged; Step 4 (Review) below ──
+  // ââ Steps 1, 2 unchanged; Step 4 (Review) below ââ
   if (step === 1) return <>
     <Chips label="Joist spacing" field="joistSpacing" opts={[[12, '12" O.C.'], [16, '16" O.C.'], [24, '24" O.C.']]} u={u} p={p} />
     <Chips label="Snow load" field="snowLoad" opts={[["none", "None"], ["light", "Light"], ["moderate", "Moderate"], ["heavy", "Heavy"]]} u={u} p={p} />
@@ -520,7 +522,7 @@ function StepContent(props) {
     </div>
   </>;
 
-  // ── Step 4: Review (was Step 3 before S27) ──
+  // ââ Step 4: Review (was Step 3 before S27) ââ
   if (step === 4) return <>
     <div style={{ marginBottom: 14 }}>
       <div style={{ fontSize: 10, fontWeight: 700, color: _br.gn, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 8 }}>Blueprint Preview</div>
