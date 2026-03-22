@@ -19,14 +19,6 @@ BRAND = {
 }
 
 
-def format_feet_inches(feet):
-    ft = int(feet)
-    inches = (feet - ft) * 12
-    if inches < 0.5:
-        return f"{ft}'-0\""
-    else:
-        return f"{ft}'-{inches:.0f}\""
-
 
 def draw_site_plan(fig, params, calc):
     """Draw Sheet A-5: Site Plan showing property, setbacks, house and deck."""
