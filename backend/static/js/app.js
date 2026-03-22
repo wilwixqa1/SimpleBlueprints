@@ -14,6 +14,7 @@ const App = function SimpleBlueprints() {
   const [planMode, setPlanMode] = useState("plan");
   const [zoneMode, setZoneMode] = useState("select"); // "select" | "add" | "cut" | "chamfer"
   const [p, setP] = useState({ width: 20, depth: 12, height: 4, houseWidth: 40, houseDepth: 30, attachment: "ledger", hasStairs: true, stairLocation: "front", stairWidth: 4, numStringers: 3, hasLanding: false, joistSpacing: 16, deckingType: "composite", railType: "fortress", snowLoad: "moderate", frostZone: "cold", lotWidth: 80, lotDepth: 120, setbackFront: 25, setbackSide: 5, setbackRear: 20, houseOffsetSide: 20, deckOffset: 0, stairOffset: 0, beamType: "dropped", stairTemplate: "straight", stairRunSplit: null, stairLandingDepth: null, stairLandingWidth: null, stairGap: 0.5, stairRotation: 0, stairAnchorX: null, stairAnchorY: null, stairAngle: null,
+    houseDistFromStreet: null,
     // Zone system — S19
     zones: [], activeZone: 0, nextZoneId: 1, mainCorners: { BL: { type: "square", size: 0 }, BR: { type: "square", size: 0 }, FL: { type: "square", size: 0 }, FR: { type: "square", size: 0 } },
     // Site plan — S27 (defaults seeded from existing flat params)
@@ -68,6 +69,13 @@ const App = function SimpleBlueprints() {
     if (k === "lotWidth" || k === "houseWidth") {
       const maxHO = Math.max(5, next.lotWidth - next.houseWidth - 5);
       next.houseOffsetSide = Math.min(next.houseOffsetSide || 20, maxHO);
+    }
+    // S29: clamp houseDistFromStreet when setbackFront changes
+    if (k === "setbackFront" && next.houseDistFromStreet !== null && next.houseDistFromStreet < v) {
+      next.houseDistFromStreet = v;
+    }
+    if (k === "houseDistFromStreet" && v !== null) {
+      next.houseDistFromStreet = Math.max(next.setbackFront, v);
     }
     return next;
   });
