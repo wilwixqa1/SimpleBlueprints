@@ -97,7 +97,8 @@ const CONFIGS = [
     name: "Large 24x14 (Ledger, Cold, Moderate Snow)",
     p: { width: 24, depth: 14, height: 8, joistSpacing: 16, attachment: "ledger",
          snowLoad: "moderate", frostZone: "cold", deckingType: "composite",
-         hasStairs: false, beamType: "dropped" }
+         hasStairs: false, beamType: "dropped" },
+    knownIssues: ["Joist span may exceed IRC at TL=95 PSF", "Footing may exceed standard sizes"]
   },
   {
     name: "Extreme 30x14 (Ledger, Severe, Heavy Snow)",
