@@ -174,7 +174,7 @@ const App = function SimpleBlueprints() {
   const [genStatus, setGenStatus] = useState("idle");
   const [info, setInfo] = useState({ owner: "", address: "", city: "", state: "", zip: "", lot: "", contractor: "" });
   const setI = (f, v) => setInfo(prev => ({ ...prev, [f]: v }));
-  const [sitePlanMode, setSitePlanMode] = useState("upload");
+  const [sitePlanMode, setSitePlanMode] = useState("generate");
   const [sitePlanFile, setSitePlanFile] = useState(null);
   const [sitePlanB64, setSitePlanB64] = useState(null);
   const [genError, setGenError] = useState("");
