@@ -1,7 +1,10 @@
 """
-SimpleBlueprints — Sheet A-5: Site Plan
+SimpleBlueprints — Sheet A-6: Site Plan
 Shows property boundaries, setbacks, house footprint, and deck placement.
 S24: Zone-aware — draws composite deck outline for multi-zone configs.
+S28: Consumes p.sitePlan when present, falls back to flat params.
+     Independent left/right setbacks, address/parcel on sheet,
+     house placement matches frontend SVG preview, deckOffset applied.
 """
 
 import matplotlib
@@ -19,21 +22,78 @@ BRAND = {
 }
 
 
+def _extract_site_params(params, calc):
+    """
+    Extract site plan parameters from sitePlan dict (S27+) or flat params.
+    Returns a unified dict regardless of source.
+    """
+    sp = params.get("sitePlan")
+    pi = params.get("projectInfo") or {}
+
+    if sp and isinstance(sp, dict) and sp.get("lotWidth"):
+        # S27+ path: use sitePlan as source of truth
+        sb_front = sp.get("setbackFront", 25)
+        return {
+            "lot_w": sp.get("lotWidth", 80),
+            "lot_d": sp.get("lotDepth", 120),
+            "sb_front": sb_front,
+            "sb_rear": sp.get("setbackRear", 20),
+            "sb_left": sp.get("setbackLeft", 5),
+            "sb_right": sp.get("setbackRight", 5),
+            "house_w": sp.get("houseWidth", 40),
+            "house_d": sp.get("houseDepth", 30),
+            "house_x": sp.get("houseOffsetX", 20),
+            "house_y": sp.get("houseOffsetY", sb_front),
+            "house_label": (sp.get("houseLabel") or "Existing Residence").upper(),
+            "address": sp.get("address") or pi.get("address", ""),
+            "parcel_id": sp.get("parcelId") or pi.get("lot", ""),
+            "street_name": sp.get("streetName", ""),
+        }
+    else:
+        # Legacy path: flat params
+        sb_side = params.get("setbackSide", 5)
+        sb_front = params.get("setbackFront", 25)
+        return {
+            "lot_w": params.get("lotWidth", 80),
+            "lot_d": params.get("lotDepth", 120),
+            "sb_front": sb_front,
+            "sb_rear": params.get("setbackRear", 20),
+            "sb_left": sb_side,
+            "sb_right": sb_side,
+            "house_w": params.get("houseWidth", 40),
+            "house_d": params.get("houseDepth", 30),
+            "house_x": params.get("houseOffsetSide", 20),
+            "house_y": sb_front,           # Match frontend SVG preview
+            "house_label": "EXISTING SINGLE\nFAMILY RESIDENCE",
+            "address": pi.get("address", ""),
+            "parcel_id": pi.get("lot", ""),
+            "street_name": "",
+        }
+
 
 def draw_site_plan(fig, params, calc):
-    """Draw Sheet A-5: Site Plan showing property, setbacks, house and deck."""
+    """Draw Sheet A-6: Site Plan showing property, setbacks, house and deck."""
 
-    # Extract params
-    lot_w = params.get("lotWidth", 80)
-    lot_d = params.get("lotDepth", 120)
-    sb_front = params.get("setbackFront", 25)
-    sb_side = params.get("setbackSide", 5)
-    sb_rear = params.get("setbackRear", 20)
-    house_w = params.get("houseWidth", 40)
-    house_d = params.get("houseDepth", 30)
-    house_off = params.get("houseOffsetSide", 20)
+    # === Unified param extraction (sitePlan or flat) ===
+    sp = _extract_site_params(params, calc)
+    lot_w = sp["lot_w"]
+    lot_d = sp["lot_d"]
+    sb_front = sp["sb_front"]
+    sb_rear = sp["sb_rear"]
+    sb_left = sp["sb_left"]
+    sb_right = sp["sb_right"]
+    house_w = sp["house_w"]
+    house_d = sp["house_d"]
+    house_x = sp["house_x"]
+    house_y = sp["house_y"]
+    house_label = sp["house_label"]
+    address = sp["address"]
+    parcel_id = sp["parcel_id"]
+    street_name = sp["street_name"]
+
     deck_w = calc["width"]
     deck_d = calc["depth"]
+    deck_offset = params.get("deckOffset", 0)
     attachment = calc.get("attachment", "ledger")
     zones = params.get("zones", [])
 
@@ -82,11 +142,11 @@ def draw_site_plan(fig, params, calc):
             ha='center', fontsize=7, fontweight='bold', fontfamily='monospace',
             color=BRAND["dark"], rotation=90)
 
-    # === SETBACK LINES (dashed) ===
+    # === SETBACK LINES (dashed, independent left/right) ===
     sb_style = dict(fc='none', ec=BRAND["red"], lw=1, linestyle='--')
     setback_rect = patches.Rectangle(
-        (sb_side, sb_front),
-        lot_w - 2 * sb_side,
+        (sb_left, sb_front),
+        lot_w - sb_left - sb_right,
         lot_d - sb_front - sb_rear,
         **sb_style
     )
@@ -105,26 +165,23 @@ def draw_site_plan(fig, params, calc):
                 color=BRAND["red"], fontweight='bold',
                 bbox=dict(boxstyle='round,pad=0.3', fc='white', ec='none', alpha=0.8))
 
-    if sb_side > 0:
-        ax.text(sb_side / 2, lot_d / 2, f"{sb_side}'\nSIDE",
+    if sb_left > 0:
+        ax.text(sb_left / 2, lot_d / 2, f"{sb_left}'\nSIDE",
                 ha='center', va='center', fontsize=5, fontfamily='monospace',
                 color=BRAND["red"], fontweight='bold', rotation=90)
-        ax.text(lot_w - sb_side / 2, lot_d / 2, f"{sb_side}'\nSIDE",
+    if sb_right > 0:
+        ax.text(lot_w - sb_right / 2, lot_d / 2, f"{sb_right}'\nSIDE",
                 ha='center', va='center', fontsize=5, fontfamily='monospace',
                 color=BRAND["red"], fontweight='bold', rotation=90)
 
     # === HOUSE FOOTPRINT ===
-    # House positioned: left edge at house_off, front face at sb_front + some gap
-    house_y = sb_front + 10  # 10' from front setback
-    house_x = house_off
-
     house_rect = patches.Rectangle(
         (house_x, house_y), house_w, house_d,
         fc='#e8e6e0', ec=BRAND["dark"], lw=1.5, hatch='///', zorder=3
     )
     ax.add_patch(house_rect)
     ax.text(house_x + house_w / 2, house_y + house_d / 2,
-            "EXISTING SINGLE\nFAMILY RESIDENCE",
+            house_label,
             ha='center', va='center', fontsize=7, fontweight='bold',
             fontfamily='monospace', color=BRAND["dark"], zorder=4)
 
@@ -137,8 +194,8 @@ def draw_site_plan(fig, params, calc):
             fontweight='bold', rotation=90)
 
     # === PROPOSED DECK (zone-aware) ===
-    # Zone 0 origin: centered on house rear wall
-    z0_x = house_x + (house_w - deck_w) / 2
+    # Zone 0 origin: centered on house rear wall, offset by deckOffset
+    z0_x = house_x + (house_w - deck_w) / 2 + deck_offset
     z0_y = house_y + house_d
 
     # Get zone rects from zone_utils
@@ -180,7 +237,7 @@ def draw_site_plan(fig, params, calc):
     if zones:
         label = f"PROPOSED DECK\n{total_area:.0f} S.F."
     else:
-        label = f"PROPOSED DECK\n{deck_w}'×{deck_d}'"
+        label = f"PROPOSED DECK\n{deck_w}'\u00D7{deck_d}'"
 
     ax.text(z0_x + deck_w / 2, z0_y + deck_d / 2, label,
             ha='center', va='center', fontsize=7, fontweight='bold',
@@ -236,7 +293,8 @@ def draw_site_plan(fig, params, calc):
     # === STREET ===
     ax.add_patch(patches.Rectangle((-margin, -margin), lot_w + 2 * margin, margin - 1,
                  fc='#e0e0e0', ec='none'))
-    ax.text(lot_w / 2, -margin / 2 - 0.5, "S T R E E T",
+    street_label = street_name.upper() if street_name else "S T R E E T"
+    ax.text(lot_w / 2, -margin / 2 - 0.5, street_label,
             ha='center', va='center', fontsize=10, fontweight='bold',
             fontfamily='monospace', color=BRAND["mute"])
 
@@ -251,8 +309,21 @@ def draw_site_plan(fig, params, calc):
     fig.text(0.44, 0.94, "SITE PLAN", ha='center',
              fontsize=16, fontweight='bold', fontfamily='monospace',
              color=BRAND["dark"])
-    fig.text(0.44, 0.92, f'SCALE: NOT TO SCALE',
-             ha='center', fontsize=7, fontfamily='monospace', color=BRAND["mute"])
+
+    # Address and parcel below title
+    subtitle_parts = []
+    if address:
+        subtitle_parts.append(address.upper())
+    if parcel_id:
+        subtitle_parts.append(f"PARCEL: {parcel_id}")
+    if subtitle_parts:
+        fig.text(0.44, 0.92, "  |  ".join(subtitle_parts),
+                 ha='center', fontsize=7, fontfamily='monospace', color=BRAND["mute"])
+        fig.text(0.44, 0.905, 'SCALE: NOT TO SCALE',
+                 ha='center', fontsize=7, fontfamily='monospace', color=BRAND["mute"])
+    else:
+        fig.text(0.44, 0.92, 'SCALE: NOT TO SCALE',
+                 ha='center', fontsize=7, fontfamily='monospace', color=BRAND["mute"])
 
     # === LEGEND (right side) ===
     leg_x = 0.84
@@ -261,10 +332,10 @@ def draw_site_plan(fig, params, calc):
              fontfamily='monospace', color=BRAND["dark"])
 
     legend_items = [
-        ("━━━", BRAND["dark"], "Property Line"),
-        ("╌╌╌", BRAND["red"], "Setback Line"),
-        ("▓▓▓", BRAND["dark"], "Existing House"),
-        ("███", BRAND["green"], "Proposed Deck"),
+        ("\u2501\u2501\u2501", BRAND["dark"], "Property Line"),
+        ("\u254C\u254C\u254C", BRAND["red"], "Setback Line"),
+        ("\u2593\u2593\u2593", BRAND["dark"], "Existing House"),
+        ("\u2588\u2588\u2588", BRAND["green"], "Proposed Deck"),
     ]
     for i, (sym, color, label) in enumerate(legend_items):
         y = leg_y - 0.035 * (i + 1)
@@ -273,13 +344,14 @@ def draw_site_plan(fig, params, calc):
         fig.text(leg_x + 0.05, y, label, fontsize=6, fontfamily='monospace',
                  color=BRAND["dark"])
 
-    # Setback summary
+    # Setback summary (4 independent values)
     fig.text(leg_x, leg_y - 0.22, "SETBACKS", fontsize=8, fontweight='bold',
              fontfamily='monospace', color=BRAND["dark"])
     setbacks = [
         ("Front", sb_front),
-        ("Side", sb_side),
         ("Rear", sb_rear),
+        ("Left", sb_left),
+        ("Right", sb_right),
     ]
     for i, (label, val) in enumerate(setbacks):
         y = leg_y - 0.22 - 0.03 * (i + 1)
