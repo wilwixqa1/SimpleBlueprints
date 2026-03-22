@@ -15,7 +15,19 @@ const App = function SimpleBlueprints() {
   const [zoneMode, setZoneMode] = useState("select"); // "select" | "add" | "cut" | "chamfer"
   const [p, setP] = useState({ width: 20, depth: 12, height: 4, houseWidth: 40, houseDepth: 30, attachment: "ledger", hasStairs: true, stairLocation: "front", stairWidth: 4, numStringers: 3, hasLanding: false, joistSpacing: 16, deckingType: "composite", railType: "fortress", snowLoad: "moderate", frostZone: "cold", lotWidth: 80, lotDepth: 120, setbackFront: 25, setbackSide: 5, setbackRear: 20, houseOffsetSide: 20, deckOffset: 0, stairOffset: 0, beamType: "dropped", stairTemplate: "straight", stairRunSplit: null, stairLandingDepth: null, stairLandingWidth: null, stairGap: 0.5, stairRotation: 0, stairAnchorX: null, stairAnchorY: null, stairAngle: null,
     // Zone system — S19
-    zones: [], activeZone: 0, nextZoneId: 1, mainCorners: { BL: { type: "square", size: 0 }, BR: { type: "square", size: 0 }, FL: { type: "square", size: 0 }, FR: { type: "square", size: 0 } }
+    zones: [], activeZone: 0, nextZoneId: 1, mainCorners: { BL: { type: "square", size: 0 }, BR: { type: "square", size: 0 }, FL: { type: "square", size: 0 }, FR: { type: "square", size: 0 } },
+    // Site plan — S27 (defaults seeded from existing flat params)
+    sitePlan: {
+      lotShape: "rectangle", lotWidth: 80, lotDepth: 120,
+      streetSide: "south", streetName: "",
+      houseWidth: 40, houseDepth: 30, houseOffsetX: 20, houseOffsetY: 25,
+      houseLabel: "Existing Residence", houseShape: "rectangle",
+      setbackFront: 25, setbackRear: 20, setbackLeft: 5, setbackRight: 5,
+      deckAttachSide: "rear", deckOffsetX: 0,
+      elements: [],
+      address: "", parcelId: "", northAngle: 0,
+      lotCoverage: null, deckToPropertyLine: null
+    }
   });
 
   // Zone-aware updater
@@ -218,7 +230,7 @@ const App = function SimpleBlueprints() {
     } catch (e) { console.warn("Feedback error:", e); setFeedbackDone(true); }
   };
 
-  const steps = [{ t: "Size & Shape", i: "\uD83D\uDCD0" }, { t: "Structure", i: "\uD83C\uDFD7\uFE0F" }, { t: "Finishes", i: "\uD83E\uDEB5" }, { t: "Review", i: "\uD83D\uDCCB" }];
+  const steps = [{ t: "Size & Shape", i: "\uD83D\uDCD0" }, { t: "Structure", i: "\uD83C\uDFD7\uFE0F" }, { t: "Finishes", i: "\uD83E\uDEB5" }, { t: "Site Plan", i: "\uD83D\uDDFA\uFE0F" }, { t: "Review", i: "\uD83D\uDCCB" }];
 
   const PlanView = window.PlanView;
   const ElevationView = window.ElevationView;
@@ -239,7 +251,7 @@ const App = function SimpleBlueprints() {
           <span style={{ fontFamily: mono, fontSize: 13, fontWeight: 800, color: br.dk }}>simpleblueprints</span>
         </div>
         <div style={{ display: "flex", gap: 1 }}>
-          {steps.map((s, i) => <button key={i} onClick={() => setStep(i)} style={{ padding: "7px 16px", fontSize: 10, cursor: "pointer", border: "none", fontFamily: mono, background: step === i ? br.gn : "transparent", color: step === i ? "#fff" : br.mu, borderRadius: i === 0 ? "5px 0 0 5px" : i === 3 ? "0 5px 5px 0" : 0, fontWeight: step === i ? 700 : 400, letterSpacing: "0.5px" }}>{s.i} {s.t}</button>)}
+          {steps.map((s, i) => <button key={i} onClick={() => setStep(i)} style={{ padding: "7px 16px", fontSize: 10, cursor: "pointer", border: "none", fontFamily: mono, background: step === i ? br.gn : "transparent", color: step === i ? "#fff" : br.mu, borderRadius: i === 0 ? "5px 0 0 5px" : i === steps.length - 1 ? "0 5px 5px 0" : 0, fontWeight: step === i ? 700 : 400, letterSpacing: "0.5px" }}>{s.i} {s.t}</button>)}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {user ? <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -249,7 +261,7 @@ const App = function SimpleBlueprints() {
           </div> : <button onClick={() => { window.location.href = `${API}/auth/login`; }} style={{ padding: "5px 14px", background: br.gn, color: "#fff", border: "none", borderRadius: 5, fontSize: 10, fontFamily: mono, cursor: "pointer", fontWeight: 700 }}>Sign in</button>}
         </div>
       </nav>
-      <div style={{ height: 3, background: br.wr }}><div style={{ height: "100%", background: br.gn, width: `${((step + 1) / 4) * 100}%`, transition: "width 0.3s" }} /></div>
+      <div style={{ height: 3, background: br.wr }}><div style={{ height: "100%", background: br.gn, width: `${((step + 1) / steps.length) * 100}%`, transition: "width 0.3s" }} /></div>
 
       <div style={{ maxWidth: 1180, margin: "0 auto", padding: "12px", display: "flex", gap: 16, flexWrap: "wrap" }}>
         {/* LEFT: INPUTS */}
@@ -271,7 +283,7 @@ const App = function SimpleBlueprints() {
 
             <div style={{ display: "flex", justifyContent: "space-between", marginTop: 20 }}>
               <button onClick={() => step > 0 ? setStep(step - 1) : setPage("home")} style={{ padding: "9px 18px", border: `1px solid ${br.bd}`, borderRadius: 6, background: "transparent", color: br.mu, cursor: "pointer", fontFamily: mono, fontSize: 11, fontWeight: 600 }}>{"\u2190"} {step > 0 ? "Back" : "Home"}</button>
-              {step < 3 && <button onClick={() => setStep(step + 1)} style={{ padding: "9px 18px", border: "none", borderRadius: 6, background: br.gn, color: "#fff", cursor: "pointer", fontFamily: mono, fontSize: 11, fontWeight: 700 }}>Next {"\u2192"}</button>}
+              {step < steps.length - 1 && <button onClick={() => setStep(step + 1)} style={{ padding: "9px 18px", border: "none", borderRadius: 6, background: br.gn, color: "#fff", cursor: "pointer", fontFamily: mono, fontSize: 11, fontWeight: 700 }}>Next {"\u2192"}</button>}
             </div>
           </div>
         </div>
