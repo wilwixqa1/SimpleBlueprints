@@ -24,51 +24,36 @@ BRAND = {
 
 def _extract_site_params(params, calc):
     """
-    Extract site plan parameters from sitePlan dict (S27+) or flat params.
-    Returns a unified dict regardless of source.
+    Extract site plan parameters.
+    Dimensions always come from flat params (what the sliders write to).
+    Metadata (address, parcel, street, house label) pulled from sitePlan if present.
+    When the frontend migrates sliders to write p.sitePlan directly, this
+    function can be updated to prefer sitePlan for dimensions too.
     """
-    sp = params.get("sitePlan")
+    sp = params.get("sitePlan") or {}
     pi = params.get("projectInfo") or {}
 
-    if sp and isinstance(sp, dict) and sp.get("lotWidth"):
-        # S27+ path: use sitePlan as source of truth
-        sb_front = sp.get("setbackFront", 25)
-        return {
-            "lot_w": sp.get("lotWidth", 80),
-            "lot_d": sp.get("lotDepth", 120),
-            "sb_front": sb_front,
-            "sb_rear": sp.get("setbackRear", 20),
-            "sb_left": sp.get("setbackLeft", 5),
-            "sb_right": sp.get("setbackRight", 5),
-            "house_w": sp.get("houseWidth", 40),
-            "house_d": sp.get("houseDepth", 30),
-            "house_x": sp.get("houseOffsetX", 20),
-            "house_y": sp.get("houseOffsetY", sb_front),
-            "house_label": (sp.get("houseLabel") or "Existing Residence").upper(),
-            "address": sp.get("address") or pi.get("address", ""),
-            "parcel_id": sp.get("parcelId") or pi.get("lot", ""),
-            "street_name": sp.get("streetName", ""),
-        }
-    else:
-        # Legacy path: flat params
-        sb_side = params.get("setbackSide", 5)
-        sb_front = params.get("setbackFront", 25)
-        return {
-            "lot_w": params.get("lotWidth", 80),
-            "lot_d": params.get("lotDepth", 120),
-            "sb_front": sb_front,
-            "sb_rear": params.get("setbackRear", 20),
-            "sb_left": sb_side,
-            "sb_right": sb_side,
-            "house_w": params.get("houseWidth", 40),
-            "house_d": params.get("houseDepth", 30),
-            "house_x": params.get("houseOffsetSide", 20),
-            "house_y": sb_front,           # Match frontend SVG preview
-            "house_label": "EXISTING SINGLE\nFAMILY RESIDENCE",
-            "address": pi.get("address", ""),
-            "parcel_id": pi.get("lot", ""),
-            "street_name": "",
-        }
+    sb_side = params.get("setbackSide", 5)
+    sb_front = params.get("setbackFront", 25)
+
+    return {
+        # Dimensions from flat params (what sliders update)
+        "lot_w": params.get("lotWidth", 80),
+        "lot_d": params.get("lotDepth", 120),
+        "sb_front": sb_front,
+        "sb_rear": params.get("setbackRear", 20),
+        "sb_left": sb_side,
+        "sb_right": sb_side,
+        "house_w": params.get("houseWidth", 40),
+        "house_d": params.get("houseDepth", 30),
+        "house_x": params.get("houseOffsetSide", 20),
+        "house_y": sb_front,           # Match frontend SVG preview
+        # Metadata from sitePlan (if set) or projectInfo fallback
+        "house_label": (sp.get("houseLabel") or "EXISTING SINGLE\nFAMILY RESIDENCE").upper(),
+        "address": sp.get("address") or pi.get("address", ""),
+        "parcel_id": sp.get("parcelId") or pi.get("lot", ""),
+        "street_name": sp.get("streetName", ""),
+    }
 
 
 def draw_site_plan(fig, params, calc):
@@ -291,10 +276,11 @@ def draw_site_plan(fig, params, calc):
                 fontweight='bold')
 
     # === STREET ===
-    ax.add_patch(patches.Rectangle((-margin, -margin), lot_w + 2 * margin, margin - 1,
+    street_top = -margin + 3  # leave room for property line dims above
+    ax.add_patch(patches.Rectangle((-margin, -margin), lot_w + 2 * margin, margin - 10,
                  fc='#e0e0e0', ec='none'))
     street_label = street_name.upper() if street_name else "S T R E E T"
-    ax.text(lot_w / 2, -margin / 2 - 0.5, street_label,
+    ax.text(lot_w / 2, -margin + 3, street_label,
             ha='center', va='center', fontsize=10, fontweight='bold',
             fontfamily='monospace', color=BRAND["mute"])
 
