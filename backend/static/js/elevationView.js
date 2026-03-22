@@ -205,8 +205,8 @@ function ElevationView({ c, p }) {
         const zRailW = isRear ? 1 : 1.5;
         const prefix = "z" + zi + "_";
 
-        // Posts (2 per zone section)
-        [1.5, sec.w - 1.5].forEach((pOff, pi) => {
+        // Posts: guard against narrow zones (<3 ft) where edge offsets would overlap
+        (sec.w < 3 ? [sec.w / 2] : [1.5, sec.w - 1.5]).forEach((pOff, pi) => {
           const spx = zSecX + pOff * sX;
           zoneEls.push(<line key={prefix+"p"+pi} x1={spx} y1={zDY} x2={spx} y2={gnd-1} stroke="#c4a060" strokeWidth={postSize==="6x6"?2:1.5} strokeOpacity={zAlpha} strokeDasharray={zDash} />);
           if (!isRear) {
