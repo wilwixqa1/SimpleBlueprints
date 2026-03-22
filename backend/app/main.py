@@ -1,5 +1,5 @@
 """
-SimpleBlueprints â FastAPI Backend
+SimpleBlueprints Ã¢ÂÂ FastAPI Backend
 Handles: PDF generation, Google OAuth, Stripe checkout, webhook, file serving
 """
 
@@ -157,37 +157,43 @@ def generate_blueprint_pdf(params: dict) -> tuple[str, dict]:
             draw_title_block(fig, sheet_num, sheet_name, calc, pi)
             pdf.savefig(fig, dpi=200); plt.close(fig)
 
-        if sp_mode == "upload" and sp_file:
+        # A-6: Always include the generated site plan
+        fig6 = plt.figure(figsize=(14,8.5)); fig6.set_facecolor('white')
+        draw_site_plan(fig6,params,calc); draw_title_block(fig6,"A-6","SITE PLAN",calc,pi)
+        pdf.savefig(fig6,dpi=200); plt.close(fig6)
+
+        # A-7: If user uploaded a survey, include it as an additional sheet
+        if sp_file:
             try:
-                import base64, io; from PIL import Image
-                img_data = base64.b64decode(sp_file)
-                if sp_file[:8] in ('JVBER', 'JVBERi0'):
+                import base64 as b64mod, io; from PIL import Image
+                img_data = b64mod.b64decode(sp_file)
+                img = None
+                # Check if PDF (base64 of %PDF starts with JVBER)
+                if sp_file[:5] == 'JVBER':
                     import subprocess, tempfile
                     tmp_path = Path(tempfile.mktemp(suffix='.pdf')); tmp_path.write_bytes(img_data)
                     png_path = tmp_path.with_suffix('.png')
                     try:
                         subprocess.run(['pdftoppm','-png','-singlefile','-r','200',str(tmp_path),str(png_path.with_suffix(''))], capture_output=True, timeout=30)
-                        img = Image.open(png_path) if png_path.exists() else None
-                    except: img = None
+                        if png_path.exists():
+                            img = Image.open(png_path)
+                    except Exception as e:
+                        print(f"pdftoppm failed: {e}")
                     tmp_path.unlink(missing_ok=True); png_path.unlink(missing_ok=True)
                 else:
+                    # Image file (PNG/JPG)
                     img = Image.open(io.BytesIO(img_data))
                 if img:
                     import numpy as np
-                    fig5 = plt.figure(figsize=(14,8.5)); fig5.set_facecolor('white')
-                    ax5 = fig5.add_axes([0.02,0.05,0.96,0.88]); ax5.axis('off')
-                    ax5.imshow(np.array(img), aspect='auto')
-                    fig5.text(0.5,0.97,"SHEET A-6  |  UPLOADED SITE PLAN / SURVEY",ha='center',fontsize=8,fontfamily='monospace',color='#7a8068')
-                    draw_title_block(fig5,"A-6","SITE PLAN (UPLOADED)",calc,pi)
-                    pdf.savefig(fig5,dpi=200); plt.close(fig5)
-            except:
-                fig5 = plt.figure(figsize=(14,8.5)); fig5.set_facecolor('white')
-                draw_site_plan(fig5,params,calc); draw_title_block(fig5,"A-6","SITE PLAN",calc,pi)
-                pdf.savefig(fig5,dpi=200); plt.close(fig5)
-        else:
-            fig5 = plt.figure(figsize=(14,8.5)); fig5.set_facecolor('white')
-            draw_site_plan(fig5,params,calc); draw_title_block(fig5,"A-6","SITE PLAN",calc,pi)
-            pdf.savefig(fig5,dpi=200); plt.close(fig5)
+                    fig7 = plt.figure(figsize=(14,8.5)); fig7.set_facecolor('white')
+                    ax7 = fig7.add_axes([0.02,0.05,0.96,0.88]); ax7.axis('off')
+                    ax7.imshow(np.array(img), aspect='auto')
+                    draw_title_block(fig7,"A-7","UPLOADED SURVEY",calc,pi)
+                    pdf.savefig(fig7,dpi=200); plt.close(fig7)
+                else:
+                    print("Survey upload: could not render image (pdftoppm may not be installed)")
+            except Exception as e:
+                print(f"Survey upload error: {e}")
 
     return file_id, calc
 
@@ -367,13 +373,13 @@ async function load(){try{const r=await fetch('/admin/api/stats');D=await r.json
 function ts(e){const d=(Date.now()/1000-e);if(d<60)return Math.floor(d)+'s ago';if(d<3600)return Math.floor(d/60)+'m ago';if(d<86400)return Math.floor(d/3600)+'h ago';return Math.floor(d/86400)+'d ago'}
 function setTab(t){tab=t;render()}
 function render(){if(!D)return;const g=D.generations,u=D.users,pv=D.page_views,p=D.popular,mx=Math.max(...D.daily.map(x=>x.count),1);
-let h='<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px"><div><h1>SimpleBlueprints Dashboard</h1><div class="sub">Analytics Â· Users Â· Generations</div></div><button class="btn" onclick="load()">â» Refresh</button></div>';
+let h='<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px"><div><h1>SimpleBlueprints Dashboard</h1><div class="sub">Analytics ÃÂ· Users ÃÂ· Generations</div></div><button class="btn" onclick="load()">Ã¢ÂÂ» Refresh</button></div>';
 h+='<div class="tabs"><div class="tab '+(tab==='overview'?'active':'')+'" onclick="setTab(\'overview\')">Overview</div><div class="tab '+(tab==='users'?'active':'')+'" onclick="setTab(\'users\')">Users ('+u.total+')</div><div class="tab '+(tab==='generations'?'active':'')+'" onclick="setTab(\'generations\')">Generations</div></div>';
-if(tab==='overview'){h+='<div class="grid"><div class="card"><div class="label">PDFs Generated</div><div class="val">'+g.total+'</div><div class="detail">'+g.today+' today Â· '+g.this_week+' this week</div></div><div class="card"><div class="label">Registered Users</div><div class="val">'+u.total+'</div><div class="detail">'+u.today+' today Â· '+u.this_week+' this week</div></div><div class="card"><div class="label">Email Opt-ins</div><div class="val">'+u.opted_in+'</div><div class="detail">of '+u.total+' total</div></div><div class="card"><div class="label">Page Views</div><div class="val">'+pv.total+'</div><div class="detail">'+pv.today+' today Â· '+pv.unique_today+' unique</div></div></div>';
+if(tab==='overview'){h+='<div class="grid"><div class="card"><div class="label">PDFs Generated</div><div class="val">'+g.total+'</div><div class="detail">'+g.today+' today ÃÂ· '+g.this_week+' this week</div></div><div class="card"><div class="label">Registered Users</div><div class="val">'+u.total+'</div><div class="detail">'+u.today+' today ÃÂ· '+u.this_week+' this week</div></div><div class="card"><div class="label">Email Opt-ins</div><div class="val">'+u.opted_in+'</div><div class="detail">of '+u.total+' total</div></div><div class="card"><div class="label">Page Views</div><div class="val">'+pv.total+'</div><div class="detail">'+pv.today+' today ÃÂ· '+pv.unique_today+' unique</div></div></div>';
 h+='<div style="margin-bottom:28px"><h2 style="font-size:14px;color:#8b949e;font-family:DM Mono,monospace;margin-bottom:12px">DAILY GENERATIONS</h2><div class="chart">'+D.daily.map(x=>'<div class="chart-bar" style="height:'+Math.max(x.count/mx*100,4)+'%"><div class="tip">'+x.date+': '+x.count+'</div></div>').join('')+(D.daily.length===0?'<div style="color:#484f58;margin:auto;font-size:12px;font-family:DM Mono,monospace">No data yet</div>':'')+'</div></div>';
-h+='<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr))"><div><h2 style="font-size:14px;color:#8b949e;font-family:DM Mono,monospace;margin-bottom:12px">POPULAR SIZES</h2><div class="card">'+p.sizes.map(x=>'<div class="bar-wrap"><div class="bar-label">'+x.size+'</div><div class="bar" style="width:'+Math.max(x.count/Math.max(g.total,1)*100,5)+'%"></div><div class="bar-val">'+x.count+'</div></div>').join('')+'</div></div><div><h2 style="font-size:14px;color:#8b949e;font-family:DM Mono,monospace;margin-bottom:12px">PREFERENCES</h2><div class="card">'+p.attachment.map(x=>'<div class="bar-wrap"><div class="bar-label">'+(x.type||'â')+'</div><div class="bar" style="width:'+Math.max(x.count/Math.max(g.total,1)*100,5)+'%"></div><div class="bar-val">'+x.count+'</div></div>').join('')+p.decking.map(x=>'<div class="bar-wrap"><div class="bar-label">'+(x.type||'â')+'</div><div class="bar" style="width:'+Math.max(x.count/Math.max(g.total,1)*100,5)+'%"></div><div class="bar-val">'+x.count+'</div></div>').join('')+'</div></div></div>'}
-if(tab==='users'){h+='<div style="margin-bottom:16px"><a href="/admin/api/users/csv" class="btn" download>â¬ Export CSV</a></div><table><tr><th>Email</th><th>Name</th><th>Opted In</th><th>Generations</th><th>Signed Up</th><th>Last Login</th></tr>'+D.user_list.map(u=>'<tr><td>'+u.email+'</td><td>'+(u.name||'â')+'</td><td>'+(u.opted_in?'<span class="green">Yes</span>':'<span class="red">No</span>')+'</td><td>'+u.generations+'</td><td>'+ts(u.created)+'</td><td>'+ts(u.last_login)+'</td></tr>').join('')+(D.user_list.length===0?'<tr><td colspan="6" style="text-align:center;color:#484f58">No users yet</td></tr>':'')+'</table>'}
-if(tab==='generations'){h+='<table><tr><th>When</th><th>User</th><th>Size</th><th>Height</th><th>Area</th><th>Attach</th><th>Decking</th><th>Stairs</th></tr>'+D.recent.map(r=>'<tr><td>'+ts(r.time)+'</td><td>'+r.email+'</td><td>'+r.size+'</td><td>'+r.height+'</td><td>'+r.area+' SF</td><td>'+r.attachment+'</td><td>'+r.decking+'</td><td>'+(r.stairs?'<span class="green">'+r.stair_loc+'</span>':'â')+'</td></tr>').join('')+(D.recent.length===0?'<tr><td colspan="8" style="text-align:center;color:#484f58">No data yet</td></tr>':'')+'</table>'}
+h+='<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr))"><div><h2 style="font-size:14px;color:#8b949e;font-family:DM Mono,monospace;margin-bottom:12px">POPULAR SIZES</h2><div class="card">'+p.sizes.map(x=>'<div class="bar-wrap"><div class="bar-label">'+x.size+'</div><div class="bar" style="width:'+Math.max(x.count/Math.max(g.total,1)*100,5)+'%"></div><div class="bar-val">'+x.count+'</div></div>').join('')+'</div></div><div><h2 style="font-size:14px;color:#8b949e;font-family:DM Mono,monospace;margin-bottom:12px">PREFERENCES</h2><div class="card">'+p.attachment.map(x=>'<div class="bar-wrap"><div class="bar-label">'+(x.type||'Ã¢ÂÂ')+'</div><div class="bar" style="width:'+Math.max(x.count/Math.max(g.total,1)*100,5)+'%"></div><div class="bar-val">'+x.count+'</div></div>').join('')+p.decking.map(x=>'<div class="bar-wrap"><div class="bar-label">'+(x.type||'Ã¢ÂÂ')+'</div><div class="bar" style="width:'+Math.max(x.count/Math.max(g.total,1)*100,5)+'%"></div><div class="bar-val">'+x.count+'</div></div>').join('')+'</div></div></div>'}
+if(tab==='users'){h+='<div style="margin-bottom:16px"><a href="/admin/api/users/csv" class="btn" download>Ã¢Â¬Â Export CSV</a></div><table><tr><th>Email</th><th>Name</th><th>Opted In</th><th>Generations</th><th>Signed Up</th><th>Last Login</th></tr>'+D.user_list.map(u=>'<tr><td>'+u.email+'</td><td>'+(u.name||'Ã¢ÂÂ')+'</td><td>'+(u.opted_in?'<span class="green">Yes</span>':'<span class="red">No</span>')+'</td><td>'+u.generations+'</td><td>'+ts(u.created)+'</td><td>'+ts(u.last_login)+'</td></tr>').join('')+(D.user_list.length===0?'<tr><td colspan="6" style="text-align:center;color:#484f58">No users yet</td></tr>':'')+'</table>'}
+if(tab==='generations'){h+='<table><tr><th>When</th><th>User</th><th>Size</th><th>Height</th><th>Area</th><th>Attach</th><th>Decking</th><th>Stairs</th></tr>'+D.recent.map(r=>'<tr><td>'+ts(r.time)+'</td><td>'+r.email+'</td><td>'+r.size+'</td><td>'+r.height+'</td><td>'+r.area+' SF</td><td>'+r.attachment+'</td><td>'+r.decking+'</td><td>'+(r.stairs?'<span class="green">'+r.stair_loc+'</span>':'Ã¢ÂÂ')+'</td></tr>').join('')+(D.recent.length===0?'<tr><td colspan="8" style="text-align:center;color:#484f58">No data yet</td></tr>':'')+'</table>'}
 document.getElementById('app').innerHTML=h}
 load();setInterval(load,30000);
 </script></body></html>"""
@@ -397,5 +403,5 @@ async def root(request: Request):
         return FileResponse(str(index_path), media_type="text/html")
     return {"message": "SimpleBlueprints API is running"}
 
-# /js/ mount removed S26 â all JS now served via /static/js/ (S25 mount)
+# /js/ mount removed S26 Ã¢ÂÂ all JS now served via /static/js/ (S25 mount)
 app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static-all")
