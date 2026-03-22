@@ -1,5 +1,5 @@
 // ============================================================
-// WIZARD STEPS ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Step 0 (Size), Step 1 (Structure), Step 2 (Finishes),
+// WIZARD STEPS ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Step 0 (Size), Step 1 (Structure), Step 2 (Finishes),
 //                Step 3 (Site Plan), Step 4 (Review)
 // Multi-zone support added S19, Site Plan step added S27
 // S28: Unified Step 3 flow (sliders first, collapsible upload)
@@ -7,7 +7,7 @@
 const { useState: _stUS, useEffect: _stUE, useMemo: _stUM } = React;
 const { br: _br, mono: _mono, sans: _sans } = window.SB;
 
-// ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Feet-inches formatter (20.5 ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ 20'-6") ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ
+// ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Feet-inches formatter (20.5 ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ 20'-6") ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ
 function fmtFtIn(v) {
   var ft = Math.floor(v);
   var inches = Math.round((v - ft) * 12);
@@ -16,7 +16,7 @@ function fmtFtIn(v) {
 }
 window.fmtFtIn = fmtFtIn;
 
-// ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Shared UI helpers ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ
+// ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Shared UI helpers ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ
 function Label({ children }) {
   return <label style={{ display: "block", fontSize: 10, fontWeight: 700, color: _br.mu, marginBottom: 4, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>{children}</label>;
 }
@@ -62,7 +62,7 @@ function Spec({ l, v, color }) {
   return <div style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", borderBottom: `1px solid ${_br.wr}` }}><span style={{ fontSize: 11, color: _br.mu, fontFamily: _mono }}>{l}</span><span style={{ fontSize: 11, fontWeight: 700, color: color || _br.tx, fontFamily: _mono }}>{v}</span></div>;
 }
 
-// ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Stair template icons (unchanged) ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ
+// ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Stair template icons (unchanged) ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ
 function stairIcon(key) {
   var c = "#3d5a2e", f = "#faf8f3", lc = "#e8e6d8", s = 0.8, ao = 0.6;
   if (key === "straight") return (<svg width={28} height={24} viewBox="0 0 28 24"><rect x={9} y={1} width={10} height={22} fill={f} stroke={c} strokeWidth={s} rx={1}/><polygon points="14,18 11,14 17,14" fill={c} opacity={ao}/></svg>);
@@ -74,7 +74,7 @@ function stairIcon(key) {
   return null;
 }
 
-// ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Step Content ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ
+// ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Step Content ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ
 function StepContent(props) {
   const { step, p, u, c, m, info, setI, showAdvanced, setShowAdvanced,
     sitePlanMode, setSitePlanMode, sitePlanFile, setSitePlanFile, setSitePlanB64,
@@ -91,7 +91,7 @@ function StepContent(props) {
   const [showMissingModal, setShowMissingModal] = _stUS(false);
   const [missingFieldsAcked, setMissingFieldsAcked] = _stUS(false);
 
-  // ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Active zone data ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ
+  // ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Active zone data ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ
   var activeZoneObj = p.activeZone > 0 ? p.zones.find(function(z) { return z.id === p.activeZone; }) : null;
   var isZone0 = p.activeZone === 0;
   var zoneW = activeZoneObj ? activeZoneObj.w : p.width;
@@ -101,7 +101,7 @@ function StepContent(props) {
   var isCutout = activeZoneObj && activeZoneObj.type === "cutout";
 
   if (step === 0) return <>
-    {/* ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Zone selector bar ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ */}
+    {/* ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Zone selector bar ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ */}
     {p.zones.length > 0 && <div style={{ marginBottom: 16, padding: 10, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}` }}>
       <div style={{ fontSize: 9, fontWeight: 700, color: _br.mu, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 6 }}>Zones</div>
       <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
@@ -137,7 +137,7 @@ function StepContent(props) {
       }}>Delete</button>
     </div>}
 
-    {/* Width / Depth / Height sliders ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ zone-aware */}
+    {/* Width / Depth / Height sliders ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ zone-aware */}
     <Slider label={isZone0 ? "Width (along house)" : "Width"} value={zoneW} min={isCutout ? 2 : 4} max={50} step={0.5} fmt={fmtFtIn} field="width" u={u} p={p} />
     <Slider label={isZone0 ? "Depth (from house)" : "Depth"} value={zoneD} min={isCutout ? 2 : 4} max={24} step={0.5} fmt={fmtFtIn} field="depth" u={u} p={p} />
     {isZone0 && <Slider label="Height above grade" value={p.height} min={1} max={14} step={0.5} fmt={fmtFtIn} field="height" u={u} p={p} />}
@@ -177,7 +177,7 @@ function StepContent(props) {
       </div>
     </>}
 
-    {/* ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Chamfer controls for active zone ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ */}
+    {/* ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Chamfer controls for active zone ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ */}
     {!isCutout && <div style={{ marginBottom: 16, padding: 12, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}` }}>
       <div style={{ fontSize: 9, fontWeight: 700, color: "#7c3aed", fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 8 }}>Corner Modifiers</div>
       <div style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, marginBottom: 8 }}>Toggle 45{"\u00B0"} chamfers on corners. Adjust size below.</div>
@@ -205,7 +205,7 @@ function StepContent(props) {
       </div>
     </div>}
 
-    {/* ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Zone 0 only: house width, attachment, stairs ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ */}
+    {/* ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Zone 0 only: house width, attachment, stairs ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ */}
     {isZone0 && <>
       <Slider label="House width" value={p.houseWidth} min={20} max={80} field="houseWidth" u={u} p={p} />
       <Chips label="Attachment" field="attachment" opts={[["ledger", "Ledger Board"], ["freestanding", "Freestanding"]]} u={u} p={p} />
@@ -268,7 +268,7 @@ function StepContent(props) {
     </>}
   </>;
 
-  // ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Step 3: Site Plan (S28 ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ unified flow, no mode cards) ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ
+  // ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Step 3: Site Plan (S28 ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ unified flow, no mode cards) ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ
   if (step === 3) {
     // === SETBACK WARNINGS (computed from current params) ===
     var spWarnings = [];
@@ -469,15 +469,15 @@ function StepContent(props) {
         <div style={{ display: "flex", gap: 8 }}>
           <div style={{ flex: 2 }}>
             <label style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, display: "block", marginBottom: 2 }}>City</label>
-            <input value={info.city} onChange={function(e) { setI("city", e.target.value); }} placeholder="West Islip" style={{ width: "100%", padding: "7px 10px", border: !info.city ? "1.5px solid #f59e0b" : "1px solid " + _br.bd, borderRadius: 5, fontSize: 12, fontFamily: _mono, color: _br.tx, background: !info.city ? "#fffbeb" : "#fff", outline: "none", boxSizing: "border-box" }} />
+            <input value={info.city} onChange={function(e) { setI("city", e.target.value); }} placeholder="City" style={{ width: "100%", padding: "7px 10px", border: !info.city ? "1.5px solid #f59e0b" : "1px solid " + _br.bd, borderRadius: 5, fontSize: 12, fontFamily: _mono, color: _br.tx, background: !info.city ? "#fffbeb" : "#fff", outline: "none", boxSizing: "border-box" }} />
           </div>
           <div style={{ flex: 1 }}>
             <label style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, display: "block", marginBottom: 2 }}>State</label>
-            <input value={info.state} onChange={function(e) { setI("state", e.target.value); }} placeholder="NY" style={{ width: "100%", padding: "7px 10px", border: !info.state ? "1.5px solid #f59e0b" : "1px solid " + _br.bd, borderRadius: 5, fontSize: 12, fontFamily: _mono, color: _br.tx, background: !info.state ? "#fffbeb" : "#fff", outline: "none", boxSizing: "border-box" }} />
+            <input value={info.state} onChange={function(e) { setI("state", e.target.value); }} placeholder="ST" style={{ width: "100%", padding: "7px 10px", border: !info.state ? "1.5px solid #f59e0b" : "1px solid " + _br.bd, borderRadius: 5, fontSize: 12, fontFamily: _mono, color: _br.tx, background: !info.state ? "#fffbeb" : "#fff", outline: "none", boxSizing: "border-box" }} />
           </div>
           <div style={{ flex: 1 }}>
             <label style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, display: "block", marginBottom: 2 }}>ZIP</label>
-            <input value={info.zip} onChange={function(e) { setI("zip", e.target.value); }} placeholder="11795" style={{ width: "100%", padding: "7px 10px", border: !info.zip ? "1.5px solid #f59e0b" : "1px solid " + _br.bd, borderRadius: 5, fontSize: 12, fontFamily: _mono, color: _br.tx, background: !info.zip ? "#fffbeb" : "#fff", outline: "none", boxSizing: "border-box" }} />
+            <input value={info.zip} onChange={function(e) { setI("zip", e.target.value); }} placeholder="12345" style={{ width: "100%", padding: "7px 10px", border: !info.zip ? "1.5px solid #f59e0b" : "1px solid " + _br.bd, borderRadius: 5, fontSize: 12, fontFamily: _mono, color: _br.tx, background: !info.zip ? "#fffbeb" : "#fff", outline: "none", boxSizing: "border-box" }} />
           </div>
         </div>
         <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
@@ -511,7 +511,7 @@ function StepContent(props) {
     </>;
   }
 
-  // ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Steps 1, 2 unchanged; Step 4 (Review) below ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ
+  // ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Steps 1, 2 unchanged; Step 4 (Review) below ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ
   if (step === 1) return <>
     <Chips label="Joist spacing" field="joistSpacing" opts={[[12, '12" O.C.'], [16, '16" O.C.'], [24, '24" O.C.']]} u={u} p={p} />
     <Chips label="Snow load" field="snowLoad" opts={[["none", "None"], ["light", "Light"], ["moderate", "Moderate"], ["heavy", "Heavy"]]} u={u} p={p} />
@@ -632,7 +632,7 @@ function StepContent(props) {
     </div>
   </>;
 
-  // ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Step 4: Review (was Step 3 before S27) ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ
+  // ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Step 4: Review (was Step 3 before S27) ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ
   if (step === 4) return <>
     <div style={{ marginBottom: 14 }}>
       <div style={{ fontSize: 10, fontWeight: 700, color: _br.gn, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 8 }}>Blueprint Preview</div>
@@ -689,12 +689,12 @@ function StepContent(props) {
       {[["owner", "Owner / Applicant Name"],["address", "Project Address"],["city", "City"]].map(([f, lbl]) => (
         <div key={f} style={{ marginBottom: 8 }}>
           <label style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, display: "block", marginBottom: 2 }}>{lbl}</label>
-          <input value={info[f]} onChange={e => setI(f, e.target.value)} placeholder={lbl} style={{ width: "100%", padding: "7px 10px", border: `1px solid ${_br.bd}`, borderRadius: 5, fontSize: 12, fontFamily: _mono, color: _br.tx, background: "#fff", outline: "none" }} />
+          <input value={info[f]} onChange={e => setI(f, e.target.value)} placeholder={lbl} style={{ width: "100%", padding: "7px 10px", border: !info[f] ? "1.5px solid #f59e0b" : "1px solid " + _br.bd, borderRadius: 5, fontSize: 12, fontFamily: _mono, color: _br.tx, background: !info[f] ? "#fffbeb" : "#fff", outline: "none" }} />
         </div>
       ))}
       <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-        <div style={{ flex: 1 }}><label style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, display: "block", marginBottom: 2 }}>State</label><input value={info.state} onChange={e => setI("state", e.target.value)} placeholder="State" style={{ width: "100%", padding: "7px 10px", border: `1px solid ${_br.bd}`, borderRadius: 5, fontSize: 12, fontFamily: _mono, color: _br.tx, background: "#fff", outline: "none" }} /></div>
-        <div style={{ flex: 1 }}><label style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, display: "block", marginBottom: 2 }}>ZIP</label><input value={info.zip} onChange={e => setI("zip", e.target.value)} placeholder="ZIP" style={{ width: "100%", padding: "7px 10px", border: `1px solid ${_br.bd}`, borderRadius: 5, fontSize: 12, fontFamily: _mono, color: _br.tx, background: "#fff", outline: "none" }} /></div>
+        <div style={{ flex: 1 }}><label style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, display: "block", marginBottom: 2 }}>State</label><input value={info.state} onChange={e => setI("state", e.target.value)} placeholder="State" style={{ width: "100%", padding: "7px 10px", border: !info.state ? "1.5px solid #f59e0b" : "1px solid " + _br.bd, borderRadius: 5, fontSize: 12, fontFamily: _mono, color: _br.tx, background: !info.state ? "#fffbeb" : "#fff", outline: "none" }} /></div>
+        <div style={{ flex: 1 }}><label style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, display: "block", marginBottom: 2 }}>ZIP</label><input value={info.zip} onChange={e => setI("zip", e.target.value)} placeholder="ZIP" style={{ width: "100%", padding: "7px 10px", border: !info.zip ? "1.5px solid #f59e0b" : "1px solid " + _br.bd, borderRadius: 5, fontSize: 12, fontFamily: _mono, color: _br.tx, background: !info.zip ? "#fffbeb" : "#fff", outline: "none" }} /></div>
       </div>
       <div style={{ display: "flex", gap: 8 }}>
         <div style={{ flex: 1 }}><label style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, display: "block", marginBottom: 2 }}>Lot / Parcel #</label><input value={info.lot} onChange={e => setI("lot", e.target.value)} placeholder="Optional" style={{ width: "100%", padding: "7px 10px", border: `1px solid ${_br.bd}`, borderRadius: 5, fontSize: 12, fontFamily: _mono, color: _br.tx, background: "#fff", outline: "none" }} /></div>
