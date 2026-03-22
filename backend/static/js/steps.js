@@ -2,6 +2,7 @@
 // WIZARD STEPS — Step 0 (Size), Step 1 (Structure), Step 2 (Finishes),
 //                Step 3 (Site Plan), Step 4 (Review)
 // Multi-zone support added S19, Site Plan step added S27
+// S28: Unified Step 3 flow (sliders first, collapsible upload)
 // ============================================================
 const { useState: _stUS, useEffect: _stUE, useMemo: _stUM } = React;
 const { br: _br, mono: _mono, sans: _sans } = window.SB;
@@ -83,6 +84,7 @@ function StepContent(props) {
 
   const [showDisclaimer, setShowDisclaimer] = _stUS(false);
   const [disclaimerAcked, setDisclaimerAcked] = _stUS(false);
+  const [showUpload, setShowUpload] = _stUS(false);
 
   // ── Active zone data ──
   var activeZoneObj = p.activeZone > 0 ? p.zones.find(function(z) { return z.id === p.activeZone; }) : null;
@@ -261,7 +263,7 @@ function StepContent(props) {
     </>}
   </>;
 
-  // ── Step 3: Site Plan (S27 — 3-mode selector) ──
+  // ── Step 3: Site Plan (S28 — unified flow, no mode cards) ──
   if (step === 3) {
     // === SETBACK WARNINGS (computed from current params) ===
     var spWarnings = [];
@@ -283,43 +285,14 @@ function StepContent(props) {
     var deckArea = c.area || (p.width * p.depth);
     var coveragePct = lotArea > 0 ? ((houseArea + deckArea) / lotArea * 100).toFixed(1) : 0;
 
-    // === MODE CARDS CONFIG ===
-    var modeCards = [
-      { id: "generate", icon: "\uD83D\uDCCF", title: "Enter Dimensions", desc: "Type in your lot and house size", sub: "Easiest option" },
-      { id: "upload", icon: "\uD83D\uDCC4", title: "Upload Survey", desc: "Have a PDF or image survey?", sub: "Most accurate" },
-      { id: "draw", icon: "\u270F\uFE0F", title: "Draw Site Plan", desc: "Full interactive editor", sub: "Coming soon" },
-    ];
-
     return <>
       {/* Intro */}
       <div style={{ fontSize: 11, color: _br.tx, fontFamily: _sans, lineHeight: 1.7, marginBottom: 14 }}>
-        Your permit office needs a site plan showing your property, house, and proposed deck. Pick the option that works best for you:
+        Your permit office needs a site plan showing your property, house, and proposed deck. Enter your lot dimensions below to generate one automatically.
       </div>
 
-      {/* 3-card mode selector */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 16 }}>
-        {modeCards.map(function(mc) {
-          var isSel = sitePlanMode === mc.id;
-          var isDraw = mc.id === "draw";
-          return <button key={mc.id} onClick={function() { if (!isDraw) setSitePlanMode(mc.id); }}
-            style={{
-              padding: "12px 8px", borderRadius: 8, cursor: isDraw ? "default" : "pointer", textAlign: "center",
-              border: isSel ? ("2px solid " + _br.gn) : ("1px solid " + _br.bd),
-              background: isSel ? "#edf5e8" : isDraw ? "#fafafa" : "#fff",
-              opacity: isDraw ? 0.6 : 1,
-              transition: "all 0.15s", position: "relative"
-            }}>
-            {isDraw && <span style={{ position: "absolute", top: 4, right: 4, fontSize: 7, fontFamily: _mono, fontWeight: 700, color: "#2563eb", background: "#e0edff", padding: "1px 5px", borderRadius: 3 }}>SOON</span>}
-            <div style={{ fontSize: 20, marginBottom: 4 }}>{mc.icon}</div>
-            <div style={{ fontSize: 10, fontWeight: 700, color: isSel ? _br.gn : _br.tx, fontFamily: _mono }}>{mc.title}</div>
-            <div style={{ fontSize: 8, color: _br.mu, fontFamily: _mono, marginTop: 2, lineHeight: 1.4 }}>{mc.desc}</div>
-            <div style={{ fontSize: 7, color: isSel ? _br.gn : "#bbb", fontFamily: _mono, marginTop: 4, fontStyle: "italic" }}>{mc.sub}</div>
-          </button>;
-        })}
-      </div>
-
-      {/* === ENTER DIMENSIONS MODE === */}
-      {sitePlanMode === "generate" && <div style={{ padding: 14, background: _br.wr, borderRadius: 8, border: "1px solid " + _br.bd, marginBottom: 14 }}>
+      {/* === LOT & HOUSE SLIDERS (direct, no mode cards) === */}
+      <div style={{ padding: 14, background: _br.wr, borderRadius: 8, border: "1px solid " + _br.bd, marginBottom: 14 }}>
         <div style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, marginBottom: 12, lineHeight: 1.6, padding: "8px 10px", background: "#fff", borderRadius: 6, border: "1px solid " + _br.bd }}>
           {"\uD83D\uDCA1"} Don't know your exact lot size? Check your county assessor or tax records online, or look at your closing documents. Approximate dimensions are fine for planning.
         </div>
@@ -333,18 +306,30 @@ function StepContent(props) {
         <Slider label="Front setback" value={p.setbackFront} min={0} max={50} field="setbackFront" u={u} p={p} />
         <Slider label="Side setback" value={p.setbackSide} min={0} max={30} field="setbackSide" u={u} p={p} />
         <Slider label="Rear setback" value={p.setbackRear} min={0} max={50} field="setbackRear" u={u} p={p} />
-      </div>}
+      </div>
 
-      {/* === UPLOAD MODE === */}
-      {sitePlanMode === "upload" && <div style={{ padding: 14, background: _br.wr, borderRadius: 8, border: "1px solid " + _br.bd, marginBottom: 14 }}>
-        <div style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, marginBottom: 12, lineHeight: 1.6, padding: "8px 10px", background: "#fff", borderRadius: 6, border: "1px solid " + _br.bd }}>
-          {"\uD83D\uDCA1"} Upload your property survey, plat map, or site plan. This will be included as a separate sheet in your blueprint package. The dimensions above will still be used for setback calculations.
+      {/* === UPLOAD SURVEY (collapsible) === */}
+      <button onClick={function() { setShowUpload(!showUpload); }} style={{
+        width: "100%", padding: "10px 14px", marginBottom: showUpload || sitePlanFile ? 0 : 14,
+        background: sitePlanFile ? "#edf5e8" : "none",
+        border: "1px solid " + (sitePlanFile ? _br.gn : _br.bd),
+        borderRadius: showUpload || sitePlanFile ? "8px 8px 0 0" : 8,
+        cursor: "pointer", fontSize: 10, fontFamily: _mono, color: sitePlanFile ? _br.gn : _br.mu,
+        display: "flex", justifyContent: "space-between", alignItems: "center"
+      }}>
+        <span>{sitePlanFile ? ("\u2713 Survey attached: " + sitePlanFile.name) : "\uD83D\uDCC4 Have a property survey? Upload it here"}</span>
+        <span style={{ transform: (showUpload || sitePlanFile) ? "rotate(180deg)" : "none", transition: "0.2s" }}>{"\u25BE"}</span>
+      </button>
+      {(showUpload || sitePlanFile) && <div style={{ padding: 14, background: _br.wr, borderRadius: "0 0 8px 8px", border: "1px solid " + _br.bd, borderTop: "none", marginBottom: 14 }}>
+        <div style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, marginBottom: 10, lineHeight: 1.6, padding: "8px 10px", background: "#fff", borderRadius: 6, border: "1px solid " + _br.bd }}>
+          {"\uD83D\uDCA1"} Upload your property survey, plat map, or site plan. This will be included as a separate sheet in your blueprint package. The dimensions above will still be used for the generated site plan.
         </div>
         <div style={{ textAlign: "center", padding: 20, border: "2px dashed " + (sitePlanFile ? _br.gn : _br.bd), borderRadius: 8, background: sitePlanFile ? "#edf5e8" : "#fff", cursor: "pointer", position: "relative" }}
           onClick={function() { document.getElementById("sitePlanInput").click(); }}>
           <input id="sitePlanInput" type="file" accept=".pdf,.png,.jpg,.jpeg" style={{ display: "none" }} onChange={function(e) {
             var file = e.target.files[0]; if (!file) return;
             setSitePlanFile(file);
+            setSitePlanMode("upload");
             var reader = new FileReader();
             reader.onload = function() { setSitePlanB64(reader.result.split(",")[1]); };
             reader.readAsDataURL(file);
@@ -362,15 +347,6 @@ function StepContent(props) {
               <div style={{ fontSize: 9, fontFamily: _mono, color: _br.mu, marginTop: 4 }}>PDF, PNG, or JPG</div>
             </div>
           )}
-        </div>
-        <div style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, marginTop: 8, textAlign: "center" }}>You can also enter dimensions above to generate an additional site plan sheet.</div>
-      </div>}
-
-      {/* === DRAW MODE (coming soon) === */}
-      {sitePlanMode === "draw" && <div style={{ padding: 14, background: "#f0f7ff", borderRadius: 8, border: "1px solid #bfdbfe", marginBottom: 14 }}>
-        <div style={{ fontSize: 10, fontWeight: 700, color: "#2563eb", fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 6 }}>Interactive Editor (Coming Soon)</div>
-        <div style={{ fontSize: 10, color: _br.mu, fontFamily: _mono, lineHeight: 1.6 }}>
-          A full site plan editor where you can position your house, set lot shape, place driveways, sheds, trees, and easements, and see real-time setback violation warnings. Use "Enter Dimensions" or "Upload Survey" for now.
         </div>
       </div>}
 
@@ -402,15 +378,15 @@ function StepContent(props) {
         <div style={{ fontSize: 8, color: _br.mu, fontFamily: _mono, marginTop: 6, fontStyle: "italic" }}>This prints on your site plan sheet and title block. You can also edit in the Review step.</div>
       </div>
 
-      {/* === SETBACK WARNINGS === */}
-      {sitePlanMode === "generate" && spWarnings.length > 0 && <div style={{ padding: 12, background: "#fff8e1", borderRadius: 8, border: "1px solid #ffe082", marginBottom: 14 }}>
+      {/* === SETBACK WARNINGS (always visible) === */}
+      {spWarnings.length > 0 && <div style={{ padding: 12, background: "#fff8e1", borderRadius: 8, border: "1px solid #ffe082", marginBottom: 14 }}>
         <div style={{ fontSize: 9, fontWeight: 700, color: "#f57f17", fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 6 }}>{"\u26A0\uFE0F"} Setback Warnings</div>
         {spWarnings.map(function(w, i) { return <div key={i} style={{ fontSize: 10, color: "#e65100", fontFamily: _mono, lineHeight: 1.6, marginBottom: 2 }}>{"\u2022"} {w}</div>; })}
         <div style={{ fontSize: 8, color: "#f57f17", fontFamily: _mono, marginTop: 6, fontStyle: "italic" }}>Adjust your deck size in Step 1 or setbacks above to resolve.</div>
       </div>}
 
-      {/* === LOT COVERAGE === */}
-      {sitePlanMode === "generate" && <div style={{ padding: 10, background: _br.wr, borderRadius: 8, border: "1px solid " + _br.bd }}>
+      {/* === LOT COVERAGE (always visible) === */}
+      <div style={{ padding: 10, background: _br.wr, borderRadius: 8, border: "1px solid " + _br.bd }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ fontSize: 9, color: _br.mu, fontFamily: _mono }}>Lot Coverage (house + deck)</span>
           <span style={{ fontSize: 11, fontWeight: 700, color: parseFloat(coveragePct) > 45 ? "#e65100" : _br.gn, fontFamily: _mono }}>{coveragePct}%</span>
@@ -419,7 +395,7 @@ function StepContent(props) {
           <div style={{ height: "100%", background: parseFloat(coveragePct) > 45 ? "#ff9800" : _br.gn, borderRadius: 2, width: Math.min(100, parseFloat(coveragePct)) + "%", transition: "width 0.3s" }} />
         </div>
         <div style={{ fontSize: 8, color: _br.mu, fontFamily: _mono, marginTop: 4 }}>Most codes cap at 30-50%. Check your local zoning ordinance.</div>
-      </div>}
+      </div>
     </>;
   }
 
