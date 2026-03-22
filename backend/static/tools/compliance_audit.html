@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>SimpleBlueprints Compliance Audit</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: monospace; max-width: 960px; margin: 40px auto; padding: 20px; background: #1a1f16; color: #faf8f3; }
+  h1 { color: #3d5a2e; margin-bottom: 4px; }
+  .subtitle { color: #7a8068; font-size: 13px; margin-bottom: 20px; }
+  button { font-family: monospace; font-size: 14px; padding: 10px 28px; background: #3d5a2e; color: white; border: none; cursor: pointer; border-radius: 4px; }
+  button:hover { background: #4d6a3e; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  #summary { margin: 16px 0; padding: 12px 16px; border-radius: 6px; font-size: 15px; font-weight: bold; display: none; }
+  .summary-pass { background: #1b3a1b; color: #4caf50; border: 1px solid #2e7d32; }
+  .summary-warn { background: #3a3a1b; color: #ffa726; border: 1px solid #f57c00; }
+  .summary-fail { background: #3a1b1b; color: #ef5350; border: 1px solid #c62828; }
+  .config-block { margin: 16px 0; border: 1px solid #2a2f26; border-radius: 6px; overflow: hidden; }
+  .config-header { padding: 8px 14px; background: #2a2f26; font-weight: bold; font-size: 13px; cursor: pointer; display: flex; justify-content: space-between; }
+  .config-header:hover { background: #333a2e; }
+  .config-body { display: none; }
+  .config-body.open { display: block; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { text-align: left; padding: 5px 10px; background: #222820; color: #7a8068; border-bottom: 1px solid #2a2f26; }
+  td { padding: 5px 10px; border-bottom: 1px solid #1e2318; }
+  .pass { color: #4caf50; } .fail { color: #ef5350; } .warn { color: #ffa726; } .skip { color: #7a8068; }
+  .badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 11px; font-weight: bold; }
+  .badge-pass { background: #1b3a1b; color: #4caf50; }
+  .badge-fail { background: #3a1b1b; color: #ef5350; }
+  .badge-warn { background: #3a3a1b; color: #ffa726; }
+  #loadStatus { color: #7a8068; margin: 10px 0; font-size: 12px; }
+</style>
+</head>
+<body>
+
+<h1>SimpleBlueprints Compliance Audit</h1>
+<div class="subtitle">Loads live engine.js from production. Tests structural calcs, materials math, and zone consistency.</div>
+<button id="btn" onclick="runAudit()">Run Audit</button>
+<div id="loadStatus"></div>
+<div id="summary"></div>
+<div id="results"></div>
+
+<script>
+// ============================================================
+// SCRIPT LOADER
+// ============================================================
+let stairGeomLoaded = false;
+
+function loadScript(url) {
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = url;
+    s.onload = () => resolve(true);
+    s.onerror = () => reject(new Error('Failed to load: ' + url));
+    document.head.appendChild(s);
+  });
+}
+
+async function loadEngine() {
+  const status = document.getElementById('loadStatus');
+  // Relative paths — works because this file is served from /static/tools/
+  try {
+    status.textContent = 'Loading stairGeometry.js...';
+    await loadScript('/static/js/stairGeometry.js');
+    stairGeomLoaded = true;
+    status.textContent = 'stairGeometry.js loaded. Loading engine.js...';
+  } catch (e) {
+    status.innerHTML = '<span class="warn">stairGeometry.js failed to load. Stair tests will be skipped.</span>';
+    stairGeomLoaded = false;
+  }
+  try {
+    await loadScript('/static/js/engine.js');
+    status.textContent += ' engine.js loaded.';
+    return true;
+  } catch (e) {
+    status.innerHTML = '<span class="fail">engine.js failed to load. Are you viewing this on the live site? Open at: simpleblueprints.xyz/static/tools/compliance_audit.html</span>';
+    return false;
+  }
+}
+
+// ============================================================
+// TEST CONFIGURATIONS
+// ============================================================
+const CONFIGS = [
+  {
+    name: "Small 10x8 (Ledger, Moderate, No Snow)",
+    p: { width: 10, depth: 8, height: 4, joistSpacing: 16, attachment: "ledger",
+         snowLoad: "none", frostZone: "moderate", deckingType: "pressure_treated",
+         hasStairs: false, beamType: "dropped" }
+  },
+  {
+    name: "Medium 16x12 (Ledger, Cold, Light Snow)",
+    p: { width: 16, depth: 12, height: 6, joistSpacing: 16, attachment: "ledger",
+         snowLoad: "light", frostZone: "cold", deckingType: "pressure_treated",
+         hasStairs: false, beamType: "dropped" }
+  },
+  {
+    name: "Large 24x14 (Ledger, Cold, Moderate Snow)",
+    p: { width: 24, depth: 14, height: 8, joistSpacing: 16, attachment: "ledger",
+         snowLoad: "moderate", frostZone: "cold", deckingType: "composite",
+         hasStairs: false, beamType: "dropped" }
+  },
+  {
+    name: "Extreme 30x14 (Ledger, Severe, Heavy Snow)",
+    p: { width: 30, depth: 14, height: 8, joistSpacing: 16, attachment: "ledger",
+         snowLoad: "heavy", frostZone: "severe", deckingType: "composite",
+         hasStairs: false, beamType: "dropped" },
+    knownIssues: ["Joist span may exceed IRC at TL=115 PSF", "Footing may exceed standard sizes"]
+  },
+  {
+    name: "Freestanding 12x10 (Moderate, No Snow)",
+    p: { width: 12, depth: 10, height: 5, joistSpacing: 16, attachment: "freestanding",
+         snowLoad: "none", frostZone: "moderate", deckingType: "pressure_treated",
+         hasStairs: false, beamType: "dropped" }
+  },
+  {
+    name: "1-Zone: 16x12 + Right 8x6",
+    p: { width: 16, depth: 12, height: 6, joistSpacing: 16, attachment: "ledger",
+         snowLoad: "none", frostZone: "cold", deckingType: "pressure_treated",
+         hasStairs: false, beamType: "dropped",
+         zones: [{ id: 1, attachEdge: "right", w: 8, d: 6, type: "additive" }] }
+  },
+  {
+    name: "2-Zone: 20x12 + Left 8x6 + Right 10x8",
+    p: { width: 20, depth: 12, height: 6, joistSpacing: 16, attachment: "ledger",
+         snowLoad: "light", frostZone: "cold", deckingType: "pressure_treated",
+         hasStairs: false, beamType: "dropped",
+         zones: [
+           { id: 1, attachEdge: "left", w: 8, d: 6, type: "additive" },
+           { id: 2, attachEdge: "right", w: 10, d: 8, type: "additive" }
+         ] }
+  },
+];
+
+// ============================================================
+// CHECK FUNCTIONS — each returns { pass: bool, label: string, detail: string, severity: "pass"|"fail"|"warn" }
+// ============================================================
+function check(pass, label, detail, severity) {
+  if (!severity) severity = pass ? "pass" : "fail";
+  return { pass, label, detail, severity };
+}
+
+function runChecksForConfig(cfg) {
+  const results = [];
+  const p = cfg.p;
+  const knownIssues = cfg.knownIssues || [];
+
+  // 1. calcStructure runs without error
+  let c;
+  try {
+    c = window.calcStructure(p);
+    results.push(check(true, "calcStructure()", "Returned successfully"));
+  } catch (e) {
+    results.push(check(false, "calcStructure()", "THREW: " + e.message));
+    return results;
+  }
+
+  // 2. estMaterials runs without error
+  let m;
+  try {
+    m = window.estMaterials(p, c);
+    results.push(check(true, "estMaterials()", "Returned successfully"));
+  } catch (e) {
+    results.push(check(false, "estMaterials()", "THREW: " + e.message));
+    return results;
+  }
+
+  // 3. calcAllZones runs (if zones)
+  let zc = null;
+  if (p.zones && p.zones.length) {
+    try {
+      zc = window.calcAllZones(p, c);
+      results.push(check(true, "calcAllZones()", "Returned successfully"));
+    } catch (e) {
+      results.push(check(false, "calcAllZones()", "THREW: " + e.message));
+    }
+  }
+
+  // --- Structural checks ---
+
+  // 4. Joist span within IRC tables
+  const SNOW_MAP = { none: 0, light: 20, moderate: 40, heavy: 60 };
+  const DL = p.deckingType === "composite" ? 15 : 12;
+  const LL = 40 + (SNOW_MAP[p.snowLoad] || 0);
+  const TL = LL + DL;
+  const jSpan = p.attachment === "ledger" ? p.depth - 1.5 : p.depth / 2 - 0.75;
+  const table = window.JOIST_SPANS;
+  let tier = 95;
+  for (const t of [50, 60, 75, 95]) { if (TL <= t) { tier = t; break; } }
+  const maxSpanForSize = (table[tier] && table[tier][c.joistSize]) ? table[tier][c.joistSize][c.sp] || 0 : 0;
+  const maxSpanAny = (table[tier] && table[tier]["2x12"]) ? table[tier]["2x12"][c.sp] || 0 : 0;
+  const jSpanOk = jSpan <= maxSpanForSize;
+  const isKnownJoist = knownIssues.some(i => i.includes("Joist"));
+  results.push(check(jSpanOk, "Joist span within IRC",
+    `${jSpan.toFixed(1)}' span, ${c.joistSize} at ${c.sp}" OC allows ${maxSpanForSize}' (TL=${TL} PSF)`,
+    jSpanOk ? "pass" : isKnownJoist ? "warn" : "fail"));
+
+  // 5. Joist span does not exceed max 2x12
+  const jSpanMaxOk = jSpan <= maxSpanAny;
+  results.push(check(jSpanMaxOk, "Joist span within any size",
+    `${jSpan.toFixed(1)}' span, max 2x12 allows ${maxSpanAny}' at TL=${TL}`,
+    jSpanMaxOk ? "pass" : isKnownJoist ? "warn" : "fail"));
+
+  // 6. Post size minimum 6x6 (IRC R507.8)
+  results.push(check(c.postSize === "6x6", "Post size >= 6x6 (IRC R507.8)",
+    `Post size: ${c.postSize}`));
+
+  // 7. Post count >= 2
+  results.push(check(c.nP >= 2, "Post count >= 2", `${c.nP} posts`));
+
+  // 8. Footing depth >= frost zone
+  const FROST_MAP = { warm: 12, moderate: 24, cold: 36, severe: 48 };
+  const reqDepth = FROST_MAP[p.frostZone] || 30;
+  results.push(check(c.fDepth >= reqDepth, "Footing depth >= frost line",
+    `${c.fDepth}" depth, ${p.frostZone} zone requires ${reqDepth}"`));
+
+  // 9. Footing diameter adequate
+  const trib = (p.width / Math.max(c.nP - 1, 1)) * p.depth;
+  const reqD = Math.sqrt(trib * TL / 1500 / Math.PI) * 2 * 12;
+  const fDiamOk = c.fDiam >= reqD;
+  const isKnownFooting = knownIssues.some(i => i.includes("Footing"));
+  results.push(check(fDiamOk, "Footing diameter adequate",
+    `${c.fDiam}" selected, ${reqD.toFixed(1)}" required (trib=${trib.toFixed(0)} SF, TL=${TL})`,
+    fDiamOk ? "pass" : isKnownFooting ? "warn" : "fail"));
+
+  // 10. Footing diameter in standard sizes
+  const stdSizes = [12, 16, 18, 21, 24, 30, 36, 42];
+  results.push(check(stdSizes.includes(c.fDiam), "Footing is standard size",
+    `${c.fDiam}" (standard: ${stdSizes.join(', ')})`));
+
+  // 11. Mid-span blocking when span > 7'
+  if (jSpan > 7) {
+    results.push(check(c.midSpanBlocking === true, "Mid-span blocking required (span > 7')",
+      `Blocking: ${c.midSpanBlocking}, count: ${c.blockingCount}`));
+  } else {
+    results.push(check(true, "Mid-span blocking not required",
+      `Span ${jSpan.toFixed(1)}' <= 7'`));
+  }
+
+  // 12. Blocking count > 0 when blocking required
+  if (c.midSpanBlocking) {
+    results.push(check(c.blockingCount > 0, "Blocking count > 0",
+      `${c.blockingCount} blocks`));
+  }
+
+  // 13. Area = W * D
+  results.push(check(c.area === p.width * p.depth, "Area = W x D",
+    `${c.area} SF (${p.width} x ${p.depth})`));
+
+  // 14. Rail length positive
+  results.push(check(c.railLen > 0, "Rail length > 0", `${c.railLen}'`));
+
+  // --- Materials checks ---
+
+  // 15. Materials subtotal matches sum
+  const calcSub = m.items.reduce((s, i) => s + i.qty * i.cost, 0);
+  const subOk = Math.abs(m.sub - calcSub) < 0.01;
+  results.push(check(subOk, "Materials subtotal math",
+    `Reported: $${m.sub.toFixed(2)}, Calculated: $${calcSub.toFixed(2)}`));
+
+  // 16. Materials total = sub * 1.13
+  const expTotal = m.sub * 1.13;
+  const totalOk = Math.abs(m.total - expTotal) < 0.01;
+  results.push(check(totalOk, "Materials total = sub * 1.13",
+    `Reported: $${m.total.toFixed(2)}, Expected: $${expTotal.toFixed(2)}`));
+
+  // 17. All material quantities positive
+  const allQtyPos = m.items.every(i => i.qty > 0);
+  results.push(check(allQtyPos, "All material quantities > 0",
+    allQtyPos ? `${m.items.length} items, all positive` : `Found zero/negative qty`));
+
+  // 18. All material costs positive
+  const allCostPos = m.items.every(i => i.cost > 0);
+  results.push(check(allCostPos, "All material costs > 0",
+    allCostPos ? `${m.items.length} items, all positive` : `Found zero/negative cost`));
+
+  // --- Zone checks ---
+  if (zc) {
+    // 19. Zone total area consistent
+    const addZones = p.zones.filter(z => z.type !== "cutout");
+    const cutZones = p.zones.filter(z => z.type === "cutout");
+    const addArea = addZones.reduce((s, z) => s + (z.w || 8) * (z.d || 6), 0);
+    const cutArea = cutZones.reduce((s, z) => s + (z.w || 8) * (z.d || 6), 0);
+    const expArea = Math.round(c.area + addArea - cutArea);
+    results.push(check(zc.totalArea === expArea, "Zone total area consistent",
+      `Reported: ${zc.totalArea} SF, Expected: ${expArea} SF (base ${c.area} + ${addArea} - ${cutArea})`));
+
+    // 20. Zone extra posts > 0
+    results.push(check(zc.extraPosts > 0, "Zone extra posts > 0",
+      `${zc.extraPosts} extra posts for ${addZones.length} zone(s)`));
+
+    // 21. Zone extra footings = extra posts
+    results.push(check(zc.extraFootings === zc.extraPosts, "Zone footings = zone posts",
+      `Posts: ${zc.extraPosts}, Footings: ${zc.extraFootings}`));
+
+    // 22. Zone extra items present
+    results.push(check(zc.extraItems.length > 0, "Zone extra items present",
+      `${zc.extraItems.length} extra line items`));
+
+    // 23. Zone extra subtotal math
+    const zcCalcSub = zc.extraItems.reduce((s, i) => s + i.qty * i.cost, 0);
+    const zcSubOk = Math.abs(zc.extraSub - zcCalcSub) < 0.01;
+    results.push(check(zcSubOk, "Zone extra subtotal math",
+      `Reported: $${zc.extraSub.toFixed(2)}, Calculated: $${zcCalcSub.toFixed(2)}`));
+  }
+
+  // --- Warning checks ---
+  // 24. Warnings array exists
+  results.push(check(Array.isArray(c.warnings), "Warnings array exists",
+    `${c.warnings.length} warning(s)`));
+
+  // 25. Auto-calc values present
+  results.push(check(c.auto && c.auto.joist, "Auto-calc values present",
+    `Auto joist: ${c.auto?.joist}, beam: ${c.auto?.beam}`));
+
+  return results;
+}
+
+// ============================================================
+// RENDER RESULTS
+// ============================================================
+function renderResults(allResults) {
+  const resultsDiv = document.getElementById('results');
+  const summaryDiv = document.getElementById('summary');
+  let totalPass = 0, totalFail = 0, totalWarn = 0, totalChecks = 0;
+
+  let html = '';
+  for (const { name, checks } of allResults) {
+    const cPass = checks.filter(r => r.severity === "pass").length;
+    const cFail = checks.filter(r => r.severity === "fail").length;
+    const cWarn = checks.filter(r => r.severity === "warn").length;
+    totalPass += cPass; totalFail += cFail; totalWarn += cWarn; totalChecks += checks.length;
+
+    const headerClass = cFail > 0 ? 'fail' : cWarn > 0 ? 'warn' : 'pass';
+    const badge = cFail > 0 ? `<span class="badge badge-fail">${cFail} FAIL</span>`
+                : cWarn > 0 ? `<span class="badge badge-warn">${cWarn} KNOWN</span>`
+                : `<span class="badge badge-pass">ALL PASS</span>`;
+
+    html += `<div class="config-block">
+      <div class="config-header" onclick="this.nextElementSibling.classList.toggle('open')">
+        <span>${name} (${cPass}/${checks.length})</span>${badge}
+      </div>
+      <div class="config-body">
+        <table><tr><th>Status</th><th>Check</th><th>Detail</th></tr>`;
+
+    for (const r of checks) {
+      const icon = r.severity === "pass" ? "PASS" : r.severity === "warn" ? "KNOWN" : "FAIL";
+      html += `<tr>
+        <td class="${r.severity}">${icon}</td>
+        <td>${r.label}</td>
+        <td style="color:#aaa">${r.detail}</td>
+      </tr>`;
+    }
+    html += '</table></div></div>';
+  }
+
+  resultsDiv.innerHTML = html;
+
+  const passing = totalPass + totalWarn;
+  summaryDiv.style.display = 'block';
+  if (totalFail === 0) {
+    summaryDiv.className = totalWarn > 0 ? 'summary-warn' : 'summary-pass';
+    summaryDiv.textContent = `${passing}/${totalChecks} passing (${totalWarn} known issues, 0 failures)`;
+  } else {
+    summaryDiv.className = 'summary-fail';
+    summaryDiv.textContent = `${passing}/${totalChecks} passing, ${totalFail} FAILURES`;
+  }
+}
+
+// ============================================================
+// MAIN
+// ============================================================
+async function runAudit() {
+  const btn = document.getElementById('btn');
+  btn.disabled = true;
+  document.getElementById('results').innerHTML = '';
+  document.getElementById('summary').style.display = 'none';
+
+  // Only load once
+  if (!window.calcStructure) {
+    const ok = await loadEngine();
+    if (!ok) { btn.disabled = false; return; }
+  }
+
+  const allResults = [];
+  for (const cfg of CONFIGS) {
+    allResults.push({ name: cfg.name, checks: runChecksForConfig(cfg) });
+  }
+  renderResults(allResults);
+  btn.disabled = false;
+}
+</script>
+</body>
+</html>
