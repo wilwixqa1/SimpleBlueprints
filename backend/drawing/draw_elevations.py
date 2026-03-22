@@ -66,7 +66,7 @@ def _get_zone_south_north_sections(params, calc):
     return {"x_off": x_off, "bb_w": bb_w, "sections": sections}
 
 
-def _draw_zone_section_south(ax, deck_x, section, ground_y, beam_h, beam_type, rail_h):
+def _draw_zone_section_south(ax, deck_x, section, ground_y, beam_h, beam_type, rail_h, joist_spacing=16):
     """
     Draw one zone wing section in the South elevation view.
     Independent block: own deck surface, posts, beam, railing.
@@ -98,7 +98,7 @@ def _draw_zone_section_south(ax, deck_x, section, ground_y, beam_h, beam_type, r
                      fc=BRAND["beam"], ec=BRAND["dark"], lw=0.8, alpha=0.85))
 
     # Joists (visible ends)
-    joist_sp = 16 / 12  # hardcoded 16" OC for visual consistency
+    joist_sp = joist_spacing / 12
     for jx in np.arange(0, zw, joist_sp):
         ax.add_patch(patches.Rectangle((zx + jx - 0.04, zt - 0.8), 0.08, 0.68,
                      fc=BRAND["wood"], ec=BRAND["dark"], lw=0.15))
@@ -116,7 +116,7 @@ def _draw_zone_section_south(ax, deck_x, section, ground_y, beam_h, beam_type, r
                 color=BRAND["rail"], lw=0.12, alpha=0.5)
 
 
-def _draw_zone_section_north(ax, deck_x, section, total_w, ground_y, beam_h, beam_type, rail_h):
+def _draw_zone_section_north(ax, deck_x, section, total_w, ground_y, beam_h, beam_type, rail_h, joist_spacing=16):
     """
     Draw one zone wing section in the North elevation view (mirrored X).
     """
@@ -442,7 +442,7 @@ def draw_south_elevation(ax, params, calc, compact=False):
 
     # === ZONE WING SECTIONS ===
     for sec in zone_ctx["sections"]:
-        _draw_zone_section_south(ax, deck_x, sec, ground_y, beam_h, beam_type, rail_h)
+        _draw_zone_section_south(ax, deck_x, sec, ground_y, beam_h, beam_type, rail_h, calc["joist_spacing"])
 
     # === LABELS (positioned at right edge of bounding box) ===
     lbl_x = deck_x + total_w + 1.5
@@ -554,7 +554,7 @@ def draw_north_elevation(ax, params, calc, compact=False):
 
     # === ZONE WING SECTIONS (mirrored for north view) ===
     for sec in zone_ctx["sections"]:
-        _draw_zone_section_north(ax, deck_x, sec, total_w, ground_y, beam_h, beam_type, rail_h)
+        _draw_zone_section_north(ax, deck_x, sec, total_w, ground_y, beam_h, beam_type, rail_h, calc["joist_spacing"])
 
     # === LABELS ===
     lbl_x = deck_x + total_w + 1.5
