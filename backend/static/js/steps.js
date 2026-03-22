@@ -1,5 +1,5 @@
 // ============================================================
-// WIZARD STEPS ÃÂ¢ÃÂÃÂ Step 0 (Size), Step 1 (Structure), Step 2 (Finishes),
+// WIZARD STEPS ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ Step 0 (Size), Step 1 (Structure), Step 2 (Finishes),
 //                Step 3 (Site Plan), Step 4 (Review)
 // Multi-zone support added S19, Site Plan step added S27
 // S28: Unified Step 3 flow (sliders first, collapsible upload)
@@ -7,7 +7,7 @@
 const { useState: _stUS, useEffect: _stUE, useMemo: _stUM } = React;
 const { br: _br, mono: _mono, sans: _sans } = window.SB;
 
-// ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Feet-inches formatter (20.5 ÃÂ¢ÃÂÃÂ 20'-6") ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
+// ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ Feet-inches formatter (20.5 ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ 20'-6") ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ
 function fmtFtIn(v) {
   var ft = Math.floor(v);
   var inches = Math.round((v - ft) * 12);
@@ -16,7 +16,7 @@ function fmtFtIn(v) {
 }
 window.fmtFtIn = fmtFtIn;
 
-// ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Shared UI helpers ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
+// ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ Shared UI helpers ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ
 function Label({ children }) {
   return <label style={{ display: "block", fontSize: 10, fontWeight: 700, color: _br.mu, marginBottom: 4, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>{children}</label>;
 }
@@ -62,7 +62,7 @@ function Spec({ l, v, color }) {
   return <div style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", borderBottom: `1px solid ${_br.wr}` }}><span style={{ fontSize: 11, color: _br.mu, fontFamily: _mono }}>{l}</span><span style={{ fontSize: 11, fontWeight: 700, color: color || _br.tx, fontFamily: _mono }}>{v}</span></div>;
 }
 
-// ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Stair template icons (unchanged) ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
+// ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ Stair template icons (unchanged) ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ
 function stairIcon(key) {
   var c = "#3d5a2e", f = "#faf8f3", lc = "#e8e6d8", s = 0.8, ao = 0.6;
   if (key === "straight") return (<svg width={28} height={24} viewBox="0 0 28 24"><rect x={9} y={1} width={10} height={22} fill={f} stroke={c} strokeWidth={s} rx={1}/><polygon points="14,18 11,14 17,14" fill={c} opacity={ao}/></svg>);
@@ -74,7 +74,7 @@ function stairIcon(key) {
   return null;
 }
 
-// ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Step Content ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
+// ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ Step Content ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ
 function StepContent(props) {
   const { step, p, u, c, m, info, setI, showAdvanced, setShowAdvanced,
     sitePlanMode, setSitePlanMode, sitePlanFile, setSitePlanFile, setSitePlanB64,
@@ -88,8 +88,10 @@ function StepContent(props) {
   const [extracting, setExtracting] = _stUS(false);
   const [extractResult, setExtractResult] = _stUS(null);
   const [extractError, setExtractError] = _stUS(null);
+  const [showMissingModal, setShowMissingModal] = _stUS(false);
+  const [missingFieldsAcked, setMissingFieldsAcked] = _stUS(false);
 
-  // ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Active zone data ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
+  // ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ Active zone data ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ
   var activeZoneObj = p.activeZone > 0 ? p.zones.find(function(z) { return z.id === p.activeZone; }) : null;
   var isZone0 = p.activeZone === 0;
   var zoneW = activeZoneObj ? activeZoneObj.w : p.width;
@@ -99,7 +101,7 @@ function StepContent(props) {
   var isCutout = activeZoneObj && activeZoneObj.type === "cutout";
 
   if (step === 0) return <>
-    {/* ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Zone selector bar ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ */}
+    {/* ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ Zone selector bar ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ */}
     {p.zones.length > 0 && <div style={{ marginBottom: 16, padding: 10, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}` }}>
       <div style={{ fontSize: 9, fontWeight: 700, color: _br.mu, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 6 }}>Zones</div>
       <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
@@ -135,7 +137,7 @@ function StepContent(props) {
       }}>Delete</button>
     </div>}
 
-    {/* Width / Depth / Height sliders ÃÂ¢ÃÂÃÂ zone-aware */}
+    {/* Width / Depth / Height sliders ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ zone-aware */}
     <Slider label={isZone0 ? "Width (along house)" : "Width"} value={zoneW} min={isCutout ? 2 : 4} max={50} step={0.5} fmt={fmtFtIn} field="width" u={u} p={p} />
     <Slider label={isZone0 ? "Depth (from house)" : "Depth"} value={zoneD} min={isCutout ? 2 : 4} max={24} step={0.5} fmt={fmtFtIn} field="depth" u={u} p={p} />
     {isZone0 && <Slider label="Height above grade" value={p.height} min={1} max={14} step={0.5} fmt={fmtFtIn} field="height" u={u} p={p} />}
@@ -175,7 +177,7 @@ function StepContent(props) {
       </div>
     </>}
 
-    {/* ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Chamfer controls for active zone ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ */}
+    {/* ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ Chamfer controls for active zone ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ */}
     {!isCutout && <div style={{ marginBottom: 16, padding: 12, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}` }}>
       <div style={{ fontSize: 9, fontWeight: 700, color: "#7c3aed", fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 8 }}>Corner Modifiers</div>
       <div style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, marginBottom: 8 }}>Toggle 45{"\u00B0"} chamfers on corners. Adjust size below.</div>
@@ -203,7 +205,7 @@ function StepContent(props) {
       </div>
     </div>}
 
-    {/* ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Zone 0 only: house width, attachment, stairs ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ */}
+    {/* ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ Zone 0 only: house width, attachment, stairs ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ */}
     {isZone0 && <>
       <Slider label="House width" value={p.houseWidth} min={20} max={80} field="houseWidth" u={u} p={p} />
       <Chips label="Attachment" field="attachment" opts={[["ledger", "Ledger Board"], ["freestanding", "Freestanding"]]} u={u} p={p} />
@@ -266,7 +268,7 @@ function StepContent(props) {
     </>}
   </>;
 
-  // ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Step 3: Site Plan (S28 ÃÂ¢ÃÂÃÂ unified flow, no mode cards) ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
+  // ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ Step 3: Site Plan (S28 ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ unified flow, no mode cards) ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ
   if (step === 3) {
     // === SETBACK WARNINGS (computed from current params) ===
     var spWarnings = [];
@@ -509,7 +511,7 @@ function StepContent(props) {
     </>;
   }
 
-  // ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Steps 1, 2 unchanged; Step 4 (Review) below ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
+  // ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ Steps 1, 2 unchanged; Step 4 (Review) below ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ
   if (step === 1) return <>
     <Chips label="Joist spacing" field="joistSpacing" opts={[[12, '12" O.C.'], [16, '16" O.C.'], [24, '24" O.C.']]} u={u} p={p} />
     <Chips label="Snow load" field="snowLoad" opts={[["none", "None"], ["light", "Light"], ["moderate", "Moderate"], ["heavy", "Heavy"]]} u={u} p={p} />
@@ -630,7 +632,7 @@ function StepContent(props) {
     </div>
   </>;
 
-  // ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Step 4: Review (was Step 3 before S27) ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
+  // ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ Step 4: Review (was Step 3 before S27) ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ
   if (step === 4) return <>
     <div style={{ marginBottom: 14 }}>
       <div style={{ fontSize: 10, fontWeight: 700, color: _br.gn, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 8 }}>Blueprint Preview</div>
@@ -724,7 +726,7 @@ function StepContent(props) {
         {["Plan View","Framing Plan","Elevations","Details","Material List"].map(s=>(<div key={s} style={{display:"flex",alignItems:"center",gap:4}}><span style={{color:"#66bb6a",fontSize:11}}>{"\u2713"}</span><span style={{fontSize:10,fontFamily:_mono,color:"rgba(255,255,255,0.8)"}}>{s}</span></div>))}
       </div>
       {user ? <>
-      <button onClick={()=>disclaimerAcked?generateBlueprint():setShowDisclaimer(true)} disabled={genStatus==="generating"||(isProduction&&!feedbackDone)} style={{padding:"14px 40px",background:genStatus==="generating"?"#555":genStatus==="done"?"#2e7d32":_br.gn,color:"#fff",border:"none",borderRadius:8,fontSize:16,fontWeight:800,cursor:genStatus==="generating"?"wait":"pointer",fontFamily:_mono,letterSpacing:"1px",boxShadow:"0 4px 20px rgba(61,90,46,0.4)",transition:"all 0.2s"}}>
+      <button onClick={function(){var miss=[];if(!info.owner)miss.push("Owner / Applicant Name");if(!info.address)miss.push("Property Address");if(!info.city)miss.push("City");if(!info.state)miss.push("State");if(!info.zip)miss.push("ZIP");if(miss.length>0&&!missingFieldsAcked){setShowMissingModal(miss);return;}disclaimerAcked?generateBlueprint():setShowDisclaimer(true);}} disabled={genStatus==="generating"||(isProduction&&!feedbackDone)} style={{padding:"14px 40px",background:genStatus==="generating"?"#555":genStatus==="done"?"#2e7d32":_br.gn,color:"#fff",border:"none",borderRadius:8,fontSize:16,fontWeight:800,cursor:genStatus==="generating"?"wait":"pointer",fontFamily:_mono,letterSpacing:"1px",boxShadow:"0 4px 20px rgba(61,90,46,0.4)",transition:"all 0.2s"}}>
         {genStatus==="generating"?"Generating PDF...":genStatus==="done"?"\u2713 Download Complete \u2014 Generate Again?":"Generate Blueprint \u2014 FREE BETA"}
       </button>
       {genStatus==="error"&&<div style={{fontSize:10,color:"#f44336",fontFamily:_mono,marginTop:8}}>Error: {genError}</div>}
@@ -750,6 +752,21 @@ function StepContent(props) {
         <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
           <button onClick={()=>setShowDisclaimer(false)} style={{padding:"10px 18px",background:"none",border:"1px solid "+_br.bd,borderRadius:6,fontSize:11,fontFamily:_mono,color:_br.mu,cursor:"pointer"}}>Cancel</button>
           <button onClick={()=>{setDisclaimerAcked(true);setShowDisclaimer(false);generateBlueprint();}} style={{padding:"10px 24px",background:_br.gn,border:"none",borderRadius:6,fontSize:11,fontFamily:_mono,color:"#fff",fontWeight:700,cursor:"pointer",boxShadow:"0 2px 12px rgba(61,90,46,0.3)"}}>I Understand {"\u2014"} Generate Blueprint</button>
+        </div>
+      </div>
+    </div>}
+
+    {showMissingModal && <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9999}} onClick={()=>setShowMissingModal(false)}>
+      <div style={{background:"#fff",borderRadius:12,padding:28,maxWidth:440,margin:"0 20px",boxShadow:"0 8px 40px rgba(0,0,0,0.25)"}} onClick={e=>e.stopPropagation()}>
+        <div style={{fontSize:11,fontWeight:700,color:"#d97706",fontFamily:_mono,letterSpacing:"1px",textTransform:"uppercase",marginBottom:14}}>{"\u26A0\uFE0F"} Missing Information</div>
+        <p style={{fontSize:12,color:_br.tx,fontFamily:_sans,lineHeight:1.7,margin:"0 0 10px"}}>Permit offices typically require the following fields, which are currently empty:</p>
+        <div style={{padding:"10px 14px",background:"#fff8e1",borderRadius:6,border:"1px solid #ffe082",marginBottom:14}}>
+          {showMissingModal.map(function(f,i){return <div key={i} style={{fontSize:11,fontFamily:_mono,color:"#92400e",lineHeight:1.8,fontWeight:600}}>{"\u2022"} {f}</div>;})}
+        </div>
+        <p style={{fontSize:11,color:_br.mu,fontFamily:_sans,lineHeight:1.6,margin:"0 0 18px"}}>You can fill these in using the Project Information section above, or generate your blueprint without them.</p>
+        <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+          <button onClick={function(){setShowMissingModal(false);}} style={{padding:"10px 18px",background:"none",border:"1px solid "+_br.bd,borderRadius:6,fontSize:11,fontFamily:_mono,color:_br.mu,cursor:"pointer"}}>Fill in Fields</button>
+          <button onClick={function(){setMissingFieldsAcked(true);setShowMissingModal(false);disclaimerAcked?generateBlueprint():setShowDisclaimer(true);}} style={{padding:"10px 24px",background:"#d97706",border:"none",borderRadius:6,fontSize:11,fontFamily:_mono,color:"#fff",fontWeight:700,cursor:"pointer"}}>Generate Anyway</button>
         </div>
       </div>
     </div>}
