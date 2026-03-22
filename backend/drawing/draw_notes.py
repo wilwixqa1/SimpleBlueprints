@@ -12,6 +12,7 @@ def draw_notes_sheet(fig, params, calc):
     attachment = params.get("attachment", "ledger")
     beam_type = params.get("beamType", "dropped")
     has_stairs = params.get("hasStairs", False)
+    has_zones = len(params.get("zones", [])) > 0
     decking_type = params.get("deckingType", "composite")
     joist_spacing = params.get("joistSpacing", 16)
     frost_zone = params.get("frostZone", "cold")
@@ -120,8 +121,9 @@ def draw_notes_sheet(fig, params, calc):
     y -= 0.04
 
     # --- 3. FRAMING ---
+    zone_prefix = "Main deck joists" if has_zones else "Joists"
     framing_notes = [
-        ("Joists: " + joist_size + " at " + str(joist_spacing) + "\" O.C. "
+        (zone_prefix + ": " + joist_size + " at " + str(joist_spacing) + "\" O.C. "
          "Joists shall be crowned up and secured at both ends with approved hangers or bearing.",
          "IRC R507.5, Table R507.5"),
     ]
@@ -149,6 +151,13 @@ def draw_notes_sheet(fig, params, calc):
          "approved fasteners at each joist.",
          "IRC R507.5")
     )
+    if has_zones:
+        framing_notes.append(
+            ("Additional zones have independent framing (joists, beam, posts, footings) "
+             "as shown on Sheet A-1. Each zone section is structurally self-supporting. "
+             "Verify zone-specific member sizes on the framing plan.",
+             "IRC R507")
+        )
     y = draw_section(left_col_x, y, "FRAMING", framing_notes)
 
     # ============================================================
