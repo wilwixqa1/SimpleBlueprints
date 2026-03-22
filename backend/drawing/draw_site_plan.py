@@ -5,6 +5,7 @@ S24: Zone-aware — draws composite deck outline for multi-zone configs.
 S28: Consumes p.sitePlan when present, falls back to flat params.
      Independent left/right setbacks, address/parcel on sheet,
      house placement matches frontend SVG preview, deckOffset applied.
+S29: houseDistFromStreet support (house can be further from street than setback).
 """
 
 import matplotlib
@@ -47,7 +48,7 @@ def _extract_site_params(params, calc):
         "house_w": params.get("houseWidth", 40),
         "house_d": params.get("houseDepth", 30),
         "house_x": params.get("houseOffsetSide", 20),
-        "house_y": sb_front,           # Match frontend SVG preview
+        "house_y": params.get("houseDistFromStreet") or sb_front,           # Match frontend SVG preview
         # Metadata from sitePlan (if set) or projectInfo fallback
         "house_label": (sp.get("houseLabel") or "EXISTING SINGLE\nFAMILY RESIDENCE").upper(),
         "address": sp.get("address") or pi.get("address", ""),
