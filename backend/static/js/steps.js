@@ -1,5 +1,5 @@
 // ============================================================
-// WIZARD STEPS â Step 0 (Size), Step 1 (Structure), Step 2 (Finishes),
+// WIZARD STEPS Ã¢ÂÂ Step 0 (Size), Step 1 (Structure), Step 2 (Finishes),
 //                Step 3 (Site Plan), Step 4 (Review)
 // Multi-zone support added S19, Site Plan step added S27
 // S28: Unified Step 3 flow (sliders first, collapsible upload)
@@ -7,7 +7,7 @@
 const { useState: _stUS, useEffect: _stUE, useMemo: _stUM } = React;
 const { br: _br, mono: _mono, sans: _sans } = window.SB;
 
-// ââ Feet-inches formatter (20.5 â 20'-6") ââ
+// Ã¢ÂÂÃ¢ÂÂ Feet-inches formatter (20.5 Ã¢ÂÂ 20'-6") Ã¢ÂÂÃ¢ÂÂ
 function fmtFtIn(v) {
   var ft = Math.floor(v);
   var inches = Math.round((v - ft) * 12);
@@ -16,7 +16,7 @@ function fmtFtIn(v) {
 }
 window.fmtFtIn = fmtFtIn;
 
-// ââ Shared UI helpers ââ
+// Ã¢ÂÂÃ¢ÂÂ Shared UI helpers Ã¢ÂÂÃ¢ÂÂ
 function Label({ children }) {
   return <label style={{ display: "block", fontSize: 10, fontWeight: 700, color: _br.mu, marginBottom: 4, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>{children}</label>;
 }
@@ -62,7 +62,7 @@ function Spec({ l, v, color }) {
   return <div style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", borderBottom: `1px solid ${_br.wr}` }}><span style={{ fontSize: 11, color: _br.mu, fontFamily: _mono }}>{l}</span><span style={{ fontSize: 11, fontWeight: 700, color: color || _br.tx, fontFamily: _mono }}>{v}</span></div>;
 }
 
-// ââ Stair template icons (unchanged) ââ
+// Ã¢ÂÂÃ¢ÂÂ Stair template icons (unchanged) Ã¢ÂÂÃ¢ÂÂ
 function stairIcon(key) {
   var c = "#3d5a2e", f = "#faf8f3", lc = "#e8e6d8", s = 0.8, ao = 0.6;
   if (key === "straight") return (<svg width={28} height={24} viewBox="0 0 28 24"><rect x={9} y={1} width={10} height={22} fill={f} stroke={c} strokeWidth={s} rx={1}/><polygon points="14,18 11,14 17,14" fill={c} opacity={ao}/></svg>);
@@ -74,7 +74,7 @@ function stairIcon(key) {
   return null;
 }
 
-// ââ Step Content ââ
+// Ã¢ÂÂÃ¢ÂÂ Step Content Ã¢ÂÂÃ¢ÂÂ
 function StepContent(props) {
   const { step, p, u, c, m, info, setI, showAdvanced, setShowAdvanced,
     sitePlanMode, setSitePlanMode, sitePlanFile, setSitePlanFile, setSitePlanB64,
@@ -89,7 +89,7 @@ function StepContent(props) {
   const [extractResult, setExtractResult] = _stUS(null);
   const [extractError, setExtractError] = _stUS(null);
 
-  // ââ Active zone data ââ
+  // Ã¢ÂÂÃ¢ÂÂ Active zone data Ã¢ÂÂÃ¢ÂÂ
   var activeZoneObj = p.activeZone > 0 ? p.zones.find(function(z) { return z.id === p.activeZone; }) : null;
   var isZone0 = p.activeZone === 0;
   var zoneW = activeZoneObj ? activeZoneObj.w : p.width;
@@ -99,7 +99,7 @@ function StepContent(props) {
   var isCutout = activeZoneObj && activeZoneObj.type === "cutout";
 
   if (step === 0) return <>
-    {/* ââ Zone selector bar ââ */}
+    {/* Ã¢ÂÂÃ¢ÂÂ Zone selector bar Ã¢ÂÂÃ¢ÂÂ */}
     {p.zones.length > 0 && <div style={{ marginBottom: 16, padding: 10, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}` }}>
       <div style={{ fontSize: 9, fontWeight: 700, color: _br.mu, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 6 }}>Zones</div>
       <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
@@ -135,7 +135,7 @@ function StepContent(props) {
       }}>Delete</button>
     </div>}
 
-    {/* Width / Depth / Height sliders â zone-aware */}
+    {/* Width / Depth / Height sliders Ã¢ÂÂ zone-aware */}
     <Slider label={isZone0 ? "Width (along house)" : "Width"} value={zoneW} min={isCutout ? 2 : 4} max={50} step={0.5} fmt={fmtFtIn} field="width" u={u} p={p} />
     <Slider label={isZone0 ? "Depth (from house)" : "Depth"} value={zoneD} min={isCutout ? 2 : 4} max={24} step={0.5} fmt={fmtFtIn} field="depth" u={u} p={p} />
     {isZone0 && <Slider label="Height above grade" value={p.height} min={1} max={14} step={0.5} fmt={fmtFtIn} field="height" u={u} p={p} />}
@@ -175,7 +175,7 @@ function StepContent(props) {
       </div>
     </>}
 
-    {/* ââ Chamfer controls for active zone ââ */}
+    {/* Ã¢ÂÂÃ¢ÂÂ Chamfer controls for active zone Ã¢ÂÂÃ¢ÂÂ */}
     {!isCutout && <div style={{ marginBottom: 16, padding: 12, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}` }}>
       <div style={{ fontSize: 9, fontWeight: 700, color: "#7c3aed", fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 8 }}>Corner Modifiers</div>
       <div style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, marginBottom: 8 }}>Toggle 45{"\u00B0"} chamfers on corners. Adjust size below.</div>
@@ -203,7 +203,7 @@ function StepContent(props) {
       </div>
     </div>}
 
-    {/* ââ Zone 0 only: house width, attachment, stairs ââ */}
+    {/* Ã¢ÂÂÃ¢ÂÂ Zone 0 only: house width, attachment, stairs Ã¢ÂÂÃ¢ÂÂ */}
     {isZone0 && <>
       <Slider label="House width" value={p.houseWidth} min={20} max={80} field="houseWidth" u={u} p={p} />
       <Chips label="Attachment" field="attachment" opts={[["ledger", "Ledger Board"], ["freestanding", "Freestanding"]]} u={u} p={p} />
@@ -266,7 +266,7 @@ function StepContent(props) {
     </>}
   </>;
 
-  // ââ Step 3: Site Plan (S28 â unified flow, no mode cards) ââ
+  // Ã¢ÂÂÃ¢ÂÂ Step 3: Site Plan (S28 Ã¢ÂÂ unified flow, no mode cards) Ã¢ÂÂÃ¢ÂÂ
   if (step === 3) {
     // === SETBACK WARNINGS (computed from current params) ===
     var spWarnings = [];
@@ -426,9 +426,10 @@ function StepContent(props) {
             </div>;
           })}
         </div>
-        {(extractResult.address || extractResult.streetName || extractResult.parcelId) && <div style={{ marginTop: 8, padding: "6px 8px", background: "#fff", borderRadius: 4, border: "1px solid #dbeafe" }}>
+        {(extractResult.street || extractResult.city || extractResult.streetName || extractResult.parcelId) && <div style={{ marginTop: 8, padding: "6px 8px", background: "#fff", borderRadius: 4, border: "1px solid #dbeafe" }}>
           <div style={{ fontSize: 8, color: _br.mu, fontFamily: _mono, marginBottom: 2 }}>Property Info</div>
-          {extractResult.address && <div style={{ fontSize: 10, fontFamily: _mono, color: _br.tx }}>{extractResult.address}</div>}
+          {extractResult.street && <div style={{ fontSize: 10, fontFamily: _mono, color: _br.tx }}>{extractResult.street}</div>}
+          {(extractResult.city || extractResult.state || extractResult.zip) && <div style={{ fontSize: 9, fontFamily: _mono, color: _br.mu }}>{[extractResult.city, extractResult.state, extractResult.zip].filter(Boolean).join(", ")}</div>}
           {extractResult.streetName && <div style={{ fontSize: 9, fontFamily: _mono, color: _br.mu }}>Street: {extractResult.streetName}</div>}
           {extractResult.parcelId && <div style={{ fontSize: 9, fontFamily: _mono, color: _br.mu }}>Parcel: {extractResult.parcelId}</div>}
         </div>}
@@ -444,8 +445,12 @@ function StepContent(props) {
             if (d.setbackFront) u("setbackFront", d.setbackFront);
             if (d.setbackRear) u("setbackRear", d.setbackRear);
             if (d.setbackSide) u("setbackSide", d.setbackSide);
-            if (d.address) setI("address", d.address);
+            if (d.street) setI("address", d.street);
+            if (d.city) setI("city", d.city);
+            if (d.state) setI("state", d.state);
+            if (d.zip) setI("zip", d.zip);
             if (d.parcelId) setI("lot", d.parcelId);
+            if (d.streetName) u("streetName", d.streetName);
             setExtractResult(null);
           }} style={{ flex: 1, padding: "10px", background: "#1d4ed8", color: "#fff", border: "none", borderRadius: 6, fontSize: 11, fontWeight: 700, fontFamily: _mono, cursor: "pointer" }}>{"\u2713"} Apply All Dimensions</button>
           <button onClick={function() { setExtractResult(null); }} style={{ padding: "10px 14px", background: "none", border: "1px solid " + _br.bd, borderRadius: 6, fontSize: 11, fontFamily: _mono, color: _br.mu, cursor: "pointer" }}>Cancel</button>
@@ -503,7 +508,7 @@ function StepContent(props) {
     </>;
   }
 
-  // ââ Steps 1, 2 unchanged; Step 4 (Review) below ââ
+  // Ã¢ÂÂÃ¢ÂÂ Steps 1, 2 unchanged; Step 4 (Review) below Ã¢ÂÂÃ¢ÂÂ
   if (step === 1) return <>
     <Chips label="Joist spacing" field="joistSpacing" opts={[[12, '12" O.C.'], [16, '16" O.C.'], [24, '24" O.C.']]} u={u} p={p} />
     <Chips label="Snow load" field="snowLoad" opts={[["none", "None"], ["light", "Light"], ["moderate", "Moderate"], ["heavy", "Heavy"]]} u={u} p={p} />
@@ -624,7 +629,7 @@ function StepContent(props) {
     </div>
   </>;
 
-  // ââ Step 4: Review (was Step 3 before S27) ââ
+  // Ã¢ÂÂÃ¢ÂÂ Step 4: Review (was Step 3 before S27) Ã¢ÂÂÃ¢ÂÂ
   if (step === 4) return <>
     <div style={{ marginBottom: 14 }}>
       <div style={{ fontSize: 10, fontWeight: 700, color: _br.gn, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 8 }}>Blueprint Preview</div>
