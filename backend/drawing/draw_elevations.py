@@ -77,8 +77,9 @@ def _draw_zone_section_south(ax, deck_x, section, ground_y, beam_h, beam_type, r
     zt = section["deck_top"]
     rail_top = zt + rail_h
 
-    # Posts (2 per zone, near edges)
-    for px_off in [1.5, zw - 1.5]:
+    # Posts: guard against narrow zones (<3 ft) where edge offsets would overlap
+    post_offsets = [zw / 2] if zw < 3 else [1.5, zw - 1.5]
+    for px_off in post_offsets:
         spx = zx + px_off
         # Footing
         ax.add_patch(patches.Rectangle((spx - 0.5, ground_y - 0.4), 1.0, 0.4,
@@ -127,8 +128,9 @@ def _draw_zone_section_north(ax, deck_x, section, total_w, ground_y, beam_h, bea
     zt = section["deck_top"]
     rail_top = zt + rail_h
 
-    # Posts (dashed — far side in north view)
-    for px_off in [1.5, zw - 1.5]:
+    # Posts: guard against narrow zones (<3 ft) where edge offsets would overlap
+    post_offsets = [zw / 2] if zw < 3 else [1.5, zw - 1.5]
+    for px_off in post_offsets:
         spx = zx + px_off
         ax.plot([spx, spx], [ground_y, zt],
                 color=BRAND["post"], lw=1.0, ls=(0, (6, 3)), alpha=0.4)
@@ -371,7 +373,7 @@ def draw_south_elevation(ax, params, calc, compact=False):
         ax.plot([sx, sx], [ground_y + 0.2, deck_top], color=BRAND["post"], lw=2)
 
     # === ZONE-0 BEAM ===
-    beam_h = 1.0
+    beam_h = 1.0  # TODO: derive from calc["beam_size"] when per-zone calcs land
     beam_type = calc.get("beam_type", "dropped")
     if beam_type == "flush":
         ax.plot([z0_x + 1, z0_x + W - 1], [deck_top - beam_h, deck_top - beam_h],
@@ -515,7 +517,7 @@ def draw_north_elevation(ax, params, calc, compact=False):
                 color=BRAND["post"], lw=1.0, ls=(0, (6, 3)), alpha=0.4)
 
     # === ZONE-0 BEAM (far side) ===
-    beam_h = 1.0
+    beam_h = 1.0  # TODO: derive from calc["beam_size"] when per-zone calcs land
     beam_type = calc.get("beam_type", "dropped")
     if beam_type == "flush":
         ax.plot([z0_x + 1, z0_x + W - 1], [deck_top - beam_h, deck_top - beam_h],
@@ -606,7 +608,7 @@ def draw_side_elevation(ax, params, calc, direction="east", compact=False):
                      fc='#888', ec=BRAND["dark"], lw=0.4))
         ax.plot([post_x, post_x], [ground_y + 0.2, deck_top], color=BRAND["post"], lw=2)
 
-        beam_h = 1.0
+        beam_h = 1.0  # TODO: derive from calc["beam_size"] when per-zone calcs land
         beam_type = calc.get("beam_type", "dropped")
         if beam_type == "flush":
             ax.add_patch(patches.Rectangle((deck_end_x + 0.5, deck_top - beam_h), D - 0.5, beam_h,
@@ -675,7 +677,7 @@ def draw_side_elevation(ax, params, calc, direction="east", compact=False):
                      fc='#888', ec=BRAND["dark"], lw=0.4))
         ax.plot([post_x, post_x], [ground_y + 0.2, deck_top], color=BRAND["post"], lw=2)
 
-        beam_h = 1.0
+        beam_h = 1.0  # TODO: derive from calc["beam_size"] when per-zone calcs land
         beam_type = calc.get("beam_type", "dropped")
         if beam_type == "flush":
             ax.add_patch(patches.Rectangle((deck_start_x, deck_top - beam_h), D - 0.5, beam_h,
