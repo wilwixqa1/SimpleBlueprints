@@ -237,6 +237,7 @@ const App = function SimpleBlueprints() {
   const Deck3D = window.Deck3D;
   const HomePage = window.HomePage;
   const StepContent = window.StepContent;
+  const SitePlanView = window.SitePlanView;
 
   // HOME
   if (page === "home") return <HomePage setPage={setPage} />;
@@ -292,14 +293,15 @@ const App = function SimpleBlueprints() {
         <div style={{ flex: "1 1 500px", minWidth: 280 }}>
           <div style={{ background: "#fff", borderRadius: 10, padding: 18, border: `1px solid ${br.bd}`, boxShadow: "0 1px 8px rgba(0,0,0,0.04)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-              <h3 style={{ margin: 0, fontSize: 12, fontWeight: 700, color: br.dk, fontFamily: mono, letterSpacing: "1px", textTransform: "uppercase" }}>Preview</h3>
-              <div style={{ display: "flex", gap: 1 }}>
+              <h3 style={{ margin: 0, fontSize: 12, fontWeight: 700, color: br.dk, fontFamily: mono, letterSpacing: "1px", textTransform: "uppercase" }}>{step === 3 ? "Site Plan Preview" : "Preview"}</h3>
+              {step !== 3 && <div style={{ display: "flex", gap: 1 }}>
                 {views.map(([id, label], i) => <button key={id} onClick={() => setView(id)} style={{ padding: "5px 12px", fontSize: 10, cursor: "pointer", fontFamily: mono, border: view === id ? `1px solid ${br.gn}` : `1px solid ${br.bd}`, background: view === id ? br.gn : "transparent", color: view === id ? "#fff" : br.mu, borderRadius: i === 0 ? "4px 0 0 4px" : i === views.length - 1 ? "0 4px 4px 0" : 0, fontWeight: view === id ? 700 : 400 }}>{label}</button>)}
-              </div>
+              </div>}
             </div>
 
-            <div style={{ background: view === "3d" ? "transparent" : br.cr, border: view === "3d" ? "none" : `1px solid ${br.bd}`, borderRadius: 6, padding: view === "3d" ? 0 : 12, minHeight: 320 }}>
-              {view === "plan" && <>
+            <div style={{ background: step === 3 ? br.cr : (view === "3d" ? "transparent" : br.cr), border: step === 3 || view !== "3d" ? `1px solid ${br.bd}` : "none", borderRadius: 6, padding: step === 3 ? 8 : (view === "3d" ? 0 : 12), minHeight: 320 }}>
+              {step === 3 && SitePlanView && <SitePlanView p={p} c={c} />}
+              {step !== 3 && view === "plan" && <>
                 <div style={{ display: "flex", gap: 4, marginBottom: 8, flexWrap: "wrap" }}>
                   {[["plan", "Deck Plan"], ["framing", "Framing"]].map(([id, label]) => <button key={id} onClick={() => setPlanMode(id)} style={{ padding: "4px 10px", fontSize: 9, fontFamily: mono, cursor: "pointer", border: planMode === id ? `1px solid ${br.gn}` : `1px solid ${br.bd}`, background: planMode === id ? br.gn : "transparent", color: planMode === id ? "#fff" : br.mu, borderRadius: 4, fontWeight: planMode === id ? 700 : 400 }}>{label}</button>)}
                   <div style={{ flex: 1 }} />
@@ -316,8 +318,8 @@ const App = function SimpleBlueprints() {
                   {zoneMode === "chamfer" && <>Click <span style={{ color: "#7c3aed", fontWeight: 700 }}>{"\u25E3"}</span> on corners to toggle 45{"\u00B0"} chamfers</>}
                 </div>}
               </>}
-              {view === "elevation" && <ElevationView c={c} p={p} />}
-              {view === "3d" && <Deck3D c={c} p={p} />}
+              {step !== 3 && view === "elevation" && <ElevationView c={c} p={p} />}
+              {step !== 3 && view === "3d" && <Deck3D c={c} p={p} />}
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, marginTop: 12 }}>
