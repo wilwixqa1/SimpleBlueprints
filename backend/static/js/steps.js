@@ -317,6 +317,90 @@ function StepContent(props) {
         <Slider label="Rear setback" value={p.setbackRear} min={0} max={50} field="setbackRear" u={u} p={p} />
       </div>
 
+      {/* === SITE ELEMENTS (S31) === */}
+      {(() => {
+        var siteElDefs = {
+          driveway: { w: 12, d: 20, label: "DRIVEWAY", icon: "\uD83D\uDE97", name: "Driveway" },
+          garage: { w: 12, d: 22, label: "GARAGE", icon: "\uD83D\uDE99", name: "Garage" },
+          shed: { w: 8, d: 10, label: "SHED", icon: "\u2302", name: "Shed" },
+          pool: { w: 12, d: 24, label: "POOL", icon: "\u223C", name: "Pool" },
+          patio: { w: 12, d: 12, label: "PATIO", icon: "\u25A3", name: "Patio" },
+          tree: { w: 6, d: 6, label: "", icon: "\u2742", name: "Tree" },
+          ac_unit: { w: 3, d: 3, label: "A/C", icon: "\u2744", name: "A/C Unit" },
+          fence: { w: 30, d: 1, label: "FENCE", icon: "\u2502", name: "Fence" }
+        };
+        function addSiteEl(type) {
+          var def = siteElDefs[type];
+          var existing = p.siteElements || [];
+          var houseY = p.houseDistFromStreet || p.setbackFront || 25;
+          var x = 5, y = 5;
+          if (type === "driveway") { x = 2; y = 2; }
+          else if (type === "garage") { x = Math.max(2, (p.houseOffsetSide || 20) - def.w - 2); y = houseY; }
+          else if (type === "shed") { x = (p.lotWidth || 80) - def.w - 3; y = (p.lotDepth || 120) - def.d - 3; }
+          else if (type === "pool") { x = (p.houseOffsetSide || 20) + 2; y = houseY + (p.houseDepth || 30) + (p.depth || 12) + 3; }
+          else if (type === "patio") { x = (p.houseOffsetSide || 20) + 2; y = houseY + (p.houseDepth || 30) + (p.depth || 12) + 2; }
+          else if (type === "tree") { x = 3 + existing.filter(function(e){return e.type==="tree";}).length * 8; y = (p.lotDepth || 120) - 10; }
+          else if (type === "ac_unit") { x = (p.houseOffsetSide || 20) + (p.houseWidth || 40) + 2; y = houseY + (p.houseDepth || 30) / 2; }
+          else if (type === "fence") { x = 0; y = houseY + (p.houseDepth || 30); }
+          u("siteElements", existing.concat([{ id: Date.now(), type: type, x: Math.round(x), y: Math.round(y), w: def.w, d: def.d, label: def.label }]));
+        }
+        function removeSiteEl(id) {
+          u("siteElements", (p.siteElements || []).filter(function(e) { return e.id !== id; }));
+        }
+        function updateSiteEl(id, field, val) {
+          u("siteElements", (p.siteElements || []).map(function(e) {
+            if (e.id !== id) return e;
+            var copy = Object.assign({}, e);
+            copy[field] = val;
+            return copy;
+          }));
+        }
+        var elArr = p.siteElements || [];
+        return <div style={{ padding: 14, background: _br.wr, borderRadius: 8, border: "1px solid " + _br.bd, marginBottom: 14 }}>
+          <div style={{ fontSize: 9, fontWeight: 700, color: _br.mu, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 4 }}>Site Elements</div>
+          <div style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, marginBottom: 10, lineHeight: 1.5 }}>Add existing structures and features to your site plan.</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, marginBottom: elArr.length > 0 ? 12 : 0 }}>
+            {Object.keys(siteElDefs).map(function(type) {
+              var def = siteElDefs[type];
+              return <button key={type} onClick={function() { addSiteEl(type); }} style={{
+                padding: "8px 4px", borderRadius: 6, cursor: "pointer", textAlign: "center",
+                border: "1px solid " + _br.bd, background: "#fff", fontFamily: _mono, transition: "all 0.15s"
+              }}>
+                <div style={{ fontSize: 16, marginBottom: 2, lineHeight: 1 }}>{def.icon}</div>
+                <div style={{ fontSize: 8, fontWeight: 600, color: _br.tx }}>{def.name}</div>
+              </button>;
+            })}
+          </div>
+          {elArr.map(function(el) {
+            var def = siteElDefs[el.type] || { icon: "?", name: el.type };
+            return <div key={el.id} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 8px", background: "#fff", borderRadius: 6, border: "1px solid " + _br.bd, marginBottom: 4 }}>
+              <span style={{ fontSize: 14, width: 20, textAlign: "center" }}>{def.icon}</span>
+              <span style={{ fontSize: 9, fontWeight: 700, fontFamily: _mono, color: _br.tx, minWidth: 50 }}>{def.name}</span>
+              <div style={{ display: "flex", gap: 3, alignItems: "center", flex: 1, justifyContent: "flex-end" }}>
+                <label style={{ fontSize: 7, color: _br.mu, fontFamily: _mono }}>X</label>
+                <input type="number" value={el.x} onChange={function(e) { updateSiteEl(el.id, "x", Number(e.target.value)); }}
+                  style={{ width: 34, padding: "2px 3px", fontSize: 9, fontFamily: _mono, border: "1px solid " + _br.bd, borderRadius: 3, textAlign: "center" }} />
+                <label style={{ fontSize: 7, color: _br.mu, fontFamily: _mono }}>Y</label>
+                <input type="number" value={el.y} onChange={function(e) { updateSiteEl(el.id, "y", Number(e.target.value)); }}
+                  style={{ width: 34, padding: "2px 3px", fontSize: 9, fontFamily: _mono, border: "1px solid " + _br.bd, borderRadius: 3, textAlign: "center" }} />
+                <label style={{ fontSize: 7, color: _br.mu, fontFamily: _mono }}>W</label>
+                <input type="number" value={el.w} onChange={function(e) { updateSiteEl(el.id, "w", Number(e.target.value)); }}
+                  style={{ width: 30, padding: "2px 3px", fontSize: 9, fontFamily: _mono, border: "1px solid " + _br.bd, borderRadius: 3, textAlign: "center" }} />
+                <label style={{ fontSize: 7, color: _br.mu, fontFamily: _mono }}>D</label>
+                <input type="number" value={el.d} onChange={function(e) { updateSiteEl(el.id, "d", Number(e.target.value)); }}
+                  style={{ width: 30, padding: "2px 3px", fontSize: 9, fontFamily: _mono, border: "1px solid " + _br.bd, borderRadius: 3, textAlign: "center" }} />
+              </div>
+              <button onClick={function() { removeSiteEl(el.id); }} style={{
+                width: 18, height: 18, borderRadius: 3, border: "1px solid #fca5a5", background: "#fef2f2",
+                color: "#dc2626", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center",
+                justifyContent: "center", padding: 0, marginLeft: 2
+              }}>{"\u00D7"}</button>
+            </div>;
+          })}
+          {elArr.length > 0 && <div style={{ fontSize: 8, color: _br.mu, fontFamily: _mono, marginTop: 6, fontStyle: "italic" }}>X/Y = feet from left/street edge. Drag positioning coming soon.</div>}
+        </div>;
+      })()}
+
       {/* === UPLOAD SURVEY (collapsible) === */}
       <button onClick={function() { setShowUpload(!showUpload); }} style={{
         width: "100%", padding: "10px 14px", marginBottom: showUpload || sitePlanFile ? 0 : 14,
