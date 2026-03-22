@@ -1,7 +1,7 @@
 """
-SimpleBlueprints — Sheet A-6: Site Plan
+SimpleBlueprints â Sheet A-6: Site Plan
 Shows property boundaries, setbacks, house footprint, and deck placement.
-S24: Zone-aware — draws composite deck outline for multi-zone configs.
+S24: Zone-aware â draws composite deck outline for multi-zone configs.
 S28: Consumes p.sitePlan when present, falls back to flat params.
      Independent left/right setbacks, address/parcel on sheet,
      house placement matches frontend SVG preview, deckOffset applied.
@@ -53,7 +53,7 @@ def _extract_site_params(params, calc):
         "house_label": (sp.get("houseLabel") or "EXISTING SINGLE\nFAMILY RESIDENCE").upper(),
         "address": sp.get("address") or pi.get("address", ""),
         "parcel_id": sp.get("parcelId") or pi.get("lot", ""),
-        "street_name": sp.get("streetName", ""),
+        "street_name": params.get("streetName") or sp.get("streetName", ""),
     }
 
 
