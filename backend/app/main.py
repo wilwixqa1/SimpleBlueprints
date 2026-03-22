@@ -78,7 +78,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 async def cache_control(request: Request, call_next):
     response = await call_next(request)
     path = request.url.path
-    if path.startswith("/js/"):
+    if path.startswith("/static/js/"):
         response.headers["Cache-Control"] = "no-cache, must-revalidate"
     elif path.startswith("/api/download/"):
         response.headers["Cache-Control"] = "no-store"
@@ -396,5 +396,5 @@ async def root(request: Request):
         return FileResponse(str(index_path), media_type="text/html")
     return {"message": "SimpleBlueprints API is running"}
 
-app.mount("/js", StaticFiles(directory=str(_STATIC_DIR / "js")), name="js-static")
+# /js/ mount removed S26 — all JS now served via /static/js/ (S25 mount)
 app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static-all")
