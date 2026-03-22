@@ -85,6 +85,9 @@ function StepContent(props) {
   const [showDisclaimer, setShowDisclaimer] = _stUS(false);
   const [disclaimerAcked, setDisclaimerAcked] = _stUS(false);
   const [showUpload, setShowUpload] = _stUS(false);
+  const [extracting, setExtracting] = _stUS(false);
+  const [extractResult, setExtractResult] = _stUS(null);
+  const [extractError, setExtractError] = _stUS(null);
 
   // ââ Active zone data ââ
   var activeZoneObj = p.activeZone > 0 ? p.zones.find(function(z) { return z.id === p.activeZone; }) : null;
@@ -270,7 +273,8 @@ function StepContent(props) {
     var deckCenterX = p.houseOffsetSide + p.houseWidth / 2 + (p.deckOffset || 0);
     var deckLeftX = deckCenterX - p.width / 2;
     var deckRightX = deckCenterX + p.width / 2;
-    var deckRearY = p.setbackFront + p.houseDepth + p.depth;
+    var houseY = p.houseDistFromStreet || p.setbackFront;
+    var deckRearY = houseY + p.houseDepth + p.depth;
     var rearGap = p.lotDepth - deckRearY;
     var leftGap = deckLeftX;
     var rightGap = p.lotWidth - deckRightX;
@@ -300,8 +304,11 @@ function StepContent(props) {
         <Slider label="Lot width (front to back neighbor)" value={p.lotWidth} min={30} max={300} field="lotWidth" u={u} p={p} />
         <Slider label="Lot depth (street to back)" value={p.lotDepth} min={50} max={400} field="lotDepth" u={u} p={p} />
         <div style={{ fontSize: 9, fontWeight: 700, color: _br.mu, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 8, marginTop: 12 }}>House Position</div>
+        <Slider label="House width" value={p.houseWidth} min={20} max={80} field="houseWidth" u={u} p={p} />
         <Slider label="House depth" value={p.houseDepth} min={20} max={60} field="houseDepth" u={u} p={p} />
         <Slider label="House offset from left property line" value={p.houseOffsetSide} min={5} max={Math.max(5, p.lotWidth - p.houseWidth - 5)} field="houseOffsetSide" u={u} p={p} />
+        <Slider label="House distance from street" value={p.houseDistFromStreet || p.setbackFront} min={p.setbackFront} max={Math.max(p.setbackFront + 1, p.lotDepth - p.houseDepth - 10)} field="houseDistFromStreet" u={u} p={p} />
+        <div style={{ fontSize: 8, color: _br.mu, fontFamily: _mono, marginTop: -12, marginBottom: 12, fontStyle: "italic" }}>Front setback is the minimum ({p.setbackFront}'). Your house may sit further back.</div>
         <div style={{ fontSize: 9, fontWeight: 700, color: _br.mu, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 8, marginTop: 12 }}>Setbacks (from zoning code)</div>
         <Slider label="Front setback" value={p.setbackFront} min={0} max={50} field="setbackFront" u={u} p={p} />
         <Slider label="Side setback" value={p.setbackSide} min={0} max={30} field="setbackSide" u={u} p={p} />
@@ -347,6 +354,101 @@ function StepContent(props) {
               <div style={{ fontSize: 9, fontFamily: _mono, color: _br.mu, marginTop: 4 }}>PDF, PNG, or JPG</div>
             </div>
           )}
+        </div>
+      </div>}
+
+      {/* === AI EXTRACTION (S29) === */}
+      {sitePlanFile && !extractResult && <div style={{ marginBottom: 14 }}>
+        <button onClick={async function() {
+          setExtracting(true); setExtractError(null);
+          try {
+            var fileType = sitePlanFile.name.toLowerCase().endsWith(".pdf") ? "pdf" : "image";
+            var b64 = await new Promise(function(resolve, reject) {
+              var reader = new FileReader();
+              reader.onload = function() { resolve(reader.result.split(",")[1]); };
+              reader.onerror = function() { reject(new Error("Failed to read file")); };
+              reader.readAsDataURL(sitePlanFile);
+            });
+            var res = await fetch(API + "/api/extract-survey", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              body: JSON.stringify({ surveyData: b64, fileType: fileType })
+            });
+            var data = await res.json();
+            if (data.ok) { setExtractResult(data.data); }
+            else { setExtractError(data.error || "Extraction failed"); }
+          } catch(e) { setExtractError(e.message); }
+          setExtracting(false);
+        }} disabled={extracting} style={{
+          width: "100%", padding: "12px 14px",
+          background: extracting ? _br.wr : "#eff6ff",
+          border: "1px solid " + (extracting ? _br.bd : "#93c5fd"),
+          borderRadius: 8, cursor: extracting ? "wait" : "pointer",
+          fontSize: 11, fontFamily: _mono,
+          color: extracting ? _br.mu : "#1d4ed8", fontWeight: 700,
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 8
+        }}>
+          {extracting ? "\u23F3 Analyzing survey with AI..." : "\u2728 Extract dimensions from survey"}
+        </button>
+        {extractError && <div style={{ fontSize: 10, color: "#dc2626", fontFamily: _mono, marginTop: 6 }}>{"\u26A0\uFE0F"} {extractError}</div>}
+      </div>}
+
+      {extractResult && <div style={{ padding: 14, background: "#eff6ff", borderRadius: 8, border: "1px solid #93c5fd", marginBottom: 14 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <div style={{ fontSize: 9, fontWeight: 700, color: "#1d4ed8", fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>{"\u2728"} AI Extracted Dimensions</div>
+          <button onClick={function() { setExtractResult(null); }} style={{ fontSize: 8, fontFamily: _mono, color: _br.mu, background: "none", border: "1px solid " + _br.bd, borderRadius: 4, padding: "3px 8px", cursor: "pointer" }}>Dismiss</button>
+        </div>
+        <div style={{ fontSize: 9, color: "#1e40af", fontFamily: _mono, marginBottom: 10 }}>Review the values below, then click Apply to populate the sliders.</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+          {[
+            ["lotWidth", "Lot Width", "'"],
+            ["lotDepth", "Lot Depth", "'"],
+            ["houseWidth", "House Width", "'"],
+            ["houseDepth", "House Depth", "'"],
+            ["houseDistFromStreet", "Dist. from Street", "'"],
+            ["houseOffsetSide", "Offset from Left", "'"],
+            ["setbackFront", "Front Setback", "'"],
+            ["setbackRear", "Rear Setback", "'"],
+            ["setbackSide", "Side Setback", "'"],
+          ].map(function(item) {
+            var key = item[0], label = item[1], unit = item[2];
+            var val = extractResult[key];
+            var conf = extractResult.confidence ? extractResult.confidence[key] : "low";
+            var confColor = conf === "high" ? "#16a34a" : conf === "medium" ? "#ca8a04" : "#dc2626";
+            if (val === null || val === undefined) return null;
+            return <div key={key} style={{ padding: "6px 8px", background: "#fff", borderRadius: 4, border: "1px solid #dbeafe" }}>
+              <div style={{ fontSize: 8, color: _br.mu, fontFamily: _mono }}>{label}</div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 13, fontWeight: 800, fontFamily: _mono, color: _br.tx }}>{val}{unit}</span>
+                <span style={{ fontSize: 7, fontWeight: 700, fontFamily: _mono, color: confColor, background: confColor + "18", padding: "2px 5px", borderRadius: 3, textTransform: "uppercase" }}>{conf}</span>
+              </div>
+            </div>;
+          })}
+        </div>
+        {(extractResult.address || extractResult.streetName || extractResult.parcelId) && <div style={{ marginTop: 8, padding: "6px 8px", background: "#fff", borderRadius: 4, border: "1px solid #dbeafe" }}>
+          <div style={{ fontSize: 8, color: _br.mu, fontFamily: _mono, marginBottom: 2 }}>Property Info</div>
+          {extractResult.address && <div style={{ fontSize: 10, fontFamily: _mono, color: _br.tx }}>{extractResult.address}</div>}
+          {extractResult.streetName && <div style={{ fontSize: 9, fontFamily: _mono, color: _br.mu }}>Street: {extractResult.streetName}</div>}
+          {extractResult.parcelId && <div style={{ fontSize: 9, fontFamily: _mono, color: _br.mu }}>Parcel: {extractResult.parcelId}</div>}
+        </div>}
+        <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+          <button onClick={function() {
+            var d = extractResult;
+            if (d.lotWidth) u("lotWidth", d.lotWidth);
+            if (d.lotDepth) u("lotDepth", d.lotDepth);
+            if (d.houseWidth) u("houseWidth", d.houseWidth);
+            if (d.houseDepth) u("houseDepth", d.houseDepth);
+            if (d.houseDistFromStreet) u("houseDistFromStreet", d.houseDistFromStreet);
+            if (d.houseOffsetSide) u("houseOffsetSide", d.houseOffsetSide);
+            if (d.setbackFront) u("setbackFront", d.setbackFront);
+            if (d.setbackRear) u("setbackRear", d.setbackRear);
+            if (d.setbackSide) u("setbackSide", d.setbackSide);
+            if (d.address) setI("address", d.address);
+            if (d.parcelId) setI("lot", d.parcelId);
+            setExtractResult(null);
+          }} style={{ flex: 1, padding: "10px", background: "#1d4ed8", color: "#fff", border: "none", borderRadius: 6, fontSize: 11, fontWeight: 700, fontFamily: _mono, cursor: "pointer" }}>{"\u2713"} Apply All Dimensions</button>
+          <button onClick={function() { setExtractResult(null); }} style={{ padding: "10px 14px", background: "none", border: "1px solid " + _br.bd, borderRadius: 6, fontSize: 11, fontFamily: _mono, color: _br.mu, cursor: "pointer" }}>Cancel</button>
         </div>
       </div>}
 
