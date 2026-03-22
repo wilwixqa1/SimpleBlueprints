@@ -1,7 +1,7 @@
 // ============================================================
-// SITE PLAN VIEW â SVG preview for Step 3 (Site Plan)
+// SITE PLAN VIEW - SVG preview for Step 3 (Site Plan)
 // Shows lot boundary, house, deck, setbacks, dimensions
-// Added S27
+// Added S27, Zone-aware S30, Site elements S31
 // ============================================================
 
 window.SitePlanView = function SitePlanView({ p, c }) {
@@ -63,7 +63,6 @@ window.SitePlanView = function SitePlanView({ p, c }) {
   var sbPx = sbFt * scale;
 
   // === DIMENSION ARROW HELPER ===
-  // Draws a dimension line with text between two SVG points
   function DimLine(props) {
     var x1 = props.x1, y1 = props.y1, x2 = props.x2, y2 = props.y2;
     var label = props.label, color = props.color || "#1565c0", side = props.side || "mid";
@@ -103,6 +102,33 @@ window.SitePlanView = function SitePlanView({ p, c }) {
     deckEls.push(React.createElement("text", { key: "ddim", x: sx(bbLx + bbW / 2), y: sy(bbLy + bbD / 2) + 13, textAnchor: "middle", style: { fontSize: 7, fill: "#5a7a4a", fontFamily: mono } }, dimLabel));
   }
 
+  // === SITE ELEMENTS (S31) ===
+  var siteEls = [];
+  var elems = p.siteElements || [];
+  var elFills = { driveway: "#d5d5d5", shed: "#d4c5a9", garage: "#e0d8cc", ac_unit: "#c0c0c0", patio: "#d7ccc8", walkway: "#e0e0e0" };
+  elems.forEach(function(el, idx) {
+    var ex = el.x, ey = el.y, ew = el.w, ed = el.d;
+    if (el.type === "tree") {
+      var r = ew / 2;
+      siteEls.push(React.createElement("circle", { key: "el" + idx, cx: sx(ex + r), cy: sy(ey + r), r: sw(r), fill: "#8bc34a", fillOpacity: 0.35, stroke: "#558b2f", strokeWidth: 0.8 }));
+      siteEls.push(React.createElement("circle", { key: "eld" + idx, cx: sx(ex + r), cy: sy(ey + r), r: 1.5, fill: "#33691e" }));
+    } else if (el.type === "pool") {
+      siteEls.push(React.createElement("rect", { key: "el" + idx, x: sx(ex), y: sy(ey + ed), width: sw(ew), height: sh(ed), fill: "#b3d9ff", fillOpacity: 0.45, stroke: "#1976d2", strokeWidth: 0.8, rx: sw(Math.min(2, ew / 4)) }));
+    } else if (el.type === "fence") {
+      siteEls.push(React.createElement("rect", { key: "el" + idx, x: sx(ex), y: sy(ey + ed), width: Math.max(sw(ew), 1.5), height: Math.max(sh(ed), 1.5), fill: "#8d6e63", fillOpacity: 0.6, stroke: "#5d4037", strokeWidth: 0.8, strokeDasharray: "3,1.5" }));
+    } else {
+      siteEls.push(React.createElement("rect", { key: "el" + idx, x: sx(ex), y: sy(ey + ed), width: sw(ew), height: sh(ed), fill: elFills[el.type] || "#ddd", fillOpacity: 0.5, stroke: "#888", strokeWidth: 0.8 }));
+    }
+    // Hatch pattern for garage/shed
+    if (el.type === "shed" || el.type === "garage") {
+      siteEls.push(React.createElement("rect", { key: "elh" + idx, x: sx(ex), y: sy(ey + ed), width: sw(ew), height: sh(ed), fill: "url(#spHatch)", opacity: 0.4 }));
+    }
+    // Label (only if element is large enough to read)
+    if (el.label && sh(ed) > 8 && sw(ew) > 12) {
+      siteEls.push(React.createElement("text", { key: "elt" + idx, x: sx(ex + ew / 2), y: sy(ey + ed / 2) + 3, textAnchor: "middle", style: { fontSize: 6, fill: "#555", fontFamily: mono, fontWeight: 600 } }, el.label));
+    }
+  });
+
   return React.createElement("svg", { viewBox: "0 0 " + svgW + " " + svgH, style: { width: "100%", height: "100%", minHeight: 320 } },
 
     // Background
@@ -127,6 +153,9 @@ window.SitePlanView = function SitePlanView({ p, c }) {
     React.createElement("rect", { x: sx(hx), y: sy(hy + hd), width: sw(hw), height: sh(hd), fill: "url(#spHatch)" }),
     sh(hd) > 20 ? React.createElement("text", { x: sx(hx + hw / 2), y: sy(hy + hd / 2) + 3, textAnchor: "middle", style: { fontSize: 8, fill: "#666", fontFamily: mono, fontWeight: 600 } }, "EXISTING HOUSE") : null,
     sh(hd) > 30 ? React.createElement("text", { x: sx(hx + hw / 2), y: sy(hy + hd / 2) + 13, textAnchor: "middle", style: { fontSize: 7, fill: "#888", fontFamily: mono } }, hw + "' x " + hd + "'") : null,
+
+    // === SITE ELEMENTS (S31) ===
+    React.createElement("g", null, siteEls),
 
     // === DECK FOOTPRINT (zone-aware, S30) ===
     React.createElement("g", null, deckEls),
