@@ -374,6 +374,34 @@ function StepContent(props) {
         </div>
       </div>}
 
+      {/* === PROPERTY INFO (prints on site plan + title block) === */}
+      <div style={{ padding: 14, background: _br.wr, borderRadius: 8, border: "1px solid " + _br.bd, marginBottom: 14 }}>
+        <div style={{ fontSize: 9, fontWeight: 700, color: _br.gn, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 8 }}>Property Information</div>
+        <div style={{ marginBottom: 8 }}>
+          <label style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, display: "block", marginBottom: 2 }}>Property Address</label>
+          <input value={info.address} onChange={function(e) { setI("address", e.target.value); }} placeholder="123 Main St" style={{ width: "100%", padding: "7px 10px", border: "1px solid " + _br.bd, borderRadius: 5, fontSize: 12, fontFamily: _mono, color: _br.tx, background: "#fff", outline: "none", boxSizing: "border-box" }} />
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ flex: 1 }}>
+            <label style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, display: "block", marginBottom: 2 }}>City, State ZIP</label>
+            <input value={(info.city || "") + (info.state ? ", " + info.state : "") + (info.zip ? " " + info.zip : "")} onChange={function(e) {
+              var v = e.target.value;
+              var parts = v.split(",");
+              var city = (parts[0] || "").trim();
+              var rest = (parts[1] || "").trim().split(/\s+/);
+              var st = rest.length > 1 ? rest.slice(0, -1).join(" ") : (rest[0] || "");
+              var zip = rest.length > 1 ? rest[rest.length - 1] : "";
+              setI("city", city); setI("state", st); setI("zip", zip);
+            }} placeholder="Anytown, NY 10001" style={{ width: "100%", padding: "7px 10px", border: "1px solid " + _br.bd, borderRadius: 5, fontSize: 12, fontFamily: _mono, color: _br.tx, background: "#fff", outline: "none", boxSizing: "border-box" }} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <label style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, display: "block", marginBottom: 2 }}>Lot / Parcel #</label>
+            <input value={info.lot} onChange={function(e) { setI("lot", e.target.value); }} placeholder="Optional" style={{ width: "100%", padding: "7px 10px", border: "1px solid " + _br.bd, borderRadius: 5, fontSize: 12, fontFamily: _mono, color: _br.tx, background: "#fff", outline: "none", boxSizing: "border-box" }} />
+          </div>
+        </div>
+        <div style={{ fontSize: 8, color: _br.mu, fontFamily: _mono, marginTop: 6, fontStyle: "italic" }}>This prints on your site plan sheet and title block. You can also edit in the Review step.</div>
+      </div>
+
       {/* === SETBACK WARNINGS === */}
       {sitePlanMode === "generate" && spWarnings.length > 0 && <div style={{ padding: 12, background: "#fff8e1", borderRadius: 8, border: "1px solid #ffe082", marginBottom: 14 }}>
         <div style={{ fontSize: 9, fontWeight: 700, color: "#f57f17", fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 6 }}>{"\u26A0\uFE0F"} Setback Warnings</div>
