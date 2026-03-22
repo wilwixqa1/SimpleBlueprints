@@ -1,5 +1,5 @@
 // ============================================================
-// MAIN APP — Wizard Shell, State, Nav, Preview Panel
+// MAIN APP â Wizard Shell, State, Nav, Preview Panel
 // ============================================================
 const { useState, useMemo, useEffect, useRef } = React;
 
@@ -15,9 +15,10 @@ const App = function SimpleBlueprints() {
   const [zoneMode, setZoneMode] = useState("select"); // "select" | "add" | "cut" | "chamfer"
   const [p, setP] = useState({ width: 20, depth: 12, height: 4, houseWidth: 40, houseDepth: 30, attachment: "ledger", hasStairs: true, stairLocation: "front", stairWidth: 4, numStringers: 3, hasLanding: false, joistSpacing: 16, deckingType: "composite", railType: "fortress", snowLoad: "moderate", frostZone: "cold", lotWidth: 80, lotDepth: 120, setbackFront: 25, setbackSide: 5, setbackRear: 20, houseOffsetSide: 20, deckOffset: 0, stairOffset: 0, beamType: "dropped", stairTemplate: "straight", stairRunSplit: null, stairLandingDepth: null, stairLandingWidth: null, stairGap: 0.5, stairRotation: 0, stairAnchorX: null, stairAnchorY: null, stairAngle: null,
     houseDistFromStreet: null,
-    // Zone system — S19
+    streetName: "",
+    // Zone system â S19
     zones: [], activeZone: 0, nextZoneId: 1, mainCorners: { BL: { type: "square", size: 0 }, BR: { type: "square", size: 0 }, FL: { type: "square", size: 0 }, FR: { type: "square", size: 0 } },
-    // Site plan — S27 (defaults seeded from existing flat params)
+    // Site plan â S27 (defaults seeded from existing flat params)
     sitePlan: {
       lotShape: "rectangle", lotWidth: 80, lotDepth: 120,
       streetSide: "south", streetName: "",
@@ -80,7 +81,7 @@ const App = function SimpleBlueprints() {
     return next;
   });
 
-  // ── Zone management functions ──
+  // ââ Zone management functions ââ
   const addZone = (parentId, edge) => setP(prev => {
     var parentP = Object.assign({}, prev, { deckWidth: prev.width, deckDepth: prev.depth });
     var defaults = window.addZoneDefaults(parentId, edge, "add", parentP);
@@ -162,7 +163,7 @@ const App = function SimpleBlueprints() {
     return (z && z.corners) || DEF_CORNERS;
   };
 
-  // ── Provide deckWidth/deckDepth aliases for zoneUtils ──
+  // ââ Provide deckWidth/deckDepth aliases for zoneUtils ââ
   // zoneUtils reads p.deckWidth/p.deckDepth, but our flat params use width/depth
   const pForZones = useMemo(() => Object.assign({}, p, { deckWidth: p.width, deckDepth: p.depth, deckHeight: p.height }), [p]);
 
@@ -320,7 +321,7 @@ const App = function SimpleBlueprints() {
                   addZone={addZone} addCutout={addCutout}
                   getCorners={getCorners} setCorner={setCorner} />
                 {planMode === "plan" && <div style={{ textAlign: "center", fontSize: 9, color: br.mu, fontFamily: mono, marginTop: 4, opacity: 0.7 }}>
-                  {zoneMode === "select" && <>Drag the <span style={{ color: "#3d5a2e", fontWeight: 700 }}>green</span> handle to slide the deck · Click <span style={{ color: "#c62828", fontWeight: 700 }}>stairs</span> to select, drag to move, grab <span style={{ color: "#3d5a2e", fontWeight: 700 }}>{"\u21BB"}</span> to rotate</>}
+                  {zoneMode === "select" && <>Drag the <span style={{ color: "#3d5a2e", fontWeight: 700 }}>green</span> handle to slide the deck Â· Click <span style={{ color: "#c62828", fontWeight: 700 }}>stairs</span> to select, drag to move, grab <span style={{ color: "#3d5a2e", fontWeight: 700 }}>{"\u21BB"}</span> to rotate</>}
                   {zoneMode === "add" && <>Click <span style={{ color: "#16a34a", fontWeight: 700 }}>+</span> on any edge to add a deck zone</>}
                   {zoneMode === "cut" && <>Click <span style={{ color: "#dc2626", fontWeight: 700 }}>{"\u2702"}</span> on corners for house wraps, center for openings</>}
                   {zoneMode === "chamfer" && <>Click <span style={{ color: "#7c3aed", fontWeight: 700 }}>{"\u25E3"}</span> on corners to toggle 45{"\u00B0"} chamfers</>}
