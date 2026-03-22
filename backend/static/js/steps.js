@@ -1,6 +1,7 @@
 // ============================================================
-// WIZARD STEPS — Step 0 (Size), Step 1 (Structure), Step 2 (Finishes), Step 3 (Review)
-// Multi-zone support added S19
+// WIZARD STEPS — Step 0 (Size), Step 1 (Structure), Step 2 (Finishes),
+//                Step 3 (Site Plan), Step 4 (Review)
+// Multi-zone support added S19, Site Plan step added S27
 // ============================================================
 const { useState: _stUS, useEffect: _stUE, useMemo: _stUM } = React;
 const { br: _br, mono: _mono, sans: _sans } = window.SB;
@@ -257,57 +258,68 @@ function StepContent(props) {
       )}
       </div>}
 
-      <div style={{ marginTop: 16, padding: 14, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}` }}>
-        <div style={{ fontSize: 10, fontWeight: 700, color: _br.gn, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 4 }}>Site Plan / Survey</div>
-        <div style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, marginBottom: 10, lineHeight: 1.5 }}>
-          Find lot dimensions and setbacks on your county assessor website or in your home's survey/closing documents. Setbacks come from your local zoning code.
-        </div>
-        <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
-          {[["generate", "Generate for me"], ["upload", "Upload my survey"]].map(([v, t]) => (
-            <button key={v} onClick={() => setSitePlanMode(v)} style={{ flex: 1, padding: "8px 12px", borderRadius: 6, fontSize: 11, fontFamily: _mono, cursor: "pointer", border: sitePlanMode === v ? `2px solid ${_br.gn}` : `1px solid ${_br.bd}`, background: sitePlanMode === v ? _br.gn : "#fff", color: sitePlanMode === v ? "#fff" : _br.tx, fontWeight: sitePlanMode === v ? 700 : 400, transition: "all 0.15s" }}>{t}</button>
-          ))}
-        </div>
-
-        {sitePlanMode === "generate" && <>
-          <Slider label="Lot width" value={p.lotWidth} min={30} max={300} field="lotWidth" u={u} p={p} />
-          <Slider label="Lot depth" value={p.lotDepth} min={50} max={400} field="lotDepth" u={u} p={p} />
-          <Slider label="House depth" value={p.houseDepth} min={20} max={60} field="houseDepth" u={u} p={p} />
-          <Slider label="Front setback" value={p.setbackFront} min={0} max={50} field="setbackFront" u={u} p={p} />
-          <Slider label="Side setback" value={p.setbackSide} min={0} max={30} field="setbackSide" u={u} p={p} />
-          <Slider label="Rear setback" value={p.setbackRear} min={0} max={50} field="setbackRear" u={u} p={p} />
-          <Slider label="House offset from left" value={p.houseOffsetSide} min={5} max={Math.max(5, p.lotWidth - p.houseWidth - 5)} field="houseOffsetSide" u={u} p={p} />
-        </>}
-
-        {sitePlanMode === "upload" && (
-          <div style={{ textAlign: "center", padding: 20, border: `2px dashed ${sitePlanFile ? _br.gn : _br.bd}`, borderRadius: 8, background: sitePlanFile ? "#edf5e8" : "#fff", cursor: "pointer", position: "relative" }}
-            onClick={() => document.getElementById("sitePlanInput").click()}>
-            <input id="sitePlanInput" type="file" accept=".pdf,.png,.jpg,.jpeg" style={{ display: "none" }} onChange={e => {
-              const file = e.target.files[0]; if (!file) return;
-              setSitePlanFile(file);
-              const reader = new FileReader();
-              reader.onload = () => setSitePlanB64(reader.result.split(",")[1]);
-              reader.readAsDataURL(file);
-            }} />
-            {sitePlanFile ? (
-              <div>
-                <div style={{ fontSize: 20, marginBottom: 6 }}>{"\u2713"}</div>
-                <div style={{ fontSize: 11, fontFamily: _mono, color: _br.gn, fontWeight: 700 }}>{sitePlanFile.name}</div>
-                <div style={{ fontSize: 9, fontFamily: _mono, color: _br.mu, marginTop: 4 }}>{(sitePlanFile.size / 1024).toFixed(0)} KB {"\u00B7"} Click to change</div>
-              </div>
-            ) : (
-              <div>
-                <div style={{ fontSize: 24, marginBottom: 6 }}>{"\uD83D\uDCC4"}</div>
-                <div style={{ fontSize: 11, fontFamily: _mono, color: _br.tx, fontWeight: 600 }}>Click to upload your survey</div>
-                <div style={{ fontSize: 9, fontFamily: _mono, color: _br.mu, marginTop: 4 }}>PDF, PNG, or JPG</div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
     </>}
   </>;
 
-  // ── Steps 1, 2, 3 unchanged from here ──
+  // ── Step 3: Site Plan (S27 — migrated from Step 0) ──
+  if (step === 3) return <>
+    <div style={{ marginBottom: 14, padding: 14, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}` }}>
+      <div style={{ fontSize: 10, fontWeight: 700, color: _br.gn, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 4 }}>Site Plan / Survey</div>
+      <div style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, marginBottom: 10, lineHeight: 1.5 }}>
+        Find lot dimensions and setbacks on your county assessor website or in your home's survey/closing documents. Setbacks come from your local zoning code.
+      </div>
+      <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+        {[["generate", "Generate for me"], ["upload", "Upload my survey"]].map(([v, t]) => (
+          <button key={v} onClick={() => setSitePlanMode(v)} style={{ flex: 1, padding: "8px 12px", borderRadius: 6, fontSize: 11, fontFamily: _mono, cursor: "pointer", border: sitePlanMode === v ? `2px solid ${_br.gn}` : `1px solid ${_br.bd}`, background: sitePlanMode === v ? _br.gn : "#fff", color: sitePlanMode === v ? "#fff" : _br.tx, fontWeight: sitePlanMode === v ? 700 : 400, transition: "all 0.15s" }}>{t}</button>
+        ))}
+      </div>
+
+      {sitePlanMode === "generate" && <>
+        <Slider label="Lot width" value={p.lotWidth} min={30} max={300} field="lotWidth" u={u} p={p} />
+        <Slider label="Lot depth" value={p.lotDepth} min={50} max={400} field="lotDepth" u={u} p={p} />
+        <Slider label="House depth" value={p.houseDepth} min={20} max={60} field="houseDepth" u={u} p={p} />
+        <Slider label="Front setback" value={p.setbackFront} min={0} max={50} field="setbackFront" u={u} p={p} />
+        <Slider label="Side setback" value={p.setbackSide} min={0} max={30} field="setbackSide" u={u} p={p} />
+        <Slider label="Rear setback" value={p.setbackRear} min={0} max={50} field="setbackRear" u={u} p={p} />
+        <Slider label="House offset from left" value={p.houseOffsetSide} min={5} max={Math.max(5, p.lotWidth - p.houseWidth - 5)} field="houseOffsetSide" u={u} p={p} />
+      </>}
+
+      {sitePlanMode === "upload" && (
+        <div style={{ textAlign: "center", padding: 20, border: `2px dashed ${sitePlanFile ? _br.gn : _br.bd}`, borderRadius: 8, background: sitePlanFile ? "#edf5e8" : "#fff", cursor: "pointer", position: "relative" }}
+          onClick={() => document.getElementById("sitePlanInput").click()}>
+          <input id="sitePlanInput" type="file" accept=".pdf,.png,.jpg,.jpeg" style={{ display: "none" }} onChange={e => {
+            const file = e.target.files[0]; if (!file) return;
+            setSitePlanFile(file);
+            const reader = new FileReader();
+            reader.onload = () => setSitePlanB64(reader.result.split(",")[1]);
+            reader.readAsDataURL(file);
+          }} />
+          {sitePlanFile ? (
+            <div>
+              <div style={{ fontSize: 20, marginBottom: 6 }}>{"\u2713"}</div>
+              <div style={{ fontSize: 11, fontFamily: _mono, color: _br.gn, fontWeight: 700 }}>{sitePlanFile.name}</div>
+              <div style={{ fontSize: 9, fontFamily: _mono, color: _br.mu, marginTop: 4 }}>{(sitePlanFile.size / 1024).toFixed(0)} KB {"\u00B7"} Click to change</div>
+            </div>
+          ) : (
+            <div>
+              <div style={{ fontSize: 24, marginBottom: 6 }}>{"\uD83D\uDCC4"}</div>
+              <div style={{ fontSize: 11, fontFamily: _mono, color: _br.tx, fontWeight: 600 }}>Click to upload your survey</div>
+              <div style={{ fontSize: 9, fontFamily: _mono, color: _br.mu, marginTop: 4 }}>PDF, PNG, or JPG</div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+
+    <div style={{ padding: 14, background: "#f0f7ff", borderRadius: 8, border: "1px solid #bfdbfe" }}>
+      <div style={{ fontSize: 10, fontWeight: 700, color: "#2563eb", fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 6 }}>Coming Soon</div>
+      <div style={{ fontSize: 10, color: _br.mu, fontFamily: _mono, lineHeight: 1.6 }}>
+        Enhanced site plan editor with lot shape options, house positioning, setback violation warnings, element placement (driveways, sheds, trees, easements), and automatic lot coverage calculations. For now, use the controls above or upload your survey.
+      </div>
+    </div>
+  </>;
+
+  // ── Steps 1, 2 unchanged; Step 4 (Review) below ──
   if (step === 1) return <>
     <Chips label="Joist spacing" field="joistSpacing" opts={[[12, '12" O.C.'], [16, '16" O.C.'], [24, '24" O.C.']]} u={u} p={p} />
     <Chips label="Snow load" field="snowLoad" opts={[["none", "None"], ["light", "Light"], ["moderate", "Moderate"], ["heavy", "Heavy"]]} u={u} p={p} />
@@ -428,7 +440,8 @@ function StepContent(props) {
     </div>
   </>;
 
-  if (step === 3) return <>
+  // ── Step 4: Review (was Step 3 before S27) ──
+  if (step === 4) return <>
     <div style={{ marginBottom: 14 }}>
       <div style={{ fontSize: 10, fontWeight: 700, color: _br.gn, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 8 }}>Blueprint Preview</div>
       <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 }}>
