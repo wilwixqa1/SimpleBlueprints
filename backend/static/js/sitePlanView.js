@@ -1,5 +1,5 @@
 // ============================================================
-// SITE PLAN VIEW — SVG preview for Step 3 (Site Plan)
+// SITE PLAN VIEW â SVG preview for Step 3 (Site Plan)
 // Shows lot boundary, house, deck, setbacks, dimensions
 // Added S27
 // ============================================================
@@ -35,15 +35,25 @@ window.SitePlanView = function SitePlanView({ p, c }) {
   var dx = deckCX - dw / 2;
   var dy = hy + hd; // deck starts at rear of house
 
+  // === ZONE-AWARE DECK (S30) ===
+  var pz = Object.assign({}, p, { deckWidth: dw, deckDepth: dd, deckHeight: p.height || 4 });
+  var addRects = window.getAdditiveRects ? window.getAdditiveRects(pz) : [];
+  var cutRects = window.getCutoutRects ? window.getCutoutRects(pz) : [];
+  var bb = window.getBoundingBox ? window.getBoundingBox(pz) : { x: 0, y: 0, w: dw, d: dd };
+  var hasZones = (p.zones || []).length > 0;
+  var bbLx = dx + bb.x, bbLy = dy + bb.y, bbW = bb.w, bbD = bb.d;
+  var totalArea = addRects.reduce(function(s, r) { return s + r.rect.w * r.rect.d; }, 0)
+                - cutRects.reduce(function(s, r) { return s + r.rect.w * r.rect.d; }, 0);
+
   // === SETBACKS ===
   var sbF = p.setbackFront || 0;
   var sbR = p.setbackRear || 0;
   var sbS = p.setbackSide || 0;
 
-  // === DISTANCES ===
-  var rearGap = lotD - (dy + dd);
-  var leftGap = dx;
-  var rightGap = lotW - (dx + dw);
+  // === DISTANCES (bounding box, S30) ===
+  var rearGap = lotD - (bbLy + bbD);
+  var leftGap = bbLx;
+  var rightGap = lotW - (bbLx + bbW);
   var rearWarn = rearGap < sbR;
   var leftWarn = leftGap < sbS;
   var rightWarn = rightGap < sbS;
@@ -66,6 +76,31 @@ window.SitePlanView = function SitePlanView({ p, c }) {
       React.createElement("line", { x1: x1, y1: y1, x2: x2, y2: y2, stroke: color, strokeWidth: 0.7, strokeDasharray: "3,2" }),
       React.createElement("text", { x: tx, y: ty, textAnchor: anchor, style: { fontSize: 7, fill: color, fontFamily: mono, fontWeight: 700 } }, label)
     );
+  }
+
+  // === BUILD DECK ELEMENTS (S30) ===
+  var deckEls = [];
+  if (addRects.length > 0) {
+    addRects.forEach(function(ar) {
+      var r = ar.rect;
+      deckEls.push(React.createElement("rect", { key: "a" + ar.id, x: sx(dx + r.x), y: sy(dy + r.y + r.d), width: sw(r.w), height: sh(r.d), fill: "#d4e6c3", stroke: "#3d5a2e", strokeWidth: 1.5 }));
+    });
+    cutRects.forEach(function(cr) {
+      var r = cr.rect;
+      deckEls.push(React.createElement("rect", { key: "c" + cr.id, x: sx(dx + r.x), y: sy(dy + r.y + r.d), width: sw(r.w), height: sh(r.d), fill: "#fafaf5", stroke: "#3d5a2e", strokeWidth: 1, strokeDasharray: "4,2" }));
+    });
+  } else {
+    deckEls.push(React.createElement("rect", { key: "d0", x: sx(dx), y: sy(dy + dd), width: sw(dw), height: sh(dd), fill: "#d4e6c3", stroke: "#3d5a2e", strokeWidth: 1.5 }));
+  }
+  if (p.attachment === "ledger") {
+    deckEls.push(React.createElement("line", { key: "ldg", x1: sx(dx), y1: sy(dy), x2: sx(dx + dw), y2: sy(dy), stroke: "#2e7d32", strokeWidth: 2.5 }));
+  }
+  if (sh(bbD) > 16) {
+    deckEls.push(React.createElement("text", { key: "dlbl", x: sx(bbLx + bbW / 2), y: sy(bbLy + bbD / 2) + 3, textAnchor: "middle", style: { fontSize: 8, fill: "#3d5a2e", fontFamily: mono, fontWeight: 700 } }, "PROPOSED DECK"));
+  }
+  if (sh(bbD) > 28) {
+    var dimLabel = hasZones ? totalArea.toFixed(0) + " S.F." : dw + "' x " + dd + "'";
+    deckEls.push(React.createElement("text", { key: "ddim", x: sx(bbLx + bbW / 2), y: sy(bbLy + bbD / 2) + 13, textAnchor: "middle", style: { fontSize: 7, fill: "#5a7a4a", fontFamily: mono } }, dimLabel));
   }
 
   return React.createElement("svg", { viewBox: "0 0 " + svgW + " " + svgH, style: { width: "100%", height: "100%", minHeight: 320 } },
@@ -93,16 +128,13 @@ window.SitePlanView = function SitePlanView({ p, c }) {
     sh(hd) > 20 ? React.createElement("text", { x: sx(hx + hw / 2), y: sy(hy + hd / 2) + 3, textAnchor: "middle", style: { fontSize: 8, fill: "#666", fontFamily: mono, fontWeight: 600 } }, "EXISTING HOUSE") : null,
     sh(hd) > 30 ? React.createElement("text", { x: sx(hx + hw / 2), y: sy(hy + hd / 2) + 13, textAnchor: "middle", style: { fontSize: 7, fill: "#888", fontFamily: mono } }, hw + "' x " + hd + "'") : null,
 
-    // === DECK FOOTPRINT ===
-    React.createElement("rect", { x: sx(dx), y: sy(dy + dd), width: sw(dw), height: sh(dd), fill: "#d4e6c3", stroke: "#3d5a2e", strokeWidth: 1.5 }),
-    p.attachment === "ledger" ? React.createElement("line", { x1: sx(dx), y1: sy(dy), x2: sx(dx + dw), y2: sy(dy), stroke: "#2e7d32", strokeWidth: 2.5 }) : null,
-    sh(dd) > 16 ? React.createElement("text", { x: sx(dx + dw / 2), y: sy(dy + dd / 2) + 3, textAnchor: "middle", style: { fontSize: 8, fill: "#3d5a2e", fontFamily: mono, fontWeight: 700 } }, "PROPOSED DECK") : null,
-    sh(dd) > 28 ? React.createElement("text", { x: sx(dx + dw / 2), y: sy(dy + dd / 2) + 13, textAnchor: "middle", style: { fontSize: 7, fill: "#5a7a4a", fontFamily: mono } }, dw + "' x " + dd + "'") : null,
+    // === DECK FOOTPRINT (zone-aware, S30) ===
+    React.createElement("g", null, deckEls),
 
-    // === DIMENSION LINES: deck to property lines ===
-    rearGap > 0 ? React.createElement(DimLine, { x1: sx(dx + dw / 2), y1: sy(dy + dd), x2: sx(dx + dw / 2), y2: sy(lotD), label: rearGap.toFixed(1) + "'", color: rearWarn ? "#e53935" : "#1565c0" }) : null,
-    leftGap > 0 && sw(leftGap) > 12 ? React.createElement(DimLine, { x1: sx(0), y1: sy(dy + dd / 2), x2: sx(dx), y2: sy(dy + dd / 2), label: leftGap.toFixed(1) + "'", color: leftWarn ? "#e53935" : "#1565c0", side: "above" }) : null,
-    rightGap > 0 && sw(rightGap) > 12 ? React.createElement(DimLine, { x1: sx(dx + dw), y1: sy(dy + dd / 2), x2: sx(lotW), y2: sy(dy + dd / 2), label: rightGap.toFixed(1) + "'", color: rightWarn ? "#e53935" : "#1565c0", side: "above" }) : null,
+    // === DIMENSION LINES: deck bounding box to property lines (S30) ===
+    rearGap > 0 ? React.createElement(DimLine, { x1: sx(bbLx + bbW / 2), y1: sy(bbLy + bbD), x2: sx(bbLx + bbW / 2), y2: sy(lotD), label: rearGap.toFixed(1) + "'", color: rearWarn ? "#e53935" : "#1565c0" }) : null,
+    leftGap > 0 && sw(leftGap) > 12 ? React.createElement(DimLine, { x1: sx(0), y1: sy(bbLy + bbD / 2), x2: sx(bbLx), y2: sy(bbLy + bbD / 2), label: leftGap.toFixed(1) + "'", color: leftWarn ? "#e53935" : "#1565c0", side: "above" }) : null,
+    rightGap > 0 && sw(rightGap) > 12 ? React.createElement(DimLine, { x1: sx(bbLx + bbW), y1: sy(bbLy + bbD / 2), x2: sx(lotW), y2: sy(bbLy + bbD / 2), label: rightGap.toFixed(1) + "'", color: rightWarn ? "#e53935" : "#1565c0", side: "above" }) : null,
 
     // === SETBACK LABELS ===
     sbF > 0 ? React.createElement("text", { x: sx(lotW / 2), y: sy(sbF) + 12, textAnchor: "middle", style: { fontSize: 7, fill: "#e53935", fontFamily: mono, opacity: 0.7 } }, sbF + "' front setback") : null,
@@ -113,7 +145,7 @@ window.SitePlanView = function SitePlanView({ p, c }) {
     React.createElement("text", { x: ox - 14, y: oy + lotPxH / 2 + 3, textAnchor: "middle", style: { fontSize: 9, fill: "#333", fontFamily: mono, fontWeight: 700 }, transform: "rotate(-90," + (ox - 14) + "," + (oy + lotPxH / 2) + ")" }, lotD + "'"),
 
     // === STREET LABEL ===
-    React.createElement("text", { x: sx(lotW / 2), y: oy + lotPxH + 30, textAnchor: "middle", style: { fontSize: 8, fill: "#999", fontFamily: mono, letterSpacing: 2 } }, "STREET"),
+    React.createElement("text", { x: sx(lotW / 2), y: oy + lotPxH + 30, textAnchor: "middle", style: { fontSize: 8, fill: "#999", fontFamily: mono, letterSpacing: 2 } }, p.streetName ? p.streetName.toUpperCase() : "STREET"),
 
     // === NORTH ARROW ===
     React.createElement("g", { transform: "translate(" + (svgW - 30) + "," + (oy + 20) + ")" },
