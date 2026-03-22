@@ -25,7 +25,7 @@ window.SitePlanView = function SitePlanView({ p, c }) {
 
   // === HOUSE ===
   var hx = p.houseOffsetSide || 20;
-  var hy = p.setbackFront || 25;
+  var hy = p.houseDistFromStreet || p.setbackFront || 25;
   var hw = p.houseWidth || 40;
   var hd = p.houseDepth || 30;
 
