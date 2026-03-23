@@ -2,6 +2,7 @@
 // SITE PLAN VIEW - SVG preview for Step 3 (Site Plan)
 // Shows lot boundary, house, deck, setbacks, dimensions
 // Added S27, Zone-aware S30, Site elements S31, Stairs S31
+// Selected element highlight S31
 // ============================================================
 
 window.SitePlanView = function SitePlanView({ p, c }) {
@@ -11,13 +12,11 @@ window.SitePlanView = function SitePlanView({ p, c }) {
   var svgW = 540, svgH = 400, margin = 50;
   var lotW = p.lotWidth || 80, lotD = p.lotDepth || 120;
 
-  // Auto-scale lot to fit SVG
   var scale = Math.min((svgW - margin * 2) / lotW, (svgH - margin * 2) / lotD);
   var lotPxW = lotW * scale, lotPxH = lotD * scale;
   var ox = (svgW - lotPxW) / 2;
   var oy = (svgH - lotPxH) / 2;
 
-  // Lot coords (x from left, y from front/street) to SVG coords (street at bottom)
   var sx = function(lx) { return ox + lx * scale; };
   var sy = function(ly) { return oy + lotPxH - ly * scale; };
   var sw = function(w) { return w * scale; };
@@ -33,7 +32,7 @@ window.SitePlanView = function SitePlanView({ p, c }) {
   var deckCX = hx + hw / 2 + (p.deckOffset || 0);
   var dw = p.width || 20, dd = p.depth || 12;
   var dx = deckCX - dw / 2;
-  var dy = hy + hd; // deck starts at rear of house
+  var dy = hy + hd;
 
   // === ZONE-AWARE DECK (S30) ===
   var pz = Object.assign({}, p, { deckWidth: dw, deckDepth: dd, deckHeight: p.height || 4 });
@@ -79,14 +78,12 @@ window.SitePlanView = function SitePlanView({ p, c }) {
       stDrawD = stW;
     }
 
-    // Stair run rectangle
     stairEls.push(React.createElement("rect", {
       key: "stair", x: sx(stX), y: sy(stY + stDrawD),
       width: sw(stDrawW), height: sh(stDrawD),
       fill: "#e8d5b7", fillOpacity: 0.5, stroke: "#8B7355", strokeWidth: 0.8, strokeDasharray: "3,2"
     }));
 
-    // Direction lines (treads)
     var numLines = Math.min(8, nRisers - 1);
     if (loc === "front" && sh(stDrawD) > 10) {
       for (var ti = 1; ti <= numLines; ti++) {
@@ -120,7 +117,6 @@ window.SitePlanView = function SitePlanView({ p, c }) {
       }
     }
 
-    // Label
     var labelX = stX + stDrawW / 2;
     var labelY = stY + stDrawD / 2;
     if (sh(stDrawD) > 10 && sw(stDrawW) > 14) {
@@ -130,7 +126,6 @@ window.SitePlanView = function SitePlanView({ p, c }) {
       }, "STAIRS"));
     }
 
-    // Landing pad
     if (p.hasLanding && landD > 0) {
       var lx, ly, lw, ld;
       if (loc === "front") {
@@ -147,7 +142,6 @@ window.SitePlanView = function SitePlanView({ p, c }) {
       }));
     }
 
-    // Run dimension
     if (loc === "front" && sh(stDrawD) > 6) {
       stairEls.push(React.createElement("text", {
         key: "strun", x: sx(stX + stDrawW) + 4, y: sy(stY + stDrawD / 2) + 3, textAnchor: "start",
@@ -211,43 +205,53 @@ window.SitePlanView = function SitePlanView({ p, c }) {
   // === SITE ELEMENTS (S31) ===
   var siteEls = [];
   var elems = p.siteElements || [];
+  var selId = p._selectedElId;
   var elFills = { driveway: "#d5d5d5", shed: "#d4c5a9", garage: "#e0d8cc", ac_unit: "#c0c0c0", patio: "#d7ccc8", walkway: "#e0e0e0" };
   elems.forEach(function(el, idx) {
     var ex = el.x, ey = el.y, ew = el.w, ed = el.d;
+    var isSel = selId === el.id;
     if (el.type === "tree") {
       var r = ew / 2;
-      siteEls.push(React.createElement("circle", { key: "el" + idx, cx: sx(ex + r), cy: sy(ey + r), r: sw(r), fill: "#8bc34a", fillOpacity: 0.35, stroke: "#558b2f", strokeWidth: 0.8 }));
+      siteEls.push(React.createElement("circle", { key: "el" + idx, cx: sx(ex + r), cy: sy(ey + r), r: sw(r), fill: "#8bc34a", fillOpacity: 0.35, stroke: isSel ? "#2563eb" : "#558b2f", strokeWidth: isSel ? 2 : 0.8 }));
       siteEls.push(React.createElement("circle", { key: "eld" + idx, cx: sx(ex + r), cy: sy(ey + r), r: 1.5, fill: "#33691e" }));
+      if (isSel) {
+        siteEls.push(React.createElement("circle", { key: "elsel" + idx, cx: sx(ex + r), cy: sy(ey + r), r: sw(r) + 4, fill: "none", stroke: "#2563eb", strokeWidth: 1.5, strokeDasharray: "4,2" }));
+      }
     } else if (el.type === "pool") {
-      siteEls.push(React.createElement("rect", { key: "el" + idx, x: sx(ex), y: sy(ey + ed), width: sw(ew), height: sh(ed), fill: "#b3d9ff", fillOpacity: 0.45, stroke: "#1976d2", strokeWidth: 0.8, rx: sw(Math.min(2, ew / 4)) }));
+      siteEls.push(React.createElement("rect", { key: "el" + idx, x: sx(ex), y: sy(ey + ed), width: sw(ew), height: sh(ed), fill: "#b3d9ff", fillOpacity: 0.45, stroke: isSel ? "#2563eb" : "#1976d2", strokeWidth: isSel ? 2 : 0.8, rx: sw(Math.min(2, ew / 4)) }));
+      if (isSel) {
+        siteEls.push(React.createElement("rect", { key: "elsel" + idx, x: sx(ex) - 3, y: sy(ey + ed) - 3, width: sw(ew) + 6, height: sh(ed) + 6, fill: "none", stroke: "#2563eb", strokeWidth: 1.5, strokeDasharray: "4,2", rx: 3 }));
+      }
     } else if (el.type === "fence") {
-      siteEls.push(React.createElement("rect", { key: "el" + idx, x: sx(ex), y: sy(ey + ed), width: Math.max(sw(ew), 1.5), height: Math.max(sh(ed), 1.5), fill: "#8d6e63", fillOpacity: 0.6, stroke: "#5d4037", strokeWidth: 0.8, strokeDasharray: "3,1.5" }));
+      siteEls.push(React.createElement("rect", { key: "el" + idx, x: sx(ex), y: sy(ey + ed), width: Math.max(sw(ew), 1.5), height: Math.max(sh(ed), 1.5), fill: "#8d6e63", fillOpacity: 0.6, stroke: isSel ? "#2563eb" : "#5d4037", strokeWidth: isSel ? 2 : 0.8, strokeDasharray: isSel ? "none" : "3,1.5" }));
+      if (isSel) {
+        siteEls.push(React.createElement("rect", { key: "elsel" + idx, x: sx(ex) - 3, y: sy(ey + ed) - 3, width: Math.max(sw(ew), 1.5) + 6, height: Math.max(sh(ed), 1.5) + 6, fill: "none", stroke: "#2563eb", strokeWidth: 1.5, strokeDasharray: "4,2", rx: 2 }));
+      }
     } else {
-      siteEls.push(React.createElement("rect", { key: "el" + idx, x: sx(ex), y: sy(ey + ed), width: sw(ew), height: sh(ed), fill: elFills[el.type] || "#ddd", fillOpacity: 0.5, stroke: "#888", strokeWidth: 0.8 }));
+      siteEls.push(React.createElement("rect", { key: "el" + idx, x: sx(ex), y: sy(ey + ed), width: sw(ew), height: sh(ed), fill: elFills[el.type] || "#ddd", fillOpacity: 0.5, stroke: isSel ? "#2563eb" : "#888", strokeWidth: isSel ? 2 : 0.8 }));
+      if (isSel) {
+        siteEls.push(React.createElement("rect", { key: "elsel" + idx, x: sx(ex) - 3, y: sy(ey + ed) - 3, width: sw(ew) + 6, height: sh(ed) + 6, fill: "none", stroke: "#2563eb", strokeWidth: 1.5, strokeDasharray: "4,2", rx: 2 }));
+      }
     }
-    if (el.type === "shed" || el.type === "garage") {
+    if ((el.type === "shed" || el.type === "garage") && !isSel) {
       siteEls.push(React.createElement("rect", { key: "elh" + idx, x: sx(ex), y: sy(ey + ed), width: sw(ew), height: sh(ed), fill: "url(#spHatch)", opacity: 0.4 }));
     }
     if (el.label && sh(ed) > 8 && sw(ew) > 12) {
-      siteEls.push(React.createElement("text", { key: "elt" + idx, x: sx(ex + ew / 2), y: sy(ey + ed / 2) + 3, textAnchor: "middle", style: { fontSize: 6, fill: "#555", fontFamily: mono, fontWeight: 600 } }, el.label));
+      siteEls.push(React.createElement("text", { key: "elt" + idx, x: sx(ex + ew / 2), y: sy(ey + ed / 2) + 3, textAnchor: "middle", style: { fontSize: 6, fill: isSel ? "#2563eb" : "#555", fontFamily: mono, fontWeight: 600 } }, el.label));
     }
   });
 
   return React.createElement("svg", { viewBox: "0 0 " + svgW + " " + svgH, style: { width: "100%", height: "100%", minHeight: 320 } },
 
-    // Background
     React.createElement("rect", { x: 0, y: 0, width: svgW, height: svgH, fill: "#fafaf5", rx: 4 }),
 
-    // === SETBACK ZONE (buildable area) ===
     sbF + sbR + sbS > 0 ? React.createElement("rect", {
       x: sx(sbS), y: sy(lotD - sbR), width: sw(lotW - sbS * 2), height: sh(lotD - sbF - sbR),
       fill: "none", stroke: "#e53935", strokeWidth: 0.8, strokeDasharray: "6,4", opacity: 0.5
     }) : null,
 
-    // === PROPERTY LINES ===
     React.createElement("rect", { x: ox, y: oy, width: lotPxW, height: lotPxH, fill: "none", stroke: "#333", strokeWidth: 2 }),
 
-    // === HOUSE FOOTPRINT ===
     React.createElement("defs", null,
       React.createElement("pattern", { id: "spHatch", patternUnits: "userSpaceOnUse", width: 6, height: 6, patternTransform: "rotate(45)" },
         React.createElement("line", { x1: 0, y1: 0, x2: 0, y2: 6, stroke: "#ccc", strokeWidth: 0.5 })
@@ -258,39 +262,30 @@ window.SitePlanView = function SitePlanView({ p, c }) {
     sh(hd) > 20 ? React.createElement("text", { x: sx(hx + hw / 2), y: sy(hy + hd / 2) + 3, textAnchor: "middle", style: { fontSize: 8, fill: "#666", fontFamily: mono, fontWeight: 600 } }, "EXISTING HOUSE") : null,
     sh(hd) > 30 ? React.createElement("text", { x: sx(hx + hw / 2), y: sy(hy + hd / 2) + 13, textAnchor: "middle", style: { fontSize: 7, fill: "#888", fontFamily: mono } }, hw + "' x " + hd + "'") : null,
 
-    // === SITE ELEMENTS (S31) ===
     React.createElement("g", null, siteEls),
 
-    // === DECK FOOTPRINT (zone-aware, S30) ===
     React.createElement("g", null, deckEls),
 
-    // === STAIR PROJECTION (S31) ===
     React.createElement("g", null, stairEls),
 
-    // === DIMENSION LINES: deck bounding box to property lines (S30) ===
     rearGap > 0 ? React.createElement(DimLine, { x1: sx(bbLx + bbW / 2), y1: sy(bbLy + bbD), x2: sx(bbLx + bbW / 2), y2: sy(lotD), label: rearGap.toFixed(1) + "'", color: rearWarn ? "#e53935" : "#1565c0" }) : null,
     leftGap > 0 && sw(leftGap) > 12 ? React.createElement(DimLine, { x1: sx(0), y1: sy(bbLy + bbD / 2), x2: sx(bbLx), y2: sy(bbLy + bbD / 2), label: leftGap.toFixed(1) + "'", color: leftWarn ? "#e53935" : "#1565c0", side: "above" }) : null,
     rightGap > 0 && sw(rightGap) > 12 ? React.createElement(DimLine, { x1: sx(bbLx + bbW), y1: sy(bbLy + bbD / 2), x2: sx(lotW), y2: sy(bbLy + bbD / 2), label: rightGap.toFixed(1) + "'", color: rightWarn ? "#e53935" : "#1565c0", side: "above" }) : null,
 
-    // === SETBACK LABELS ===
     sbF > 0 ? React.createElement("text", { x: sx(lotW / 2), y: sy(sbF) + 12, textAnchor: "middle", style: { fontSize: 7, fill: "#e53935", fontFamily: mono, opacity: 0.7 } }, sbF + "' front setback") : null,
     sbR > 0 ? React.createElement("text", { x: sx(lotW / 2), y: sy(lotD - sbR) - 4, textAnchor: "middle", style: { fontSize: 7, fill: "#e53935", fontFamily: mono, opacity: 0.7 } }, sbR + "' rear setback") : null,
 
-    // === LOT DIMENSIONS ===
     React.createElement("text", { x: sx(lotW / 2), y: oy + lotPxH + 16, textAnchor: "middle", style: { fontSize: 9, fill: "#333", fontFamily: mono, fontWeight: 700 } }, lotW + "'"),
     React.createElement("text", { x: ox - 14, y: oy + lotPxH / 2 + 3, textAnchor: "middle", style: { fontSize: 9, fill: "#333", fontFamily: mono, fontWeight: 700 }, transform: "rotate(-90," + (ox - 14) + "," + (oy + lotPxH / 2) + ")" }, lotD + "'"),
 
-    // === STREET LABEL ===
     React.createElement("text", { x: sx(lotW / 2), y: oy + lotPxH + 30, textAnchor: "middle", style: { fontSize: 8, fill: "#999", fontFamily: mono, letterSpacing: 2 } }, p.streetName ? p.streetName.toUpperCase() : "STREET"),
 
-    // === NORTH ARROW ===
     React.createElement("g", { transform: "translate(" + (svgW - 30) + "," + (oy + 20) + ")" },
       React.createElement("line", { x1: 0, y1: 20, x2: 0, y2: 0, stroke: "#333", strokeWidth: 1.2 }),
       React.createElement("polygon", { points: "-4,6 0,0 4,6", fill: "#333" }),
       React.createElement("text", { x: 0, y: -4, textAnchor: "middle", style: { fontSize: 8, fill: "#333", fontFamily: mono, fontWeight: 700 } }, "N")
     ),
 
-    // === SCALE BAR ===
     React.createElement("g", { transform: "translate(" + ox + "," + (oy + lotPxH + 38) + ")" },
       React.createElement("line", { x1: 0, y1: 0, x2: sbPx, y2: 0, stroke: "#333", strokeWidth: 1 }),
       React.createElement("line", { x1: 0, y1: -3, x2: 0, y2: 3, stroke: "#333", strokeWidth: 1 }),
