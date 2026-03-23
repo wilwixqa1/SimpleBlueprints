@@ -85,10 +85,15 @@ def draw_dimension_v(ax, x, y1, y2, text, offset=1.5, color="#333", fontsize=6):
             bbox=dict(boxstyle='square,pad=0.15', fc='white', ec='none', alpha=0.9))
 
 
-def draw_north_arrow(ax, x, y):
-    ax.annotate('', xy=(x, y + 2), xytext=(x, y),
+def draw_north_arrow(ax, x, y, angle=0):
+    rad = math.radians(angle)
+    dx = 2 * math.sin(rad)
+    dy = 2 * math.cos(rad)
+    ax.annotate('', xy=(x + dx, y + dy), xytext=(x, y),
                 arrowprops=dict(arrowstyle='->', color=BRAND["dark"], lw=1.5))
-    ax.text(x, y + 2.3, 'N', ha='center', va='bottom', fontsize=8, fontweight='bold')
+    tx = x + 2.5 * math.sin(rad)
+    ty = y + 2.5 * math.cos(rad)
+    ax.text(tx, ty, 'N', ha='center', va='center', fontsize=8, fontweight='bold')
 
 
 def draw_scale_bar(ax, x, y, total_ft=12):
@@ -578,7 +583,8 @@ def draw_plan_and_framing(fig, params, calc):
 
         # S22: North arrow + scale bar — position relative to bbox
         draw_north_arrow(ax, bbox["x"] + bbox["w"] + margin_x - 2,
-                         bbox["y"] + bbox["d"] + margin_y - 5)
+                         bbox["y"] + bbox["d"] + margin_y - 5,
+                         angle=params.get("northAngle", 0) or 0)
         draw_scale_bar(ax, bbox["x"], -house_depth - margin_y * 0.25)
 
     # Sheet label
