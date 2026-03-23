@@ -309,28 +309,49 @@ def _draw_graphic_scale_bar(ax, x_center, y, scale_label="1/4\" = 1'-0\""):
 # ============================================================
 # SHARED DRAWING HELPERS
 # ============================================================
-def draw_grade_line(ax, x1, x2, y, slope_rise=0, slope_pct=None):
+def draw_grade_line(ax, x1, x2, y, slope_rise=0, slope_pct=None, house_bounds=None):
     """Draw grade line with earth fill below and APPROX label.
-    slope_rise = total vertical change from x1 to x2 (positive = x2 higher)."""
+    slope_rise = total vertical change from x1 to x2 (positive = x2 higher).
+    house_bounds = (hx1, hx2) to skip grade through house footprint."""
     y1 = y - slope_rise / 2
     y2 = y + slope_rise / 2
 
+    # S35: Helper to compute grade Y at any X position
+    def _gy(gx):
+        return y1 + (y2 - y1) * (gx - x1) / max(x2 - x1, 0.01)
+
+    # S35: Build segment list (skip house zone if provided)
+    if house_bounds and house_bounds[0] < house_bounds[1]:
+        hx1, hx2 = house_bounds
+        _segments = []
+        if x1 < hx1:
+            _segments.append((x1, hx1))
+        if hx2 < x2:
+            _segments.append((hx2, x2))
+    else:
+        _segments = [(x1, x2)]
+
     # S34: Earth fill below grade (cross-hatch, matches frontend earthH1/earthH2)
     _fill_btm = min(y1, y2) - 1.5
-    _earth = [(x1, y1), (x2, y2), (x2, _fill_btm), (x1, _fill_btm)]
-    ax.add_patch(Polygon(_earth, closed=True, fc='#f0ece4', ec='none', zorder=0))
-    ax.add_patch(Polygon(_earth, closed=True, fc='none', ec='#999999',
-                         hatch='////', lw=0.1, alpha=0.2, zorder=0))
+    for _sx, _ex in _segments:
+        _sy, _ey = _gy(_sx), _gy(_ex)
+        _earth = [(_sx, _sy), (_ex, _ey), (_ex, _fill_btm), (_sx, _fill_btm)]
+        ax.add_patch(Polygon(_earth, closed=True, fc='#f0ece4', ec='none', zorder=0))
+        ax.add_patch(Polygon(_earth, closed=True, fc='none', ec='#999999',
+                             hatch='////', lw=0.1, alpha=0.2, zorder=0))
 
-    # Grade line
-    ax.plot([x1, x2], [y1, y2], color=BRAND["dark"], lw=1)
+    # Grade line (per segment)
+    for _sx, _ex in _segments:
+        ax.plot([_sx, _ex], [_gy(_sx), _gy(_ex)], color=BRAND["dark"], lw=1)
 
-    # Tick marks below grade
+    # Tick marks below grade (skip house zone)
     n_hatch = int((x2 - x1) / 0.3)
     for j in range(n_hatch + 1):
         t = j / max(n_hatch, 1)
         hx = x1 + t * (x2 - x1)
-        hy = y1 + t * (y2 - y1)
+        if house_bounds and house_bounds[0] <= hx <= house_bounds[1]:
+            continue
+        hy = _gy(hx)
         ax.plot([hx, hx - 0.2], [hy, hy - 0.2], color=BRAND["mute"], lw=0.2)
 
     # S34: APPROX label with actual slope percentage
@@ -500,7 +521,7 @@ def draw_south_elevation(ax, params, calc, compact=False):
     _gdrop = max(0, ground_y - min(_ghl, _ghr))
     total_wall, roof_peak = _draw_house_front(ax, house_x, house_w, ground_y, H, grade_drop=_gdrop)
 
-    draw_grade_line(ax, -3, deck_x + total_w + 5, ground_y, slope_rise=_grade_rise, slope_pct=params.get("slopePercent", 0))
+    draw_grade_line(ax, -3, deck_x + total_w + 5, ground_y, slope_rise=_grade_rise, slope_pct=params.get("slopePercent", 0), house_bounds=(house_x, house_x + house_w))
 
     deck_top = H
     footing_diam = calc.get("footing_diam", calc.get("fDiam", 24))
@@ -679,7 +700,7 @@ def draw_north_elevation(ax, params, calc, compact=False):
     _gdropn = max(0, ground_y - min(_ghln, _ghrn))
     total_wall, roof_peak = _draw_house_front(ax, house_x, house_w, ground_y, H, grade_drop=_gdropn)
 
-    draw_grade_line(ax, -3, deck_x + total_w + 5, ground_y, slope_rise=_grade_rise_n, slope_pct=params.get("slopePercent", 0))
+    draw_grade_line(ax, -3, deck_x + total_w + 5, ground_y, slope_rise=_grade_rise_n, slope_pct=params.get("slopePercent", 0), house_bounds=(house_x, house_x + house_w))
 
     deck_top = H
     footing_diam = calc.get("footing_diam", calc.get("fDiam", 24))
@@ -822,7 +843,7 @@ def draw_side_elevation(ax, params, calc, direction="east", compact=False):
         _gdropw = max(0, ground_y - min(_ghlw, _ghrw))
         house_h, roof_peak = _draw_house_side(ax, house_draw_x, house_d, ground_y, H, grade_drop=_gdropw)
 
-        draw_grade_line(ax, -2, house_draw_x + house_d + 3, ground_y, slope_rise=_grade_rise_w, slope_pct=params.get("slopePercent", 0))
+        draw_grade_line(ax, -2, house_draw_x + house_d + 3, ground_y, slope_rise=_grade_rise_w, slope_pct=params.get("slopePercent", 0), house_bounds=(house_draw_x, house_draw_x + house_d))
 
         deck_top = H
         _ground_at_post = deck_top - _side_ph
@@ -921,7 +942,7 @@ def draw_side_elevation(ax, params, calc, direction="east", compact=False):
         _gdrope = max(0, ground_y - min(_ghle, _ghre))
         house_h, roof_peak = _draw_house_side(ax, house_x, house_d, ground_y, H, grade_drop=_gdrope)
 
-        draw_grade_line(ax, -2, house_x + house_d + D + 5, ground_y, slope_rise=_grade_rise_e, slope_pct=params.get("slopePercent", 0))
+        draw_grade_line(ax, -2, house_x + house_d + D + 5, ground_y, slope_rise=_grade_rise_e, slope_pct=params.get("slopePercent", 0), house_bounds=(house_x, house_x + house_d))
 
         deck_top = H
         _ground_at_post = deck_top - _side_ph
