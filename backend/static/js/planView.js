@@ -1,5 +1,5 @@
 // ============================================================
-// PLAN VIEW SVG â Multi-zone support (S19)
+// PLAN VIEW SVG Ã¢ÂÂ Multi-zone support (S19)
 // ============================================================
 const { useState: _pvUS, useRef: _pvUR, useMemo: _pvUM } = React;
 
@@ -22,7 +22,7 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
     for (let x = s; x < sw - 1; x += s) jLines.push(x);
   }
 
-  // ââ Zone computations ââ
+  // Ã¢ÂÂÃ¢ÂÂ Zone computations Ã¢ÂÂÃ¢ÂÂ
   var hasZones = p.zones && p.zones.length > 0;
   var composite = _pvUM(function() {
     if (!hasZones) return [{ x: 0, y: 0, w: c.W, d: c.D }];
@@ -48,7 +48,7 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
   const rotAngleRef = _pvUR(null);
   const stairGroupRef = _pvUR(null);
 
-  // ââ Existing drag handlers (unchanged) ââ
+  // Ã¢ÂÂÃ¢ÂÂ Existing drag handlers (unchanged) Ã¢ÂÂÃ¢ÂÂ
   // S33: unified drag coordinate conversion (getScreenCTM pattern)
   function clientToSvg(clientX, clientY) {
     var svg = svgRef.current;
@@ -170,11 +170,11 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
     window.addEventListener("pointermove", onMove); window.addEventListener("pointerup", onUp);
   };
 
-  // ââ SVG coordinate helpers for zones ââ
+  // Ã¢ÂÂÃ¢ÂÂ SVG coordinate helpers for zones Ã¢ÂÂÃ¢ÂÂ
   function zx(fx) { return dx + fx * sc; }
   function zy(fy) { return pad + fy * sc; }
 
-  // ââ Compute add/cut/chamfer button positions ââ
+  // Ã¢ÂÂÃ¢ÂÂ Compute add/cut/chamfer button positions Ã¢ÂÂÃ¢ÂÂ
   var addBtns = _pvUM(function() {
     if (zoneMode !== "add" || mode !== "plan") return [];
     if (!hasZones) {
@@ -258,7 +258,7 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
       <rect x={hx} y={pad - 50} width={hw} height={50} fill="#e8e6e0" stroke="#444" strokeWidth="1.2" rx="1" />
       <text x={houseCx} y={pad - 25} textAnchor="middle" style={{ fontSize: 8, fill: "#999", fontFamily: "monospace", fontWeight: 600, letterSpacing: "1px" }}>EXISTING HOUSE</text>
 
-      {/* ââ Composite deck surface ââ */}
+      {/* Ã¢ÂÂÃ¢ÂÂ Composite deck surface Ã¢ÂÂÃ¢ÂÂ */}
       {composite.map(function(r, i) {
         return <rect key={"comp" + i} x={zx(r.x)} y={zy(r.y)} width={r.w * sc} height={r.d * sc}
           fill={mode === "framing" ? "#fcfaf5" : "#efe5d5"} stroke="none" />;
@@ -274,7 +274,7 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
           style={{ cursor: zoneMode === "select" ? "pointer" : "default" }} />;
       })}
 
-      {/* Chamfer corner clips â draw bg-colored triangles over corners */}
+      {/* Chamfer corner clips Ã¢ÂÂ draw bg-colored triangles over corners */}
       {addRects.map(function(a) {
         var r = a.rect, corners = getCorners(a.id);
         var x = zx(r.x), y = zy(r.y), w = r.w * sc, h = r.d * sc;
@@ -294,7 +294,7 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
         return tris.length > 0 ? <g key={"ch" + a.id}>{tris}</g> : null;
       })}
 
-      {/* Cutout zones â hatched */}
+      {/* Cutout zones Ã¢ÂÂ hatched */}
       {cutRects.map(function(a) {
         var r = a.rect, isActive = a.id === p.activeZone;
         return <g key={"cut" + a.id} onClick={function(e) { e.stopPropagation(); u("activeZone", a.id); }} style={{ cursor: "pointer" }}>
@@ -339,7 +339,7 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
         <line x1={dx + 1 * sc} y1={pad + bY} x2={dx + sw - 1 * sc} y2={pad + bY} stroke="#c4960a" strokeWidth="4" strokeLinecap="round" />
         <text x={dx + sw / 2} y={pad + bY - 6} textAnchor="middle" style={{ fontSize: 5.5, fill: "#9a7a00", fontWeight: 700, fontFamily: "monospace" }}>{c.beamSize.toUpperCase()}</text>
         <text x={dx + sw / 2} y={pad + sd / 2 - 4} textAnchor="middle" style={{ fontSize: 7, fill: "#888", fontFamily: "monospace" }}>{c.joistSize} @ {c.sp}" O.C.</text>
-        {c.pp.map((px, i) => <g key={i}><circle cx={dx + px * sc} cy={pad + bY} r={4.5} fill="#c4a060" stroke="#444" strokeWidth="1" /><circle cx={dx + px * sc} cy={pad + bY} r={9} fill="none" stroke="#444" strokeWidth="0.4" strokeDasharray="2,2" /></g>)}
+        {c.pp.map(function(px, i) { var _ph = (c.postHeights || [])[i]; var _showPh = (p.slopePercent || 0) > 0 && _ph !== undefined; return <g key={i}><circle cx={dx + px * sc} cy={pad + bY} r={4.5} fill="#c4a060" stroke="#444" strokeWidth="1" /><circle cx={dx + px * sc} cy={pad + bY} r={9} fill="none" stroke="#444" strokeWidth="0.4" strokeDasharray="2,2" />{_showPh && <><rect x={dx + px * sc - 14} y={pad + bY + 12} width={28} height={10} rx={2} fill="#f5e6c8" stroke="#c4960a" strokeWidth="0.5" /><text x={dx + px * sc} y={pad + bY + 19} textAnchor="middle" style={{fontSize:5.5,fill:"#8b6914",fontFamily:"monospace",fontWeight:700}}>{window.fmtFtIn(_ph)}</text></>}</g>; })}
       </>}
 
       {/* Area label */}
@@ -350,7 +350,7 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
         <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#444" strokeWidth="3.5" />
       ))}
 
-      {/* ââ Stairs (unchanged) ââ */}
+      {/* Ã¢ÂÂÃ¢ÂÂ Stairs (unchanged) Ã¢ÂÂÃ¢ÂÂ */}
       {p.hasStairs && c.stairs && (() => {
         const stairGeom = window.computeStairGeometry({ template: p.stairTemplate || "straight", height: p.height, stairWidth: p.stairWidth || 4, numStringers: p.numStringers || 3, runSplit: p.stairRunSplit ? p.stairRunSplit/100 : null, landingDepth: p.stairLandingDepth || null, stairGap: p.stairGap != null ? p.stairGap : 0.5 });
         if (!stairGeom) return null;
@@ -443,7 +443,7 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
         return <g ref={stairGroupRef}>{els}</g>;
       })()}
 
-      {/* ââ Dimension lines ââ */}
+      {/* Ã¢ÂÂÃ¢ÂÂ Dimension lines Ã¢ÂÂÃ¢ÂÂ */}
       <line x1={dx} y1={pad + sd + 25} x2={dx + sw} y2={pad + sd + 25} stroke="#c62828" strokeWidth="0.6" />
       <line x1={dx} y1={pad + sd + 22} x2={dx} y2={pad + sd + 28} stroke="#c62828" strokeWidth="0.6" />
       <line x1={dx + sw} y1={pad + sd + 22} x2={dx + sw} y2={pad + sd + 28} stroke="#c62828" strokeWidth="0.6" />
@@ -453,7 +453,7 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
       <line x1={dx + sw + 17} y1={pad + sd} x2={dx + sw + 23} y2={pad + sd} stroke="#1565c0" strokeWidth="0.6" />
       <text x={dx + sw + 32} y={pad + sd / 2 + 3} textAnchor="middle" style={{ fontSize: 9, fill: "#1565c0", fontWeight: 800, fontFamily: "'DM Mono', monospace" }} transform={`rotate(90, ${dx + sw + 32}, ${pad + sd / 2})`}>{window.fmtFtIn(c.D)}</text>
 
-      {/* ââ Add zone buttons ââ */}
+      {/* Ã¢ÂÂÃ¢ÂÂ Add zone buttons Ã¢ÂÂÃ¢ÂÂ */}
       {addBtns.map(function(b) {
         var h = hoverBtn === b.k;
         return <g key={b.k} onMouseEnter={function() { setHoverBtn(b.k); }} onMouseLeave={function() { setHoverBtn(null); }}
@@ -463,7 +463,7 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
         </g>;
       })}
 
-      {/* ââ Cut buttons ââ */}
+      {/* Ã¢ÂÂÃ¢ÂÂ Cut buttons Ã¢ÂÂÃ¢ÂÂ */}
       {cutBtns.map(function(b) {
         var h = hoverBtn === b.k, isCorner = b.edge.includes("-");
         return <g key={b.k} onMouseEnter={function() { setHoverBtn(b.k); }} onMouseLeave={function() { setHoverBtn(null); }}
@@ -477,7 +477,7 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
         </g>;
       })}
 
-      {/* ââ Chamfer buttons ââ */}
+      {/* Ã¢ÂÂÃ¢ÂÂ Chamfer buttons Ã¢ÂÂÃ¢ÂÂ */}
       {chamferBtns.map(function(b) {
         var h = hoverBtn === b.k;
         return <g key={b.k} onMouseEnter={function() { setHoverBtn(b.k); }} onMouseLeave={function() { setHoverBtn(null); }}
