@@ -1,5 +1,5 @@
 """
-draw_notes.py — General Notes & Code Compliance Sheet
+draw_notes.py â General Notes & Code Compliance Sheet
 Auto-populates IRC references based on deck parameters.
 """
 
@@ -231,6 +231,34 @@ def draw_notes_sheet(fig, params, calc):
         ]
         y2 = draw_section(right_col_x, y2, "STAIRS", stair_notes)
 
+        y2 -= 0.04
+
+    # --- S34: SITE CONDITIONS (slope) ---
+    slope_pct = params.get("slopePercent", 0)
+    slope_dir = params.get("slopeDirection", "front-to-back")
+    if slope_pct > 0:
+        dir_labels = {"front-to-back": "front to back", "back-to-front": "back to front",
+                      "left-to-right": "left to right", "right-to-left": "right to left"}
+        dir_label = dir_labels.get(slope_dir, slope_dir)
+        grade_change = slope_pct / 100 * max(W, D)
+        site_notes = [
+            (f"Site slope: {slope_pct}% grade, {dir_label}. Approximate grade change of "
+             f"{grade_change:.1f}\" across the deck footprint. Post heights vary per elevation drawings.",
+             None),
+            ("Positive drainage away from house foundation required. Final grade shall slope "
+             "min. 6\" in the first 10 feet away from foundation per IRC R401.3.",
+             "IRC R401.3"),
+            ("On sloped sites, downhill footings may require deeper embedment to maintain "
+             "min. soil cover. Verify footing depth at each post location.",
+             "IRC R403.1.4"),
+        ]
+        if H > 6 or slope_pct > 5:
+            site_notes.append(
+                ("Lateral bracing recommended for tall posts on sloped sites. Provide "
+                 "diagonal bracing or knee bracing at posts exceeding 8 feet in height.",
+                 "IRC R507.8")
+            )
+        y2 = draw_section(right_col_x, y2, "SITE CONDITIONS", site_notes)
         y2 -= 0.04
 
     # --- 7. MATERIALS & HARDWARE ---
