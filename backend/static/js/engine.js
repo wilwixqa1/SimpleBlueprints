@@ -1,5 +1,5 @@
 // ============================================================
-// ENGINE — Structural Calculations + Materials Estimator
+// ENGINE â Structural Calculations + Materials Estimator
 // ============================================================
 
 const JOIST_SPANS = {
@@ -53,6 +53,23 @@ function calcStructure(p) {
   if (p.overPostSize) { postSize = p.overPostSize; }
 
   const pp = []; for (let i = 0; i < nP; i++) pp.push(+(2 + i * (W - 4) / (nP - 1)).toFixed(2));
+
+  // S34: Slope-adjusted post heights per position
+  // Reference: ground at house attachment (y=0, x=W/2). Slope causes ground to
+  // drop (downhill) or rise (uphill) relative to reference. Post height adjusts accordingly.
+  var slopePct = (p.slopePercent || 0) / 100;
+  var slopeDir = p.slopeDirection || "front-to-back";
+  var beamDepth = D - 1.5;
+  var postHeights = [];
+  for (var hi = 0; hi < nP; hi++) {
+    var groundDrop = 0; // positive = ground is lower = post is taller
+    if (slopeDir === "front-to-back") groundDrop = slopePct * beamDepth;
+    else if (slopeDir === "back-to-front") groundDrop = -slopePct * beamDepth;
+    else if (slopeDir === "left-to-right") groundDrop = slopePct * (pp[hi] - W / 2);
+    else if (slopeDir === "right-to-left") groundDrop = -(slopePct * (pp[hi] - W / 2));
+    postHeights.push(Math.max(0.5, +(H + groundDrop).toFixed(2)));
+  }
+
   const trib = (W / Math.max(nP - 1, 1)) * D;
   const reqD = Math.sqrt(trib * TL / 1500 / Math.PI) * 2 * 12;
 
@@ -98,23 +115,23 @@ function calcStructure(p) {
   // Override warnings
   const joistRank = { "2x6": 0, "2x8": 1, "2x10": 2, "2x12": 3 };
   if (p.overJoist && (joistRank[p.overJoist] || 0) < (joistRank[autoJoist] || 0)) {
-    warnings.push(`⬇ Joist override (${p.overJoist}) is smaller than recommended (${autoJoist}). May not meet code.`);
+    warnings.push(`â¬ Joist override (${p.overJoist}) is smaller than recommended (${autoJoist}). May not meet code.`);
   }
   const beamRank = { "2-ply 2x8": 0, "2-ply 2x10": 1, "2-ply 2x12": 2, "3-ply 2x10": 3, "3-ply 2x12": 4, "3-ply LVL 1.75x12": 5 };
   if (p.overBeam && (beamRank[p.overBeam] || 0) < (beamRank[autoBeam] || 0)) {
-    warnings.push(`⬇ Beam override (${p.overBeam}) is smaller than recommended (${autoBeam}). May not meet code.`);
+    warnings.push(`â¬ Beam override (${p.overBeam}) is smaller than recommended (${autoBeam}). May not meet code.`);
   }
   if (p.overPostSize === "4x4" && autoPostSize === "6x6") {
-    warnings.push(`⬇ Post override (4x4) is smaller than recommended (6x6). May not meet code.`);
+    warnings.push(`â¬ Post override (4x4) is smaller than recommended (6x6). May not meet code.`);
   }
   if (p.overFooting && p.overFooting < autoFDiam) {
-    warnings.push(`⬇ Footing override (${p.overFooting}") is smaller than recommended (${autoFDiam}"). May not meet code.`);
+    warnings.push(`â¬ Footing override (${p.overFooting}") is smaller than recommended (${autoFDiam}"). May not meet code.`);
   }
   if (p.overPostCount && p.overPostCount < autoNP) {
-    warnings.push(`⬇ Fewer posts (${p.overPostCount}) than recommended (${autoNP}). May not meet code.`);
+    warnings.push(`â¬ Fewer posts (${p.overPostCount}) than recommended (${autoNP}). May not meet code.`);
   }
 
-  return { W, D, H, area, LL, DL, TL, joistSize, sp, jSpan: +jSpan.toFixed(1), nJ, beamSize, bSpan: +bSpan.toFixed(1), postSize, nP, totalPosts, pp, fDiam, fDepth, nF: totalPosts, ledgerSize: joistSize, railLen: +railLen.toFixed(1), midSpanBlocking, blockingCount, stairs, warnings, attachment,
+  return { W, D, H, area, LL, DL, TL, joistSize, sp, jSpan: +jSpan.toFixed(1), nJ, beamSize, bSpan: +bSpan.toFixed(1), postSize, nP, totalPosts, pp, postHeights, fDiam, fDepth, nF: totalPosts, ledgerSize: joistSize, railLen: +railLen.toFixed(1), midSpanBlocking, blockingCount, stairs, warnings, attachment,
     auto: { joist: autoJoist, beam: autoBeam, postSize: autoPostSize, postCount: autoNP, footing: autoFDiam }
   };
 }
