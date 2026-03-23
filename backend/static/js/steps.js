@@ -525,6 +525,77 @@ function StepContent(props) {
       })()}
 
 
+      {/* === NORTH ARROW (S32) === */}
+      {(() => {
+        var northAngle = p.northAngle || 0;
+        var dialDragRef = React.useRef(false);
+        function calcAngle(e, svg) {
+          var rect = svg.getBoundingClientRect();
+          var cx = rect.left + rect.width / 2;
+          var cy = rect.top + rect.height / 2;
+          var cX = e.clientX != null ? e.clientX : (e.touches ? e.touches[0].clientX : null);
+          var cY = e.clientY != null ? e.clientY : (e.touches ? e.touches[0].clientY : null);
+          if (cX == null) return null;
+          var a = Math.round(Math.atan2(cX - cx, -(cY - cy)) * 180 / Math.PI);
+          return a < 0 ? a + 360 : a;
+        }
+        var cardinals = ["N","NE","E","SE","S","SW","W","NW"];
+        var cardIdx = Math.round(northAngle / 45) % 8;
+        var cardLabel = cardinals[cardIdx];
+        return <div style={{ padding: 14, background: _br.wr, borderRadius: 8, border: "1px solid " + _br.bd, marginBottom: 14 }}>
+          <div style={{ fontSize: 9, fontWeight: 700, color: _br.mu, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 8 }}>{"\uD83E\uDDED"} North Arrow Direction</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <svg width={64} height={64} viewBox="0 0 64 64" style={{ cursor: "crosshair", flexShrink: 0 }}
+              onMouseDown={function(e) { dialDragRef.current = true; var a = calcAngle(e, e.currentTarget); if (a != null) u("northAngle", a); }}
+              onMouseMove={function(e) { if (!dialDragRef.current) return; var a = calcAngle(e, e.currentTarget); if (a != null) u("northAngle", a); }}
+              onMouseUp={function() { dialDragRef.current = false; }}
+              onMouseLeave={function() { dialDragRef.current = false; }}
+              onTouchStart={function(e) { e.preventDefault(); dialDragRef.current = true; var a = calcAngle(e, e.currentTarget); if (a != null) u("northAngle", a); }}
+              onTouchMove={function(e) { e.preventDefault(); if (!dialDragRef.current) return; var a = calcAngle(e, e.currentTarget); if (a != null) u("northAngle", a); }}
+              onTouchEnd={function() { dialDragRef.current = false; }}>
+              <circle cx={32} cy={32} r={28} fill="#fff" stroke={_br.bd} strokeWidth={1.5} />
+              {[0,90,180,270].map(function(deg) {
+                var rad = deg * Math.PI / 180;
+                return <line key={deg} x1={32 + 23 * Math.sin(rad)} y1={32 - 23 * Math.cos(rad)} x2={32 + 28 * Math.sin(rad)} y2={32 - 28 * Math.cos(rad)} stroke="#ccc" strokeWidth={1} />;
+              })}
+              {[["N",0],["E",90],["S",180],["W",270]].map(function(pair) {
+                var rad = pair[1] * Math.PI / 180;
+                return <text key={pair[0]} x={32 + 18 * Math.sin(rad)} y={32 - 18 * Math.cos(rad) + 3} textAnchor="middle" style={{ fontSize: 7, fill: "#aaa", fontFamily: _mono, fontWeight: 600 }}>{pair[0]}</text>;
+              })}
+              <g transform={"rotate(" + northAngle + ",32,32)"}>
+                <line x1={32} y1={32} x2={32} y2={8} stroke="#333" strokeWidth={1.5} />
+                <polygon points="28,14 32,6 36,14" fill="#333" />
+                <circle cx={32} cy={32} r={2.5} fill="#333" />
+              </g>
+            </svg>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 8 }}>
+                <span style={{ fontFamily: _mono, fontSize: 20, fontWeight: 800, color: _br.tx }}>{northAngle}{"\u00B0"}</span>
+                <span style={{ fontFamily: _mono, fontSize: 11, fontWeight: 600, color: _br.mu }}>{cardLabel}</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                <input type="range" min={0} max={359} step={1} value={northAngle}
+                  onChange={function(e) { u("northAngle", Number(e.target.value)); }}
+                  style={{ flex: 1, accentColor: _br.gn, height: 6 }} />
+              </div>
+              <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                {[[0,"N"],[45,"NE"],[90,"E"],[135,"SE"],[180,"S"],[225,"SW"],[270,"W"],[315,"NW"]].map(function(pair) {
+                  var isAct = northAngle === pair[0];
+                  return <button key={pair[0]} onClick={function() { u("northAngle", pair[0]); }} style={{
+                    padding: "3px 7px", fontSize: 9, fontFamily: _mono, cursor: "pointer",
+                    border: isAct ? "2px solid " + _br.gn : "1px solid " + _br.bd,
+                    background: isAct ? "#edf5e8" : "#fff",
+                    color: isAct ? _br.gn : _br.mu,
+                    borderRadius: 4, fontWeight: isAct ? 700 : 400, minWidth: 26, textAlign: "center"
+                  }}>{pair[1]}</button>;
+                })}
+              </div>
+            </div>
+          </div>
+          <div style={{ fontSize: 8, color: _br.mu, fontFamily: _mono, marginTop: 8, fontStyle: "italic" }}>Click or drag the dial, use the slider, or pick a cardinal direction.</div>
+        </div>;
+      })()}
+
       {/* === UPLOAD SURVEY (collapsible) === */}
       <button onClick={function() { setShowUpload(!showUpload); }} style={{
         width: "100%", padding: "10px 14px", marginBottom: showUpload || sitePlanFile ? 0 : 14,
