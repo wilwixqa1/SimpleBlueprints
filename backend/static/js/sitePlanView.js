@@ -473,8 +473,60 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
 
     React.createElement("g", null, edgeLabels),
 
+    // S37 Push 6: Neighbor labels + street edge styling
+    (() => {
+      var lotEdges = p.lotEdges || window.computeRectEdges(p);
+      var els = [];
+      var cx = 0, cy = 0;
+      for (var vi = 0; vi < nVerts; vi++) { cx += verts[vi][0]; cy += verts[vi][1]; }
+      cx /= nVerts; cy /= nVerts;
+      for (var ei = 0; ei < nVerts; ei++) {
+        var eInf = lotEdges[ei] || {};
+        var v1 = verts[ei], v2 = verts[(ei + 1) % nVerts];
+        var esx1 = sx(v1[0]), esy1 = sy(v1[1]), esx2 = sx(v2[0]), esy2 = sy(v2[1]);
+        var eMx = (esx1 + esx2) / 2, eMy = (esy1 + esy2) / 2;
+        // Street edge: thicker overlay line
+        if (eInf.type === "street") {
+          els.push(React.createElement("line", {
+            key: "st" + ei, x1: esx1, y1: esy1, x2: esx2, y2: esy2,
+            stroke: "#555", strokeWidth: 3.5, strokeLinecap: "round"
+          }));
+        }
+        // Neighbor label (property edges with neighborLabel set)
+        var nlbl = eInf.neighborLabel || "";
+        if (nlbl) {
+          var edx = esx2 - esx1, edy = esy2 - esy1;
+          var enrm = Math.sqrt(edx * edx + edy * edy);
+          if (enrm < 1) continue;
+          var enx = -edy / enrm, eny = edx / enrm;
+          var scxP = sx(cx), scyP = sy(cy);
+          if (enx * (eMx - scxP) + eny * (eMy - scyP) < 0) { enx = -enx; eny = -eny; }
+          var nlx = eMx + enx * 28, nly = eMy + eny * 28;
+          var svgA = Math.atan2(esy2 - esy1, esx2 - esx1) * 180 / Math.PI;
+          while (svgA > 90) svgA -= 180;
+          while (svgA < -90) svgA += 180;
+          els.push(React.createElement("text", {
+            key: "nl" + ei, x: nlx, y: nly, textAnchor: "middle", dominantBaseline: "central",
+            transform: "rotate(" + svgA.toFixed(1) + "," + nlx.toFixed(1) + "," + nly.toFixed(1) + ")",
+            style: { fontSize: 7, fill: "#888", fontFamily: mono, fontWeight: 600, fontStyle: "italic" }
+          }, nlbl.toUpperCase()));
+        }
+      }
+      return React.createElement("g", null, els);
+    })(),
 
-    React.createElement("text", { x: sx(lotW / 2), y: oy + lotPxH + 30, textAnchor: "middle", style: { fontSize: 8, fill: "#999", fontFamily: mono, letterSpacing: 2 } }, p.streetName ? p.streetName.toUpperCase() : "STREET"),
+    // S37 Push 6: Street name from lotEdges (first street-type edge, or fallback)
+    (() => {
+      var streetLabel = "";
+      var lotEdges = p.lotEdges || window.computeRectEdges(p);
+      for (var sei = 0; sei < lotEdges.length; sei++) {
+        if (lotEdges[sei].type === "street" && lotEdges[sei].label) {
+          streetLabel = lotEdges[sei].label; break;
+        }
+      }
+      if (!streetLabel) streetLabel = p.streetName || "STREET";
+      return React.createElement("text", { x: sx(lotW / 2), y: oy + lotPxH + 30, textAnchor: "middle", style: { fontSize: 8, fill: "#999", fontFamily: mono, letterSpacing: 2 } }, streetLabel.toUpperCase());
+    })(),
 
     React.createElement("g", { transform: "translate(" + (ox + lotPxW + 14) + "," + (oy + 8) + ") rotate(" + (p.northAngle || 0) + ",0,10)" },
       React.createElement("line", { x1: 0, y1: 20, x2: 0, y2: 0, stroke: "#333", strokeWidth: 1.2 }),
