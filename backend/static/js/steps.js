@@ -692,6 +692,7 @@ function StepContent(props) {
             ["setbackFront", "Front Setback", "'"],
             ["setbackRear", "Rear Setback", "'"],
             ["setbackSide", "Side Setback", "'"],
+            ["northAngle", "North Arrow", "\u00B0"],
           ].map(function(item) {
             var key = item[0], label = item[1], unit = item[2];
             var val = extractResult[key];
@@ -732,6 +733,7 @@ function StepContent(props) {
             if (d.zip) setI("zip", d.zip);
             if (d.parcelId) setI("lot", d.parcelId);
             if (d.streetName) u("streetName", d.streetName);
+            if (d.northAngle != null) u("northAngle", d.northAngle);
             setExtractResult(null);
           }} style={{ flex: 1, padding: "10px", background: "#1d4ed8", color: "#fff", border: "none", borderRadius: 6, fontSize: 11, fontWeight: 700, fontFamily: _mono, cursor: "pointer" }}>{"\u2713"} Apply All Dimensions</button>
           <button onClick={function() { setExtractResult(null); }} style={{ padding: "10px 14px", background: "none", border: "1px solid " + _br.bd, borderRadius: 6, fontSize: 11, fontFamily: _mono, color: _br.mu, cursor: "pointer" }}>Cancel</button>
