@@ -1,12 +1,12 @@
 // ============================================================
-// DECK 3D — Three.js interactive preview + capture3D for PDF cover
+// DECK 3D â Three.js interactive preview + capture3D for PDF cover
 // Shared scene builder: buildDeckScene(scene, p, c, THREE)
-// S20: Multi-zone support — iterates additive zones, cutouts, exposed edges
+// S20: Multi-zone support â iterates additive zones, cutouts, exposed edges
 // ============================================================
 const { useEffect: _d3UE, useRef: _d3UR } = React;
 
 // ============================================================
-// buildDeckScene — shared scene population for Deck3D + capture3D
+// buildDeckScene â shared scene population for Deck3D + capture3D
 // Adds all deck geometry (house, structure, decking, railing, stairs)
 // to the provided scene. Returns { exitSide } for camera positioning.
 // ============================================================
@@ -14,19 +14,19 @@ window.buildDeckScene = function(scene, p, c, THREE) {
   var W = c.W, D = c.D, H = c.H, pp = c.pp, postSize = c.postSize,
       beamSize = c.beamSize, sp = c.sp, fDiam = c.fDiam;
 
-  // ── S20: Build pForZones alias for zoneUtils compatibility ──
+  // ââ S20: Build pForZones alias for zoneUtils compatibility ââ
   var pForZones = Object.assign({}, p, {
     deckWidth: p.width || W, deckDepth: p.depth || D, deckHeight: p.height || H
   });
   var hasZones = pForZones.zones && pForZones.zones.length > 0;
 
-  // ── S20: Get zone geometry from zoneUtils ──
+  // ââ S20: Get zone geometry from zoneUtils ââ
   var addRects = hasZones ? window.getAdditiveRects(pForZones) : [{ id: 0, zone: { type: "add" }, rect: { x: 0, y: 0, w: W, d: D } }];
   var composite = hasZones ? window.getCompositeOutline(pForZones) : [{ x: 0, y: 0, w: W, d: D }];
   var exposedEdges = hasZones ? window.getExposedEdges(pForZones) : [];
   var bbox = hasZones ? window.getBoundingBox(pForZones) : { x: 0, y: 0, w: W, d: D };
 
-  // ── S20: World offset — center bounding box at origin ──
+  // ââ S20: World offset â center bounding box at origin ââ
   var cx = -bbox.w / 2 - bbox.x, cz = -bbox.d / 2 - bbox.y;
 
   var mats = {
@@ -47,7 +47,7 @@ window.buildDeckScene = function(scene, p, c, THREE) {
 
   var isLedger = c.attachment === "ledger";
 
-  // ── Stair setup (zone 0 only) ──
+  // ââ Stair setup (zone 0 only) ââ
   var hasSt = p.hasStairs && c.stairs && H > 0.5;
   var stPl = hasSt ? window.getStairPlacement(p, c) : null;
   var exitSide = stPl ? (stPl.angle === 90 ? "right" : stPl.angle === 270 ? "left" : stPl.angle === 180 ? "back" : "front") : null;
@@ -102,7 +102,7 @@ window.buildDeckScene = function(scene, p, c, THREE) {
     return wx >= z0wx - 0.01 && wx <= z0wx + W + 0.01 && wz >= z0wz - 0.01 && wz <= z0wz + D + 0.01;
   }
 
-  // ── House (anchored to zone 0) ──
+  // ââ House (anchored to zone 0) ââ
   var hW = p.houseWidth, hD = 14, hH = Math.max(H + 8, 12);
   var dOff = p.deckOffset || 0;
   var hX = z0wx + (W - hW) / 2 - dOff, hZ = z0wz - hD;
@@ -115,7 +115,7 @@ window.buildDeckScene = function(scene, p, c, THREE) {
   for (var wx = 0.2; wx < 0.9; wx += 0.3) { scene.add(new THREE.Mesh(new THREE.PlaneGeometry(3, 4), mats.win)).position.set(hX + hW * wx, H + 5, hZ + hD + 0.05); }
   scene.add(new THREE.Mesh(new THREE.PlaneGeometry(4, 6.5), mats.win)).position.set(hX + hW / 2, H - 6.5 / 2 + 6.7, z0wz + 0.05);
 
-  // ── S20: Structure per zone (piers, posts, beams, joists) ──
+  // ââ S20: Structure per zone (piers, posts, beams, joists) ââ
   var pR = (fDiam / 12) / 2, pD = postSize === "6x6" ? 5.5 / 12 : 3.5 / 12;
   var bH2 = 11.875 / 12, bW2 = beamSize.includes("3") ? 5.25 / 12 : 3.5 / 12;
   var jH2 = 9.25 / 12, jW2 = 1.5 / 12;
@@ -131,7 +131,7 @@ window.buildDeckScene = function(scene, p, c, THREE) {
 
     // For zone 0, use the existing calc's post positions; for other zones, generate basic posts
     if (isZ0) {
-      // ── Zone 0: Piers + Posts + Caps (existing logic with stair gap filtering) ──
+      // ââ Zone 0: Piers + Posts + Caps (existing logic with stair gap filtering) ââ
       var filteredPP = pp.filter(function(px) {
         var wpx = z0wx + px;
         if (frontGap) {
@@ -147,13 +147,17 @@ window.buildDeckScene = function(scene, p, c, THREE) {
         }
         return true;
       });
+      // S34: Variable post heights based on slope
       filteredPP.forEach(function(px) {
-        scene.add(new THREE.Mesh(new THREE.CylinderGeometry(pR, pR, 0.5, 16), mats.concrete)).position.set(z0wx + px, 0.25, z0wz + D - 1.5);
-        var po = new THREE.Mesh(new THREE.BoxGeometry(pD, zH, pD), mats.post); po.position.set(z0wx + px, zH / 2, z0wz + D - 1.5); po.castShadow = true; scene.add(po);
+        var _pi = pp.indexOf(px);
+        var pH = (c.postHeights && _pi >= 0) ? c.postHeights[_pi] : zH;
+        var _gY = H - pH; // ground level at this post position
+        scene.add(new THREE.Mesh(new THREE.CylinderGeometry(pR, pR, 0.5, 16), mats.concrete)).position.set(z0wx + px, _gY + 0.25, z0wz + D - 1.5);
+        var po = new THREE.Mesh(new THREE.BoxGeometry(pD, pH, pD), mats.post); po.position.set(z0wx + px, _gY + pH / 2, z0wz + D - 1.5); po.castShadow = true; scene.add(po);
         scene.add(new THREE.Mesh(new THREE.BoxGeometry(pD + 0.2, 0.15, pD + 0.2), mats.metal)).position.set(z0wx + px, zH, z0wz + D - 1.5);
       });
 
-      // ── Zone 0: Beam (with stair gap split) ──
+      // ââ Zone 0: Beam (with stair gap split) ââ
       if (frontGap && stairClipD > 1.5 && frontGap.zMax > z0wz + D - 2) {
         var bL = frontGap.min - (z0wx + 1);
         var bR2 = (z0wx + W - 1) - frontGap.max;
@@ -163,10 +167,10 @@ window.buildDeckScene = function(scene, p, c, THREE) {
         var bm = new THREE.Mesh(new THREE.BoxGeometry(W - 2, bH2, bW2), mats.beam); bm.position.set(z0wx + W / 2, zH - bH2 / 2 - 0.1, z0wz + D - 1.5); bm.castShadow = true; scene.add(bm);
       }
 
-      // ── Zone 0: Ledger ──
+      // ââ Zone 0: Ledger ââ
       scene.add(new THREE.Mesh(new THREE.BoxGeometry(W, 9.25 / 12, 1.5 / 12), mats.joist)).position.set(z0wx + W / 2, zH - 0.4, z0wz + 0.06);
 
-      // ── Zone 0: Joists (with stair gap splits) ──
+      // ââ Zone 0: Joists (with stair gap splits) ââ
       var jLen = D - 1.5;
       for (var x = sp / 12; x < W; x += sp / 12) {
         var jx = z0wx + x;
@@ -194,7 +198,7 @@ window.buildDeckScene = function(scene, p, c, THREE) {
         scene.add(new THREE.Mesh(new THREE.BoxGeometry(jW2, jH2, jLen), mats.joist)).position.set(jx, zH - jH2 / 2 - 0.1, z0wz + jLen / 2);
       }
 
-      // ── Zone 0: Rim joists (with stair gaps) ──
+      // ââ Zone 0: Rim joists (with stair gaps) ââ
       function addRimSeg(x, y, z, w, h, d) { scene.add(new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mats.joist)).position.set(x, y, z); }
       if (frontGap && frontGap.zMax >= z0wz + D - 0.1) {
         var lw = frontGap.min - z0wx, rw = (z0wx + W) - frontGap.max;
@@ -213,7 +217,7 @@ window.buildDeckScene = function(scene, p, c, THREE) {
       } else { addRimSeg(z0wx + W, zH - jH2 / 2 - 0.1, z0wz + D / 2, jW2, jH2, D); }
 
     } else {
-      // ── Zones 1+: Simplified structure (posts at corners, beam along far edge, joists) ──
+      // ââ Zones 1+: Simplified structure (posts at corners, beam along far edge, joists) ââ
       var zonePostInset = 0.75; // Inset posts from zone edges
 
       // Posts at 4 corners of zone
@@ -255,7 +259,7 @@ window.buildDeckScene = function(scene, p, c, THREE) {
       if (attachEdge !== "front") {
         scene.add(new THREE.Mesh(new THREE.BoxGeometry(zW, jH2, jW2), mats.joist)).position.set(zwx + zW / 2, zH - jH2 / 2 - 0.1, zwz + zD);
       }
-      // Back rim (near house, low Y) — usually the attachment edge for front-attached zones
+      // Back rim (near house, low Y) â usually the attachment edge for front-attached zones
       if (attachEdge !== "back") {
         scene.add(new THREE.Mesh(new THREE.BoxGeometry(zW, jH2, jW2), mats.joist)).position.set(zwx + zW / 2, zH - jH2 / 2 - 0.1, zwz);
       }
@@ -270,7 +274,7 @@ window.buildDeckScene = function(scene, p, c, THREE) {
     }
   });
 
-  // ── S20: Chamfer data for 3D board trimming ──
+  // ââ S20: Chamfer data for 3D board trimming ââ
   var chamferZones = [];
   addRects.forEach(function(ar) {
     var zr = ar.rect;
@@ -283,7 +287,7 @@ window.buildDeckScene = function(scene, p, c, THREE) {
     }
   });
 
-  // ── S21: Chamfer corner data for railing ──
+  // ââ S21: Chamfer corner data for railing ââ
   var chamferCorners = [];
   chamferZones.forEach(function(cz2) {
     var bl = cz2.corners.BL && cz2.corners.BL.type === "chamfer" ? cz2.corners.BL.size : 0;
@@ -347,7 +351,7 @@ window.buildDeckScene = function(scene, p, c, THREE) {
     b.receiveShadow = true; scene.add(b);
   }
 
-  // ── S20: Decking boards — iterate over composite outline rects ──
+  // ââ S20: Decking boards â iterate over composite outline rects ââ
   var bdW = 5.5 / 12, bdH = 1 / 12;
   composite.forEach(function(cr) {
     var crwx = cx + cr.x;  // composite rect world X
@@ -377,12 +381,12 @@ window.buildDeckScene = function(scene, p, c, THREE) {
         }
       }
 
-      // No gap — full board for this composite rect
+      // No gap â full board for this composite rect
       addDeckBoard(bx, crwz, crwz + crD);
     }
   });
 
-  // ── S20: Railing — from exposed edges (multi-zone) or hardcoded (single-zone) ──
+  // ââ S20: Railing â from exposed edges (multi-zone) or hardcoded (single-zone) ââ
   var rH = 3, trY = H + bdH + rH, brY = H + bdH + 0.25;
   var railTopW = 0.18, railBotW = 0.12, balW = 0.07, balSp = 0.5, postW = 0.3;
   var railZStart = isLedger ? cz + 0.3 : cz;
@@ -427,15 +431,15 @@ window.buildDeckScene = function(scene, p, c, THREE) {
   }
 
   if (hasZones) {
-    // ── S20: Multi-zone railing from exposed edges ──
+    // ââ S20: Multi-zone railing from exposed edges ââ
     exposedEdges.forEach(function(e) {
       var ex1 = cx + e.x1, ey1 = cz + e.y1, ex2 = cx + e.x2, ey2 = cz + e.y2;
 
       // Check if this edge overlaps a stair gap on zone 0
       if (e.dir === "h") {
-        // Horizontal edge — check front gap
+        // Horizontal edge â check front gap
         if (frontGap && Math.abs(ey1 - (z0wz + D)) < 0.1) {
-          // This edge is on zone 0's front — split around stair gap
+          // This edge is on zone 0's front â split around stair gap
           if (ex1 < frontGap.min - 0.05) addRail(ex1, ey1, Math.min(ex2, frontGap.min), ey1);
           if (ex2 > frontGap.max + 0.05) addRail(Math.max(ex1, frontGap.max), ey1, ex2, ey1);
           if (frontGap.min > ex1 + 0.1) addRailPost(frontGap.min, ey1);
@@ -443,7 +447,7 @@ window.buildDeckScene = function(scene, p, c, THREE) {
           return;
         }
       } else {
-        // Vertical edge — check left/right gap
+        // Vertical edge â check left/right gap
         if (leftAtEdge && Math.abs(ex1 - z0wx) < 0.1) {
           if (ey1 < leftGap.min - 0.05) addRail(ex1, ey1, ex1, Math.min(ey2, leftGap.min));
           if (ey2 > leftGap.max + 0.05) addRail(ex1, Math.max(ey1, leftGap.max), ex1, ey2);
@@ -460,7 +464,7 @@ window.buildDeckScene = function(scene, p, c, THREE) {
         }
       }
 
-      // No stair gap on this edge — full railing
+      // No stair gap on this edge â full railing
       addRail(ex1, ey1, ex2, ey2);
     });
 
@@ -479,7 +483,7 @@ window.buildDeckScene = function(scene, p, c, THREE) {
     });
 
   } else {
-    // ── Single-zone: original hardcoded railing (unchanged) ──
+    // ââ Single-zone: original hardcoded railing (unchanged) ââ
     if (frontGap && frontGap.zMax >= z0wz + D - 0.1) {
       if (frontGap.min - z0wx > 0.1) addRail(z0wx, z0wz + D, frontGap.min, z0wz + D);
       if ((z0wx + W) - frontGap.max > 0.1) addRail(frontGap.max, z0wz + D, z0wx + W, z0wz + D);
@@ -515,7 +519,7 @@ window.buildDeckScene = function(scene, p, c, THREE) {
     });
   }
 
-  // ── S21: Diagonal railing at chamfered corners ──
+  // ââ S21: Diagonal railing at chamfered corners ââ
   Object.keys(adjustedCorners).forEach(function(key) {
     var ac = adjustedCorners[key];
     if (ac.h && ac.v) {
@@ -525,7 +529,7 @@ window.buildDeckScene = function(scene, p, c, THREE) {
     }
   });
 
-  // ── Stairs 3D (zone 0 only — unchanged) ──
+  // ââ Stairs 3D (zone 0 only â unchanged) ââ
   var V_TREAD_RUN = 10.5 / 12;
   var V_STR_W = 0.25;
   var V_STR_H = 0.9;
@@ -763,7 +767,7 @@ window.buildDeckScene = function(scene, p, c, THREE) {
 
 
 // ============================================================
-// Deck3D — Interactive Three.js preview component
+// Deck3D â Interactive Three.js preview component
 // S20: Added zones to dependency array
 // ============================================================
 function Deck3D({ c, p }) {
@@ -793,10 +797,21 @@ function Deck3D({ c, p }) {
 
     // Ground + grid
     const gnd = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), new THREE.MeshStandardMaterial({ color: 0xb8c9a0, roughness: 1 }));
-    gnd.rotation.x = -Math.PI / 2; gnd.receiveShadow = true; scene.add(gnd);
-    const grid = new THREE.GridHelper(80, 80, 0xa0b088, 0xa8b890); grid.position.y = 0.01; scene.add(grid);
+    gnd.rotation.x = -Math.PI / 2; gnd.receiveShadow = true;
+    // S34: Tilt ground plane for slope visualization
+    var _sPct = (p.slopePercent || 0) / 100;
+    var _sDir = p.slopeDirection || "front-to-back";
+    if (_sPct > 0) {
+      var _tilt = Math.atan(_sPct);
+      if (_sDir === "front-to-back") gnd.rotation.x += _tilt;
+      else if (_sDir === "back-to-front") gnd.rotation.x -= _tilt;
+      else if (_sDir === "left-to-right") gnd.rotation.z -= _tilt;
+      else if (_sDir === "right-to-left") gnd.rotation.z += _tilt;
+    }
+    scene.add(gnd);
+    const grid = new THREE.GridHelper(80, 80, 0xa0b088, 0xa8b890); grid.position.y = _sPct > 0 ? -0.3 : 0.01; scene.add(grid);
 
-    // Deck scene — shared builder
+    // Deck scene â shared builder
     window.buildDeckScene(scene, p, c, THREE);
 
     // Orbit controls
@@ -815,7 +830,7 @@ function Deck3D({ c, p }) {
 
     // Cleanup
     return () => { cancelAnimationFrame(frameRef.current); cv.removeEventListener("mousedown", onD); cv.removeEventListener("mousemove", onM); cv.removeEventListener("mouseup", onU); cv.removeEventListener("mouseleave", onU); cv.removeEventListener("wheel", onW); cv.removeEventListener("touchstart", onD); cv.removeEventListener("touchmove", onM); cv.removeEventListener("touchend", onU); window._deckOrbit = { theta: orbit.current.theta, phi: orbit.current.phi, dist: orbit.current.dist, drag: false, lx: 0, ly: 0 }; ren.dispose(); };
-  }, [W, D, H, c.nP, c.pp, c.postSize, c.beamSize, c.sp, c.fDiam, p.deckingType, p.hasStairs, p.stairTemplate, p.stairWidth, p.numStringers, p.stairAnchorX, p.stairAnchorY, p.stairAngle, p.stairLocation, p.stairOffset, p.stairRunSplit, p.stairLandingDepth, p.stairGap, p.height, p.deckOffset, p.houseWidth, p.zones]);
+  }, [W, D, H, c.nP, c.pp, c.postSize, c.beamSize, c.sp, c.fDiam, p.deckingType, p.hasStairs, p.stairTemplate, p.stairWidth, p.numStringers, p.stairAnchorX, p.stairAnchorY, p.stairAngle, p.stairLocation, p.stairOffset, p.stairRunSplit, p.stairLandingDepth, p.stairGap, p.height, p.deckOffset, p.houseWidth, p.zones, p.slopePercent, p.slopeDirection]);
 
   return <div ref={ref} style={{ width: "100%", height: 380, borderRadius: 6, overflow: "hidden" }} />;
 }
@@ -824,8 +839,8 @@ window.Deck3D = Deck3D;
 
 
 // ============================================================
-// capture3D — PDF cover image render using shared scene builder
-// Exported as window.capture3D(p, c) → Promise<base64 string | null>
+// capture3D â PDF cover image render using shared scene builder
+// Exported as window.capture3D(p, c) â Promise<base64 string | null>
 // ============================================================
 window.capture3D = function(p, c) {
   return new Promise(function(resolve) {
@@ -851,10 +866,21 @@ window.capture3D = function(p, c) {
 
       // Ground + grid
       var gnd = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), new THREE.MeshStandardMaterial({ color: 0xb8c9a0, roughness: 1 }));
-      gnd.rotation.x = -Math.PI / 2; gnd.receiveShadow = true; scene.add(gnd);
-      var grid = new THREE.GridHelper(80, 80, 0xa0b088, 0xa8b890); grid.position.y = 0.01; scene.add(grid);
+      gnd.rotation.x = -Math.PI / 2; gnd.receiveShadow = true;
+      // S34: Tilt ground plane for slope
+      var _sPct2 = (p.slopePercent || 0) / 100;
+      var _sDir2 = p.slopeDirection || "front-to-back";
+      if (_sPct2 > 0) {
+        var _tilt2 = Math.atan(_sPct2);
+        if (_sDir2 === "front-to-back") gnd.rotation.x += _tilt2;
+        else if (_sDir2 === "back-to-front") gnd.rotation.x -= _tilt2;
+        else if (_sDir2 === "left-to-right") gnd.rotation.z -= _tilt2;
+        else if (_sDir2 === "right-to-left") gnd.rotation.z += _tilt2;
+      }
+      scene.add(gnd);
+      var grid = new THREE.GridHelper(80, 80, 0xa0b088, 0xa8b890); grid.position.y = _sPct2 > 0 ? -0.3 : 0.01; scene.add(grid);
 
-      // Deck scene — shared builder
+      // Deck scene â shared builder
       var result = window.buildDeckScene(scene, p, c, THREE);
 
       // Smart camera: angle depends on stair exit side so stairs are visible
