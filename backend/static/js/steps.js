@@ -93,6 +93,7 @@ function StepContent(props) {
   const [showSiteElements, setShowSiteElements] = _stUS(false);
   const [selectedElId, setSelectedElId] = _stUS(null);
   const [showLotHouse, setShowLotHouse] = _stUS(true);
+  _stUE(function() { u("_selectedElId", selectedElId); }, [selectedElId]);
 
   // ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Active zone data ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ
   var activeZoneObj = p.activeZone > 0 ? p.zones.find(function(z) { return z.id === p.activeZone; }) : null;
@@ -289,10 +290,36 @@ function StepContent(props) {
     else if (leftGap < p.setbackSide) spWarnings.push("Deck is " + leftGap.toFixed(1) + "' from left property line (setback requires " + p.setbackSide + "')");
     if (rightGap < 0) spWarnings.push("Deck extends past the right property line");
     else if (rightGap < p.setbackSide) spWarnings.push("Deck is " + rightGap.toFixed(1) + "' from right property line (setback requires " + p.setbackSide + "')");
+    if (p.hasStairs && p.height > 0) {
+      var _riseIn = 7.5, _treadIn = 10;
+      var _nR = Math.ceil((p.height || 4) * 12 / _riseIn);
+      var _stairRun = (_nR - 1) * _treadIn / 12;
+      var _landD = p.hasLanding ? 4 : 0;
+      var _stW = p.stairWidth || 4;
+      var _stOff = p.stairOffset || 0;
+      var _loc = p.stairLocation || "front";
+      if (_loc === "front") {
+        var stEndY = deckRearY + _stairRun + _landD;
+        var stRearGap = p.lotDepth - stEndY;
+        if (stRearGap < 0) spWarnings.push("Stairs extend past the rear property line by " + Math.abs(stRearGap).toFixed(1) + "'");
+        else if (stRearGap < p.setbackRear) spWarnings.push("Stairs are " + stRearGap.toFixed(1) + "' from rear property line (setback requires " + p.setbackRear + "')");
+      } else if (_loc === "left") {
+        var stLeftEnd = deckLeftX - _stairRun - _landD;
+        if (stLeftEnd < 0) spWarnings.push("Stairs extend past the left property line by " + Math.abs(stLeftEnd).toFixed(1) + "'");
+        else if (stLeftEnd < p.setbackSide) spWarnings.push("Stairs are " + stLeftEnd.toFixed(1) + "' from left property line (setback requires " + p.setbackSide + "')");
+      } else if (_loc === "right") {
+        var stRightEnd = deckRightX + _stairRun + _landD;
+        var stRightGap = p.lotWidth - stRightEnd;
+        if (stRightGap < 0) spWarnings.push("Stairs extend past the right property line by " + Math.abs(stRightGap).toFixed(1) + "'");
+        else if (stRightGap < p.setbackSide) spWarnings.push("Stairs are " + stRightGap.toFixed(1) + "' from right property line (setback requires " + p.setbackSide + "')");
+      }
+    }
     var lotArea = p.lotWidth * p.lotDepth;
     var houseArea = p.houseWidth * p.houseDepth;
     var deckArea = c.area || (p.width * p.depth);
-    var coveragePct = lotArea > 0 ? ((houseArea + deckArea) / lotArea * 100).toFixed(1) : 0;
+    var imperviousTypes = { driveway: true, garage: true, shed: true, patio: true };
+    var elArea = (p.siteElements || []).reduce(function(s, el) { return s + (imperviousTypes[el.type] ? el.w * el.d : 0); }, 0);
+    var coveragePct = lotArea > 0 ? ((houseArea + deckArea + elArea) / lotArea * 100).toFixed(1) : 0;
 
     return <>
       {/* Intro */}
