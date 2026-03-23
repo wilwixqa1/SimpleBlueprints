@@ -1,7 +1,7 @@
 // ============================================================
-// ELEVATION SVG â 4-view grid (S/N/E/W) with architectural labels,
+// ELEVATION SVG Ã¢ÂÂ 4-view grid (S/N/E/W) with architectural labels,
 // key plan inset, and smart view ordering for L-templates
-// S24: Zone-aware South/North views â left/right zones extend width.
+// S24: Zone-aware South/North views Ã¢ÂÂ left/right zones extend width.
 //      Each zone section drawn independently with own deckTop.
 // ============================================================
 
@@ -57,7 +57,7 @@ function ElevationView({ c, p }) {
     return M[exitSide+","+viewDir] || ["hidden",null];
   }
 
-  // Key plan inset â shows deck outline + arrow for viewing direction
+  // Key plan inset Ã¢ÂÂ shows deck outline + arrow for viewing direction
   function KeyPlan({ viewDir, insetX, insetY, insetSize }) {
     const s = insetSize;
     const dw = s * 0.6, dd = s * 0.4;
@@ -255,6 +255,16 @@ function ElevationView({ c, p }) {
     return (
       <div style={{ flex: "1 1 48%", minWidth: 200 }}>
         <svg viewBox={`0 0 ${svgW} ${svgH}`} style={{ width: "100%", height: "auto", background: "#fcfcfa", borderRadius: 4, border: "1px solid #ddd8cc" }}>
+          {/* S33: Earth hatch patterns */}
+          <defs>
+            <pattern id="earthH1" width={4} height={4} patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+              <line x1="0" y1="0" x2="0" y2="4" stroke="#999" strokeWidth="0.4" opacity="0.3" />
+            </pattern>
+            <pattern id="earthH2" width={4} height={4} patternUnits="userSpaceOnUse" patternTransform="rotate(-45)">
+              <line x1="0" y1="0" x2="0" y2="4" stroke="#999" strokeWidth="0.3" opacity="0.2" />
+            </pattern>
+          </defs>
+
           {/* Key plan inset */}
           <KeyPlan viewDir={viewDir} insetX={kpX} insetY={kpY} insetSize={kpSize} />
 
@@ -268,9 +278,15 @@ function ElevationView({ c, p }) {
             <text x={hX+hW/2} y={hTop-roofPk/3} textAnchor="middle" style={{ fontSize: 3.5, fill: "#aaa", fontFamily: "monospace" }}>HOUSE</text>
           </>}
 
-          <line x1={gradeLineX1} y1={gradeLY} x2={gradeLineX2} y2={gradeRY} stroke="#444" strokeWidth="0.7" />
-          {Array.from({length:Math.ceil((svgW-20)/2.5)},function(_,i){var hx=pad-10+i*2.5;var gy=gradeYatX(hx);return <line key={i} x1={hx} y1={gy} x2={hx-2} y2={gy+1.5} stroke="#aaa" strokeWidth="0.2" />;})}
-          {slopePct > 0 && gradeSign !== 0 && <text x={gradeLineX2 - 5} y={gradeRY - 4} textAnchor="end" style={{ fontSize: 4, fill: "#888", fontFamily: "monospace", fontWeight: 600 }}>{(slopePct * 100).toFixed(1)}% GRADE</text>}
+          {/* S33: Earth fill below grade */}
+          {(() => { var btm = Math.max(gradeLY, gradeRY) + 16; return <g>
+            <polygon points={gradeLineX1+","+gradeLY+" "+gradeLineX2+","+gradeRY+" "+gradeLineX2+","+btm+" "+gradeLineX1+","+btm} fill="#f0ece4" />
+            <polygon points={gradeLineX1+","+gradeLY+" "+gradeLineX2+","+gradeRY+" "+gradeLineX2+","+btm+" "+gradeLineX1+","+btm} fill="url(#earthH1)" />
+            <polygon points={gradeLineX1+","+gradeLY+" "+gradeLineX2+","+gradeRY+" "+gradeLineX2+","+btm+" "+gradeLineX1+","+btm} fill="url(#earthH2)" />
+          </g>; })()}
+          <line x1={gradeLineX1} y1={gradeLY} x2={gradeLineX2} y2={gradeRY} stroke="#444" strokeWidth="0.8" />
+          {Array.from({length:Math.ceil((svgW-20)/2.5)},function(_,i){var hx=pad-10+i*2.5;var gy=gradeYatX(hx);return <line key={i} x1={hx} y1={gy} x2={hx-2} y2={gy+1.5} stroke="#888" strokeWidth="0.25" />;})}
+          {slopePct > 0 && gradeSign !== 0 ? <text x={gradeLineX2-5} y={gradeRY-3} textAnchor="end" style={{fontSize:4,fill:"#666",fontFamily:"monospace",fontWeight:600}}>APPROX. {(slopePct*100).toFixed(1)}% GRADE</text> : <text x={gradeLineX2-5} y={gradeRY-3} textAnchor="end" style={{fontSize:3.5,fill:"#999",fontFamily:"monospace",fontStyle:"italic"}}>APPROX. GRADE</text>}
 
           {postEls}
 
@@ -308,13 +324,13 @@ function ElevationView({ c, p }) {
 
           {stEls}
 
-          {/* Height dimension â uses dX (bounding box left edge) */}
+          {/* Height dimension Ã¢ÂÂ uses dX (bounding box left edge) */}
           <line x1={dX-8} y1={gnd} x2={dX-8} y2={dY} stroke="#1565c0" strokeWidth="0.4" />
           <line x1={dX-10} y1={gnd} x2={dX-6} y2={gnd} stroke="#1565c0" strokeWidth="0.4" />
           <line x1={dX-10} y1={dY} x2={dX-6} y2={dY} stroke="#1565c0" strokeWidth="0.4" />
           <text x={dX-12} y={(gnd+dY)/2+2} textAnchor="middle" transform={`rotate(-90,${dX-12},${(gnd+dY)/2})`} style={{ fontSize: 5.5, fill: "#1565c0", fontWeight: 700, fontFamily: "monospace" }}>{window.fmtFtIn(H)}</text>
 
-          {/* Width dimension â uses dX/dSW (spans full bounding box) */}
+          {/* Width dimension Ã¢ÂÂ uses dX/dSW (spans full bounding box) */}
           <line x1={dX} y1={rTop-6} x2={dX+dSW} y2={rTop-6} stroke="#c62828" strokeWidth="0.4" />
           <line x1={dX} y1={rTop-8} x2={dX} y2={rTop-4} stroke="#c62828" strokeWidth="0.4" />
           <line x1={dX+dSW} y1={rTop-8} x2={dX+dSW} y2={rTop-4} stroke="#c62828" strokeWidth="0.4" />
