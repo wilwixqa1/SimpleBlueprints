@@ -1,7 +1,7 @@
 // ============================================================
 // SITE PLAN VIEW - SVG preview for Step 3 (Site Plan)
 // Shows lot boundary, house, deck, setbacks, dimensions
-// Added S27, Zone-aware S30, Site elements S31
+// Added S27, Zone-aware S30, Site elements S31, Stairs S31
 // ============================================================
 
 window.SitePlanView = function SitePlanView({ p, c }) {
@@ -49,6 +49,112 @@ window.SitePlanView = function SitePlanView({ p, c }) {
   var sbF = p.setbackFront || 0;
   var sbR = p.setbackRear || 0;
   var sbS = p.setbackSide || 0;
+
+  // === STAIR PROJECTION (S31) ===
+  var stairEls = [];
+  if (p.hasStairs && p.height > 0) {
+    var riseIn = 7.5, treadIn = 10;
+    var nRisers = Math.ceil((p.height || 4) * 12 / riseIn);
+    var stairRun = (nRisers - 1) * treadIn / 12;
+    var stW = p.stairWidth || 4;
+    var stOff = p.stairOffset || 0;
+    var loc = p.stairLocation || "front";
+    var landD = p.hasLanding ? 4 : 0;
+    var stX, stY, stDrawW, stDrawD;
+
+    if (loc === "front") {
+      stX = dx + dw / 2 + stOff - stW / 2;
+      stY = dy + dd;
+      stDrawW = stW;
+      stDrawD = stairRun + landD;
+    } else if (loc === "left") {
+      stX = dx - stairRun - landD;
+      stY = dy + dd / 2 + stOff - stW / 2;
+      stDrawW = stairRun + landD;
+      stDrawD = stW;
+    } else {
+      stX = dx + dw;
+      stY = dy + dd / 2 + stOff - stW / 2;
+      stDrawW = stairRun + landD;
+      stDrawD = stW;
+    }
+
+    // Stair run rectangle
+    stairEls.push(React.createElement("rect", {
+      key: "stair", x: sx(stX), y: sy(stY + stDrawD),
+      width: sw(stDrawW), height: sh(stDrawD),
+      fill: "#e8d5b7", fillOpacity: 0.5, stroke: "#8B7355", strokeWidth: 0.8, strokeDasharray: "3,2"
+    }));
+
+    // Direction lines (treads)
+    var numLines = Math.min(8, nRisers - 1);
+    if (loc === "front" && sh(stDrawD) > 10) {
+      for (var ti = 1; ti <= numLines; ti++) {
+        var tFrac = ti / (numLines + 1);
+        var tY = stY + tFrac * stairRun;
+        stairEls.push(React.createElement("line", {
+          key: "tread" + ti,
+          x1: sx(stX + 0.3), y1: sy(tY), x2: sx(stX + stW - 0.3), y2: sy(tY),
+          stroke: "#8B7355", strokeWidth: 0.4, opacity: 0.5
+        }));
+      }
+    } else if (loc === "left" && sw(stDrawW) > 10) {
+      for (var ti = 1; ti <= numLines; ti++) {
+        var tFrac = ti / (numLines + 1);
+        var tX = stX + stDrawW - tFrac * stairRun;
+        stairEls.push(React.createElement("line", {
+          key: "tread" + ti,
+          x1: sx(tX), y1: sy(stY + 0.3), x2: sx(tX), y2: sy(stY + stW - 0.3),
+          stroke: "#8B7355", strokeWidth: 0.4, opacity: 0.5
+        }));
+      }
+    } else if (loc === "right" && sw(stDrawW) > 10) {
+      for (var ti = 1; ti <= numLines; ti++) {
+        var tFrac = ti / (numLines + 1);
+        var tX = stX + tFrac * stairRun;
+        stairEls.push(React.createElement("line", {
+          key: "tread" + ti,
+          x1: sx(tX), y1: sy(stY + 0.3), x2: sx(tX), y2: sy(stY + stW - 0.3),
+          stroke: "#8B7355", strokeWidth: 0.4, opacity: 0.5
+        }));
+      }
+    }
+
+    // Label
+    var labelX = stX + stDrawW / 2;
+    var labelY = stY + stDrawD / 2;
+    if (sh(stDrawD) > 10 && sw(stDrawW) > 14) {
+      stairEls.push(React.createElement("text", {
+        key: "stlbl", x: sx(labelX), y: sy(labelY) + 3, textAnchor: "middle",
+        style: { fontSize: 6, fill: "#8B7355", fontFamily: mono, fontWeight: 700 }
+      }, "STAIRS"));
+    }
+
+    // Landing pad
+    if (p.hasLanding && landD > 0) {
+      var lx, ly, lw, ld;
+      if (loc === "front") {
+        lx = stX; ly = stY + stairRun; lw = stW; ld = landD;
+      } else if (loc === "left") {
+        lx = stX; ly = stY; lw = landD; ld = stW;
+      } else {
+        lx = stX + stairRun; ly = stY; lw = landD; ld = stW;
+      }
+      stairEls.push(React.createElement("rect", {
+        key: "landing", x: sx(lx), y: sy(ly + ld),
+        width: sw(lw), height: sh(ld),
+        fill: "#d5c4a1", fillOpacity: 0.4, stroke: "#8B7355", strokeWidth: 0.6, strokeDasharray: "2,2"
+      }));
+    }
+
+    // Run dimension
+    if (loc === "front" && sh(stDrawD) > 6) {
+      stairEls.push(React.createElement("text", {
+        key: "strun", x: sx(stX + stDrawW) + 4, y: sy(stY + stDrawD / 2) + 3, textAnchor: "start",
+        style: { fontSize: 6, fill: "#8B7355", fontFamily: mono, fontWeight: 600 }
+      }, stairRun.toFixed(1) + "'"));
+    }
+  }
 
   // === DISTANCES (bounding box, S30) ===
   var rearGap = lotD - (bbLy + bbD);
@@ -119,11 +225,9 @@ window.SitePlanView = function SitePlanView({ p, c }) {
     } else {
       siteEls.push(React.createElement("rect", { key: "el" + idx, x: sx(ex), y: sy(ey + ed), width: sw(ew), height: sh(ed), fill: elFills[el.type] || "#ddd", fillOpacity: 0.5, stroke: "#888", strokeWidth: 0.8 }));
     }
-    // Hatch pattern for garage/shed
     if (el.type === "shed" || el.type === "garage") {
       siteEls.push(React.createElement("rect", { key: "elh" + idx, x: sx(ex), y: sy(ey + ed), width: sw(ew), height: sh(ed), fill: "url(#spHatch)", opacity: 0.4 }));
     }
-    // Label (only if element is large enough to read)
     if (el.label && sh(ed) > 8 && sw(ew) > 12) {
       siteEls.push(React.createElement("text", { key: "elt" + idx, x: sx(ex + ew / 2), y: sy(ey + ed / 2) + 3, textAnchor: "middle", style: { fontSize: 6, fill: "#555", fontFamily: mono, fontWeight: 600 } }, el.label));
     }
@@ -159,6 +263,9 @@ window.SitePlanView = function SitePlanView({ p, c }) {
 
     // === DECK FOOTPRINT (zone-aware, S30) ===
     React.createElement("g", null, deckEls),
+
+    // === STAIR PROJECTION (S31) ===
+    React.createElement("g", null, stairEls),
 
     // === DIMENSION LINES: deck bounding box to property lines (S30) ===
     rearGap > 0 ? React.createElement(DimLine, { x1: sx(bbLx + bbW / 2), y1: sy(bbLy + bbD), x2: sx(bbLx + bbW / 2), y2: sy(lotD), label: rearGap.toFixed(1) + "'", color: rearWarn ? "#e53935" : "#1565c0" }) : null,
