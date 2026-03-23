@@ -2,11 +2,17 @@
 // SITE PLAN VIEW - SVG preview for Step 3 (Site Plan)
 // Shows lot boundary, house, deck, setbacks, dimensions
 // Added S27, Zone-aware S30, Site elements S31, Stairs S31
-// Selected element highlight S31
+// Selected element highlight S31, Drag-drop S32
 // ============================================================
 
-window.SitePlanView = function SitePlanView({ p, c }) {
+window.SitePlanView = function SitePlanView({ p, c, u }) {
   var mono = window.SB.mono;
+  var _useRef = React.useRef;
+  var _useState = React.useState;
+
+  var svgRef = _useRef(null);
+  var dragRef = _useRef(null); // { elId, offsetX, offsetY }
+  var [isDragging, setIsDragging] = _useState(false);
 
   // === LAYOUT ===
   var svgW = 540, svgH = 400, margin = 50;
@@ -21,6 +27,72 @@ window.SitePlanView = function SitePlanView({ p, c }) {
   var sy = function(ly) { return oy + lotPxH - ly * scale; };
   var sw = function(w) { return w * scale; };
   var sh = function(h) { return h * scale; };
+
+  // === COORDINATE CONVERSION (S32: for drag-drop) ===
+  function clientToLot(clientX, clientY) {
+    var svg = svgRef.current;
+    if (!svg) return null;
+    var pt = svg.createSVGPoint();
+    pt.x = clientX;
+    pt.y = clientY;
+    var ctm = svg.getScreenCTM();
+    if (!ctm) return null;
+    var svgPt = pt.matrixTransform(ctm.inverse());
+    return {
+      x: (svgPt.x - ox) / scale,
+      y: (oy + lotPxH - svgPt.y) / scale
+    };
+  }
+
+  // === DRAG HANDLERS (S32) ===
+  var elems = p.siteElements || [];
+
+  function onElPointerDown(e, el) {
+    if (!u) return;
+    e.preventDefault();
+    e.stopPropagation();
+    var cX = e.clientX != null ? e.clientX : (e.touches && e.touches[0] ? e.touches[0].clientX : null);
+    var cY = e.clientY != null ? e.clientY : (e.touches && e.touches[0] ? e.touches[0].clientY : null);
+    if (cX == null) return;
+    var lot = clientToLot(cX, cY);
+    if (!lot) return;
+    dragRef.current = {
+      elId: el.id,
+      offsetX: lot.x - el.x,
+      offsetY: lot.y - el.y
+    };
+    setIsDragging(true);
+    // Also select this element
+    if (u) u("_selectedElId", el.id);
+  }
+
+  function onSvgPointerMove(e) {
+    if (!dragRef.current || !u) return;
+    e.preventDefault();
+    var cX = e.clientX != null ? e.clientX : (e.touches && e.touches[0] ? e.touches[0].clientX : null);
+    var cY = e.clientY != null ? e.clientY : (e.touches && e.touches[0] ? e.touches[0].clientY : null);
+    if (cX == null) return;
+    var lot = clientToLot(cX, cY);
+    if (!lot) return;
+    var dr = dragRef.current;
+    var el = elems.find(function(e) { return e.id === dr.elId; });
+    if (!el) return;
+    var newX = Math.round(Math.max(0, Math.min(lotW - el.w, lot.x - dr.offsetX)));
+    var newY = Math.round(Math.max(0, Math.min(lotD - el.d, lot.y - dr.offsetY)));
+    if (newX !== el.x || newY !== el.y) {
+      u("siteElements", elems.map(function(e) {
+        if (e.id !== dr.elId) return e;
+        return Object.assign({}, e, { x: newX, y: newY });
+      }));
+    }
+  }
+
+  function onSvgPointerUp(e) {
+    if (dragRef.current) {
+      dragRef.current = null;
+      setIsDragging(false);
+    }
+  }
 
   // === HOUSE ===
   var hx = p.houseOffsetSide || 20;
@@ -202,46 +274,64 @@ window.SitePlanView = function SitePlanView({ p, c }) {
     deckEls.push(React.createElement("text", { key: "ddim", x: sx(bbLx + bbW / 2), y: sy(bbLy + bbD / 2) + 13, textAnchor: "middle", style: { fontSize: 7, fill: "#5a7a4a", fontFamily: mono } }, dimLabel));
   }
 
-  // === SITE ELEMENTS (S31) ===
+  // === SITE ELEMENTS (S31 + S32 drag) ===
   var siteEls = [];
-  var elems = p.siteElements || [];
   var selId = p._selectedElId;
   var elFills = { driveway: "#d5d5d5", shed: "#d4c5a9", garage: "#e0d8cc", ac_unit: "#c0c0c0", patio: "#d7ccc8", walkway: "#e0e0e0" };
+  var dragCursor = isDragging ? "grabbing" : (u ? "grab" : "default");
+
   elems.forEach(function(el, idx) {
     var ex = el.x, ey = el.y, ew = el.w, ed = el.d;
     var isSel = selId === el.id;
+    var dragProps = u ? { onMouseDown: function(e) { onElPointerDown(e, el); }, onTouchStart: function(e) { onElPointerDown(e, el); }, style: { cursor: dragCursor } } : {};
+
     if (el.type === "tree") {
       var r = ew / 2;
-      siteEls.push(React.createElement("circle", { key: "el" + idx, cx: sx(ex + r), cy: sy(ey + r), r: sw(r), fill: "#8bc34a", fillOpacity: 0.35, stroke: isSel ? "#2563eb" : "#558b2f", strokeWidth: isSel ? 2 : 0.8 }));
-      siteEls.push(React.createElement("circle", { key: "eld" + idx, cx: sx(ex + r), cy: sy(ey + r), r: 1.5, fill: "#33691e" }));
+      siteEls.push(React.createElement("circle", Object.assign({ key: "el" + idx, cx: sx(ex + r), cy: sy(ey + r), r: sw(r), fill: "#8bc34a", fillOpacity: 0.35, stroke: isSel ? "#2563eb" : "#558b2f", strokeWidth: isSel ? 2 : 0.8 }, dragProps)));
+      siteEls.push(React.createElement("circle", { key: "eld" + idx, cx: sx(ex + r), cy: sy(ey + r), r: 1.5, fill: "#33691e", pointerEvents: "none" }));
       if (isSel) {
-        siteEls.push(React.createElement("circle", { key: "elsel" + idx, cx: sx(ex + r), cy: sy(ey + r), r: sw(r) + 4, fill: "none", stroke: "#2563eb", strokeWidth: 1.5, strokeDasharray: "4,2" }));
+        siteEls.push(React.createElement("circle", { key: "elsel" + idx, cx: sx(ex + r), cy: sy(ey + r), r: sw(r) + 4, fill: "none", stroke: "#2563eb", strokeWidth: 1.5, strokeDasharray: "4,2", pointerEvents: "none" }));
       }
     } else if (el.type === "pool") {
-      siteEls.push(React.createElement("rect", { key: "el" + idx, x: sx(ex), y: sy(ey + ed), width: sw(ew), height: sh(ed), fill: "#b3d9ff", fillOpacity: 0.45, stroke: isSel ? "#2563eb" : "#1976d2", strokeWidth: isSel ? 2 : 0.8, rx: sw(Math.min(2, ew / 4)) }));
+      siteEls.push(React.createElement("rect", Object.assign({ key: "el" + idx, x: sx(ex), y: sy(ey + ed), width: sw(ew), height: sh(ed), fill: "#b3d9ff", fillOpacity: 0.45, stroke: isSel ? "#2563eb" : "#1976d2", strokeWidth: isSel ? 2 : 0.8, rx: sw(Math.min(2, ew / 4)) }, dragProps)));
       if (isSel) {
-        siteEls.push(React.createElement("rect", { key: "elsel" + idx, x: sx(ex) - 3, y: sy(ey + ed) - 3, width: sw(ew) + 6, height: sh(ed) + 6, fill: "none", stroke: "#2563eb", strokeWidth: 1.5, strokeDasharray: "4,2", rx: 3 }));
+        siteEls.push(React.createElement("rect", { key: "elsel" + idx, x: sx(ex) - 3, y: sy(ey + ed) - 3, width: sw(ew) + 6, height: sh(ed) + 6, fill: "none", stroke: "#2563eb", strokeWidth: 1.5, strokeDasharray: "4,2", rx: 3, pointerEvents: "none" }));
       }
     } else if (el.type === "fence") {
-      siteEls.push(React.createElement("rect", { key: "el" + idx, x: sx(ex), y: sy(ey + ed), width: Math.max(sw(ew), 1.5), height: Math.max(sh(ed), 1.5), fill: "#8d6e63", fillOpacity: 0.6, stroke: isSel ? "#2563eb" : "#5d4037", strokeWidth: isSel ? 2 : 0.8, strokeDasharray: isSel ? "none" : "3,1.5" }));
+      siteEls.push(React.createElement("rect", Object.assign({ key: "el" + idx, x: sx(ex), y: sy(ey + ed), width: Math.max(sw(ew), 1.5), height: Math.max(sh(ed), 1.5), fill: "#8d6e63", fillOpacity: 0.6, stroke: isSel ? "#2563eb" : "#5d4037", strokeWidth: isSel ? 2 : 0.8, strokeDasharray: isSel ? "none" : "3,1.5" }, dragProps)));
       if (isSel) {
-        siteEls.push(React.createElement("rect", { key: "elsel" + idx, x: sx(ex) - 3, y: sy(ey + ed) - 3, width: Math.max(sw(ew), 1.5) + 6, height: Math.max(sh(ed), 1.5) + 6, fill: "none", stroke: "#2563eb", strokeWidth: 1.5, strokeDasharray: "4,2", rx: 2 }));
+        siteEls.push(React.createElement("rect", { key: "elsel" + idx, x: sx(ex) - 3, y: sy(ey + ed) - 3, width: Math.max(sw(ew), 1.5) + 6, height: Math.max(sh(ed), 1.5) + 6, fill: "none", stroke: "#2563eb", strokeWidth: 1.5, strokeDasharray: "4,2", rx: 2, pointerEvents: "none" }));
       }
     } else {
-      siteEls.push(React.createElement("rect", { key: "el" + idx, x: sx(ex), y: sy(ey + ed), width: sw(ew), height: sh(ed), fill: elFills[el.type] || "#ddd", fillOpacity: 0.5, stroke: isSel ? "#2563eb" : "#888", strokeWidth: isSel ? 2 : 0.8 }));
+      siteEls.push(React.createElement("rect", Object.assign({ key: "el" + idx, x: sx(ex), y: sy(ey + ed), width: sw(ew), height: sh(ed), fill: elFills[el.type] || "#ddd", fillOpacity: 0.5, stroke: isSel ? "#2563eb" : "#888", strokeWidth: isSel ? 2 : 0.8 }, dragProps)));
       if (isSel) {
-        siteEls.push(React.createElement("rect", { key: "elsel" + idx, x: sx(ex) - 3, y: sy(ey + ed) - 3, width: sw(ew) + 6, height: sh(ed) + 6, fill: "none", stroke: "#2563eb", strokeWidth: 1.5, strokeDasharray: "4,2", rx: 2 }));
+        siteEls.push(React.createElement("rect", { key: "elsel" + idx, x: sx(ex) - 3, y: sy(ey + ed) - 3, width: sw(ew) + 6, height: sh(ed) + 6, fill: "none", stroke: "#2563eb", strokeWidth: 1.5, strokeDasharray: "4,2", rx: 2, pointerEvents: "none" }));
       }
     }
     if ((el.type === "shed" || el.type === "garage") && !isSel) {
-      siteEls.push(React.createElement("rect", { key: "elh" + idx, x: sx(ex), y: sy(ey + ed), width: sw(ew), height: sh(ed), fill: "url(#spHatch)", opacity: 0.4 }));
+      siteEls.push(React.createElement("rect", { key: "elh" + idx, x: sx(ex), y: sy(ey + ed), width: sw(ew), height: sh(ed), fill: "url(#spHatch)", opacity: 0.4, pointerEvents: "none" }));
     }
     if (el.label && sh(ed) > 8 && sw(ew) > 12) {
-      siteEls.push(React.createElement("text", { key: "elt" + idx, x: sx(ex + ew / 2), y: sy(ey + ed / 2) + 3, textAnchor: "middle", style: { fontSize: 6, fill: isSel ? "#2563eb" : "#555", fontFamily: mono, fontWeight: 600 } }, el.label));
+      siteEls.push(React.createElement("text", { key: "elt" + idx, x: sx(ex + ew / 2), y: sy(ey + ed / 2) + 3, textAnchor: "middle", pointerEvents: "none", style: { fontSize: 6, fill: isSel ? "#2563eb" : "#555", fontFamily: mono, fontWeight: 600 } }, el.label));
     }
   });
 
-  return React.createElement("svg", { viewBox: "0 0 " + svgW + " " + svgH, style: { width: "100%", height: "100%", minHeight: 320 } },
+  // === SVG EVENT PROPS (S32) ===
+  var svgEvents = {};
+  if (u) {
+    svgEvents.onMouseMove = onSvgPointerMove;
+    svgEvents.onMouseUp = onSvgPointerUp;
+    svgEvents.onMouseLeave = onSvgPointerUp;
+    svgEvents.onTouchMove = onSvgPointerMove;
+    svgEvents.onTouchEnd = onSvgPointerUp;
+    svgEvents.onTouchCancel = onSvgPointerUp;
+  }
+
+  return React.createElement("svg", Object.assign({
+    ref: svgRef,
+    viewBox: "0 0 " + svgW + " " + svgH,
+    style: { width: "100%", height: "100%", minHeight: 320, touchAction: isDragging ? "none" : "auto" }
+  }, svgEvents),
 
     React.createElement("rect", { x: 0, y: 0, width: svgW, height: svgH, fill: "#fafaf5", rx: 4 }),
 
@@ -291,6 +381,12 @@ window.SitePlanView = function SitePlanView({ p, c }) {
       React.createElement("line", { x1: 0, y1: -3, x2: 0, y2: 3, stroke: "#333", strokeWidth: 1 }),
       React.createElement("line", { x1: sbPx, y1: -3, x2: sbPx, y2: 3, stroke: "#333", strokeWidth: 1 }),
       React.createElement("text", { x: sbPx / 2, y: 11, textAnchor: "middle", style: { fontSize: 7, fill: "#666", fontFamily: mono } }, sbFt + "'")
-    )
+    ),
+
+    // Drag hint (S32)
+    elems.length > 0 && !isDragging ? React.createElement("text", {
+      x: svgW / 2, y: svgH - 6, textAnchor: "middle",
+      style: { fontSize: 7, fill: "#aaa", fontFamily: mono, fontStyle: "italic" }
+    }, "Drag elements to reposition") : null
   );
 };
