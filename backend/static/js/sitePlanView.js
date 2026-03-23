@@ -28,6 +28,43 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
   var sw = function(w) { return w * scale; };
   var sh = function(h) { return h * scale; };
 
+  // === POLYGON LOT (S36) ===
+  var verts = p.lotVertices || window.computeRectVertices(p);
+  var lotEdgeData = p.lotEdges || window.computeRectEdges(p);
+  var nVerts = verts.length;
+  var lotPolyPoints = verts.map(function(v) { return sx(v[0]) + "," + sy(v[1]); }).join(" ");
+
+  // Per-edge dimension labels
+  var edgeLabels = [];
+  (function() {
+    var cxL = 0, cyL = 0;
+    for (var vi = 0; vi < nVerts; vi++) { cxL += verts[vi][0]; cyL += verts[vi][1]; }
+    cxL /= nVerts; cyL /= nVerts;
+    for (var ei = 0; ei < nVerts; ei++) {
+      var ev1 = verts[ei], ev2 = verts[(ei + 1) % nVerts];
+      var eInf = lotEdgeData[ei] || {};
+      var eLen = eInf.length || Math.sqrt((ev2[0] - ev1[0]) * (ev2[0] - ev1[0]) + (ev2[1] - ev1[1]) * (ev2[1] - ev1[1]));
+      var esx1 = sx(ev1[0]), esy1 = sy(ev1[1]), esx2 = sx(ev2[0]), esy2 = sy(ev2[1]);
+      var eMx = (esx1 + esx2) / 2, eMy = (esy1 + esy2) / 2;
+      var svgA = Math.atan2(esy2 - esy1, esx2 - esx1) * 180 / Math.PI;
+      while (svgA > 90) svgA -= 180;
+      while (svgA < -90) svgA += 180;
+      var eDx = esx2 - esx1, eDy = esy2 - esy1;
+      var eNrm = Math.sqrt(eDx * eDx + eDy * eDy);
+      if (eNrm < 1) continue;
+      var eNx = -eDy / eNrm, eNy = eDx / eNrm;
+      var scxP = sx(cxL), scyP = sy(cyL);
+      if (eNx * (eMx - scxP) + eNy * (eMy - scyP) < 0) { eNx = -eNx; eNy = -eNy; }
+      var oLx = eMx + eNx * 14, oLy = eMy + eNy * 14;
+      var eLbl = eLen % 1 === 0 ? eLen.toFixed(0) + "'" : eLen.toFixed(1) + "'";
+      edgeLabels.push(React.createElement("text", {
+        key: "edl" + ei, x: oLx, y: oLy, textAnchor: "middle", dominantBaseline: "central",
+        transform: "rotate(" + svgA.toFixed(1) + "," + oLx.toFixed(1) + "," + oLy.toFixed(1) + ")",
+        style: { fontSize: 8, fill: "#333", fontFamily: mono, fontWeight: 700 }
+      }, eLbl));
+    }
+  })();
+
   // === COORDINATE CONVERSION (S32: for drag-drop) ===
   function clientToLot(clientX, clientY) {
     var svg = svgRef.current;
@@ -340,7 +377,7 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
       fill: "none", stroke: "#e53935", strokeWidth: 0.8, strokeDasharray: "6,4", opacity: 0.5
     }) : null,
 
-    React.createElement("rect", { x: ox, y: oy, width: lotPxW, height: lotPxH, fill: "none", stroke: "#333", strokeWidth: 2 }),
+    React.createElement("polygon", { points: lotPolyPoints, fill: "none", stroke: "#333", strokeWidth: 2 }),
 
     React.createElement("defs", null,
       React.createElement("pattern", { id: "spHatch", patternUnits: "userSpaceOnUse", width: 6, height: 6, patternTransform: "rotate(45)" },
@@ -365,8 +402,8 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
     sbF > 0 ? React.createElement("text", { x: sx(lotW / 2), y: sy(sbF) + 12, textAnchor: "middle", style: { fontSize: 7, fill: "#e53935", fontFamily: mono, opacity: 0.7 } }, sbF + "' front setback") : null,
     sbR > 0 ? React.createElement("text", { x: sx(lotW / 2), y: sy(lotD - sbR) - 4, textAnchor: "middle", style: { fontSize: 7, fill: "#e53935", fontFamily: mono, opacity: 0.7 } }, sbR + "' rear setback") : null,
 
-    React.createElement("text", { x: sx(lotW / 2), y: oy + lotPxH + 16, textAnchor: "middle", style: { fontSize: 9, fill: "#333", fontFamily: mono, fontWeight: 700 } }, lotW + "'"),
-    React.createElement("text", { x: ox - 14, y: oy + lotPxH / 2 + 3, textAnchor: "middle", style: { fontSize: 9, fill: "#333", fontFamily: mono, fontWeight: 700 }, transform: "rotate(-90," + (ox - 14) + "," + (oy + lotPxH / 2) + ")" }, lotD + "'"),
+    React.createElement("g", null, edgeLabels),
+
 
     React.createElement("text", { x: sx(lotW / 2), y: oy + lotPxH + 30, textAnchor: "middle", style: { fontSize: 8, fill: "#999", fontFamily: mono, letterSpacing: 2 } }, p.streetName ? p.streetName.toUpperCase() : "STREET"),
 
