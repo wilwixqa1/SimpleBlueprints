@@ -370,7 +370,7 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
 
     React.createElement("text", { x: sx(lotW / 2), y: oy + lotPxH + 30, textAnchor: "middle", style: { fontSize: 8, fill: "#999", fontFamily: mono, letterSpacing: 2 } }, p.streetName ? p.streetName.toUpperCase() : "STREET"),
 
-    React.createElement("g", { transform: "translate(" + (svgW - 30) + "," + (oy + 20) + ")" },
+    React.createElement("g", { transform: "translate(" + (svgW - 30) + "," + (oy + 20) + ") rotate(" + (p.northAngle || 0) + ",0,10)" },
       React.createElement("line", { x1: 0, y1: 20, x2: 0, y2: 0, stroke: "#333", strokeWidth: 1.2 }),
       React.createElement("polygon", { points: "-4,6 0,0 4,6", fill: "#333" }),
       React.createElement("text", { x: 0, y: -4, textAnchor: "middle", style: { fontSize: 8, fill: "#333", fontFamily: mono, fontWeight: 700 } }, "N")
