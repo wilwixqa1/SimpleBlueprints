@@ -376,6 +376,31 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
       React.createElement("text", { x: 0, y: -4, textAnchor: "middle", style: { fontSize: 8, fill: "#333", fontFamily: mono, fontWeight: 700 } }, "N")
     ),
 
+    // S33: Grade arrow (slope notation)
+    (p.slopePercent || 0) > 0 ? React.createElement("g", {
+      transform: "translate(" + (ox + lotPxW - 40) + "," + (oy + lotPxH - 20) + ")"
+    },
+      (() => {
+        var dir = p.slopeDirection || "front-to-back";
+        var dx2 = 0, dy2 = 0;
+        if (dir === "front-to-back") { dx2 = 0; dy2 = -24; }
+        else if (dir === "back-to-front") { dx2 = 0; dy2 = 24; }
+        else if (dir === "left-to-right") { dx2 = 24; dy2 = 0; }
+        else if (dir === "right-to-left") { dx2 = -24; dy2 = 0; }
+        var len = Math.sqrt(dx2 * dx2 + dy2 * dy2);
+        var ux = dx2 / len, uy = dy2 / len;
+        var tipX = dx2, tipY = dy2;
+        var a1x = tipX - ux * 5 - uy * 3, a1y = tipY - uy * 5 + ux * 3;
+        var a2x = tipX - ux * 5 + uy * 3, a2y = tipY - uy * 5 - ux * 3;
+        return [
+          React.createElement("line", { key: "gs", x1: 0, y1: 0, x2: dx2, y2: dy2, stroke: "#8B7355", strokeWidth: 1.5 }),
+          React.createElement("polygon", { key: "ga", points: tipX + "," + tipY + " " + a1x + "," + a1y + " " + a2x + "," + a2y, fill: "#8B7355" }),
+          React.createElement("text", { key: "gl", x: dx2 / 2 + (dy2 === 0 ? 0 : 10), y: dy2 / 2 + (dx2 === 0 ? 0 : -6), textAnchor: "middle", style: { fontSize: 7, fill: "#8B7355", fontFamily: mono, fontWeight: 700 } }, (p.slopePercent || 0) + "% DN"),
+          React.createElement("text", { key: "gt", x: dx2 / 2 + (dy2 === 0 ? 0 : 10), y: dy2 / 2 + (dx2 === 0 ? 0 : -6) + 9, textAnchor: "middle", style: { fontSize: 6, fill: "#8B7355", fontFamily: mono, fontStyle: "italic" } }, "GRADE")
+        ];
+      })()
+    ) : null,
+
     React.createElement("g", { transform: "translate(" + ox + "," + (oy + lotPxH + 38) + ")" },
       React.createElement("line", { x1: 0, y1: 0, x2: sbPx, y2: 0, stroke: "#333", strokeWidth: 1 }),
       React.createElement("line", { x1: 0, y1: -3, x2: 0, y2: 3, stroke: "#333", strokeWidth: 1 }),
