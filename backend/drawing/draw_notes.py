@@ -43,7 +43,6 @@ def draw_notes_sheet(fig, params, calc):
     right_col_x = 7.3
     col_width = 5.8
     head_font = 8
-    irc_font = 5.5
 
     # S35: Dynamic spacing based on right-column section count
     slope_pct = params.get("slopePercent", 0)
@@ -52,13 +51,28 @@ def draw_notes_sheet(fig, params, calc):
         _rc_sections += 1
     if slope_pct > 0:
         _rc_sections += 1
+    _tight_rc = _rc_sections >= 5  # stairs + slope + guardrails + ledger + materials
     _compact_rc = _rc_sections >= 4
 
-    # Use tighter spacing when right column has 4+ sections
-    note_font = 6.0 if _compact_rc else 6.5
-    line_h = 0.105 if _compact_rc else 0.12
-    note_gap = 0.02 if _compact_rc else 0.03
-    bar_h = 0.20 if _compact_rc else 0.24
+    # Use progressively tighter spacing based on section count
+    if _tight_rc:
+        note_font = 5.5
+        line_h = 0.095
+        note_gap = 0.015
+        bar_h = 0.18
+        irc_font = 5.0
+    elif _compact_rc:
+        note_font = 6.0
+        line_h = 0.105
+        note_gap = 0.02
+        bar_h = 0.20
+        irc_font = 5.5
+    else:
+        note_font = 6.5
+        line_h = 0.12
+        note_gap = 0.03
+        bar_h = 0.24
+        irc_font = 5.5
 
     def draw_section(x, y, title, notes, width=col_width):
         """Draw a section with title bar and numbered notes. Returns new y."""
