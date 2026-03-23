@@ -1,5 +1,5 @@
 """
-draw_notes.py â General Notes & Code Compliance Sheet
+draw_notes.py - General Notes & Code Compliance Sheet
 Auto-populates IRC references based on deck parameters.
 """
 
@@ -42,12 +42,23 @@ def draw_notes_sheet(fig, params, calc):
     left_col_x = 0.7
     right_col_x = 7.3
     col_width = 5.8
-    note_font = 6.5
     head_font = 8
     irc_font = 5.5
-    line_h = 0.12
-    note_gap = 0.03
-    bar_h = 0.24
+
+    # S35: Dynamic spacing based on right-column section count
+    slope_pct = params.get("slopePercent", 0)
+    _rc_sections = 3  # ledger/freestanding + guardrails + materials (always)
+    if has_stairs:
+        _rc_sections += 1
+    if slope_pct > 0:
+        _rc_sections += 1
+    _compact_rc = _rc_sections >= 4
+
+    # Use tighter spacing when right column has 4+ sections
+    note_font = 6.0 if _compact_rc else 6.5
+    line_h = 0.105 if _compact_rc else 0.12
+    note_gap = 0.02 if _compact_rc else 0.03
+    bar_h = 0.20 if _compact_rc else 0.24
 
     def draw_section(x, y, title, notes, width=col_width):
         """Draw a section with title bar and numbered notes. Returns new y."""
@@ -234,7 +245,6 @@ def draw_notes_sheet(fig, params, calc):
         y2 -= 0.04
 
     # --- S34: SITE CONDITIONS (slope) ---
-    slope_pct = params.get("slopePercent", 0)
     slope_dir = params.get("slopeDirection", "front-to-back")
     if slope_pct > 0:
         dir_labels = {"front-to-back": "front to back", "back-to-front": "back to front",
