@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-SimpleBlueprints ÃÂ¢ÃÂÃÂ Parametric PDF Drawing Engine
+SimpleBlueprints ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ Parametric PDF Drawing Engine
 Sheet A-2: Exterior Elevations (4-View: South / North / East / West)
-S24: Zone-aware South/North views ÃÂ¢ÃÂÃÂ left/right zones extend visible width.
+S24: Zone-aware South/North views ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ left/right zones extend visible width.
      Each zone section drawn independently with own deck_top (future: height-per-zone).
 """
 
@@ -29,9 +29,9 @@ def _get_zone_south_north_sections(params, calc):
     Only left/right zones extend the visible width in these views.
 
     Returns: {
-        x_off: float ÃÂ¢ÃÂÃÂ shift for zone-0 drawing (accounts for left zones),
-        bb_w: float ÃÂ¢ÃÂÃÂ total bounding box width,
-        sections: list of {x_draw, w, deck_top} ÃÂ¢ÃÂÃÂ zone wing sections to draw
+        x_off: float ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ shift for zone-0 drawing (accounts for left zones),
+        bb_w: float ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ total bounding box width,
+        sections: list of {x_draw, w, deck_top} ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ zone wing sections to draw
     }
     No-zone case: x_off=0, bb_w=W, sections=[]
     """
@@ -247,7 +247,7 @@ def _draw_stair_profile(ax, sx, ground_y, deck_top, stair, rail_h_ft, direction)
 # ============================================================
 # SHARED DRAWING HELPERS
 # ============================================================
-def draw_grade_line(ax, x1, x2, y, slope_rise=0):
+def draw_grade_line(ax, x1, x2, y, slope_rise=0, slope_pct=None):
     """Draw grade line with earth fill below and APPROX label.
     slope_rise = total vertical change from x1 to x2 (positive = x2 higher)."""
     y1 = y - slope_rise / 2
@@ -271,10 +271,10 @@ def draw_grade_line(ax, x1, x2, y, slope_rise=0):
         hy = y1 + t * (y2 - y1)
         ax.plot([hx, hx - 0.2], [hy, hy - 0.2], color=BRAND["mute"], lw=0.2)
 
-    # S34: APPROX label (matches frontend "APPROX. GRADE" / "APPROX. X.X% GRADE")
-    if abs(slope_rise) > 0.01:
-        pct = abs(slope_rise) / max(x2 - x1, 0.01) * 100
-        ax.text(x2 + 0.5, y2 + 0.3, f'APPROX. {pct:.1f}% GRADE',
+    # S34: APPROX label with actual slope percentage
+    _actual_pct = slope_pct if slope_pct is not None else (abs(slope_rise) / max(x2 - x1, 0.01) * 100)
+    if _actual_pct > 0.01:
+        ax.text(x2 + 0.5, y + slope_rise / 2 + 0.3, f'APPROX. {_actual_pct:.1f}% GRADE',
                 fontsize=3.5, fontfamily='monospace', color=BRAND["mute"])
     else:
         ax.text(x2 + 0.5, y + 0.3, 'APPROX. GRADE',
@@ -379,8 +379,8 @@ def _draw_house_side(ax, house_x, house_d, ground_y, height, grade_drop=0):
 
 
 # ============================================================
-# SOUTH ELEVATION (front ÃÂ¢ÃÂÃÂ observer looks north at deck front)
-# S24: Zone-aware ÃÂ¢ÃÂÃÂ left/right zones extend visible width
+# SOUTH ELEVATION (front ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ observer looks north at deck front)
+# S24: Zone-aware ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ left/right zones extend visible width
 # ============================================================
 def draw_south_elevation(ax, params, calc, compact=False):
     W = calc["width"]
@@ -419,7 +419,7 @@ def draw_south_elevation(ax, params, calc, compact=False):
     _gdrop = max(0, ground_y - min(_ghl, _ghr))
     total_wall, roof_peak = _draw_house_front(ax, house_x, house_w, ground_y, H, grade_drop=_gdrop)
 
-    draw_grade_line(ax, -3, deck_x + total_w + 5, ground_y, slope_rise=_grade_rise)
+    draw_grade_line(ax, -3, deck_x + total_w + 5, ground_y, slope_rise=_grade_rise, slope_pct=params.get("slopePercent", 0))
 
     deck_top = H
 
@@ -516,7 +516,7 @@ def draw_south_elevation(ax, params, calc, compact=False):
             'FLUSH BEAM' if beam_type == 'flush' else 'DROPPED BEAM', **lbl_kw)
     ax.text(lbl_x, H * 0.4, f'{calc["post_size"]} PT POSTS', **lbl_kw)
     ax.text(lbl_x, H * 0.4 - 0.6, f'({calc["num_posts"]}) PLCS', **lbl_kw)
-    ax.text(lbl_x, -0.5, f'{calc["footing_diam"]}" ÃÂÃÂ PIERS', **lbl_kw)
+    ax.text(lbl_x, -0.5, f'{calc["footing_diam"]}" ÃÂÃÂÃÂÃÂ PIERS', **lbl_kw)
 
     # === DIMENSIONS (span bounding box) ===
     draw_dimension_v(ax, deck_x - 1, ground_y, deck_top,
@@ -528,8 +528,8 @@ def draw_south_elevation(ax, params, calc, compact=False):
 
 
 # ============================================================
-# NORTH ELEVATION (rear ÃÂ¢ÃÂÃÂ observer looks south at house wall)
-# S24: Zone-aware ÃÂ¢ÃÂÃÂ left/right zones extend visible width (mirrored)
+# NORTH ELEVATION (rear ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ observer looks south at house wall)
+# S24: Zone-aware ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ left/right zones extend visible width (mirrored)
 # ============================================================
 def draw_north_elevation(ax, params, calc, compact=False):
     W = calc["width"]
@@ -569,7 +569,7 @@ def draw_north_elevation(ax, params, calc, compact=False):
     _gdropn = max(0, ground_y - min(_ghln, _ghrn))
     total_wall, roof_peak = _draw_house_front(ax, house_x, house_w, ground_y, H, grade_drop=_gdropn)
 
-    draw_grade_line(ax, -3, deck_x + total_w + 5, ground_y, slope_rise=_grade_rise_n)
+    draw_grade_line(ax, -3, deck_x + total_w + 5, ground_y, slope_rise=_grade_rise_n, slope_pct=params.get("slopePercent", 0))
 
     deck_top = H
 
@@ -585,7 +585,7 @@ def draw_north_elevation(ax, params, calc, compact=False):
     # === ZONE-0 DECK SURFACE ===
     ax.plot([z0_x, z0_x + W], [deck_top, deck_top], color='#6B5340', lw=2.5)
 
-    # === ZONE-0 POSTS (mirrored, far side ÃÂ¢ÃÂÃÂ dashed) ===
+    # === ZONE-0 POSTS (mirrored, far side ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ dashed) ===
     for px in calc["post_positions"]:
         sx = z0_x + (W - px)  # mirrored
         ax.plot([sx, sx], [ground_y, deck_top],
@@ -651,7 +651,7 @@ def draw_north_elevation(ax, params, calc, compact=False):
 
 
 # ============================================================
-# SIDE ELEVATION (East or West) ÃÂ¢ÃÂÃÂ unchanged, zone-0 only
+# SIDE ELEVATION (East or West) ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ unchanged, zone-0 only
 # ============================================================
 def draw_side_elevation(ax, params, calc, direction="east", compact=False):
     W = calc["width"]
@@ -688,7 +688,7 @@ def draw_side_elevation(ax, params, calc, direction="east", compact=False):
         _gdropw = max(0, ground_y - min(_ghlw, _ghrw))
         house_h, roof_peak = _draw_house_side(ax, house_draw_x, house_d, ground_y, H, grade_drop=_gdropw)
 
-        draw_grade_line(ax, -2, house_draw_x + house_d + 3, ground_y, slope_rise=_grade_rise_w)
+        draw_grade_line(ax, -2, house_draw_x + house_d + 3, ground_y, slope_rise=_grade_rise_w, slope_pct=params.get("slopePercent", 0))
 
         deck_top = H
 
@@ -772,7 +772,7 @@ def draw_side_elevation(ax, params, calc, direction="east", compact=False):
         _gdrope = max(0, ground_y - min(_ghle, _ghre))
         house_h, roof_peak = _draw_house_side(ax, house_x, house_d, ground_y, H, grade_drop=_gdrope)
 
-        draw_grade_line(ax, -2, house_x + house_d + D + 5, ground_y, slope_rise=_grade_rise_e)
+        draw_grade_line(ax, -2, house_x + house_d + D + 5, ground_y, slope_rise=_grade_rise_e, slope_pct=params.get("slopePercent", 0))
 
         deck_top = H
         deck_start_x = house_x + house_d
@@ -841,7 +841,7 @@ def draw_side_elevation(ax, params, calc, direction="east", compact=False):
         ax.text(lbl_x, _lbl_rail, f'{calc["rail_height"]}" RAIL', **lbl_kw)
         ax.text(lbl_x, _lbl_beam, f'{calc["beam_size"].upper()}', **lbl_kw)
         ax.text(lbl_x, _lbl_post, f'{calc["post_size"]} POST', **lbl_kw)
-        ax.text(lbl_x, _lbl_pier, f'{calc["footing_diam"]}" ÃÂÃÂ PIER', **lbl_kw)
+        ax.text(lbl_x, _lbl_pier, f'{calc["footing_diam"]}" ÃÂÃÂÃÂÃÂ PIER', **lbl_kw)
 
         dim_x = deck_start_x + D + max(0.5, stair_ext + 0.5)
         draw_dimension_v(ax, dim_x, ground_y, deck_top,
@@ -901,7 +901,7 @@ def draw_elevations_sheet(fig, params, calc):
     ax_north.text(-margin_nx + 0.5, max(max_h_n + 0.3, H + 11.3), 'SCALE: 1/4" = 1\'-0"',
                   fontsize=4, fontfamily='monospace', color=BRAND["mute"])
 
-    # ---- EAST ELEVATION (bottom-left) ÃÂ¢ÃÂÃÂ unchanged ----
+    # ---- EAST ELEVATION (bottom-left) ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ unchanged ----
     ax_east.set_facecolor('white')
     ax_east.axis('off')
     max_h_e = draw_side_elevation(ax_east, params, calc, direction="east", compact=True)
@@ -914,7 +914,7 @@ def draw_elevations_sheet(fig, params, calc):
     ax_east.text(-margin_ex + 0.5, max(max_h_e + 0.3, H + 11.3), 'SCALE: 1/4" = 1\'-0"',
                  fontsize=4, fontfamily='monospace', color=BRAND["mute"])
 
-    # ---- WEST ELEVATION (bottom-right) ÃÂ¢ÃÂÃÂ unchanged ----
+    # ---- WEST ELEVATION (bottom-right) ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ unchanged ----
     ax_west.set_facecolor('white')
     ax_west.axis('off')
     max_h_w = draw_side_elevation(ax_west, params, calc, direction="west", compact=True)
@@ -929,5 +929,5 @@ def draw_elevations_sheet(fig, params, calc):
 
     # Sheet label
     fig.text(0.5, 0.02,
-             f'SHEET A-2  |  EXTERIOR ELEVATIONS  |  {format_feet_inches(W)} ÃÂÃÂ {format_feet_inches(D)}  |  simpleblueprints.xyz',
+             f'SHEET A-2  |  EXTERIOR ELEVATIONS  |  {format_feet_inches(W)} ÃÂÃÂÃÂÃÂ {format_feet_inches(D)}  |  simpleblueprints.xyz',
              ha='center', fontsize=6, fontfamily='monospace', color=BRAND["mute"])
