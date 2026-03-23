@@ -93,6 +93,7 @@ function StepContent(props) {
   const [showSiteElements, setShowSiteElements] = _stUS(false);
   const [selectedElId, setSelectedElId] = _stUS(null);
   const [showLotHouse, setShowLotHouse] = _stUS(true);
+  var dialDragRef = React.useRef(false);
   _stUE(function() { u("_selectedElId", selectedElId); }, [selectedElId]);
 
   // ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Active zone data ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ
@@ -528,7 +529,6 @@ function StepContent(props) {
       {/* === NORTH ARROW (S32) === */}
       {(() => {
         var northAngle = p.northAngle || 0;
-        var dialDragRef = React.useRef(false);
         function calcAngle(e, svg) {
           var rect = svg.getBoundingClientRect();
           var cx = rect.left + rect.width / 2;
