@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-SimpleBlueprints ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ Parametric PDF Drawing Engine
+SimpleBlueprints ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Parametric PDF Drawing Engine
 Sheet A-2: Exterior Elevations (4-View: South / North / East / West)
-S24: Zone-aware South/North views ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ left/right zones extend visible width.
+S24: Zone-aware South/North views ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ left/right zones extend visible width.
      Each zone section drawn independently with own deck_top (future: height-per-zone).
 """
 
@@ -29,9 +29,9 @@ def _get_zone_south_north_sections(params, calc):
     Only left/right zones extend the visible width in these views.
 
     Returns: {
-        x_off: float ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ shift for zone-0 drawing (accounts for left zones),
-        bb_w: float ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ total bounding box width,
-        sections: list of {x_draw, w, deck_top} ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ zone wing sections to draw
+        x_off: float ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ shift for zone-0 drawing (accounts for left zones),
+        bb_w: float ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ total bounding box width,
+        sections: list of {x_draw, w, deck_top} ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ zone wing sections to draw
     }
     No-zone case: x_off=0, bb_w=W, sections=[]
     """
@@ -379,8 +379,8 @@ def _draw_house_side(ax, house_x, house_d, ground_y, height, grade_drop=0):
 
 
 # ============================================================
-# SOUTH ELEVATION (front ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ observer looks north at deck front)
-# S24: Zone-aware ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ left/right zones extend visible width
+# SOUTH ELEVATION (front ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ observer looks north at deck front)
+# S24: Zone-aware ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ left/right zones extend visible width
 # ============================================================
 def draw_south_elevation(ax, params, calc, compact=False):
     W = calc["width"]
@@ -424,13 +424,16 @@ def draw_south_elevation(ax, params, calc, compact=False):
     deck_top = H
 
     # === ZONE-0 POSTS ===
-    for px in calc["post_positions"]:
+    _post_heights = calc.get("post_heights", [])
+    for _pi, px in enumerate(calc["post_positions"]):
         sx = z0_x + px
-        ax.add_patch(patches.Rectangle((sx - 0.5, ground_y - 0.4), 1.0, 0.4,
+        _ph = _post_heights[_pi] if _pi < len(_post_heights) else H
+        _ground_at_post = deck_top - _ph  # ground level at this post
+        ax.add_patch(patches.Rectangle((sx - 0.5, _ground_at_post - 0.4), 1.0, 0.4,
                      fc=BRAND["concrete"], ec=BRAND["dark"], lw=0.5))
-        ax.add_patch(patches.Rectangle((sx - 0.35, ground_y), 0.7, 0.2,
+        ax.add_patch(patches.Rectangle((sx - 0.35, _ground_at_post), 0.7, 0.2,
                      fc='#888', ec=BRAND["dark"], lw=0.4))
-        ax.plot([sx, sx], [ground_y + 0.2, deck_top], color=BRAND["post"], lw=2)
+        ax.plot([sx, sx], [_ground_at_post + 0.2, deck_top], color=BRAND["post"], lw=2)
 
     # === ZONE-0 BEAM ===
     beam_h = 1.0  # TODO: derive from calc["beam_size"] when per-zone calcs land
@@ -516,7 +519,7 @@ def draw_south_elevation(ax, params, calc, compact=False):
             'FLUSH BEAM' if beam_type == 'flush' else 'DROPPED BEAM', **lbl_kw)
     ax.text(lbl_x, H * 0.4, f'{calc["post_size"]} PT POSTS', **lbl_kw)
     ax.text(lbl_x, H * 0.4 - 0.6, f'({calc["num_posts"]}) PLCS', **lbl_kw)
-    ax.text(lbl_x, -0.5, f'{calc["footing_diam"]}" ÃÂÃÂÃÂÃÂ PIERS', **lbl_kw)
+    ax.text(lbl_x, -0.5, f'{calc["footing_diam"]}" ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ PIERS', **lbl_kw)
 
     # === DIMENSIONS (span bounding box) ===
     draw_dimension_v(ax, deck_x - 1, ground_y, deck_top,
@@ -528,8 +531,8 @@ def draw_south_elevation(ax, params, calc, compact=False):
 
 
 # ============================================================
-# NORTH ELEVATION (rear ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ observer looks south at house wall)
-# S24: Zone-aware ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ left/right zones extend visible width (mirrored)
+# NORTH ELEVATION (rear ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ observer looks south at house wall)
+# S24: Zone-aware ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ left/right zones extend visible width (mirrored)
 # ============================================================
 def draw_north_elevation(ax, params, calc, compact=False):
     W = calc["width"]
@@ -585,7 +588,7 @@ def draw_north_elevation(ax, params, calc, compact=False):
     # === ZONE-0 DECK SURFACE ===
     ax.plot([z0_x, z0_x + W], [deck_top, deck_top], color='#6B5340', lw=2.5)
 
-    # === ZONE-0 POSTS (mirrored, far side ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ dashed) ===
+    # === ZONE-0 POSTS (mirrored, far side ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ dashed) ===
     for px in calc["post_positions"]:
         sx = z0_x + (W - px)  # mirrored
         ax.plot([sx, sx], [ground_y, deck_top],
@@ -651,7 +654,7 @@ def draw_north_elevation(ax, params, calc, compact=False):
 
 
 # ============================================================
-# SIDE ELEVATION (East or West) ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ unchanged, zone-0 only
+# SIDE ELEVATION (East or West) ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ unchanged, zone-0 only
 # ============================================================
 def draw_side_elevation(ax, params, calc, direction="east", compact=False):
     W = calc["width"]
@@ -841,7 +844,7 @@ def draw_side_elevation(ax, params, calc, direction="east", compact=False):
         ax.text(lbl_x, _lbl_rail, f'{calc["rail_height"]}" RAIL', **lbl_kw)
         ax.text(lbl_x, _lbl_beam, f'{calc["beam_size"].upper()}', **lbl_kw)
         ax.text(lbl_x, _lbl_post, f'{calc["post_size"]} POST', **lbl_kw)
-        ax.text(lbl_x, _lbl_pier, f'{calc["footing_diam"]}" ÃÂÃÂÃÂÃÂ PIER', **lbl_kw)
+        ax.text(lbl_x, _lbl_pier, f'{calc["footing_diam"]}" ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ PIER', **lbl_kw)
 
         dim_x = deck_start_x + D + max(0.5, stair_ext + 0.5)
         draw_dimension_v(ax, dim_x, ground_y, deck_top,
@@ -901,7 +904,7 @@ def draw_elevations_sheet(fig, params, calc):
     ax_north.text(-margin_nx + 0.5, max(max_h_n + 0.3, H + 11.3), 'SCALE: 1/4" = 1\'-0"',
                   fontsize=4, fontfamily='monospace', color=BRAND["mute"])
 
-    # ---- EAST ELEVATION (bottom-left) ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ unchanged ----
+    # ---- EAST ELEVATION (bottom-left) ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ unchanged ----
     ax_east.set_facecolor('white')
     ax_east.axis('off')
     max_h_e = draw_side_elevation(ax_east, params, calc, direction="east", compact=True)
@@ -914,7 +917,7 @@ def draw_elevations_sheet(fig, params, calc):
     ax_east.text(-margin_ex + 0.5, max(max_h_e + 0.3, H + 11.3), 'SCALE: 1/4" = 1\'-0"',
                  fontsize=4, fontfamily='monospace', color=BRAND["mute"])
 
-    # ---- WEST ELEVATION (bottom-right) ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ unchanged ----
+    # ---- WEST ELEVATION (bottom-right) ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ unchanged ----
     ax_west.set_facecolor('white')
     ax_west.axis('off')
     max_h_w = draw_side_elevation(ax_west, params, calc, direction="west", compact=True)
@@ -929,5 +932,5 @@ def draw_elevations_sheet(fig, params, calc):
 
     # Sheet label
     fig.text(0.5, 0.02,
-             f'SHEET A-2  |  EXTERIOR ELEVATIONS  |  {format_feet_inches(W)} ÃÂÃÂÃÂÃÂ {format_feet_inches(D)}  |  simpleblueprints.xyz',
+             f'SHEET A-2  |  EXTERIOR ELEVATIONS  |  {format_feet_inches(W)} ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ {format_feet_inches(D)}  |  simpleblueprints.xyz',
              ha='center', fontsize=6, fontfamily='monospace', color=BRAND["mute"])
