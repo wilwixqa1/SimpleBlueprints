@@ -489,7 +489,8 @@ function StepContent(props) {
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                     <input type="number" value={edge.length} step={0.1} min={1} max={999}
-                      onChange={function(e) { updateEdge(idx, "length", Math.max(1, parseFloat(e.target.value) || 1)); }}
+                      onChange={function(e) { var raw = e.target.value; updateEdge(idx, "length", raw === "" ? 0 : (parseFloat(raw) || 0)); }}
+                      onBlur={function(e) { var v = parseFloat(e.target.value); if (!v || v < 1) updateEdge(idx, "length", 1); }}
                       style={{ width: 64, fontFamily: _mono, fontSize: 14, fontWeight: 800, color: _br.tx, textAlign: "right", border: "1px solid " + _br.bd, borderRadius: 4, padding: "3px 6px", outline: "none", background: "#faf8f3" }}
                     />
                     <span style={{ fontSize: 10, color: _br.mu, fontFamily: _mono }}>ft</span>
