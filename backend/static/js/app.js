@@ -21,6 +21,75 @@ window.computeRectEdges = function(p) {
   ];
 };
 
+// S37 Push 5: General polygon vertex solver
+window.computePolygonVerts = function(edges) {
+  var n = edges.length;
+  if (n < 3) return null;
+
+  // 4 edges: closed-form trapezoid solver
+  // Fixes south horizontal at y=0, solves for north/west closure
+  if (n === 4) {
+    var s = edges[0].length || 1;
+    var e = edges[1].length || 1;
+    var nLen = edges[2].length || 1;
+    var w = edges[3].length || 1;
+    var D = nLen - s;
+    var a, h;
+    if (Math.abs(D) < 0.01) {
+      a = 0; h = e;
+    } else {
+      a = (e * e - w * w - D * D) / (2 * D);
+      var hSq = w * w - a * a;
+      if (hSq < 1) { a = 0; h = Math.max(e, w); }
+      else { h = Math.sqrt(hSq); }
+    }
+    return [[0, 0], [s, 0], [a + nLen, h], [a, h]];
+  }
+
+  // 5+ edges: equal exterior angle distribution with closure correction
+  // Produces the most regular polygon possible for the given edge lengths
+  var extAngle = 2 * Math.PI / n;
+  var rawVerts = [[0, 0]];
+  var heading = 0; // start heading east (along positive X)
+
+  for (var i = 0; i < n - 1; i++) {
+    var len = edges[i].length || 1;
+    var prev = rawVerts[rawVerts.length - 1];
+    rawVerts.push([
+      prev[0] + len * Math.cos(heading),
+      prev[1] + len * Math.sin(heading)
+    ]);
+    heading += extAngle;
+  }
+
+  // Compute where the last edge would end without correction
+  var last = rawVerts[n - 1];
+  var lastLen = edges[n - 1].length || 1;
+  var endX = last[0] + lastLen * Math.cos(heading);
+  var endY = last[1] + lastLen * Math.sin(heading);
+
+  // Distribute closure error across all vertices (skip vertex 0 = origin)
+  var errX = endX, errY = endY;
+  for (var i = 1; i < n; i++) {
+    var frac = i / n;
+    rawVerts[i][0] -= errX * frac;
+    rawVerts[i][1] -= errY * frac;
+  }
+
+  // Normalize: shift so min Y = 0 and min X = 0
+  var minX = rawVerts[0][0], minY = rawVerts[0][1];
+  for (var i = 1; i < n; i++) {
+    if (rawVerts[i][0] < minX) minX = rawVerts[i][0];
+    if (rawVerts[i][1] < minY) minY = rawVerts[i][1];
+  }
+  for (var i = 0; i < n; i++) {
+    rawVerts[i][0] = +(rawVerts[i][0] - minX).toFixed(2);
+    rawVerts[i][1] = +(rawVerts[i][1] - minY).toFixed(2);
+  }
+
+  return rawVerts;
+};
+
 const App = function SimpleBlueprints() {
   const { br, mono, sans } = window.SB;
   const [page, setPage] = useState("home");
