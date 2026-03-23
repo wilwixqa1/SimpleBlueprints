@@ -545,7 +545,7 @@ function StepContent(props) {
         return <div style={{ padding: 14, background: _br.wr, borderRadius: 8, border: "1px solid " + _br.bd, marginBottom: 14 }}>
           <div style={{ fontSize: 9, fontWeight: 700, color: _br.mu, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 8 }}>{"\uD83E\uDDED"} North Arrow Direction</div>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <svg width={64} height={64} viewBox="0 0 64 64" style={{ cursor: "crosshair", flexShrink: 0 }}
+            <svg width={64} height={64} viewBox="0 0 64 64" style={{ cursor: "pointer", flexShrink: 0 }}
               onMouseDown={function(e) { dialDragRef.current = true; var a = calcAngle(e, e.currentTarget); if (a != null) u("northAngle", a); }}
               onMouseMove={function(e) { if (!dialDragRef.current) return; var a = calcAngle(e, e.currentTarget); if (a != null) u("northAngle", a); }}
               onMouseUp={function() { dialDragRef.current = false; }}
