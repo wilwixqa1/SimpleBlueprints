@@ -67,6 +67,8 @@ def _extract_site_params(params, calc):
         "address": sp.get("address") or pi.get("address", ""),
         "parcel_id": sp.get("parcelId") or pi.get("lot", ""),
         "street_name": params.get("streetName") or sp.get("streetName", ""),
+        "lot_vertices": params.get("lotVertices"),
+        "lot_edges": params.get("lotEdges"),
     }
 
 
@@ -100,70 +102,165 @@ def draw_site_plan(fig, params, calc):
     ax.axis('off')
 
     margin = 15
-    ax.set_xlim(-margin, lot_w + margin)
-    ax.set_ylim(-margin, lot_d + margin)
+    # === LOT POLYGON (S37: polygon-aware) ===
+    lot_verts = sp.get("lot_vertices")
+    lot_edge_data = sp.get("lot_edges")
+    if not lot_verts:
+        lot_verts = [[0, 0], [lot_w, 0], [lot_w, lot_d], [0, lot_d]]
+    if not lot_edge_data:
+        lot_edge_data = [
+            {"type": "street", "label": street_name, "length": lot_w, "setbackType": "front", "neighborLabel": ""},
+            {"type": "property", "label": "", "length": lot_d, "setbackType": "side", "neighborLabel": ""},
+            {"type": "property", "label": "", "length": lot_w, "setbackType": "rear", "neighborLabel": ""},
+            {"type": "property", "label": "", "length": lot_d, "setbackType": "side", "neighborLabel": ""},
+        ]
+    n_verts = len(lot_verts)
+    poly_max_x = max(v[0] for v in lot_verts)
+    poly_max_y = max(v[1] for v in lot_verts)
+    cx_lot = sum(v[0] for v in lot_verts) / n_verts
+    cy_lot = sum(v[1] for v in lot_verts) / n_verts
 
-    # === PROPERTY LINES ===
-    lot_rect = patches.Rectangle((0, 0), lot_w, lot_d,
-                                  fill=False, ec=BRAND["dark"], lw=2.5,
-                                  linestyle='-')
-    ax.add_patch(lot_rect)
+    ax.set_xlim(-margin, poly_max_x + margin)
+    ax.set_ylim(-margin, poly_max_y + margin)
 
-    dim_off = 5
-    ax.annotate('', xy=(lot_w, -dim_off), xytext=(0, -dim_off),
-                arrowprops=dict(arrowstyle='<->', color=BRAND["dark"], lw=1))
-    ax.text(lot_w / 2, -dim_off - 2.5, f"PROPERTY LINE  {lot_w}'",
-            ha='center', fontsize=7, fontweight='bold', fontfamily='monospace',
-            color=BRAND["dark"])
+    # Lot boundary polygon
+    lot_poly = plt.Polygon(lot_verts, fill=False, ec=BRAND["dark"], lw=2.5, closed=True)
+    ax.add_patch(lot_poly)
 
-    ax.annotate('', xy=(lot_w, lot_d + dim_off), xytext=(0, lot_d + dim_off),
-                arrowprops=dict(arrowstyle='<->', color=BRAND["dark"], lw=1))
-    ax.text(lot_w / 2, lot_d + dim_off + 1.5, f"PROPERTY LINE  {lot_w}'",
-            ha='center', fontsize=7, fontweight='bold', fontfamily='monospace',
-            color=BRAND["dark"])
+    # Street edges: thicker overlay
+    for ei in range(n_verts):
+        e_info = lot_edge_data[ei] if ei < len(lot_edge_data) else {}
+        if e_info.get("type") == "street":
+            v1, v2 = lot_verts[ei], lot_verts[(ei + 1) % n_verts]
+            ax.plot([v1[0], v2[0]], [v1[1], v2[1]],
+                    color=BRAND["dark"], lw=4, solid_capstyle="round", zorder=1.5)
 
-    ax.annotate('', xy=(-dim_off, lot_d), xytext=(-dim_off, 0),
-                arrowprops=dict(arrowstyle='<->', color=BRAND["dark"], lw=1))
-    ax.text(-dim_off - 2, lot_d / 2, f"PROPERTY LINE  {lot_d}'",
-            ha='center', fontsize=7, fontweight='bold', fontfamily='monospace',
-            color=BRAND["dark"], rotation=90)
+    # Per-edge dimension labels
+    for ei in range(n_verts):
+        v1 = lot_verts[ei]
+        v2 = lot_verts[(ei + 1) % n_verts]
+        e_info = lot_edge_data[ei] if ei < len(lot_edge_data) else {}
+        e_len = e_info.get("length") or math.sqrt((v2[0]-v1[0])**2 + (v2[1]-v1[1])**2)
+        mx, my = (v1[0]+v2[0])/2, (v1[1]+v2[1])/2
+        edx, edy = v2[0]-v1[0], v2[1]-v1[1]
+        seg_len = math.sqrt(edx*edx + edy*edy)
+        if seg_len < 1:
+            continue
+        nx, ny = -edy/seg_len, edx/seg_len
+        if nx*(cx_lot-mx) + ny*(cy_lot-my) > 0:
+            nx, ny = -nx, -ny
+        lx, ly = mx + nx * 4.5, my + ny * 4.5
+        angle = math.degrees(math.atan2(edy, edx))
+        while angle > 90: angle -= 180
+        while angle < -90: angle += 180
+        e_label = f"{e_len:.0f}'" if e_len == int(e_len) else f"{e_len:.1f}'"
+        ax.text(lx, ly, e_label, ha="center", va="center",
+                fontsize=7, fontweight="bold", fontfamily="monospace",
+                color=BRAND["dark"], rotation=angle)
 
-    ax.annotate('', xy=(lot_w + dim_off, lot_d), xytext=(lot_w + dim_off, 0),
-                arrowprops=dict(arrowstyle='<->', color=BRAND["dark"], lw=1))
-    ax.text(lot_w + dim_off + 2.5, lot_d / 2, f"{lot_d}'",
-            ha='center', fontsize=7, fontweight='bold', fontfamily='monospace',
-            color=BRAND["dark"], rotation=90)
+    # Per-edge neighbor labels
+    for ei in range(n_verts):
+        e_info = lot_edge_data[ei] if ei < len(lot_edge_data) else {}
+        nlbl = e_info.get("neighborLabel", "")
+        if not nlbl:
+            continue
+        v1 = lot_verts[ei]
+        v2 = lot_verts[(ei + 1) % n_verts]
+        mx, my = (v1[0]+v2[0])/2, (v1[1]+v2[1])/2
+        edx, edy = v2[0]-v1[0], v2[1]-v1[1]
+        seg_len = math.sqrt(edx*edx + edy*edy)
+        if seg_len < 1:
+            continue
+        nx, ny = -edy/seg_len, edx/seg_len
+        if nx*(cx_lot-mx) + ny*(cy_lot-my) > 0:
+            nx, ny = -nx, -ny
+        lx, ly = mx + nx * 9, my + ny * 9
+        angle = math.degrees(math.atan2(edy, edx))
+        while angle > 90: angle -= 180
+        while angle < -90: angle += 180
+        ax.text(lx, ly, nlbl.upper(), ha="center", va="center",
+                fontsize=6, fontweight="bold", fontfamily="monospace",
+                color=BRAND["mute"], fontstyle="italic", rotation=angle)
 
-    # === SETBACK LINES ===
-    sb_style = dict(fc='none', ec=BRAND["red"], lw=1, linestyle='--')
-    setback_rect = patches.Rectangle(
-        (sb_left, sb_front),
-        lot_w - sb_left - sb_right,
-        lot_d - sb_front - sb_rear,
-        **sb_style
-    )
-    ax.add_patch(setback_rect)
+    # === SETBACK POLYGON (S37: polygon-aware) ===
+    sb_map = {"front": sb_front, "rear": sb_rear, "side": max(sb_left, sb_right), "none": 0}
+    sb_dists = []
+    has_sb = False
+    for ei in range(n_verts):
+        e_info = lot_edge_data[ei] if ei < len(lot_edge_data) else {}
+        sb_type = e_info.get("setbackType", "side")
+        dist = sb_map.get(sb_type, 0)
+        sb_dists.append(dist)
+        if dist > 0:
+            has_sb = True
 
-    if sb_front > 0:
-        ax.text(lot_w / 2, sb_front / 2, f"{sb_front}' FRONT SETBACK",
-                ha='center', va='center', fontsize=6, fontfamily='monospace',
-                color=BRAND["red"], fontweight='bold',
-                bbox=dict(boxstyle='round,pad=0.3', fc='white', ec='none', alpha=0.8))
+    if has_sb:
+        offset_lines = []
+        for ei in range(n_verts):
+            v1 = lot_verts[ei]
+            v2 = lot_verts[(ei + 1) % n_verts]
+            edx, edy = v2[0]-v1[0], v2[1]-v1[1]
+            seg_len = math.sqrt(edx*edx + edy*edy)
+            if seg_len < 0.01:
+                offset_lines.append(None)
+                continue
+            nx, ny = -edy/seg_len, edx/seg_len
+            emx, emy = (v1[0]+v2[0])/2, (v1[1]+v2[1])/2
+            if nx*(cx_lot-emx) + ny*(cy_lot-emy) < 0:
+                nx, ny = -nx, -ny
+            d = sb_dists[ei]
+            offset_lines.append({
+                "x1": v1[0]+nx*d, "y1": v1[1]+ny*d,
+                "x2": v2[0]+nx*d, "y2": v2[1]+ny*d
+            })
 
-    if sb_rear > 0:
-        ax.text(lot_w / 2, lot_d - sb_rear / 2, f"{sb_rear}' REAR SETBACK",
-                ha='center', va='center', fontsize=6, fontfamily='monospace',
-                color=BRAND["red"], fontweight='bold',
-                bbox=dict(boxstyle='round,pad=0.3', fc='white', ec='none', alpha=0.8))
+        sb_verts_list = []
+        for ei in range(n_verts):
+            L1 = offset_lines[ei]
+            L2 = offset_lines[(ei + 1) % n_verts]
+            if not L1 or not L2:
+                sb_verts_list.append(lot_verts[(ei + 1) % n_verts])
+                continue
+            x1, y1 = L1["x1"], L1["y1"]
+            x2, y2 = L1["x2"], L1["y2"]
+            x3, y3 = L2["x1"], L2["y1"]
+            x4, y4 = L2["x2"], L2["y2"]
+            denom = (x1-x2)*(y3-y4) - (y1-y2)*(x3-x4)
+            if abs(denom) < 0.001:
+                sb_verts_list.append([(x2+x3)/2, (y2+y3)/2])
+                continue
+            t = ((x1-x3)*(y3-y4) - (y1-y3)*(x3-x4)) / denom
+            sb_verts_list.append([x1 + t*(x2-x1), y1 + t*(y2-y1)])
 
-    if sb_left > 0:
-        ax.text(sb_left / 2, lot_d / 2, f"{sb_left}'\nSIDE",
-                ha='center', va='center', fontsize=5, fontfamily='monospace',
-                color=BRAND["red"], fontweight='bold', rotation=90)
-    if sb_right > 0:
-        ax.text(lot_w - sb_right / 2, lot_d / 2, f"{sb_right}'\nSIDE",
-                ha='center', va='center', fontsize=5, fontfamily='monospace',
-                color=BRAND["red"], fontweight='bold', rotation=90)
+        sb_poly = plt.Polygon(sb_verts_list, fill=False, ec=BRAND["red"],
+                              lw=1, linestyle="--", closed=True)
+        ax.add_patch(sb_poly)
+
+        # Per-edge setback labels
+        for ei in range(n_verts):
+            if sb_dists[ei] <= 0:
+                continue
+            e_info = lot_edge_data[ei] if ei < len(lot_edge_data) else {}
+            sb_type = e_info.get("setbackType", "side")
+            v1 = lot_verts[ei]
+            v2 = lot_verts[(ei + 1) % n_verts]
+            mx, my = (v1[0]+v2[0])/2, (v1[1]+v2[1])/2
+            edx, edy = v2[0]-v1[0], v2[1]-v1[1]
+            seg_len = math.sqrt(edx*edx + edy*edy)
+            if seg_len < 1:
+                continue
+            nx, ny = -edy/seg_len, edx/seg_len
+            if nx*(cx_lot-mx) + ny*(cy_lot-my) < 0:
+                nx, ny = -nx, -ny
+            lx = mx + nx * sb_dists[ei] * 0.5
+            ly = my + ny * sb_dists[ei] * 0.5
+            angle = math.degrees(math.atan2(edy, edx))
+            while angle > 90: angle -= 180
+            while angle < -90: angle += 180
+            ax.text(lx, ly, f"{sb_dists[ei]}' {sb_type.upper()} SETBACK",
+                    ha="center", va="center", fontsize=5.5, fontfamily="monospace",
+                    color=BRAND["red"], fontweight="bold", rotation=angle,
+                    bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="none", alpha=0.8))
 
     # === HOUSE FOOTPRINT ===
     house_rect = patches.Rectangle(
@@ -424,16 +521,22 @@ def draw_site_plan(fig, params, calc):
                 ha='center', fontsize=6, fontfamily='monospace', color=BRAND["mute"],
                 fontweight='bold')
 
-    # === STREET ===
-    ax.add_patch(patches.Rectangle((-margin, -margin), lot_w + 2 * margin, margin - 10,
+    # === STREET (S37: polygon-aware) ===
+    _st_label = ""
+    for _ei in range(len(lot_edge_data)):
+        if lot_edge_data[_ei].get("type") == "street" and lot_edge_data[_ei].get("label"):
+            _st_label = lot_edge_data[_ei]["label"]
+            break
+    if not _st_label:
+        _st_label = street_name or "STREET"
+    ax.add_patch(patches.Rectangle((-margin, -margin), poly_max_x + 2 * margin, margin - 10,
                  fc='#e0e0e0', ec='none'))
-    street_label = street_name.upper() if street_name else "S T R E E T"
-    ax.text(lot_w / 2, -margin + 3, street_label,
+    ax.text(poly_max_x / 2, -margin + 3, _st_label.upper(),
             ha='center', va='center', fontsize=10, fontweight='bold',
             fontfamily='monospace', color=BRAND["mute"])
 
     # === NORTH ARROW (S32: rotatable) ===
-    na_x, na_y = lot_w + 8, lot_d - 10
+    na_x, na_y = poly_max_x + 8, poly_max_y - 10
     north_angle = params.get("northAngle", 0) or 0
     na_rad = math.radians(north_angle)
     na_len = 8
@@ -460,7 +563,7 @@ def draw_site_plan(fig, params, calc):
         _ga_deg = _dir_angles.get(slope_dir, 0)
         _ga_rad = math.radians(_ga_deg)
         _ga_len = 5
-        _ga_x = lot_w - 8
+        _ga_x = poly_max_x - 8
         _ga_y = 8
         _ga_dx = _ga_len * math.sin(_ga_rad)
         _ga_dy = _ga_len * math.cos(_ga_rad)
