@@ -1,6 +1,6 @@
 """
-SimpleBlueprints Ã¢ÂÂ Structural Calculation Engine
-Production version Ã¢ÂÂ mirrors frontend calcStructure() exactly
+SimpleBlueprints ÃÂ¢ÃÂÃÂ Structural Calculation Engine
+Production version ÃÂ¢ÃÂÃÂ mirrors frontend calcStructure() exactly
 """
 
 import math
@@ -94,6 +94,23 @@ def calculate_structure(params):
 
     total_posts = num_posts if attachment == "ledger" else num_posts * 2
 
+    # S34: Slope-adjusted post heights per position (mirrors frontend engine.js)
+    slope_pct = params.get("slopePercent", 0) / 100
+    slope_dir = params.get("slopeDirection", "front-to-back")
+    beam_depth = depth - 1.5
+    post_heights = []
+    for pp_x in post_positions:
+        ground_drop = 0  # positive = ground is lower = post is taller
+        if slope_dir == "front-to-back":
+            ground_drop = slope_pct * beam_depth
+        elif slope_dir == "back-to-front":
+            ground_drop = -slope_pct * beam_depth
+        elif slope_dir == "left-to-right":
+            ground_drop = slope_pct * (pp_x - width / 2)
+        elif slope_dir == "right-to-left":
+            ground_drop = -(slope_pct * (pp_x - width / 2))
+        post_heights.append(round(max(0.5, height + ground_drop), 2))
+
     trib_area = (width / max(num_posts - 1, 1)) * depth
     footing_load = trib_area * TL
     required_area = footing_load / 1500
@@ -166,6 +183,7 @@ def calculate_structure(params):
         "beam_size": beam_size, "beam_span": round(beam_span, 1),
         "post_size": post_size, "num_posts": num_posts,
         "total_posts": total_posts, "post_positions": post_positions,
+        "post_heights": post_heights,
         "footing_diam": footing_diam, "footing_depth": footing_depth,
         "num_footings": total_posts, "ledger_size": ledger_size,
         "rail_length": round(rail_length, 1), "rail_height": 36,
