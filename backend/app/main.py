@@ -293,6 +293,7 @@ Required fields (use null if not found or not readable):
 - zip: ZIP or postal code (string)
 - parcelId: lot or parcel number (string)
 - streetName: name of the street the property faces (string)
+- northAngle: orientation of the north arrow in degrees clockwise from straight up (number, 0-359). Look for a north arrow or compass rose on the survey. If the arrow points straight up, northAngle is 0. If it points to the upper-right, estimate the clockwise angle. Use null if no north arrow is visible.
 
 Also include a "confidence" object with the same keys, each "high", "medium", or "low".
 
