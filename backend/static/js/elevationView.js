@@ -1,7 +1,7 @@
 // ============================================================
-// ELEVATION SVG Ã¢ÂÂ 4-view grid (S/N/E/W) with architectural labels,
+// ELEVATION SVG ÃÂ¢ÃÂÃÂ 4-view grid (S/N/E/W) with architectural labels,
 // key plan inset, and smart view ordering for L-templates
-// S24: Zone-aware South/North views Ã¢ÂÂ left/right zones extend width.
+// S24: Zone-aware South/North views ÃÂ¢ÃÂÃÂ left/right zones extend width.
 //      Each zone section drawn independently with own deckTop.
 // ============================================================
 
@@ -57,7 +57,7 @@ function ElevationView({ c, p }) {
     return M[exitSide+","+viewDir] || ["hidden",null];
   }
 
-  // Key plan inset Ã¢ÂÂ shows deck outline + arrow for viewing direction
+  // Key plan inset ÃÂ¢ÃÂÃÂ shows deck outline + arrow for viewing direction
   function KeyPlan({ viewDir, insetX, insetY, insetSize }) {
     const s = insetSize;
     const dw = s * 0.6, dd = s * 0.4;
@@ -272,10 +272,16 @@ function ElevationView({ c, p }) {
             <rect x={hX} y={hTop} width={hW} height={hH} fill="#e8e6e0" stroke="#888" strokeWidth="0.5" />
             <polygon points={`${hX-2},${hTop} ${hX+hW/2},${hTop-roofPk} ${hX+hW+2},${hTop}`} fill="#888" stroke="#444" strokeWidth="0.8" />
             <text x={hX+hW/2} y={hTop-roofPk/3} textAnchor="middle" style={{ fontSize: 4, fill: "#aaa", fontFamily: "monospace" }}>HOUSE</text>
+          
+          {/* S34: Foundation extension below grade for sloped sites */}
+          {(() => { var _gdL = gradeYatX(hX); var _gdR = gradeYatX(hX + hW); var _lowestG = Math.max(_gdL, _gdR); var _fdrop = _lowestG - gnd; if (_fdrop > 1) return <rect x={hX} y={gnd} width={hW} height={_fdrop} fill="#c8c8c8" stroke="#888" strokeWidth="0.3" />; return null; })()}
           </> : <>
             <rect x={hX} y={hTop} width={hW} height={hH} fill="#e8e6e0" stroke="#888" strokeWidth="0.5" />
             <polygon points={`${hX-1},${hTop} ${hX+hW/2},${hTop-roofPk} ${hX+hW+1},${hTop}`} fill="#888" stroke="#444" strokeWidth="0.8" />
             <text x={hX+hW/2} y={hTop-roofPk/3} textAnchor="middle" style={{ fontSize: 3.5, fill: "#aaa", fontFamily: "monospace" }}>HOUSE</text>
+          
+          {/* S34: Foundation extension for side views */}
+          {(() => { var _gdL = gradeYatX(hX); var _gdR = gradeYatX(hX + hW); var _lowestG = Math.max(_gdL, _gdR); var _fdrop = _lowestG - gnd; if (_fdrop > 1) return <rect x={hX} y={gnd} width={hW} height={_fdrop} fill="#c8c8c8" stroke="#888" strokeWidth="0.3" />; return null; })()}
           </>}
 
           {/* S33: Earth fill below grade */}
@@ -324,13 +330,13 @@ function ElevationView({ c, p }) {
 
           {stEls}
 
-          {/* Height dimension Ã¢ÂÂ uses dX (bounding box left edge) */}
+          {/* Height dimension ÃÂ¢ÃÂÃÂ uses dX (bounding box left edge) */}
           <line x1={dX-8} y1={gnd} x2={dX-8} y2={dY} stroke="#1565c0" strokeWidth="0.4" />
           <line x1={dX-10} y1={gnd} x2={dX-6} y2={gnd} stroke="#1565c0" strokeWidth="0.4" />
           <line x1={dX-10} y1={dY} x2={dX-6} y2={dY} stroke="#1565c0" strokeWidth="0.4" />
           <text x={dX-12} y={(gnd+dY)/2+2} textAnchor="middle" transform={`rotate(-90,${dX-12},${(gnd+dY)/2})`} style={{ fontSize: 5.5, fill: "#1565c0", fontWeight: 700, fontFamily: "monospace" }}>{window.fmtFtIn(H)}</text>
 
-          {/* Width dimension Ã¢ÂÂ uses dX/dSW (spans full bounding box) */}
+          {/* Width dimension ÃÂ¢ÃÂÃÂ uses dX/dSW (spans full bounding box) */}
           <line x1={dX} y1={rTop-6} x2={dX+dSW} y2={rTop-6} stroke="#c62828" strokeWidth="0.4" />
           <line x1={dX} y1={rTop-8} x2={dX} y2={rTop-4} stroke="#c62828" strokeWidth="0.4" />
           <line x1={dX+dSW} y1={rTop-8} x2={dX+dSW} y2={rTop-4} stroke="#c62828" strokeWidth="0.4" />
