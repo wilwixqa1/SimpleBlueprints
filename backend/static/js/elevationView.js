@@ -1,7 +1,7 @@
 // ============================================================
-// ELEVATION SVG — 4-view grid (S/N/E/W) with architectural labels,
+// ELEVATION SVG â 4-view grid (S/N/E/W) with architectural labels,
 // key plan inset, and smart view ordering for L-templates
-// S24: Zone-aware South/North views — left/right zones extend width.
+// S24: Zone-aware South/North views â left/right zones extend width.
 //      Each zone section drawn independently with own deckTop.
 // ============================================================
 
@@ -57,7 +57,7 @@ function ElevationView({ c, p }) {
     return M[exitSide+","+viewDir] || ["hidden",null];
   }
 
-  // Key plan inset — shows deck outline + arrow for viewing direction
+  // Key plan inset â shows deck outline + arrow for viewing direction
   function KeyPlan({ viewDir, insetX, insetY, insetSize }) {
     const s = insetSize;
     const dw = s * 0.6, dd = s * 0.4;
@@ -108,6 +108,23 @@ function ElevationView({ c, p }) {
     const dSW = spanFt * sX; const svgW = dSW + pad * 2 + 40; const svgH = (H + 5) * sY + pad + 45;
     const gnd = pad + (H + 3) * sY; const dY = gnd - H * sY;
     const dX = pad; const rTop = dY - 2.5 * sY; const bH = 0.8 * sY;
+
+    // S33: Grade slope computation
+    var slopePct = (p.slopePercent || 0) / 100;
+    var slopeDir = p.slopeDirection || "front-to-back";
+    var gradeSign = 0; // +1 = left side higher, -1 = right side higher
+    if (showWidth) {
+      if (slopeDir === "left-to-right") gradeSign = isRear ? -1 : 1;
+      else if (slopeDir === "right-to-left") gradeSign = isRear ? 1 : -1;
+    } else {
+      if (slopeDir === "front-to-back") gradeSign = viewDir === "west" ? -1 : 1;
+      else if (slopeDir === "back-to-front") gradeSign = viewDir === "west" ? 1 : -1;
+    }
+    var halfRisePx = gradeSign * slopePct * spanFt * sY / 2;
+    var gradeLY = gnd - halfRisePx;
+    var gradeRY = gnd + halfRisePx;
+    var gradeLineX1 = pad - 10, gradeLineX2 = svgW - 10;
+    function gradeYatX(gx) { return gradeLY + (gradeRY - gradeLY) * ((gx - gradeLineX1) / (gradeLineX2 - gradeLineX1)); }
 
     // S24: Zone-0 drawing origin (shifted when left zones exist)
     const z0X = showWidth ? dX + zoneSN.xOff * sX : dX;
@@ -251,8 +268,9 @@ function ElevationView({ c, p }) {
             <text x={hX+hW/2} y={hTop-roofPk/3} textAnchor="middle" style={{ fontSize: 3.5, fill: "#aaa", fontFamily: "monospace" }}>HOUSE</text>
           </>}
 
-          <line x1={pad-10} y1={gnd} x2={svgW-10} y2={gnd} stroke="#444" strokeWidth="0.7" />
-          {Array.from({length:Math.ceil((svgW-20)/2.5)},(_,i)=><line key={i} x1={pad-10+i*2.5} y1={gnd} x2={pad-12+i*2.5} y2={gnd+1.5} stroke="#aaa" strokeWidth="0.2" />)}
+          <line x1={gradeLineX1} y1={gradeLY} x2={gradeLineX2} y2={gradeRY} stroke="#444" strokeWidth="0.7" />
+          {Array.from({length:Math.ceil((svgW-20)/2.5)},function(_,i){var hx=pad-10+i*2.5;var gy=gradeYatX(hx);return <line key={i} x1={hx} y1={gy} x2={hx-2} y2={gy+1.5} stroke="#aaa" strokeWidth="0.2" />;})}
+          {slopePct > 0 && gradeSign !== 0 && <text x={gradeLineX2 - 5} y={gradeRY - 4} textAnchor="end" style={{ fontSize: 4, fill: "#888", fontFamily: "monospace", fontWeight: 600 }}>{(slopePct * 100).toFixed(1)}% GRADE</text>}
 
           {postEls}
 
@@ -290,13 +308,13 @@ function ElevationView({ c, p }) {
 
           {stEls}
 
-          {/* Height dimension — uses dX (bounding box left edge) */}
+          {/* Height dimension â uses dX (bounding box left edge) */}
           <line x1={dX-8} y1={gnd} x2={dX-8} y2={dY} stroke="#1565c0" strokeWidth="0.4" />
           <line x1={dX-10} y1={gnd} x2={dX-6} y2={gnd} stroke="#1565c0" strokeWidth="0.4" />
           <line x1={dX-10} y1={dY} x2={dX-6} y2={dY} stroke="#1565c0" strokeWidth="0.4" />
           <text x={dX-12} y={(gnd+dY)/2+2} textAnchor="middle" transform={`rotate(-90,${dX-12},${(gnd+dY)/2})`} style={{ fontSize: 5.5, fill: "#1565c0", fontWeight: 700, fontFamily: "monospace" }}>{window.fmtFtIn(H)}</text>
 
-          {/* Width dimension — uses dX/dSW (spans full bounding box) */}
+          {/* Width dimension â uses dX/dSW (spans full bounding box) */}
           <line x1={dX} y1={rTop-6} x2={dX+dSW} y2={rTop-6} stroke="#c62828" strokeWidth="0.4" />
           <line x1={dX} y1={rTop-8} x2={dX} y2={rTop-4} stroke="#c62828" strokeWidth="0.4" />
           <line x1={dX+dSW} y1={rTop-8} x2={dX+dSW} y2={rTop-4} stroke="#c62828" strokeWidth="0.4" />
