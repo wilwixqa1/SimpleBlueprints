@@ -446,6 +446,36 @@ def draw_site_plan(fig, params, calc):
     ax.text(na_tx, na_ty, "N", ha='center', va='center', fontsize=12, fontweight='bold',
             fontfamily='monospace', color=BRAND["dark"])
 
+    # === GRADE ARROW (S33) ===
+    slope_pct = params.get("slopePercent", 0)
+    slope_dir = params.get("slopeDirection", "front-to-back")
+    if slope_pct and slope_pct > 0:
+        # Direction angles: 0=toward rear, 90=toward right, 180=toward front, 270=toward left
+        _dir_angles = {
+            "front-to-back": 0,
+            "left-to-right": 90,
+            "back-to-front": 180,
+            "right-to-left": 270,
+        }
+        _ga_deg = _dir_angles.get(slope_dir, 0)
+        _ga_rad = math.radians(_ga_deg)
+        _ga_len = 5
+        _ga_x = lot_w - 8
+        _ga_y = 8
+        _ga_dx = _ga_len * math.sin(_ga_rad)
+        _ga_dy = _ga_len * math.cos(_ga_rad)
+        ax.annotate('', xy=(_ga_x + _ga_dx, _ga_y + _ga_dy),
+                    xytext=(_ga_x, _ga_y),
+                    arrowprops=dict(arrowstyle='->', color='#8B7355', lw=1.8))
+        ax.text(_ga_x + _ga_dx / 2 + (2.5 if _ga_dy != 0 else 0),
+                _ga_y + _ga_dy / 2 + (2 if _ga_dx != 0 else 0),
+                f"{slope_pct}% DN", ha='center', fontsize=5.5,
+                fontfamily='monospace', color='#8B7355', fontweight='bold')
+        ax.text(_ga_x + _ga_dx / 2 + (2.5 if _ga_dy != 0 else 0),
+                _ga_y + _ga_dy / 2 + (2 if _ga_dx != 0 else 0) - 1.8,
+                "GRADE", ha='center', fontsize=4.5,
+                fontfamily='monospace', color='#8B7355', fontstyle='italic')
+
     # === TITLE ===
     fig.text(0.44, 0.94, "SITE PLAN", ha='center',
              fontsize=16, fontweight='bold', fontfamily='monospace',
