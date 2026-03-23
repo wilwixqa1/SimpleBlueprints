@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-SimpleBlueprints Ã¢ÂÂ Parametric PDF Drawing Engine
+SimpleBlueprints ÃÂ¢ÃÂÃÂ Parametric PDF Drawing Engine
 Sheet A-2: Exterior Elevations (4-View: South / North / East / West)
-S24: Zone-aware South/North views Ã¢ÂÂ left/right zones extend visible width.
+S24: Zone-aware South/North views ÃÂ¢ÃÂÃÂ left/right zones extend visible width.
      Each zone section drawn independently with own deck_top (future: height-per-zone).
 """
 
@@ -29,9 +29,9 @@ def _get_zone_south_north_sections(params, calc):
     Only left/right zones extend the visible width in these views.
 
     Returns: {
-        x_off: float Ã¢ÂÂ shift for zone-0 drawing (accounts for left zones),
-        bb_w: float Ã¢ÂÂ total bounding box width,
-        sections: list of {x_draw, w, deck_top} Ã¢ÂÂ zone wing sections to draw
+        x_off: float ÃÂ¢ÃÂÃÂ shift for zone-0 drawing (accounts for left zones),
+        bb_w: float ÃÂ¢ÃÂÃÂ total bounding box width,
+        sections: list of {x_draw, w, deck_top} ÃÂ¢ÃÂÃÂ zone wing sections to draw
     }
     No-zone case: x_off=0, bb_w=W, sections=[]
     """
@@ -282,7 +282,7 @@ def draw_grade_line(ax, x1, x2, y, slope_rise=0):
                 fontstyle='italic')
 
 
-def _draw_house_front(ax, house_x, house_w, ground_y, height):
+def _draw_house_front(ax, house_x, house_w, ground_y, height, grade_drop=0):
     if height < 8:
         foundation_h = height + 1
         floor1_h = 8.5
@@ -335,10 +335,18 @@ def _draw_house_front(ax, house_x, house_w, ground_y, height):
     ax.text(house_x + house_w / 2, roof_base + 1.5, 'EXISTING HOUSE',
             ha='center', fontsize=4.5, color=BRAND["mute"])
 
+    # S34: Foundation wall extension below grade for sloped sites
+    if grade_drop > 0:
+        ax.add_patch(patches.Rectangle((house_x, ground_y - grade_drop), house_w, grade_drop,
+                     fc=BRAND["concrete"], ec=BRAND["dark"], lw=1, zorder=1))
+        for _fy in np.arange(ground_y - grade_drop + 0.5, ground_y, 0.5):
+            ax.plot([house_x, house_x + house_w], [_fy, _fy],
+                    color='#aaaaaa', lw=0.2, zorder=1)
+
     return total_wall, roof_peak
 
 
-def _draw_house_side(ax, house_x, house_d, ground_y, height):
+def _draw_house_side(ax, house_x, house_d, ground_y, height, grade_drop=0):
     if height < 8:
         house_h = height + 1 + 8.5
     else:
@@ -359,12 +367,20 @@ def _draw_house_side(ax, house_x, house_d, ground_y, height):
     ax.text(house_x + house_d / 2, roof_base + 1.5, 'EXISTING HOUSE',
             ha='center', fontsize=4.5, color=BRAND["mute"])
 
+    # S34: Foundation wall extension below grade for sloped sites
+    if grade_drop > 0:
+        ax.add_patch(patches.Rectangle((house_x, ground_y - grade_drop), house_d, grade_drop,
+                     fc=BRAND["concrete"], ec=BRAND["dark"], lw=1, zorder=1))
+        for _fy in np.arange(ground_y - grade_drop + 0.5, ground_y, 0.5):
+            ax.plot([house_x, house_x + house_d], [_fy, _fy],
+                    color='#aaaaaa', lw=0.2, zorder=1)
+
     return house_h, roof_peak
 
 
 # ============================================================
-# SOUTH ELEVATION (front Ã¢ÂÂ observer looks north at deck front)
-# S24: Zone-aware Ã¢ÂÂ left/right zones extend visible width
+# SOUTH ELEVATION (front ÃÂ¢ÃÂÃÂ observer looks north at deck front)
+# S24: Zone-aware ÃÂ¢ÃÂÃÂ left/right zones extend visible width
 # ============================================================
 def draw_south_elevation(ax, params, calc, compact=False):
     W = calc["width"]
@@ -383,19 +399,25 @@ def draw_south_elevation(ax, params, calc, compact=False):
     fs_dim = 4.5 if compact else 6
     fs_title = 4 if compact else 5.5
 
-    # House behind (centered on zone-0)
-    house_x = z0_x + (W - min(W, 30)) / 2
-    house_w = min(W, 30)
-    total_wall, roof_peak = _draw_house_front(ax, house_x, house_w, ground_y, H)
-
-    # S33: Compute grade slope for this view
+    # S33: Compute grade slope for this view (moved before house for S34 grade_drop)
     _slope_pct = params.get("slopePercent", 0) / 100
     _slope_dir = params.get("slopeDirection", "front-to-back")
     _grade_rise = 0
     if _slope_dir == "left-to-right":
-        _grade_rise = _slope_pct * total_w  # right side lower
+        _grade_rise = _slope_pct * total_w
     elif _slope_dir == "right-to-left":
-        _grade_rise = -_slope_pct * total_w  # left side lower
+        _grade_rise = -_slope_pct * total_w
+
+    # House behind (centered on zone-0)
+    house_x = z0_x + (W - min(W, 30)) / 2
+    house_w = min(W, 30)
+    # S34: Foundation extends to lowest grade at house edges
+    _glx1, _glx2 = -3.0, deck_x + total_w + 5.0
+    _gly1, _gly2 = ground_y - _grade_rise / 2, ground_y + _grade_rise / 2
+    _ghl = _gly1 + (_gly2 - _gly1) * (house_x - _glx1) / max(_glx2 - _glx1, 0.01)
+    _ghr = _gly1 + (_gly2 - _gly1) * (house_x + house_w - _glx1) / max(_glx2 - _glx1, 0.01)
+    _gdrop = max(0, ground_y - min(_ghl, _ghr))
+    total_wall, roof_peak = _draw_house_front(ax, house_x, house_w, ground_y, H, grade_drop=_gdrop)
 
     draw_grade_line(ax, -3, deck_x + total_w + 5, ground_y, slope_rise=_grade_rise)
 
@@ -494,7 +516,7 @@ def draw_south_elevation(ax, params, calc, compact=False):
             'FLUSH BEAM' if beam_type == 'flush' else 'DROPPED BEAM', **lbl_kw)
     ax.text(lbl_x, H * 0.4, f'{calc["post_size"]} PT POSTS', **lbl_kw)
     ax.text(lbl_x, H * 0.4 - 0.6, f'({calc["num_posts"]}) PLCS', **lbl_kw)
-    ax.text(lbl_x, -0.5, f'{calc["footing_diam"]}" ÃÂ PIERS', **lbl_kw)
+    ax.text(lbl_x, -0.5, f'{calc["footing_diam"]}" ÃÂÃÂ PIERS', **lbl_kw)
 
     # === DIMENSIONS (span bounding box) ===
     draw_dimension_v(ax, deck_x - 1, ground_y, deck_top,
@@ -506,8 +528,8 @@ def draw_south_elevation(ax, params, calc, compact=False):
 
 
 # ============================================================
-# NORTH ELEVATION (rear Ã¢ÂÂ observer looks south at house wall)
-# S24: Zone-aware Ã¢ÂÂ left/right zones extend visible width (mirrored)
+# NORTH ELEVATION (rear ÃÂ¢ÃÂÃÂ observer looks south at house wall)
+# S24: Zone-aware ÃÂ¢ÃÂÃÂ left/right zones extend visible width (mirrored)
 # ============================================================
 def draw_north_elevation(ax, params, calc, compact=False):
     W = calc["width"]
@@ -527,19 +549,25 @@ def draw_north_elevation(ax, params, calc, compact=False):
     fs_lbl = 3.5 if compact else 4.5
     fs_dim = 4.5 if compact else 6
 
-    # House (centered on zone-0, mirrored)
-    house_x = z0_x + (W - min(W, 30)) / 2
-    house_w = min(W, 30)
-    total_wall, roof_peak = _draw_house_front(ax, house_x, house_w, ground_y, H)
-
-    # S33: Grade slope for north view (mirrored from south)
+    # S33: Grade slope for north view (moved before house for S34 grade_drop)
     _slope_pct_n = params.get("slopePercent", 0) / 100
     _slope_dir_n = params.get("slopeDirection", "front-to-back")
     _grade_rise_n = 0
     if _slope_dir_n == "left-to-right":
-        _grade_rise_n = -_slope_pct_n * total_w  # mirrored
+        _grade_rise_n = -_slope_pct_n * total_w
     elif _slope_dir_n == "right-to-left":
-        _grade_rise_n = _slope_pct_n * total_w  # mirrored
+        _grade_rise_n = _slope_pct_n * total_w
+
+    # House (centered on zone-0, mirrored)
+    house_x = z0_x + (W - min(W, 30)) / 2
+    house_w = min(W, 30)
+    # S34: Foundation extends to lowest grade at house edges
+    _glx1n, _glx2n = -3.0, deck_x + total_w + 5.0
+    _gly1n, _gly2n = ground_y - _grade_rise_n / 2, ground_y + _grade_rise_n / 2
+    _ghln = _gly1n + (_gly2n - _gly1n) * (house_x - _glx1n) / max(_glx2n - _glx1n, 0.01)
+    _ghrn = _gly1n + (_gly2n - _gly1n) * (house_x + house_w - _glx1n) / max(_glx2n - _glx1n, 0.01)
+    _gdropn = max(0, ground_y - min(_ghln, _ghrn))
+    total_wall, roof_peak = _draw_house_front(ax, house_x, house_w, ground_y, H, grade_drop=_gdropn)
 
     draw_grade_line(ax, -3, deck_x + total_w + 5, ground_y, slope_rise=_grade_rise_n)
 
@@ -557,7 +585,7 @@ def draw_north_elevation(ax, params, calc, compact=False):
     # === ZONE-0 DECK SURFACE ===
     ax.plot([z0_x, z0_x + W], [deck_top, deck_top], color='#6B5340', lw=2.5)
 
-    # === ZONE-0 POSTS (mirrored, far side Ã¢ÂÂ dashed) ===
+    # === ZONE-0 POSTS (mirrored, far side ÃÂ¢ÃÂÃÂ dashed) ===
     for px in calc["post_positions"]:
         sx = z0_x + (W - px)  # mirrored
         ax.plot([sx, sx], [ground_y, deck_top],
@@ -623,7 +651,7 @@ def draw_north_elevation(ax, params, calc, compact=False):
 
 
 # ============================================================
-# SIDE ELEVATION (East or West) Ã¢ÂÂ unchanged, zone-0 only
+# SIDE ELEVATION (East or West) ÃÂ¢ÃÂÃÂ unchanged, zone-0 only
 # ============================================================
 def draw_side_elevation(ax, params, calc, direction="east", compact=False):
     W = calc["width"]
@@ -643,16 +671,22 @@ def draw_side_elevation(ax, params, calc, direction="east", compact=False):
         deck_start_x = house_draw_x
         deck_end_x = house_draw_x - D
 
-        house_h, roof_peak = _draw_house_side(ax, house_draw_x, house_d, ground_y, H)
-
-        # S33: Grade slope for west view (mirrored from east)
+        # S33: Grade slope for west view (moved before house for S34)
         _slope_pct_w = params.get("slopePercent", 0) / 100
         _slope_dir_w = params.get("slopeDirection", "front-to-back")
         _grade_rise_w = 0
         if _slope_dir_w == "front-to-back":
-            _grade_rise_w = -_slope_pct_w * D  # mirrored
+            _grade_rise_w = -_slope_pct_w * D
         elif _slope_dir_w == "back-to-front":
             _grade_rise_w = _slope_pct_w * D
+
+        # S34: Foundation extends to lowest grade at house edges
+        _glx1w, _glx2w = -2.0, house_draw_x + house_d + 3.0
+        _gly1w, _gly2w = ground_y - _grade_rise_w / 2, ground_y + _grade_rise_w / 2
+        _ghlw = _gly1w + (_gly2w - _gly1w) * (house_draw_x - _glx1w) / max(_glx2w - _glx1w, 0.01)
+        _ghrw = _gly1w + (_gly2w - _gly1w) * (house_draw_x + house_d - _glx1w) / max(_glx2w - _glx1w, 0.01)
+        _gdropw = max(0, ground_y - min(_ghlw, _ghrw))
+        house_h, roof_peak = _draw_house_side(ax, house_draw_x, house_d, ground_y, H, grade_drop=_gdropw)
 
         draw_grade_line(ax, -2, house_draw_x + house_d + 3, ground_y, slope_rise=_grade_rise_w)
 
@@ -721,16 +755,22 @@ def draw_side_elevation(ax, params, calc, direction="east", compact=False):
         max_h = house_h + roof_peak
 
     else:
-        house_h, roof_peak = _draw_house_side(ax, house_x, house_d, ground_y, H)
-
-        # S33: Compute grade slope for east view
+        # S33: Compute grade slope for east view (moved before house for S34)
         _slope_pct_e = params.get("slopePercent", 0) / 100
         _slope_dir_e = params.get("slopeDirection", "front-to-back")
         _grade_rise_e = 0
         if _slope_dir_e == "front-to-back":
-            _grade_rise_e = _slope_pct_e * D  # front higher (house side), back lower
+            _grade_rise_e = _slope_pct_e * D
         elif _slope_dir_e == "back-to-front":
             _grade_rise_e = -_slope_pct_e * D
+
+        # S34: Foundation extends to lowest grade at house edges
+        _glx1e, _glx2e = -2.0, house_x + house_d + D + 5.0
+        _gly1e, _gly2e = ground_y - _grade_rise_e / 2, ground_y + _grade_rise_e / 2
+        _ghle = _gly1e + (_gly2e - _gly1e) * (house_x - _glx1e) / max(_glx2e - _glx1e, 0.01)
+        _ghre = _gly1e + (_gly2e - _gly1e) * (house_x + house_d - _glx1e) / max(_glx2e - _glx1e, 0.01)
+        _gdrope = max(0, ground_y - min(_ghle, _ghre))
+        house_h, roof_peak = _draw_house_side(ax, house_x, house_d, ground_y, H, grade_drop=_gdrope)
 
         draw_grade_line(ax, -2, house_x + house_d + D + 5, ground_y, slope_rise=_grade_rise_e)
 
@@ -801,7 +841,7 @@ def draw_side_elevation(ax, params, calc, direction="east", compact=False):
         ax.text(lbl_x, _lbl_rail, f'{calc["rail_height"]}" RAIL', **lbl_kw)
         ax.text(lbl_x, _lbl_beam, f'{calc["beam_size"].upper()}', **lbl_kw)
         ax.text(lbl_x, _lbl_post, f'{calc["post_size"]} POST', **lbl_kw)
-        ax.text(lbl_x, _lbl_pier, f'{calc["footing_diam"]}" ÃÂ PIER', **lbl_kw)
+        ax.text(lbl_x, _lbl_pier, f'{calc["footing_diam"]}" ÃÂÃÂ PIER', **lbl_kw)
 
         dim_x = deck_start_x + D + max(0.5, stair_ext + 0.5)
         draw_dimension_v(ax, dim_x, ground_y, deck_top,
@@ -861,7 +901,7 @@ def draw_elevations_sheet(fig, params, calc):
     ax_north.text(-margin_nx + 0.5, max(max_h_n + 0.3, H + 11.3), 'SCALE: 1/4" = 1\'-0"',
                   fontsize=4, fontfamily='monospace', color=BRAND["mute"])
 
-    # ---- EAST ELEVATION (bottom-left) Ã¢ÂÂ unchanged ----
+    # ---- EAST ELEVATION (bottom-left) ÃÂ¢ÃÂÃÂ unchanged ----
     ax_east.set_facecolor('white')
     ax_east.axis('off')
     max_h_e = draw_side_elevation(ax_east, params, calc, direction="east", compact=True)
@@ -874,7 +914,7 @@ def draw_elevations_sheet(fig, params, calc):
     ax_east.text(-margin_ex + 0.5, max(max_h_e + 0.3, H + 11.3), 'SCALE: 1/4" = 1\'-0"',
                  fontsize=4, fontfamily='monospace', color=BRAND["mute"])
 
-    # ---- WEST ELEVATION (bottom-right) Ã¢ÂÂ unchanged ----
+    # ---- WEST ELEVATION (bottom-right) ÃÂ¢ÃÂÃÂ unchanged ----
     ax_west.set_facecolor('white')
     ax_west.axis('off')
     max_h_w = draw_side_elevation(ax_west, params, calc, direction="west", compact=True)
@@ -889,5 +929,5 @@ def draw_elevations_sheet(fig, params, calc):
 
     # Sheet label
     fig.text(0.5, 0.02,
-             f'SHEET A-2  |  EXTERIOR ELEVATIONS  |  {format_feet_inches(W)} ÃÂ {format_feet_inches(D)}  |  simpleblueprints.xyz',
+             f'SHEET A-2  |  EXTERIOR ELEVATIONS  |  {format_feet_inches(W)} ÃÂÃÂ {format_feet_inches(D)}  |  simpleblueprints.xyz',
              ha='center', fontsize=6, fontfamily='monospace', color=BRAND["mute"])
