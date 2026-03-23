@@ -89,6 +89,11 @@ const App = function SimpleBlueprints() {
       const maxHO = Math.max(5, next.lotWidth - next.houseWidth - 5);
       next.houseOffsetSide = Math.min(next.houseOffsetSide || 20, maxHO);
     }
+    // S37: Clear custom polygon when lot dimension sliders change
+    if ((k === "lotWidth" || k === "lotDepth") && prev.lotEdges) {
+      next.lotEdges = null;
+      next.lotVertices = null;
+    }
     // S29: clamp houseDistFromStreet when setbackFront changes
     if (k === "setbackFront" && next.houseDistFromStreet !== null && next.houseDistFromStreet < v) {
       next.houseDistFromStreet = v;
