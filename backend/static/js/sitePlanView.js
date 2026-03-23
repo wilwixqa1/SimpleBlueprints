@@ -65,6 +65,76 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
     }
   })();
 
+  // === SETBACK POLYGON (S36) ===
+  var setbackPolyPoints = "";
+  var setbackLabels = [];
+  (function() {
+    var sbDists = [];
+    var hasSB = false;
+    for (var si = 0; si < nVerts; si++) {
+      var eInfo = lotEdgeData[si] || {};
+      var sbType = eInfo.setbackType || "side";
+      var dist = 0;
+      if (sbType === "front") dist = p.setbackFront || 0;
+      else if (sbType === "rear") dist = p.setbackRear || 0;
+      else if (sbType === "side") dist = p.setbackSide || 0;
+      sbDists.push(dist);
+      if (dist > 0) hasSB = true;
+    }
+    if (!hasSB) return;
+    var cx = 0, cy = 0;
+    for (var si = 0; si < nVerts; si++) { cx += verts[si][0]; cy += verts[si][1]; }
+    cx /= nVerts; cy /= nVerts;
+    var offsetLines = [];
+    for (var si = 0; si < nVerts; si++) {
+      var v1 = verts[si], v2 = verts[(si + 1) % nVerts];
+      var edx = v2[0] - v1[0], edy = v2[1] - v1[1];
+      var elen = Math.sqrt(edx * edx + edy * edy);
+      if (elen < 0.01) { offsetLines.push(null); continue; }
+      var nx = -edy / elen, ny = edx / elen;
+      var mx = (v1[0] + v2[0]) / 2, my = (v1[1] + v2[1]) / 2;
+      if (nx * (cx - mx) + ny * (cy - my) < 0) { nx = -nx; ny = -ny; }
+      var d = sbDists[si];
+      offsetLines.push({ x1: v1[0] + nx * d, y1: v1[1] + ny * d, x2: v2[0] + nx * d, y2: v2[1] + ny * d });
+    }
+    var sbVerts = [];
+    for (var si = 0; si < nVerts; si++) {
+      var L1 = offsetLines[si];
+      var L2 = offsetLines[(si + 1) % nVerts];
+      if (!L1 || !L2) { sbVerts.push(verts[(si + 1) % nVerts]); continue; }
+      var x1 = L1.x1, y1 = L1.y1, x2 = L1.x2, y2 = L1.y2;
+      var x3 = L2.x1, y3 = L2.y1, x4 = L2.x2, y4 = L2.y2;
+      var denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+      if (Math.abs(denom) < 0.001) { sbVerts.push([(x2 + x3) / 2, (y2 + y3) / 2]); continue; }
+      var t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / denom;
+      sbVerts.push([x1 + t * (x2 - x1), y1 + t * (y2 - y1)]);
+    }
+    setbackPolyPoints = sbVerts.map(function(v) { return sx(v[0]) + "," + sy(v[1]); }).join(" ");
+    for (var si = 0; si < nVerts; si++) {
+      if (sbDists[si] <= 0) continue;
+      var eInfo = lotEdgeData[si] || {};
+      var sbType = eInfo.setbackType || "side";
+      var v1 = verts[si], v2 = verts[(si + 1) % nVerts];
+      var emx = (v1[0] + v2[0]) / 2, emy = (v1[1] + v2[1]) / 2;
+      var edx = v2[0] - v1[0], edy = v2[1] - v1[1];
+      var elen = Math.sqrt(edx * edx + edy * edy);
+      if (elen < 1) continue;
+      var nx = -edy / elen, ny = edx / elen;
+      if (nx * (cx - emx) + ny * (cy - emy) < 0) { nx = -nx; ny = -ny; }
+      var lx = emx + nx * sbDists[si] * 0.5;
+      var ly = emy + ny * sbDists[si] * 0.5;
+      var slx = sx(lx), sly = sy(ly);
+      var svgA = Math.atan2(sy(v2[1]) - sy(v1[1]), sx(v2[0]) - sx(v1[0])) * 180 / Math.PI;
+      while (svgA > 90) svgA -= 180;
+      while (svgA < -90) svgA += 180;
+      setbackLabels.push(React.createElement("text", {
+        key: "sbl" + si, x: slx, y: sly, textAnchor: "middle", dominantBaseline: "central",
+        transform: "rotate(" + svgA.toFixed(1) + "," + slx.toFixed(1) + "," + sly.toFixed(1) + ")",
+        style: { fontSize: 7, fill: "#e53935", fontFamily: mono, opacity: 0.7 }
+      }, sbDists[si] + "' " + sbType + " setback"));
+    }
+  })();
+
   // === COORDINATE CONVERSION (S32: for drag-drop) ===
   function clientToLot(clientX, clientY) {
     var svg = svgRef.current;
@@ -372,8 +442,8 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
 
     React.createElement("rect", { x: 0, y: 0, width: svgW, height: svgH, fill: "#fafaf5", rx: 4 }),
 
-    sbF + sbR + sbS > 0 ? React.createElement("rect", {
-      x: sx(sbS), y: sy(lotD - sbR), width: sw(lotW - sbS * 2), height: sh(lotD - sbF - sbR),
+    setbackPolyPoints ? React.createElement("polygon", {
+      points: setbackPolyPoints,
       fill: "none", stroke: "#e53935", strokeWidth: 0.8, strokeDasharray: "6,4", opacity: 0.5
     }) : null,
 
@@ -399,8 +469,7 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
     leftGap > 0 && sw(leftGap) > 12 ? React.createElement(DimLine, { x1: sx(0), y1: sy(bbLy + bbD / 2), x2: sx(bbLx), y2: sy(bbLy + bbD / 2), label: leftGap.toFixed(1) + "'", color: leftWarn ? "#e53935" : "#1565c0", side: "above" }) : null,
     rightGap > 0 && sw(rightGap) > 12 ? React.createElement(DimLine, { x1: sx(bbLx + bbW), y1: sy(bbLy + bbD / 2), x2: sx(lotW), y2: sy(bbLy + bbD / 2), label: rightGap.toFixed(1) + "'", color: rightWarn ? "#e53935" : "#1565c0", side: "above" }) : null,
 
-    sbF > 0 ? React.createElement("text", { x: sx(lotW / 2), y: sy(sbF) + 12, textAnchor: "middle", style: { fontSize: 7, fill: "#e53935", fontFamily: mono, opacity: 0.7 } }, sbF + "' front setback") : null,
-    sbR > 0 ? React.createElement("text", { x: sx(lotW / 2), y: sy(lotD - sbR) - 4, textAnchor: "middle", style: { fontSize: 7, fill: "#e53935", fontFamily: mono, opacity: 0.7 } }, sbR + "' rear setback") : null,
+    React.createElement("g", null, setbackLabels),
 
     React.createElement("g", null, edgeLabels),
 
