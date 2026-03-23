@@ -368,38 +368,9 @@ function StepContent(props) {
         var currentEdges = p.lotEdges || window.computeRectEdges(p);
         var isCustom = !!p.lotEdges;
 
-        // Trapezoid vertex solver for 4-sided lots
-        // Fixes south horizontal, east perpendicular, solves for north/west closure
-        function computeQuadVerts(edges) {
-          if (edges.length !== 4) return null;
-          var s = edges[0].length || 1;
-          var e = edges[1].length || 1;
-          var n = edges[2].length || 1;
-          var w = edges[3].length || 1;
-          var D = n - s;
-          var a, h;
-          if (Math.abs(D) < 0.01) {
-            // Rectangle or parallel sides: south = north
-            a = 0; h = e;
-          } else {
-            // Solve: a = horizontal offset of NW corner from origin
-            // h = perpendicular height between south and north edges
-            a = (e * e - w * w - D * D) / (2 * D);
-            var hSq = w * w - a * a;
-            if (hSq < 1) {
-              // Invalid trapezoid dimensions, simple fallback
-              a = 0; h = Math.max(e, w);
-            } else {
-              h = Math.sqrt(hSq);
-            }
-          }
-          // Clockwise: SW, SE, NE, NW
-          return [[0, 0], [s, 0], [a + n, h], [a, h]];
-        }
-
         function commitEdges(newEdges) {
           u("lotEdges", newEdges);
-          var verts = computeQuadVerts(newEdges);
+          var verts = window.computePolygonVerts(newEdges);
           u("lotVertices", verts);
         }
 
@@ -536,8 +507,8 @@ function StepContent(props) {
               </div>;
             })}
 
-            {currentEdges.length > 4 && <div style={{ fontSize: 8, color: "#d97706", fontFamily: _mono, padding: "6px 10px", background: "#fff8e1", borderRadius: 4, border: "1px solid #ffe082", marginTop: 2, marginBottom: 4 }}>
-              {"\u26A0\uFE0F"} 5+ edge vertex preview coming in next update. Edge data is saved.
+            {currentEdges.length > 4 && <div style={{ fontSize: 8, color: "#60a5fa", fontFamily: _mono, padding: "6px 10px", background: "#eff6ff", borderRadius: 4, border: "1px solid #bfdbfe", marginTop: 2, marginBottom: 4 }}>
+              {"\u2139\uFE0F"} Approximate preview for {currentEdges.length}-sided lots. Shape uses equal-angle estimation.
             </div>}
 
             <div style={{ fontSize: 8, color: _br.mu, fontFamily: _mono, marginTop: 6, fontStyle: "italic" }}>
