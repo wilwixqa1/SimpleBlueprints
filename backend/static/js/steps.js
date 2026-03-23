@@ -91,6 +91,7 @@ function StepContent(props) {
   const [showMissingModal, setShowMissingModal] = _stUS(false);
   const [missingFieldsAcked, setMissingFieldsAcked] = _stUS(false);
   const [showSiteElements, setShowSiteElements] = _stUS(false);
+  const [showLotShape, setShowLotShape] = _stUS(false);
   const [selectedElId, setSelectedElId] = _stUS(null);
   const [showLotHouse, setShowLotHouse] = _stUS(true);
   var dialDragRef = React.useRef(false);
@@ -364,7 +365,6 @@ function StepContent(props) {
 
       {/* === ADJUST LOT SHAPE (S37) === */}
       {(() => {
-        var [showLotShape, setShowLotShape] = _stUS(false);
         var currentEdges = p.lotEdges || window.computeRectEdges(p);
         var isCustom = !!p.lotEdges;
 
