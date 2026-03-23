@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-SimpleBlueprints â Parametric PDF Drawing Engine
+SimpleBlueprints Ã¢ÂÂ Parametric PDF Drawing Engine
 Step 1b: Plan View + Framing Plan (Sheet 1 of 4)
 S22: Zone-aware rendering with visual differentiation + adaptive layout
 """
@@ -236,7 +236,7 @@ def draw_plan_and_framing(fig, params, calc):
     exp_edges = get_exposed_edges(params)
     bbox = get_bounding_box(params)
 
-    # S22: Adaptive margins â wider multi-zone decks need proportionally more room
+    # S22: Adaptive margins Ã¢ÂÂ wider multi-zone decks need proportionally more room
     margin_x = max(bbox["w"] * 0.20, 5)
     margin_y = max(bbox["d"] * 0.30, 4)
     house_depth = min(D * 0.5, 8)
@@ -375,7 +375,7 @@ def draw_plan_and_framing(fig, params, calc):
                         # S34: Per-post height annotations when slope is active
             post_heights = calc.get("post_heights", [])
             if post_heights and params.get("slopePercent", 0) > 0:
-                for phi, px in enumerate(pp):
+                for phi, px in enumerate(calc.get("post_positions", [])):
                     if phi < len(post_heights):
                         ph = post_heights[phi]
                         ax.text(px, beam_y + 1.2, format_feet_inches(ph),
@@ -384,7 +384,7 @@ def draw_plan_and_framing(fig, params, calc):
                                 bbox=dict(boxstyle='square,pad=0.1', fc='#fff8f0',
                                           ec='#c4960a', lw=0.3, alpha=0.9))
 
-            # S22: Hardware labels â position relative to bbox right edge
+            # S22: Hardware labels Ã¢ÂÂ position relative to bbox right edge
             label_x = bbox["x"] + bbox["w"] + margin_x * 0.3
             ax.text(label_x, beam_y + 0.5,
                     f'{calc["post_size"]} PT POSTS W/ SIMPSON',
@@ -396,7 +396,7 @@ def draw_plan_and_framing(fig, params, calc):
                     f'({calc["num_posts"]}) PLCS',
                     fontsize=4, color=BRAND["dark"])
             ax.text(label_x, beam_y - 2.5,
-                    f'{calc["footing_diam"]}" Ã CONCRETE PIERS',
+                    f'{calc["footing_diam"]}" ÃÂ CONCRETE PIERS',
                     fontsize=4, color=BRAND["dark"])
             ax.text(label_x, beam_y - 3.3,
                     f'X {calc["footing_depth"]}" DEEP, ({calc["num_footings"]}) PLCS',
@@ -416,7 +416,7 @@ def draw_plan_and_framing(fig, params, calc):
             ax.text(lbx + 0.3, lby + 0.7, f'T.L. = {calc["TL"]} PSF',
                     fontsize=4.5, fontweight='bold', color=BRAND["red"])
 
-            # ââ BUILDER DIMENSION CALLOUTS (S17) ââ
+            # Ã¢ÂÂÃ¢ÂÂ BUILDER DIMENSION CALLOUTS (S17) Ã¢ÂÂÃ¢ÂÂ
             beam_setback = 1.5  # beam is 1.5ft from front edge
             pp = calc["post_positions"]
 
@@ -456,7 +456,7 @@ def draw_plan_and_framing(fig, params, calc):
                         color='#999', fontweight='bold')
         else:
             # Plan view labels (zone 0 center)
-            ax.text(W / 2, D / 2 + 0.8, '1 Ã 6 COMPOSITE DECKING',
+            ax.text(W / 2, D / 2 + 0.8, '1 ÃÂ 6 COMPOSITE DECKING',
                     ha='center', fontsize=5.5, fontfamily='monospace', color='#666')
             ax.text(W / 2, D / 2 - 0.8, f'{calc["rail_height"]}" GUARD RAIL SYSTEM',
                     ha='center', fontsize=5, fontfamily='monospace', color='#666')
@@ -508,7 +508,7 @@ def draw_plan_and_framing(fig, params, calc):
                             ha='center', va='center', fontsize=3.5, color=BRAND["mute"])
                 # Label
                 ax.text(sx + sw_ft + 0.8, sy + stair_run / 2,
-                        f'({n_stringers}) 2Ã12 PT\nSTRINGERS\n{st["actual_rise"]:.1f}" RISE\n{st["tread_depth"]}" RUN',
+                        f'({n_stringers}) 2ÃÂ12 PT\nSTRINGERS\n{st["actual_rise"]:.1f}" RISE\n{st["tread_depth"]}" RUN',
                         fontsize=3.5, fontfamily='monospace', color=BRAND["dark"], va='center')
 
             elif stair_loc == "left":
@@ -535,7 +535,7 @@ def draw_plan_and_framing(fig, params, calc):
                     ax.text(sx - landing_depth / 2, sy + sw_ft / 2, 'CONC.\nPAD',
                             ha='center', va='center', fontsize=3.5, color=BRAND["mute"])
                 ax.text(sx + stair_run / 2, sy - 0.8,
-                        f'({n_stringers}) 2Ã12 PT STRINGERS Â· {st["actual_rise"]:.1f}" RISE Â· {st["tread_depth"]}" RUN',
+                        f'({n_stringers}) 2ÃÂ12 PT STRINGERS ÃÂ· {st["actual_rise"]:.1f}" RISE ÃÂ· {st["tread_depth"]}" RUN',
                         ha='center', fontsize=3.5, fontfamily='monospace', color=BRAND["dark"])
 
             elif stair_loc == "right":
@@ -561,7 +561,7 @@ def draw_plan_and_framing(fig, params, calc):
                     ax.text(sx + stair_run + landing_depth / 2, sy + sw_ft / 2, 'CONC.\nPAD',
                             ha='center', va='center', fontsize=3.5, color=BRAND["mute"])
                 ax.text(sx + stair_run / 2, sy - 0.8,
-                        f'({n_stringers}) 2Ã12 PT STRINGERS Â· {st["actual_rise"]:.1f}" RISE Â· {st["tread_depth"]}" RUN',
+                        f'({n_stringers}) 2ÃÂ12 PT STRINGERS ÃÂ· {st["actual_rise"]:.1f}" RISE ÃÂ· {st["tread_depth"]}" RUN',
                         ha='center', fontsize=3.5, fontfamily='monospace', color=BRAND["dark"])
 
         # Stair opening width callout on framing plan
@@ -593,7 +593,7 @@ def draw_plan_and_framing(fig, params, calc):
         draw_dimension_v(ax, W, 0, D, format_feet_inches(D),
                          offset=max(W * 0.06, 2), color=BRAND["blue"], fontsize=7)
 
-        # S22: North arrow + scale bar â position relative to bbox
+        # S22: North arrow + scale bar Ã¢ÂÂ position relative to bbox
         draw_north_arrow(ax, bbox["x"] + bbox["w"] + margin_x - 2,
                          bbox["y"] + bbox["d"] + margin_y - 5,
                          angle=params.get("northAngle", 0) or 0)
@@ -601,7 +601,7 @@ def draw_plan_and_framing(fig, params, calc):
 
     # Sheet label
     fig.text(0.5, 0.02,
-             f'SHEET A-1  |  DECK PLAN & FRAMING  |  {format_feet_inches(W)} Ã {format_feet_inches(D)}  |  simpleblueprints.xyz',
+             f'SHEET A-1  |  DECK PLAN & FRAMING  |  {format_feet_inches(W)} ÃÂ {format_feet_inches(D)}  |  simpleblueprints.xyz',
              ha='center', fontsize=6, fontfamily='monospace', color=BRAND["mute"])
 
 
@@ -653,9 +653,9 @@ def main():
 
             # Add config label at top
             fig.text(0.5, 0.97,
-                     f'TEST: {cfg["name"]}  â  {calc["width"]}\' Ã {calc["depth"]}\' | '
+                     f'TEST: {cfg["name"]}  Ã¢ÂÂ  {calc["width"]}\' ÃÂ {calc["depth"]}\' | '
                      f'TL={calc["TL"]} PSF | {calc["joist_size"]} joists | {calc["beam_size"]} beam | '
-                     f'{calc["post_size"]} Ã {calc["num_posts"]} posts | {calc["footing_diam"]}" piers',
+                     f'{calc["post_size"]} ÃÂ {calc["num_posts"]} posts | {calc["footing_diam"]}" piers',
                      ha='center', fontsize=7, fontfamily='monospace', color=BRAND["red"],
                      bbox=dict(boxstyle='square,pad=0.3', fc='#fff8f0', ec=BRAND["red"], lw=0.5))
 
