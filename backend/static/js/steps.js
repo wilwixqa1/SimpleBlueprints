@@ -90,6 +90,8 @@ function StepContent(props) {
   const [extractError, setExtractError] = _stUS(null);
   const [showMissingModal, setShowMissingModal] = _stUS(false);
   const [missingFieldsAcked, setMissingFieldsAcked] = _stUS(false);
+  const [showSiteElements, setShowSiteElements] = _stUS(false);
+  const [selectedElId, setSelectedElId] = _stUS(null);
 
   // ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Active zone data ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ
   var activeZoneObj = p.activeZone > 0 ? p.zones.find(function(z) { return z.id === p.activeZone; }) : null;
@@ -329,77 +331,160 @@ function StepContent(props) {
           ac_unit: { w: 3, d: 3, label: "A/C", icon: "\u2744", name: "A/C Unit" },
           fence: { w: 30, d: 1, label: "FENCE", icon: "\u2502", name: "Fence" }
         };
+        var elArr = p.siteElements || [];
+        var lotW = p.lotWidth || 80;
+        var lotD = p.lotDepth || 120;
+        var selEl = selectedElId ? elArr.find(function(e) { return e.id === selectedElId; }) : null;
+        var selDef = selEl ? siteElDefs[selEl.type] : null;
+        var sizeConfig = {
+          driveway: { wMin: 6, wMax: 24, dMin: 8, dMax: 50 },
+          garage: { wMin: 8, wMax: 30, dMin: 10, dMax: 35 },
+          shed: { wMin: 4, wMax: 16, dMin: 4, dMax: 16 },
+          pool: { wMin: 6, wMax: 24, dMin: 8, dMax: 36 },
+          patio: { wMin: 4, wMax: 30, dMin: 4, dMax: 30 },
+          tree: { wMin: 2, wMax: 20, dMin: 2, dMax: 20 },
+          ac_unit: { wMin: 2, wMax: 6, dMin: 2, dMax: 6 },
+          fence: { wMin: 4, wMax: 100, dMin: 1, dMax: 4 }
+        };
+        var sc = selEl ? (sizeConfig[selEl.type] || sizeConfig.shed) : null;
         function addSiteEl(type) {
           var def = siteElDefs[type];
-          var existing = p.siteElements || [];
           var houseY = p.houseDistFromStreet || p.setbackFront || 25;
           var x = 5, y = 5;
           if (type === "driveway") { x = 2; y = 2; }
           else if (type === "garage") { x = Math.max(2, (p.houseOffsetSide || 20) - def.w - 2); y = houseY; }
-          else if (type === "shed") { x = (p.lotWidth || 80) - def.w - 3; y = (p.lotDepth || 120) - def.d - 3; }
+          else if (type === "shed") { x = lotW - def.w - 3; y = lotD - def.d - 3; }
           else if (type === "pool") { x = (p.houseOffsetSide || 20) + 2; y = houseY + (p.houseDepth || 30) + (p.depth || 12) + 3; }
           else if (type === "patio") { x = (p.houseOffsetSide || 20) + 2; y = houseY + (p.houseDepth || 30) + (p.depth || 12) + 2; }
-          else if (type === "tree") { x = 3 + existing.filter(function(e){return e.type==="tree";}).length * 8; y = (p.lotDepth || 120) - 10; }
+          else if (type === "tree") { x = 3 + elArr.filter(function(e){return e.type==="tree";}).length * 8; y = lotD - 10; }
           else if (type === "ac_unit") { x = (p.houseOffsetSide || 20) + (p.houseWidth || 40) + 2; y = houseY + (p.houseDepth || 30) / 2; }
           else if (type === "fence") { x = 0; y = houseY + (p.houseDepth || 30); }
-          u("siteElements", existing.concat([{ id: Date.now(), type: type, x: Math.round(x), y: Math.round(y), w: def.w, d: def.d, label: def.label }]));
+          var newId = Date.now();
+          u("siteElements", elArr.concat([{ id: newId, type: type, x: Math.round(x), y: Math.round(y), w: def.w, d: def.d, label: def.label }]));
+          setSelectedElId(newId);
         }
         function removeSiteEl(id) {
-          u("siteElements", (p.siteElements || []).filter(function(e) { return e.id !== id; }));
+          u("siteElements", elArr.filter(function(e) { return e.id !== id; }));
+          if (selectedElId === id) setSelectedElId(null);
         }
-        function updateSiteEl(id, field, val) {
-          u("siteElements", (p.siteElements || []).map(function(e) {
+        function updateEl(id, field, val) {
+          u("siteElements", elArr.map(function(e) {
             if (e.id !== id) return e;
             var copy = Object.assign({}, e);
             copy[field] = val;
+            if (field === "w" && e.type === "tree") copy.d = val;
             return copy;
           }));
         }
-        var elArr = p.siteElements || [];
-        return <div style={{ padding: 14, background: _br.wr, borderRadius: 8, border: "1px solid " + _br.bd, marginBottom: 14 }}>
-          <div style={{ fontSize: 9, fontWeight: 700, color: _br.mu, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 4 }}>Site Elements</div>
-          <div style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, marginBottom: 10, lineHeight: 1.5 }}>Add existing structures and features to your site plan.</div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, marginBottom: elArr.length > 0 ? 12 : 0 }}>
-            {Object.keys(siteElDefs).map(function(type) {
-              var def = siteElDefs[type];
-              return <button key={type} onClick={function() { addSiteEl(type); }} style={{
-                padding: "8px 4px", borderRadius: 6, cursor: "pointer", textAlign: "center",
-                border: "1px solid " + _br.bd, background: "#fff", fontFamily: _mono, transition: "all 0.15s"
-              }}>
-                <div style={{ fontSize: 16, marginBottom: 2, lineHeight: 1 }}>{def.icon}</div>
-                <div style={{ fontSize: 8, fontWeight: 600, color: _br.tx }}>{def.name}</div>
-              </button>;
-            })}
-          </div>
-          {elArr.map(function(el) {
-            var def = siteElDefs[el.type] || { icon: "?", name: el.type };
-            return <div key={el.id} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 8px", background: "#fff", borderRadius: 6, border: "1px solid " + _br.bd, marginBottom: 4 }}>
-              <span style={{ fontSize: 14, width: 20, textAlign: "center" }}>{def.icon}</span>
-              <span style={{ fontSize: 9, fontWeight: 700, fontFamily: _mono, color: _br.tx, minWidth: 50 }}>{def.name}</span>
-              <div style={{ display: "flex", gap: 3, alignItems: "center", flex: 1, justifyContent: "flex-end" }}>
-                <label style={{ fontSize: 7, color: _br.mu, fontFamily: _mono }}>X</label>
-                <input type="number" value={el.x} onChange={function(e) { updateSiteEl(el.id, "x", Number(e.target.value)); }}
-                  style={{ width: 34, padding: "2px 3px", fontSize: 9, fontFamily: _mono, border: "1px solid " + _br.bd, borderRadius: 3, textAlign: "center" }} />
-                <label style={{ fontSize: 7, color: _br.mu, fontFamily: _mono }}>Y</label>
-                <input type="number" value={el.y} onChange={function(e) { updateSiteEl(el.id, "y", Number(e.target.value)); }}
-                  style={{ width: 34, padding: "2px 3px", fontSize: 9, fontFamily: _mono, border: "1px solid " + _br.bd, borderRadius: 3, textAlign: "center" }} />
-                <label style={{ fontSize: 7, color: _br.mu, fontFamily: _mono }}>W</label>
-                <input type="number" value={el.w} onChange={function(e) { updateSiteEl(el.id, "w", Number(e.target.value)); }}
-                  style={{ width: 30, padding: "2px 3px", fontSize: 9, fontFamily: _mono, border: "1px solid " + _br.bd, borderRadius: 3, textAlign: "center" }} />
-                <label style={{ fontSize: 7, color: _br.mu, fontFamily: _mono }}>D</label>
-                <input type="number" value={el.d} onChange={function(e) { updateSiteEl(el.id, "d", Number(e.target.value)); }}
-                  style={{ width: 30, padding: "2px 3px", fontSize: 9, fontFamily: _mono, border: "1px solid " + _br.bd, borderRadius: 3, textAlign: "center" }} />
+        return <React.Fragment>
+          <button onClick={function() { setShowSiteElements(!showSiteElements); }} style={{
+            width: "100%", padding: "10px 14px", marginBottom: showSiteElements ? 0 : 14,
+            background: elArr.length > 0 ? "#f5f0e8" : "none",
+            border: "1px solid " + (elArr.length > 0 ? "#c4a060" : _br.bd),
+            borderRadius: showSiteElements ? "8px 8px 0 0" : 8,
+            cursor: "pointer", fontSize: 10, fontFamily: _mono,
+            color: elArr.length > 0 ? "#8B7355" : _br.mu,
+            display: "flex", justifyContent: "space-between", alignItems: "center"
+          }}>
+            <span>{elArr.length > 0 ? ("\u2302 " + elArr.length + " site element" + (elArr.length !== 1 ? "s" : "") + " placed") : "\u2302 Add site elements (shed, pool, driveway...)"}</span>
+            <span style={{ transform: showSiteElements ? "rotate(180deg)" : "none", transition: "0.2s" }}>{"\u25BE"}</span>
+          </button>
+          {showSiteElements && <div style={{ padding: 14, background: _br.wr, borderRadius: "0 0 8px 8px", border: "1px solid " + _br.bd, borderTop: "none", marginBottom: 14 }}>
+            <div style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, marginBottom: 8, lineHeight: 1.5 }}>Click to place elements on your site plan.</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, marginBottom: 10 }}>
+              {Object.keys(siteElDefs).map(function(type) {
+                var def = siteElDefs[type];
+                return <button key={type} onClick={function() { addSiteEl(type); }} style={{
+                  padding: "8px 4px", borderRadius: 6, cursor: "pointer", textAlign: "center",
+                  border: "1px solid " + _br.bd, background: "#fff", fontFamily: _mono, transition: "all 0.15s"
+                }}>
+                  <div style={{ fontSize: 16, marginBottom: 2, lineHeight: 1 }}>{def.icon}</div>
+                  <div style={{ fontSize: 8, fontWeight: 600, color: _br.tx }}>{def.name}</div>
+                </button>;
+              })}
+            </div>
+            {elArr.length > 0 && <React.Fragment>
+              <div style={{ fontSize: 9, fontWeight: 700, color: _br.mu, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 6 }}>Placed Elements</div>
+              <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: selEl ? 10 : 0 }}>
+                {elArr.map(function(el) {
+                  var def = siteElDefs[el.type] || { icon: "?", name: el.type };
+                  var isSel = selectedElId === el.id;
+                  return <button key={el.id} onClick={function() { setSelectedElId(isSel ? null : el.id); }} style={{
+                    padding: "5px 10px", fontSize: 10, fontWeight: 700, borderRadius: 5, fontFamily: _mono, cursor: "pointer",
+                    border: isSel ? "2px solid #8B7355" : "1px solid " + _br.bd,
+                    background: isSel ? "#f5f0e8" : "#fff",
+                    color: isSel ? "#8B7355" : _br.mu,
+                    display: "flex", alignItems: "center", gap: 4
+                  }}>
+                    <span style={{ fontSize: 12 }}>{def.icon}</span> {def.name}
+                  </button>;
+                })}
               </div>
-              <button onClick={function() { removeSiteEl(el.id); }} style={{
-                width: 18, height: 18, borderRadius: 3, border: "1px solid #fca5a5", background: "#fef2f2",
-                color: "#dc2626", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center",
-                justifyContent: "center", padding: 0, marginLeft: 2
-              }}>{"\u00D7"}</button>
-            </div>;
-          })}
-          {elArr.length > 0 && <div style={{ fontSize: 8, color: _br.mu, fontFamily: _mono, marginTop: 6, fontStyle: "italic" }}>X/Y = feet from left/street edge. Drag positioning coming soon.</div>}
-        </div>;
+            </React.Fragment>}
+            {selEl && <div style={{ padding: 12, background: "#fff", borderRadius: 8, border: "1px solid #d4c5a9" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                <div style={{ fontSize: 11, fontWeight: 800, color: "#8B7355", fontFamily: _mono }}>{selDef.icon} {selDef.name}</div>
+                <button onClick={function() { removeSiteEl(selEl.id); }} style={{
+                  padding: "4px 10px", fontSize: 9, fontWeight: 700, borderRadius: 4, fontFamily: _mono, cursor: "pointer",
+                  border: "1px solid #fca5a5", background: "#fef2f2", color: "#dc2626"
+                }}>Delete</button>
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <Label>Distance from left property line</Label>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <input type="range" min={0} max={Math.max(0, lotW - selEl.w)} step={1} value={selEl.x}
+                    onChange={function(e) { updateEl(selEl.id, "x", Number(e.target.value)); }}
+                    style={{ flex: 1, accentColor: "#8B7355", height: 6 }} />
+                  <span style={{ fontFamily: _mono, fontSize: 16, fontWeight: 800, color: _br.tx, minWidth: 40, textAlign: "right" }}>{selEl.x}'</span>
+                </div>
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <Label>Distance from street</Label>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <input type="range" min={0} max={Math.max(0, lotD - selEl.d)} step={1} value={selEl.y}
+                    onChange={function(e) { updateEl(selEl.id, "y", Number(e.target.value)); }}
+                    style={{ flex: 1, accentColor: "#8B7355", height: 6 }} />
+                  <span style={{ fontFamily: _mono, fontSize: 16, fontWeight: 800, color: _br.tx, minWidth: 40, textAlign: "right" }}>{selEl.y}'</span>
+                </div>
+              </div>
+              {selEl.type === "tree" ? (
+                <div style={{ marginBottom: 4 }}>
+                  <Label>Canopy diameter</Label>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <input type="range" min={sc.wMin} max={sc.wMax} step={1} value={selEl.w}
+                      onChange={function(e) { updateEl(selEl.id, "w", Number(e.target.value)); }}
+                      style={{ flex: 1, accentColor: "#8B7355", height: 6 }} />
+                    <span style={{ fontFamily: _mono, fontSize: 16, fontWeight: 800, color: _br.tx, minWidth: 40, textAlign: "right" }}>{selEl.w}'</span>
+                  </div>
+                </div>
+              ) : (
+                <React.Fragment>
+                  <div style={{ marginBottom: 12 }}>
+                    <Label>{selEl.type === "fence" ? "Length" : "Width"}</Label>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <input type="range" min={sc.wMin} max={sc.wMax} step={1} value={selEl.w}
+                        onChange={function(e) { updateEl(selEl.id, "w", Number(e.target.value)); }}
+                        style={{ flex: 1, accentColor: "#8B7355", height: 6 }} />
+                      <span style={{ fontFamily: _mono, fontSize: 16, fontWeight: 800, color: _br.tx, minWidth: 40, textAlign: "right" }}>{selEl.w}'</span>
+                    </div>
+                  </div>
+                  <div style={{ marginBottom: 4 }}>
+                    <Label>{selEl.type === "fence" ? "Thickness" : "Depth"}</Label>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <input type="range" min={sc.dMin} max={sc.dMax} step={1} value={selEl.d}
+                        onChange={function(e) { updateEl(selEl.id, "d", Number(e.target.value)); }}
+                        style={{ flex: 1, accentColor: "#8B7355", height: 6 }} />
+                      <span style={{ fontFamily: _mono, fontSize: 16, fontWeight: 800, color: _br.tx, minWidth: 40, textAlign: "right" }}>{selEl.d}'</span>
+                    </div>
+                  </div>
+                </React.Fragment>
+              )}
+              <div style={{ fontSize: 8, color: _br.mu, fontFamily: _mono, marginTop: 8, fontStyle: "italic" }}>Position and size update on the site plan preview in real time.</div>
+            </div>}
+          </div>}
+        </React.Fragment>;
       })()}
+
 
       {/* === UPLOAD SURVEY (collapsible) === */}
       <button onClick={function() { setShowUpload(!showUpload); }} style={{
