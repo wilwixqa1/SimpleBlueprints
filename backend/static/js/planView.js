@@ -1,5 +1,5 @@
 // ============================================================
-// PLAN VIEW SVG — Multi-zone support (S19)
+// PLAN VIEW SVG â Multi-zone support (S19)
 // ============================================================
 const { useState: _pvUS, useRef: _pvUR, useMemo: _pvUM } = React;
 
@@ -22,7 +22,7 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
     for (let x = s; x < sw - 1; x += s) jLines.push(x);
   }
 
-  // ── Zone computations ──
+  // ââ Zone computations ââ
   var hasZones = p.zones && p.zones.length > 0;
   var composite = _pvUM(function() {
     if (!hasZones) return [{ x: 0, y: 0, w: c.W, d: c.D }];
@@ -48,22 +48,39 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
   const rotAngleRef = _pvUR(null);
   const stairGroupRef = _pvUR(null);
 
-  // ── Existing drag handlers (unchanged) ──
+  // ââ Existing drag handlers (unchanged) ââ
+  // S33: unified drag coordinate conversion (getScreenCTM pattern)
+  function clientToSvg(clientX, clientY) {
+    var svg = svgRef.current;
+    if (!svg) return null;
+    var pt = svg.createSVGPoint();
+    pt.x = clientX; pt.y = clientY;
+    var ctm = svg.getScreenCTM();
+    if (!ctm) return null;
+    return pt.matrixTransform(ctm.inverse());
+  }
+  function clientToFt(clientX, clientY) {
+    var svgPt = clientToSvg(clientX, clientY);
+    if (!svgPt) return null;
+    return { x: (svgPt.x - dx) / sc, y: (svgPt.y - pad) / sc };
+  }
+
   const onPointerDown = (e, type) => {
     e.preventDefault(); e.stopPropagation();
-    const svg = svgRef.current; if (!svg) return;
-    const rect = svg.getBoundingClientRect();
-    const svgScale = svgW / rect.width;
-    dragRef.current = { type, startX: e.clientX, startY: e.clientY, svgScale,
-      startVal: type === "deck" ? (p.deckOffset || 0) : (p.stairOffset || 0) };
+    var startFt = clientToFt(e.clientX, e.clientY);
+    if (!startFt) return;
+    dragRef.current = { type,
+      startVal: type === "deck" ? (p.deckOffset || 0) : (p.stairOffset || 0),
+      startFtX: startFt.x, startFtY: startFt.y };
     const onMove = (ev) => {
       if (!dragRef.current) return;
+      var nowFt = clientToFt(ev.clientX, ev.clientY);
+      if (!nowFt) return;
       const loc = p.stairLocation;
       const isVertical = dragRef.current.type === "stair" && loc !== "front";
-      const delta = isVertical
-        ? (ev.clientY - dragRef.current.startY) * dragRef.current.svgScale
-        : (ev.clientX - dragRef.current.startX) * dragRef.current.svgScale;
-      const deltaFt = delta / sc;
+      const deltaFt = isVertical
+        ? (nowFt.y - dragRef.current.startFtY)
+        : (nowFt.x - dragRef.current.startFtX);
       if (dragRef.current.type === "deck") {
         const maxOff = p.houseWidth / 2;
         const newVal = Math.round(Math.max(-maxOff, Math.min(maxOff, dragRef.current.startVal + deltaFt)));
@@ -81,18 +98,18 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
 
   const onStairDragStart = (e) => {
     e.preventDefault(); e.stopPropagation();
-    const svg = svgRef.current; if (!svg) return;
-    const rect = svg.getBoundingClientRect();
-    const svgScale = svgW / rect.width;
     const pl = window.getStairPlacement(p, c);
-    dragRef.current = { type: "stairAnchor", startX: e.clientX, startY: e.clientY, svgScale,
+    var startFt = clientToFt(e.clientX, e.clientY);
+    if (!startFt) return;
+    dragRef.current = { type: "stairAnchor",
+      startFtX: startFt.x, startFtY: startFt.y,
       startAnchorX: pl.anchorX, startAnchorY: pl.anchorY, startAngle: pl.angle };
     const onMove = (ev) => {
       if (!dragRef.current || dragRef.current.type !== "stairAnchor") return;
-      const deltaXpx = (ev.clientX - dragRef.current.startX) * dragRef.current.svgScale;
-      const deltaYpx = (ev.clientY - dragRef.current.startY) * dragRef.current.svgScale;
-      let newAX = dragRef.current.startAnchorX + deltaXpx / sc;
-      let newAY = dragRef.current.startAnchorY + deltaYpx / sc;
+      var nowFt = clientToFt(ev.clientX, ev.clientY);
+      if (!nowFt) return;
+      let newAX = dragRef.current.startAnchorX + (nowFt.x - dragRef.current.startFtX);
+      let newAY = dragRef.current.startAnchorY + (nowFt.y - dragRef.current.startFtY);
       newAX = Math.max(-0.5, Math.min(c.W + 0.5, newAX));
       newAY = Math.max(-0.5, Math.min(c.D + 0.5, newAY));
       const snap = window.snapStairToEdge(newAX, newAY, c.W, c.D, 1.0);
@@ -107,23 +124,23 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
 
   const onRotateDragStart = (e, centerX, centerY) => {
     e.preventDefault(); e.stopPropagation();
-    const svg = svgRef.current; if (!svg) return;
     const grp = stairGroupRef.current; if (!grp) return;
-    const rect = svg.getBoundingClientRect();
-    const svgScaleR = svgW / rect.width;
     const pl = window.getStairPlacement(p, c);
     const pivX = dx + pl.anchorX * sc;
     const pivY = pad + pl.anchorY * sc;
-    const getMouseDeg = (ev) => Math.atan2(
-      (ev.clientY - rect.top) * svgScaleR - centerY,
-      (ev.clientX - rect.left) * svgScaleR - centerX
-    ) * 180 / Math.PI;
+    const getMouseDeg = (ev) => {
+      var svgPt = clientToSvg(ev.clientX, ev.clientY);
+      if (!svgPt) return null;
+      return Math.atan2(svgPt.y - centerY, svgPt.x - centerX) * 180 / Math.PI;
+    };
     let prevMouseDeg = getMouseDeg(e);
+    if (prevMouseDeg == null) return;
     let cumRotation = 0;
     dragRef.current = { type: "rotate", anchorX: pl.anchorX, anchorY: pl.anchorY, startAngle: pl.angle };
     const onMove = (ev) => {
       if (!dragRef.current || dragRef.current.type !== "rotate") return;
       const curDeg = getMouseDeg(ev);
+      if (curDeg == null) return;
       let incr = curDeg - prevMouseDeg;
       if (incr > 180) incr -= 360; if (incr < -180) incr += 360;
       cumRotation += incr; prevMouseDeg = curDeg;
@@ -153,11 +170,11 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
     window.addEventListener("pointermove", onMove); window.addEventListener("pointerup", onUp);
   };
 
-  // ── SVG coordinate helpers for zones ──
+  // ââ SVG coordinate helpers for zones ââ
   function zx(fx) { return dx + fx * sc; }
   function zy(fy) { return pad + fy * sc; }
 
-  // ── Compute add/cut/chamfer button positions ──
+  // ââ Compute add/cut/chamfer button positions ââ
   var addBtns = _pvUM(function() {
     if (zoneMode !== "add" || mode !== "plan") return [];
     if (!hasZones) {
@@ -241,7 +258,7 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
       <rect x={hx} y={pad - 50} width={hw} height={50} fill="#e8e6e0" stroke="#444" strokeWidth="1.2" rx="1" />
       <text x={houseCx} y={pad - 25} textAnchor="middle" style={{ fontSize: 8, fill: "#999", fontFamily: "monospace", fontWeight: 600, letterSpacing: "1px" }}>EXISTING HOUSE</text>
 
-      {/* ── Composite deck surface ── */}
+      {/* ââ Composite deck surface ââ */}
       {composite.map(function(r, i) {
         return <rect key={"comp" + i} x={zx(r.x)} y={zy(r.y)} width={r.w * sc} height={r.d * sc}
           fill={mode === "framing" ? "#fcfaf5" : "#efe5d5"} stroke="none" />;
@@ -257,7 +274,7 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
           style={{ cursor: zoneMode === "select" ? "pointer" : "default" }} />;
       })}
 
-      {/* Chamfer corner clips — draw bg-colored triangles over corners */}
+      {/* Chamfer corner clips â draw bg-colored triangles over corners */}
       {addRects.map(function(a) {
         var r = a.rect, corners = getCorners(a.id);
         var x = zx(r.x), y = zy(r.y), w = r.w * sc, h = r.d * sc;
@@ -277,7 +294,7 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
         return tris.length > 0 ? <g key={"ch" + a.id}>{tris}</g> : null;
       })}
 
-      {/* Cutout zones — hatched */}
+      {/* Cutout zones â hatched */}
       {cutRects.map(function(a) {
         var r = a.rect, isActive = a.id === p.activeZone;
         return <g key={"cut" + a.id} onClick={function(e) { e.stopPropagation(); u("activeZone", a.id); }} style={{ cursor: "pointer" }}>
@@ -333,7 +350,7 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
         <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#444" strokeWidth="3.5" />
       ))}
 
-      {/* ── Stairs (unchanged) ── */}
+      {/* ââ Stairs (unchanged) ââ */}
       {p.hasStairs && c.stairs && (() => {
         const stairGeom = window.computeStairGeometry({ template: p.stairTemplate || "straight", height: p.height, stairWidth: p.stairWidth || 4, numStringers: p.numStringers || 3, runSplit: p.stairRunSplit ? p.stairRunSplit/100 : null, landingDepth: p.stairLandingDepth || null, stairGap: p.stairGap != null ? p.stairGap : 0.5 });
         if (!stairGeom) return null;
@@ -426,7 +443,7 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
         return <g ref={stairGroupRef}>{els}</g>;
       })()}
 
-      {/* ── Dimension lines ── */}
+      {/* ââ Dimension lines ââ */}
       <line x1={dx} y1={pad + sd + 25} x2={dx + sw} y2={pad + sd + 25} stroke="#c62828" strokeWidth="0.6" />
       <line x1={dx} y1={pad + sd + 22} x2={dx} y2={pad + sd + 28} stroke="#c62828" strokeWidth="0.6" />
       <line x1={dx + sw} y1={pad + sd + 22} x2={dx + sw} y2={pad + sd + 28} stroke="#c62828" strokeWidth="0.6" />
@@ -436,7 +453,7 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
       <line x1={dx + sw + 17} y1={pad + sd} x2={dx + sw + 23} y2={pad + sd} stroke="#1565c0" strokeWidth="0.6" />
       <text x={dx + sw + 32} y={pad + sd / 2 + 3} textAnchor="middle" style={{ fontSize: 9, fill: "#1565c0", fontWeight: 800, fontFamily: "'DM Mono', monospace" }} transform={`rotate(90, ${dx + sw + 32}, ${pad + sd / 2})`}>{window.fmtFtIn(c.D)}</text>
 
-      {/* ── Add zone buttons ── */}
+      {/* ââ Add zone buttons ââ */}
       {addBtns.map(function(b) {
         var h = hoverBtn === b.k;
         return <g key={b.k} onMouseEnter={function() { setHoverBtn(b.k); }} onMouseLeave={function() { setHoverBtn(null); }}
@@ -446,7 +463,7 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
         </g>;
       })}
 
-      {/* ── Cut buttons ── */}
+      {/* ââ Cut buttons ââ */}
       {cutBtns.map(function(b) {
         var h = hoverBtn === b.k, isCorner = b.edge.includes("-");
         return <g key={b.k} onMouseEnter={function() { setHoverBtn(b.k); }} onMouseLeave={function() { setHoverBtn(null); }}
@@ -460,7 +477,7 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
         </g>;
       })}
 
-      {/* ── Chamfer buttons ── */}
+      {/* ââ Chamfer buttons ââ */}
       {chamferBtns.map(function(b) {
         var h = hoverBtn === b.k;
         return <g key={b.k} onMouseEnter={function() { setHoverBtn(b.k); }} onMouseLeave={function() { setHoverBtn(null); }}
