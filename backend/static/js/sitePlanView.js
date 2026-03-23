@@ -173,6 +173,24 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
     if (u) u("_selectedElId", el.id);
   }
 
+  // S37 Push 6.5: House drag handler
+  function onHousePointerDown(e) {
+    if (!u) return;
+    e.preventDefault();
+    e.stopPropagation();
+    var cX = e.clientX != null ? e.clientX : (e.touches && e.touches[0] ? e.touches[0].clientX : null);
+    var cY = e.clientY != null ? e.clientY : (e.touches && e.touches[0] ? e.touches[0].clientY : null);
+    if (cX == null) return;
+    var lot = clientToLot(cX, cY);
+    if (!lot) return;
+    dragRef.current = {
+      type: "house",
+      offsetX: lot.x - hx,
+      offsetY: lot.y - hy
+    };
+    setIsDragging(true);
+  }
+
   function onSvgPointerMove(e) {
     if (!dragRef.current || !u) return;
     e.preventDefault();
@@ -182,15 +200,24 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
     var lot = clientToLot(cX, cY);
     if (!lot) return;
     var dr = dragRef.current;
-    var el = elems.find(function(e) { return e.id === dr.elId; });
-    if (!el) return;
-    var newX = Math.round(Math.max(0, Math.min(lotW - el.w, lot.x - dr.offsetX)));
-    var newY = Math.round(Math.max(0, Math.min(lotD - el.d, lot.y - dr.offsetY)));
-    if (newX !== el.x || newY !== el.y) {
-      u("siteElements", elems.map(function(e) {
-        if (e.id !== dr.elId) return e;
-        return Object.assign({}, e, { x: newX, y: newY });
-      }));
+    if (dr.type === "house") {
+      var newHX = Math.round(Math.max(0, Math.min(lotW - hw, lot.x - dr.offsetX)));
+      var newHY = Math.round(Math.max(0, Math.min(lotD - hd, lot.y - dr.offsetY)));
+      if (newHX !== hx || newHY !== hy) {
+        u("houseOffsetSide", newHX);
+        u("houseDistFromStreet", newHY);
+      }
+    } else {
+      var el = elems.find(function(e) { return e.id === dr.elId; });
+      if (!el) return;
+      var newX = Math.round(Math.max(0, Math.min(lotW - el.w, lot.x - dr.offsetX)));
+      var newY = Math.round(Math.max(0, Math.min(lotD - el.d, lot.y - dr.offsetY)));
+      if (newX !== el.x || newY !== el.y) {
+        u("siteElements", elems.map(function(e) {
+          if (e.id !== dr.elId) return e;
+          return Object.assign({}, e, { x: newX, y: newY });
+        }));
+      }
     }
   }
 
@@ -454,8 +481,8 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
         React.createElement("line", { x1: 0, y1: 0, x2: 0, y2: 6, stroke: "#ccc", strokeWidth: 0.5 })
       )
     ),
-    React.createElement("rect", { x: sx(hx), y: sy(hy + hd), width: sw(hw), height: sh(hd), fill: "#e8e6e0", stroke: "#666", strokeWidth: 1.2 }),
-    React.createElement("rect", { x: sx(hx), y: sy(hy + hd), width: sw(hw), height: sh(hd), fill: "url(#spHatch)" }),
+    React.createElement("rect", { x: sx(hx), y: sy(hy + hd), width: sw(hw), height: sh(hd), fill: "#e8e6e0", stroke: "#666", strokeWidth: 1.2, onMouseDown: function(e) { onHousePointerDown(e); }, onTouchStart: function(e) { onHousePointerDown(e); }, style: { cursor: isDragging ? "grabbing" : "grab" } }),
+    React.createElement("rect", { x: sx(hx), y: sy(hy + hd), width: sw(hw), height: sh(hd), fill: "url(#spHatch)", pointerEvents: "none" }),
     sh(hd) > 20 ? React.createElement("text", { x: sx(hx + hw / 2), y: sy(hy + hd / 2) + 3, textAnchor: "middle", style: { fontSize: 8, fill: "#666", fontFamily: mono, fontWeight: 600 } }, "EXISTING HOUSE") : null,
     sh(hd) > 30 ? React.createElement("text", { x: sx(hx + hw / 2), y: sy(hy + hd / 2) + 13, textAnchor: "middle", style: { fontSize: 7, fill: "#888", fontFamily: mono } }, hw + "' x " + hd + "'") : null,
 
@@ -567,9 +594,9 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
     ),
 
     // Drag hint (S32)
-    elems.length > 0 && !isDragging ? React.createElement("text", {
+    !isDragging ? React.createElement("text", {
       x: svgW / 2, y: svgH - 6, textAnchor: "middle",
       style: { fontSize: 7, fill: "#aaa", fontFamily: mono, fontStyle: "italic" }
-    }, "Drag elements to reposition") : null
+    }, "Drag house or elements to reposition") : null
   );
 };
