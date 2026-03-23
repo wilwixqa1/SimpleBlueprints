@@ -477,7 +477,7 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
       })}
 
       {/* Compass */}
-      <g transform={`translate(${svgW - 28}, 25)`}><line x1="0" y1="14" x2="0" y2="0" stroke="#444" strokeWidth="1.5" /><polygon points="-3.5,4 0,0 3.5,4" fill="#444" /><text x="0" y="-4" textAnchor="middle" style={{ fontSize: 7, fontWeight: 800, fill: "#444" }}>N</text></g>
+      <g transform={`translate(${svgW - 28}, 25) rotate(${p.northAngle || 0}, 0, 7)`}><line x1="0" y1="14" x2="0" y2="0" stroke="#444" strokeWidth="1.5" /><polygon points="-3.5,4 0,0 3.5,4" fill="#444" /><text x="0" y="-4" textAnchor="middle" style={{ fontSize: 7, fontWeight: 800, fill: "#444" }}>N</text></g>
     </svg>
   );
 }
