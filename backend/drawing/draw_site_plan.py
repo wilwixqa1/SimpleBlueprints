@@ -432,11 +432,18 @@ def draw_site_plan(fig, params, calc):
             ha='center', va='center', fontsize=10, fontweight='bold',
             fontfamily='monospace', color=BRAND["mute"])
 
-    # === NORTH ARROW ===
+    # === NORTH ARROW (S32: rotatable) ===
     na_x, na_y = lot_w + 8, lot_d - 10
-    ax.annotate('', xy=(na_x, na_y + 8), xytext=(na_x, na_y),
+    north_angle = params.get("northAngle", 0) or 0
+    na_rad = math.radians(north_angle)
+    na_len = 8
+    na_dx = na_len * math.sin(na_rad)
+    na_dy = na_len * math.cos(na_rad)
+    ax.annotate('', xy=(na_x + na_dx, na_y + na_dy), xytext=(na_x, na_y),
                 arrowprops=dict(arrowstyle='->', color=BRAND["dark"], lw=2))
-    ax.text(na_x, na_y + 9.5, "N", ha='center', fontsize=12, fontweight='bold',
+    na_tx = na_x + (na_len + 2) * math.sin(na_rad)
+    na_ty = na_y + (na_len + 2) * math.cos(na_rad)
+    ax.text(na_tx, na_ty, "N", ha='center', va='center', fontsize=12, fontweight='bold',
             fontfamily='monospace', color=BRAND["dark"])
 
     # === TITLE ===
