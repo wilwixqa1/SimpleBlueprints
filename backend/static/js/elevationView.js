@@ -1,8 +1,10 @@
 // ============================================================
-// ELEVATION SVG ÃÂ¢ÃÂÃÂ 4-view grid (S/N/E/W) with architectural labels,
+// ELEVATION SVG - 4-view grid (S/N/E/W) with architectural labels,
 // key plan inset, and smart view ordering for L-templates
-// S24: Zone-aware South/North views ÃÂ¢ÃÂÃÂ left/right zones extend width.
+// S24: Zone-aware South/North views - left/right zones extend width.
 //      Each zone section drawn independently with own deckTop.
+// S35: Variable post heights from c.postHeights, underground footing
+//      dotted lines, Simpson hardware callout labels.
 // ============================================================
 
 // --- Zone elevation helper (mirrors backend _get_zone_south_north_sections) ---
@@ -39,6 +41,9 @@ function ElevationView({ c, p }) {
   const _pl = hasSt ? window.getStairPlacement(p, c) : { anchorX: 0, anchorY: 0, angle: 0 };
   const _exitSide = _pl.angle === 90 ? "right" : _pl.angle === 270 ? "left" : _pl.angle === 180 ? "back" : "front";
 
+  // S35: Post heights array (falls back to uniform H)
+  const postHeights = c.postHeights || [];
+
   // Architectural direction labels
   const archLabels = {
     south: "FRONT ELEVATION",
@@ -57,7 +62,7 @@ function ElevationView({ c, p }) {
     return M[exitSide+","+viewDir] || ["hidden",null];
   }
 
-  // Key plan inset ÃÂ¢ÃÂÃÂ shows deck outline + arrow for viewing direction
+  // Key plan inset - shows deck outline + arrow for viewing direction
   function KeyPlan({ viewDir, insetX, insetY, insetSize }) {
     const s = insetSize;
     const dw = s * 0.6, dd = s * 0.4;
@@ -180,51 +185,79 @@ function ElevationView({ c, p }) {
       }
     }
 
-    // S24: Posts use z0X for S/N views
+    // S35: Underground footing helper (draws dotted pier below post)
+    var footingDepthPx = (fDepth / 12) * sY; // fDepth is in inches
+    var footingRadPx = (fDiam / 12 / 2) * sX;
+    function drawUndergroundFooting(postX, postGndY) {
+      var pierBottom = postGndY + footingDepthPx;
+      var r = Math.max(footingRadPx * 0.6, 1.5);
+      return <g key={"uf"+postX}>
+        <line x1={postX - r} y1={postGndY + 2} x2={postX - r} y2={pierBottom} stroke="#999" strokeWidth="0.3" strokeDasharray="2,1.5" />
+        <line x1={postX + r} y1={postGndY + 2} x2={postX + r} y2={pierBottom} stroke="#999" strokeWidth="0.3" strokeDasharray="2,1.5" />
+        <line x1={postX - r - 1} y1={pierBottom} x2={postX + r + 1} y2={pierBottom} stroke="#999" strokeWidth="0.4" strokeDasharray="2,1.5" />
+      </g>;
+    }
+
+    // S35: Posts with variable heights from postHeights array
     const postEls = [];
     if (showWidth) {
-      const positions = isRear ? pp.map(px => W - px) : pp;
+      const positions = isRear ? pp.map(function(px) { return W - px; }) : pp;
       const alpha = isRear ? 0.35 : 1;
       const dash = isRear ? "4,2" : "none";
-      positions.forEach((px, i) => {
-        const sx = z0X + px * sX; // S24: use z0X
-        postEls.push(<line key={"p"+i} x1={sx} y1={dY} x2={sx} y2={gnd-1} stroke="#c4a060" strokeWidth={postSize==="6x6"?2:1.5} strokeOpacity={alpha} strokeDasharray={dash} />);
+      positions.forEach(function(px, i) {
+        var sx = z0X + px * sX; // S24: use z0X
+        // S35: Use per-post height from postHeights array
+        var ph = postHeights[i] !== undefined ? postHeights[i] : H;
+        var postGndY = dY + (H - ph) * sY; // ground level at this post in pixels
+        // Only show variable ground when slope is active
+        var effectiveGndY = slopePct > 0 ? postGndY : gnd - 1;
+        postEls.push(<line key={"p"+i} x1={sx} y1={dY} x2={sx} y2={effectiveGndY} stroke="#c4a060" strokeWidth={postSize==="6x6"?2:1.5} strokeOpacity={alpha} strokeDasharray={dash} />);
         if (!isRear) {
-          postEls.push(<rect key={"pf"+i} x={sx-3} y={gnd} width={6} height={2.5} fill="#c8c8c8" stroke="#444" strokeWidth="0.3" />);
+          var footingY = slopePct > 0 ? postGndY : gnd;
+          postEls.push(<rect key={"pf"+i} x={sx-3} y={footingY} width={6} height={2.5} fill="#c8c8c8" stroke="#444" strokeWidth="0.3" />);
+          // S35: Underground footing dotted lines
+          postEls.push(drawUndergroundFooting(sx, footingY + 2.5));
         }
       });
     } else {
-      const postX = viewDir === "west" ? dX + 1.5 * sX : dX + dSW - 1.5 * sX;
-      postEls.push(<line key="sp" x1={postX} y1={dY} x2={postX} y2={gnd-1} stroke="#c4a060" strokeWidth={postSize==="6x6"?2:1.5} />);
-      postEls.push(<rect key="spf" x={postX-3} y={gnd} width={6} height={2.5} fill="#c8c8c8" stroke="#444" strokeWidth="0.3" />);
+      // S35: Side view uses first (west) or last (east) post height
+      var sideIdx = viewDir === "west" ? 0 : (postHeights.length - 1);
+      var sidePh = postHeights[sideIdx] !== undefined ? postHeights[sideIdx] : H;
+      var sideGndY = slopePct > 0 ? (dY + (H - sidePh) * sY) : (gnd - 1);
+      var sideFootingY = slopePct > 0 ? sideGndY : gnd;
+      var postX = viewDir === "west" ? dX + 1.5 * sX : dX + dSW - 1.5 * sX;
+      postEls.push(<line key="sp" x1={postX} y1={dY} x2={postX} y2={sideGndY} stroke="#c4a060" strokeWidth={postSize==="6x6"?2:1.5} />);
+      postEls.push(<rect key="spf" x={postX-3} y={sideFootingY} width={6} height={2.5} fill="#c8c8c8" stroke="#444" strokeWidth="0.3" />);
+      // S35: Underground footing
+      postEls.push(drawUndergroundFooting(postX, sideFootingY + 2.5));
     }
 
     // S24: Zone wing section elements for S/N views
     const zoneEls = [];
     if (showWidth && zoneSN.sections.length > 0) {
-      zoneSN.sections.forEach((sec, zi) => {
+      zoneSN.sections.forEach(function(sec, zi) {
         // Compute pixel position for this zone section
-        let zSecX, zSecW;
+        var zSecX, zSecW;
         if (isRear) {
           // Mirror for north view
-          const mirrorX = zoneSN.bbW - (sec.xDraw + zoneSN.xOff + sec.w);
+          var mirrorX = zoneSN.bbW - (sec.xDraw + zoneSN.xOff + sec.w);
           zSecX = dX + mirrorX * sX;
         } else {
           zSecX = dX + (sec.xDraw + zoneSN.xOff) * sX;
         }
         zSecW = sec.w * sX;
-        const zDY = gnd - sec.deckTop * sY; // per-section deck top (future: height-per-zone)
-        const zRTop = zDY - 2.5 * sY;
-        const zAlpha = isRear ? 0.4 : 1;
-        const zDash = isRear ? "4,2" : "none";
-        const zBeamAlpha = isRear ? 0.25 : 0.8;
-        const zRailAlpha = isRear ? 0.4 : 1;
-        const zRailW = isRear ? 1 : 1.5;
-        const prefix = "z" + zi + "_";
+        var zDY = gnd - sec.deckTop * sY; // per-section deck top (future: height-per-zone)
+        var zRTop = zDY - 2.5 * sY;
+        var zAlpha = isRear ? 0.4 : 1;
+        var zDash = isRear ? "4,2" : "none";
+        var zBeamAlpha = isRear ? 0.25 : 0.8;
+        var zRailAlpha = isRear ? 0.4 : 1;
+        var zRailW = isRear ? 1 : 1.5;
+        var prefix = "z" + zi + "_";
 
         // Posts: guard against narrow zones (<3 ft) where edge offsets would overlap
-        (sec.w < 3 ? [sec.w / 2] : [1.5, sec.w - 1.5]).forEach((pOff, pi) => {
-          const spx = zSecX + pOff * sX;
+        (sec.w < 3 ? [sec.w / 2] : [1.5, sec.w - 1.5]).forEach(function(pOff, pi) {
+          var spx = zSecX + pOff * sX;
           zoneEls.push(<line key={prefix+"p"+pi} x1={spx} y1={zDY} x2={spx} y2={gnd-1} stroke="#c4a060" strokeWidth={postSize==="6x6"?2:1.5} strokeOpacity={zAlpha} strokeDasharray={zDash} />);
           if (!isRear) {
             zoneEls.push(<rect key={prefix+"pf"+pi} x={spx-3} y={gnd} width={6} height={2.5} fill="#c8c8c8" stroke="#444" strokeWidth="0.3" />);
@@ -251,6 +284,20 @@ function ElevationView({ c, p }) {
     const kpSize = 28;
     const kpX = svgW - kpSize - 8;
     const kpY = 6;
+
+    // S35: Hardware callout labels
+    var hwEls = [];
+    if (!isSide && !isRear) {
+      // South view: show ABU66Z at first post, beam connector type
+      var firstPx = z0X + (pp[0] || 1.5) * sX;
+      hwEls.push(<text key="hw1" x={firstPx - 8} y={gnd + 8} textAnchor="end" style={{fontSize:3,fill:"#666",fontFamily:"monospace"}}>ABU66Z</text>);
+      hwEls.push(<line key="hw1l" x1={firstPx - 7} y1={gnd + 7} x2={firstPx - 1} y2={gnd + 1} stroke="#999" strokeWidth="0.3" />);
+      // Beam connector
+      var beamLabel = p.beamType === "flush" ? "LUS210 (TYP)" : "H2.5A (TYP)";
+      var bmLblX = z0X + z0W * 0.35;
+      hwEls.push(<text key="hw2" x={bmLblX + 12} y={dY + bH + 5} textAnchor="start" style={{fontSize:3,fill:"#666",fontFamily:"monospace"}}>{beamLabel}</text>);
+      hwEls.push(<line key="hw2l" x1={bmLblX + 11} y1={dY + bH + 4} x2={bmLblX + 2} y2={dY + bH * 0.5 + 1} stroke="#999" strokeWidth="0.3" />);
+    }
 
     return (
       <div style={{ flex: "1 1 48%", minWidth: 200 }}>
@@ -330,13 +377,16 @@ function ElevationView({ c, p }) {
 
           {stEls}
 
-          {/* Height dimension ÃÂ¢ÃÂÃÂ uses dX (bounding box left edge) */}
+          {/* S35: Hardware callout labels */}
+          {hwEls}
+
+          {/* Height dimension - uses dX (bounding box left edge) */}
           <line x1={dX-8} y1={gnd} x2={dX-8} y2={dY} stroke="#1565c0" strokeWidth="0.4" />
           <line x1={dX-10} y1={gnd} x2={dX-6} y2={gnd} stroke="#1565c0" strokeWidth="0.4" />
           <line x1={dX-10} y1={dY} x2={dX-6} y2={dY} stroke="#1565c0" strokeWidth="0.4" />
           <text x={dX-12} y={(gnd+dY)/2+2} textAnchor="middle" transform={`rotate(-90,${dX-12},${(gnd+dY)/2})`} style={{ fontSize: 5.5, fill: "#1565c0", fontWeight: 700, fontFamily: "monospace" }}>{window.fmtFtIn(H)}</text>
 
-          {/* Width dimension ÃÂ¢ÃÂÃÂ uses dX/dSW (spans full bounding box) */}
+          {/* Width dimension - uses dX/dSW (spans full bounding box) */}
           <line x1={dX} y1={rTop-6} x2={dX+dSW} y2={rTop-6} stroke="#c62828" strokeWidth="0.4" />
           <line x1={dX} y1={rTop-8} x2={dX} y2={rTop-4} stroke="#c62828" strokeWidth="0.4" />
           <line x1={dX+dSW} y1={rTop-8} x2={dX+dSW} y2={rTop-4} stroke="#c62828" strokeWidth="0.4" />
@@ -378,9 +428,9 @@ function ElevationView({ c, p }) {
 
   return (
     <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-      {viewOrder.map(v => (
+      {viewOrder.map(function(v) { return (
         <MiniElev key={v.dir} viewDir={v.dir} showWidth={v.showWidth} />
-      ))}
+      ); })}
     </div>
   );
 }
