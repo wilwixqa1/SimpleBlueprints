@@ -92,6 +92,7 @@ function StepContent(props) {
   const [missingFieldsAcked, setMissingFieldsAcked] = _stUS(false);
   const [showSiteElements, setShowSiteElements] = _stUS(false);
   const [selectedElId, setSelectedElId] = _stUS(null);
+  const [showLotHouse, setShowLotHouse] = _stUS(true);
 
   // ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Active zone data ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ
   var activeZoneObj = p.activeZone > 0 ? p.zones.find(function(z) { return z.id === p.activeZone; }) : null;
@@ -299,8 +300,19 @@ function StepContent(props) {
         Your permit office needs a site plan showing your property, house, and proposed deck. Enter your lot dimensions below to generate one automatically.
       </div>
 
-      {/* === LOT & HOUSE SLIDERS (direct, no mode cards) === */}
-      <div style={{ padding: 14, background: _br.wr, borderRadius: 8, border: "1px solid " + _br.bd, marginBottom: 14 }}>
+      {/* === LOT & HOUSE SLIDERS (collapsible, S31) === */}
+      <button onClick={function() { setShowLotHouse(!showLotHouse); }} style={{
+        width: "100%", padding: "10px 14px", marginBottom: showLotHouse ? 0 : 14,
+        background: _br.wr,
+        border: "1px solid " + _br.bd,
+        borderRadius: showLotHouse ? "8px 8px 0 0" : 8,
+        cursor: "pointer", fontSize: 10, fontFamily: _mono, color: _br.mu,
+        display: "flex", justifyContent: "space-between", alignItems: "center"
+      }}>
+        <span>{"\uD83D\uDCCF"} Lot Dimensions, House Position & Setbacks</span>
+        <span style={{ transform: showLotHouse ? "rotate(180deg)" : "none", transition: "0.2s" }}>{"\u25BE"}</span>
+      </button>
+      {showLotHouse && <div style={{ padding: 14, background: _br.wr, borderRadius: "0 0 8px 8px", border: "1px solid " + _br.bd, borderTop: "none", marginBottom: 14 }}>
         <div style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, marginBottom: 12, lineHeight: 1.6, padding: "8px 10px", background: "#fff", borderRadius: 6, border: "1px solid " + _br.bd }}>
           {"\uD83D\uDCA1"} Don't know your exact lot size? Check your county assessor or tax records online, or look at your closing documents. Approximate dimensions are fine for planning.
         </div>
@@ -317,7 +329,7 @@ function StepContent(props) {
         <Slider label="Front setback" value={p.setbackFront} min={0} max={50} field="setbackFront" u={u} p={p} />
         <Slider label="Side setback" value={p.setbackSide} min={0} max={30} field="setbackSide" u={u} p={p} />
         <Slider label="Rear setback" value={p.setbackRear} min={0} max={50} field="setbackRear" u={u} p={p} />
-      </div>
+      </div>}
 
       {/* === SITE ELEMENTS (S31) === */}
       {(() => {
