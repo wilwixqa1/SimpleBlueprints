@@ -345,6 +345,9 @@ function StepContent(props) {
           {"\uD83D\uDCA1"} Don't know your exact lot size? Check your county assessor or tax records online, or look at your closing documents. Approximate dimensions are fine for planning.
         </div>
         <div style={{ fontSize: 9, fontWeight: 700, color: _br.mu, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 8 }}>Lot Dimensions</div>
+        {p.lotEdges && <div style={{ marginBottom: 8, padding: "6px 10px", background: "#f0fdf4", borderRadius: 4, border: "1px solid #bbf7d0" }}>
+          <span style={{ fontSize: 8, fontFamily: _mono, color: _br.gn, fontWeight: 600 }}>{"\u2713"} Custom polygon active. Editing these sliders will reset to rectangle.</span>
+        </div>}
         <Slider label="Lot width (front to back neighbor)" value={p.lotWidth} min={30} max={300} field="lotWidth" u={u} p={p} />
         <Slider label="Lot depth (street to back)" value={p.lotDepth} min={50} max={400} field="lotDepth" u={u} p={p} />
         <div style={{ fontSize: 9, fontWeight: 700, color: _br.mu, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 8, marginTop: 12 }}>House Position</div>
@@ -358,6 +361,190 @@ function StepContent(props) {
         <Slider label="Side setback" value={p.setbackSide} min={0} max={30} field="setbackSide" u={u} p={p} />
         <Slider label="Rear setback" value={p.setbackRear} min={0} max={50} field="setbackRear" u={u} p={p} />
       </div>}
+
+      {/* === ADJUST LOT SHAPE (S37) === */}
+      {(() => {
+        var [showLotShape, setShowLotShape] = _stUS(false);
+        var currentEdges = p.lotEdges || window.computeRectEdges(p);
+        var isCustom = !!p.lotEdges;
+
+        // Trapezoid vertex solver for 4-sided lots
+        // Fixes south horizontal, east perpendicular, solves for north/west closure
+        function computeQuadVerts(edges) {
+          if (edges.length !== 4) return null;
+          var s = edges[0].length || 1;
+          var e = edges[1].length || 1;
+          var n = edges[2].length || 1;
+          var w = edges[3].length || 1;
+          var D = n - s;
+          var a, h;
+          if (Math.abs(D) < 0.01) {
+            // Rectangle or parallel sides: south = north
+            a = 0; h = e;
+          } else {
+            // Solve: a = horizontal offset of NW corner from origin
+            // h = perpendicular height between south and north edges
+            a = (e * e - w * w - D * D) / (2 * D);
+            var hSq = w * w - a * a;
+            if (hSq < 1) {
+              // Invalid trapezoid dimensions, simple fallback
+              a = 0; h = Math.max(e, w);
+            } else {
+              h = Math.sqrt(hSq);
+            }
+          }
+          // Clockwise: SW, SE, NE, NW
+          return [[0, 0], [s, 0], [a + n, h], [a, h]];
+        }
+
+        function commitEdges(newEdges) {
+          u("lotEdges", newEdges);
+          var verts = computeQuadVerts(newEdges);
+          u("lotVertices", verts);
+        }
+
+        function updateEdge(idx, field, val) {
+          var newEdges = currentEdges.map(function(edge, i) {
+            if (i !== idx) return Object.assign({}, edge);
+            return Object.assign({}, edge, { [field]: val });
+          });
+          commitEdges(newEdges);
+        }
+
+        function addCornerPoint(idx) {
+          var edge = currentEdges[idx];
+          var half = Math.round(edge.length / 2 * 10) / 10;
+          var e1 = Object.assign({}, edge, { length: half });
+          var e2 = { type: "property", label: "", length: +(edge.length - half).toFixed(1), setbackType: edge.setbackType, neighborLabel: "" };
+          var newEdges = [];
+          for (var i = 0; i < currentEdges.length; i++) {
+            if (i === idx) { newEdges.push(e1); newEdges.push(e2); }
+            else newEdges.push(Object.assign({}, currentEdges[i]));
+          }
+          commitEdges(newEdges);
+        }
+
+        function removeEdge(idx) {
+          if (currentEdges.length <= 3) return;
+          var prevIdx = idx === 0 ? currentEdges.length - 1 : idx - 1;
+          var newEdges = currentEdges.map(function(e) { return Object.assign({}, e); });
+          newEdges[prevIdx] = Object.assign({}, newEdges[prevIdx], {
+            length: +(newEdges[prevIdx].length + newEdges[idx].length).toFixed(1)
+          });
+          newEdges.splice(idx, 1);
+          commitEdges(newEdges);
+        }
+
+        function resetToRect() {
+          u("lotVertices", null);
+          u("lotEdges", null);
+        }
+
+        var dirLabels = currentEdges.length === 4
+          ? ["South", "East", "North", "West"]
+          : currentEdges.map(function(_, i) { return "Edge " + (i + 1); });
+        var sbColors = { front: "#2563eb", side: "#8B7355", rear: "#dc2626", none: "#999" };
+
+        return <React.Fragment>
+          <button onClick={function() { setShowLotShape(!showLotShape); }} style={{
+            width: "100%", padding: "10px 14px", marginBottom: showLotShape ? 0 : 14,
+            background: isCustom ? "#f0fdf4" : "none",
+            border: "1px solid " + (isCustom ? _br.gn : _br.bd),
+            borderRadius: showLotShape ? "8px 8px 0 0" : 8,
+            cursor: "pointer", fontSize: 10, fontFamily: _mono,
+            color: isCustom ? _br.gn : _br.mu,
+            display: "flex", justifyContent: "space-between", alignItems: "center"
+          }}>
+            <span>{isCustom ? ("\u270E Custom lot shape (" + currentEdges.length + " edges)") : "\u270E Adjust lot shape (polygon lots)"}</span>
+            <span style={{ transform: showLotShape ? "rotate(180deg)" : "none", transition: "0.2s" }}>{"\u25BE"}</span>
+          </button>
+          {showLotShape && <div style={{
+            padding: 14, background: _br.wr, borderRadius: "0 0 8px 8px",
+            border: "1px solid " + _br.bd, borderTop: "none", marginBottom: 14
+          }}>
+            {!isCustom && <div style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, marginBottom: 12, lineHeight: 1.6, padding: "8px 10px", background: "#fff", borderRadius: 6, border: "1px solid " + _br.bd }}>
+              {"\uD83D\uDCA1"} Edit edge lengths to define an irregular lot. This overrides the lot width/depth sliders.
+            </div>}
+
+            {isCustom && <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <span style={{ fontSize: 9, color: _br.gn, fontFamily: _mono, fontWeight: 700 }}>{"\u2713"} Custom polygon active</span>
+              <button onClick={resetToRect} style={{
+                padding: "4px 10px", fontSize: 8, fontFamily: _mono, cursor: "pointer",
+                border: "1px solid " + _br.bd, borderRadius: 4, background: "#fff", color: _br.mu
+              }}>Reset to rectangle</button>
+            </div>}
+
+            {currentEdges.map(function(edge, idx) {
+              var dir = dirLabels[idx];
+              var sbCol = sbColors[edge.setbackType] || "#999";
+              var isStreet = edge.type === "street";
+              return <div key={idx} style={{
+                padding: 10, background: "#fff", borderRadius: 6,
+                border: "1px solid " + _br.bd, marginBottom: 6
+              }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ fontSize: 10, fontWeight: 800, color: _br.tx, fontFamily: _mono }}>{dir}</span>
+                    <span style={{ fontSize: 7, fontWeight: 600, color: sbCol, fontFamily: _mono, background: sbCol + "18", padding: "1px 5px", borderRadius: 3, textTransform: "uppercase" }}>{edge.setbackType}</span>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <input type="number" value={edge.length} step={0.1} min={1} max={999}
+                      onChange={function(e) { updateEdge(idx, "length", Math.max(1, parseFloat(e.target.value) || 1)); }}
+                      style={{ width: 64, fontFamily: _mono, fontSize: 14, fontWeight: 800, color: _br.tx, textAlign: "right", border: "1px solid " + _br.bd, borderRadius: 4, padding: "3px 6px", outline: "none", background: "#faf8f3" }}
+                    />
+                    <span style={{ fontSize: 10, color: _br.mu, fontFamily: _mono }}>ft</span>
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 3, flexWrap: "wrap", marginBottom: 6 }}>
+                  {["street", "property"].map(function(t) {
+                    var isAct = edge.type === t;
+                    return <button key={t} onClick={function() { updateEdge(idx, "type", t); }} style={{
+                      padding: "2px 7px", fontSize: 8, fontFamily: _mono, cursor: "pointer",
+                      border: isAct ? "1.5px solid " + _br.gn : "1px solid " + _br.bd,
+                      background: isAct ? "#edf5e8" : "#fff", color: isAct ? _br.gn : _br.mu,
+                      borderRadius: 3, fontWeight: isAct ? 700 : 400, textTransform: "capitalize"
+                    }}>{t}</button>;
+                  })}
+                  <span style={{ width: 1, background: _br.bd, margin: "0 1px", alignSelf: "stretch" }} />
+                  {["front", "side", "rear", "none"].map(function(sb) {
+                    var isAct = edge.setbackType === sb;
+                    var col = sbColors[sb];
+                    return <button key={sb} onClick={function() { updateEdge(idx, "setbackType", sb); }} style={{
+                      padding: "2px 7px", fontSize: 8, fontFamily: _mono, cursor: "pointer",
+                      border: isAct ? "1.5px solid " + col : "1px solid " + _br.bd,
+                      background: isAct ? col + "18" : "#fff", color: isAct ? col : _br.mu,
+                      borderRadius: 3, fontWeight: isAct ? 700 : 400, textTransform: "capitalize"
+                    }}>{sb}</button>;
+                  })}
+                </div>
+                <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                  <input value={isStreet ? (edge.label || "") : (edge.neighborLabel || "")}
+                    onChange={function(e) { updateEdge(idx, isStreet ? "label" : "neighborLabel", e.target.value); }}
+                    placeholder={isStreet ? "Street name" : "Neighbor (e.g. LOT 45)"}
+                    style={{ flex: 1, padding: "4px 8px", border: "1px solid " + _br.bd, borderRadius: 4, fontSize: 9, fontFamily: _mono, color: _br.tx, background: "#fff", outline: "none" }}
+                  />
+                  <button onClick={function() { addCornerPoint(idx); }} title="Split edge to add corner" style={{
+                    padding: "3px 7px", fontSize: 8, fontFamily: _mono, cursor: "pointer",
+                    border: "1px solid " + _br.bd, borderRadius: 3, background: "#fff", color: _br.mu
+                  }}>+ Split</button>
+                  {currentEdges.length > 4 && <button onClick={function() { removeEdge(idx); }} title="Merge with previous" style={{
+                    padding: "3px 5px", fontSize: 9, cursor: "pointer",
+                    border: "1px solid #fca5a5", borderRadius: 3, background: "#fef2f2", color: "#dc2626"
+                  }}>{"\u00D7"}</button>}
+                </div>
+              </div>;
+            })}
+
+            {currentEdges.length > 4 && <div style={{ fontSize: 8, color: "#d97706", fontFamily: _mono, padding: "6px 10px", background: "#fff8e1", borderRadius: 4, border: "1px solid #ffe082", marginTop: 2, marginBottom: 4 }}>
+              {"\u26A0\uFE0F"} 5+ edge vertex preview coming in next update. Edge data is saved.
+            </div>}
+
+            <div style={{ fontSize: 8, color: _br.mu, fontFamily: _mono, marginTop: 6, fontStyle: "italic" }}>
+              Edges ordered clockwise from street. Use "Split" to create 5+ sided lots (jogs, angled property lines).
+            </div>
+          </div>}
+        </React.Fragment>;
+      })()}
 
       {/* === SITE ELEMENTS (S31) === */}
       {(() => {
