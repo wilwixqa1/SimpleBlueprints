@@ -5,6 +5,22 @@ const { useState, useMemo, useEffect, useRef } = React;
 
 const DEF_CORNERS = { BL: { type: "square", size: 0 }, BR: { type: "square", size: 0 }, FL: { type: "square", size: 0 }, FR: { type: "square", size: 0 } };
 
+// S36: Polygon lot helpers (rectangle fallback)
+window.computeRectVertices = function(p) {
+  var w = p.lotWidth || 80, d = p.lotDepth || 120;
+  return [[0, 0], [w, 0], [w, d], [0, d]];
+};
+window.computeRectEdges = function(p) {
+  var w = p.lotWidth || 80, d = p.lotDepth || 120;
+  var street = p.streetName || "";
+  return [
+    { type: "street", label: street, length: w, setbackType: "front", neighborLabel: "" },
+    { type: "property", label: "", length: d, setbackType: "side", neighborLabel: "" },
+    { type: "property", label: "", length: w, setbackType: "rear", neighborLabel: "" },
+    { type: "property", label: "", length: d, setbackType: "side", neighborLabel: "" }
+  ];
+};
+
 const App = function SimpleBlueprints() {
   const { br, mono, sans } = window.SB;
   const [page, setPage] = useState("home");
@@ -16,6 +32,8 @@ const App = function SimpleBlueprints() {
   const [p, setP] = useState({ width: 20, depth: 12, height: 4, houseWidth: 40, houseDepth: 30, attachment: "ledger", hasStairs: true, stairLocation: "front", stairWidth: 4, numStringers: 3, hasLanding: false, joistSpacing: 16, deckingType: "composite", railType: "fortress", snowLoad: "moderate", frostZone: "cold", lotWidth: 80, lotDepth: 120, setbackFront: 25, setbackSide: 5, setbackRear: 20, houseOffsetSide: 20, deckOffset: 0, stairOffset: 0, beamType: "dropped", stairTemplate: "straight", stairRunSplit: null, stairLandingDepth: null, stairLandingWidth: null, stairGap: 0.5, stairRotation: 0, stairAnchorX: null, stairAnchorY: null, stairAngle: null,
     houseDistFromStreet: null,
     streetName: "",
+    // Polygon lot (S36)
+    lotVertices: null, lotEdges: null,
     // Zone system Ã¢ÂÂ S19
     zones: [], activeZone: 0, nextZoneId: 1, mainCorners: { BL: { type: "square", size: 0 }, BR: { type: "square", size: 0 }, FL: { type: "square", size: 0 }, FR: { type: "square", size: 0 } },
     // Site plan Ã¢ÂÂ S27 (defaults seeded from existing flat params)
