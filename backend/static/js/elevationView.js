@@ -140,6 +140,13 @@ function ElevationView({ c, p }) {
     const hX = showWidth ? z0X + (z0W - hW) / 2 : (viewDir === "east" ? dX - hW - 2 : dX + dSW + 2);
     const hH = (H + 1 + 7) * sY; const hTop = gnd - hH; const roofPk = 3.5 * sY;
 
+    // S39: Grade segments that skip house footprint (prevents earth fill bleeding through house)
+    var houseL = hX, houseR = hX + hW;
+    var gradeSegments = [];
+    if (gradeLineX1 < houseL) gradeSegments.push([gradeLineX1, Math.min(houseL, gradeLineX2)]);
+    if (houseR < gradeLineX2) gradeSegments.push([Math.max(houseR, gradeLineX1), gradeLineX2]);
+    if (gradeSegments.length === 0) gradeSegments.push([gradeLineX1, gradeLineX2]);
+
     const [svt, sdir] = hasSt ? stairViewType(_exitSide, viewDir) : ["hidden", null];
     const stEls = [];
     if (hasSt && svt !== "hidden") {
@@ -268,7 +275,7 @@ function ElevationView({ c, p }) {
         if (!isRear) {
           zoneEls.push(<rect key={prefix+"beam"} x={zSecX+0.5*sX} y={zDY+0.5} width={zSecW-1*sX} height={bH*0.6} fill="#c4960a" fillOpacity={zBeamAlpha} stroke="#444" strokeWidth="0.4" rx="0.3" />);
         } else {
-          zoneEls.push(<rect key={prefix+"beam"} x={zSecX+0.5*sX} y={zDY+0.5} width={zSecW-1*sX} height={bH*0.6} fill="#c4960a" fillOpacity={0.25} stroke="#444" strokeWidth="0.3" />);
+          zoneEls.push(<rect key={prefix+"beam"} x={zSecX+0.5*sX} y={zDY+0.5} width={zSecW-1*sX} height={bH*0.6} fill="#c4960a" fillOpacity="0.25" stroke="#444" strokeWidth="0.3" />);
         }
 
         // Deck surface
@@ -331,14 +338,25 @@ function ElevationView({ c, p }) {
           {(() => { var _gdL = gradeYatX(hX); var _gdR = gradeYatX(hX + hW); var _lowestG = Math.max(_gdL, _gdR); var _fdrop = _lowestG - gnd; if (_fdrop > 1) return <rect x={hX} y={gnd} width={hW} height={_fdrop} fill="#c8c8c8" stroke="#888" strokeWidth="0.3" />; return null; })()}
           </>}
 
-          {/* S33: Earth fill below grade */}
+          {/* S39: Earth fill below grade (segmented to skip house footprint) */}
           {(() => { var btm = Math.max(gradeLY, gradeRY) + 16; return <g>
-            <polygon points={gradeLineX1+","+gradeLY+" "+gradeLineX2+","+gradeRY+" "+gradeLineX2+","+btm+" "+gradeLineX1+","+btm} fill="#f0ece4" />
-            <polygon points={gradeLineX1+","+gradeLY+" "+gradeLineX2+","+gradeRY+" "+gradeLineX2+","+btm+" "+gradeLineX1+","+btm} fill="url(#earthH1)" />
-            <polygon points={gradeLineX1+","+gradeLY+" "+gradeLineX2+","+gradeRY+" "+gradeLineX2+","+btm+" "+gradeLineX1+","+btm} fill="url(#earthH2)" />
+            {gradeSegments.map(function(seg, si) {
+              var sx1 = seg[0], sx2 = seg[1];
+              var sy1 = gradeYatX(sx1), sy2 = gradeYatX(sx2);
+              var pts = sx1+","+sy1+" "+sx2+","+sy2+" "+sx2+","+btm+" "+sx1+","+btm;
+              return <g key={"ef"+si}>
+                <polygon points={pts} fill="#f0ece4" />
+                <polygon points={pts} fill="url(#earthH1)" />
+                <polygon points={pts} fill="url(#earthH2)" />
+              </g>;
+            })}
           </g>; })()}
-          <line x1={gradeLineX1} y1={gradeLY} x2={gradeLineX2} y2={gradeRY} stroke="#444" strokeWidth="0.8" />
-          {Array.from({length:Math.ceil((svgW-20)/2.5)},function(_,i){var hx=pad-10+i*2.5;var gy=gradeYatX(hx);return <line key={i} x1={hx} y1={gy} x2={hx-2} y2={gy+1.5} stroke="#888" strokeWidth="0.25" />;})}
+          {/* S39: Grade line (segmented to skip house footprint) */}
+          {gradeSegments.map(function(seg, si) {
+            return <line key={"gl"+si} x1={seg[0]} y1={gradeYatX(seg[0])} x2={seg[1]} y2={gradeYatX(seg[1])} stroke="#444" strokeWidth="0.8" />;
+          })}
+          {/* S39: Grade tick marks (skip house footprint) */}
+          {Array.from({length:Math.ceil((svgW-20)/2.5)},function(_,i){var hx=pad-10+i*2.5;if(hx>=houseL&&hx<=houseR)return null;var gy=gradeYatX(hx);return <line key={i} x1={hx} y1={gy} x2={hx-2} y2={gy+1.5} stroke="#888" strokeWidth="0.25" />;})}
           {slopePct > 0 && gradeSign !== 0 ? <text x={gradeLineX2-5} y={gradeRY-3} textAnchor="end" style={{fontSize:4,fill:"#666",fontFamily:"monospace",fontWeight:600}}>APPROX. {(slopePct*100).toFixed(1)}% GRADE</text> : <text x={gradeLineX2-5} y={gradeRY-3} textAnchor="end" style={{fontSize:3.5,fill:"#999",fontFamily:"monospace",fontStyle:"italic"}}>APPROX. GRADE</text>}
 
           {postEls}
