@@ -640,16 +640,8 @@ def draw_site_plan(fig, params, calc):
                  color=BRAND["dark"], fontweight='bold')
 
     # === LOT COVERAGE (S32) ===
-    # S38: Shoelace formula for polygon lots, fallback to W*D
-    if len(lot_verts) > 4 or sp.get("lot_vertices"):
-        _sa = 0
-        for _i in range(len(lot_verts)):
-            _j = (_i + 1) % len(lot_verts)
-            _sa += lot_verts[_i][0] * lot_verts[_j][1]
-            _sa -= lot_verts[_j][0] * lot_verts[_i][1]
-        lot_area = round(abs(_sa) / 2)
-    else:
-        lot_area = lot_w * lot_d
+    # S38: Read from calc engine (single source of truth)
+    lot_area = calc.get("lot_area", lot_w * lot_d)
     house_area = house_w * house_d
     deck_area = total_area if total_area > 0 else deck_w * deck_d
     total_impervious = house_area + deck_area + el_impervious_area
