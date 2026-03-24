@@ -1,5 +1,5 @@
 // ============================================================
-// MAIN APP Ã¢ÂÂ Wizard Shell, State, Nav, Preview Panel
+// MAIN APP ÃÂ¢ÃÂÃÂ Wizard Shell, State, Nav, Preview Panel
 // ============================================================
 const { useState, useMemo, useEffect, useRef } = React;
 
@@ -19,6 +19,74 @@ window.computeRectEdges = function(p) {
     { type: "property", label: "", length: w, setbackType: "rear", neighborLabel: "" },
     { type: "property", label: "", length: d, setbackType: "side", neighborLabel: "" }
   ];
+};
+
+// S38: Setback gap calculator (polygon-aware)
+// Returns array of {edgeIdx, setbackType, required, gap, warn} for each edge with a setback.
+// gap = min signed distance from deck bounding box corners to lot edge (inward positive).
+window.computeSetbackGaps = function(p) {
+  var verts = p.lotVertices || window.computeRectVertices(p);
+  var edges = p.lotEdges || window.computeRectEdges(p);
+  var n = verts.length;
+
+  // Deck bounding box corners in lot coordinates
+  var hx = p.houseOffsetSide || 20;
+  var hy = p.houseDistFromStreet || p.setbackFront || 25;
+  var hw = p.houseWidth || 40;
+  var hd = p.houseDepth || 30;
+  var dw = p.width || 20;
+  var dd = p.depth || 12;
+  var dOff = p.deckOffset || 0;
+  var dx = hx + hw / 2 + dOff - dw / 2;
+  var dy = hy + hd;
+  var deckCorners = [
+    [dx, dy], [dx + dw, dy], [dx + dw, dy + dd], [dx, dy + dd]
+  ];
+
+  // Lot centroid for inward normal direction
+  var cx = 0, cy = 0;
+  for (var i = 0; i < n; i++) { cx += verts[i][0]; cy += verts[i][1]; }
+  cx /= n; cy /= n;
+
+  var results = [];
+  for (var ei = 0; ei < n; ei++) {
+    var eInf = edges[ei] || {};
+    var sbType = eInf.setbackType || "side";
+    var required = 0;
+    if (sbType === "front") required = p.setbackFront || 0;
+    else if (sbType === "rear") required = p.setbackRear || 0;
+    else if (sbType === "side") required = p.setbackSide || 0;
+    if (required <= 0) continue;
+
+    var v1 = verts[ei], v2 = verts[(ei + 1) % n];
+    var edx = v2[0] - v1[0], edy = v2[1] - v1[1];
+    var segLen = Math.sqrt(edx * edx + edy * edy);
+    if (segLen < 0.01) continue;
+
+    // Outward normal (away from centroid)
+    var nx = -edy / segLen, ny = edx / segLen;
+    var mx = (v1[0] + v2[0]) / 2, my = (v1[1] + v2[1]) / 2;
+    if (nx * (cx - mx) + ny * (cy - my) > 0) { nx = -nx; ny = -ny; }
+    // nx, ny now points outward. Signed distance: positive = inside lot
+
+    var minDist = Infinity;
+    for (var ci = 0; ci < 4; ci++) {
+      var px = deckCorners[ci][0], py = deckCorners[ci][1];
+      // Signed distance from point to line (positive = on centroid side = inside)
+      var d = -( nx * (px - v1[0]) + ny * (py - v1[1]) );
+      if (d < minDist) minDist = d;
+    }
+
+    var gap = +minDist.toFixed(1);
+    results.push({
+      edgeIdx: ei,
+      setbackType: sbType,
+      required: required,
+      gap: gap,
+      warn: gap < required
+    });
+  }
+  return results;
 };
 
 // S37 Push 5: General polygon vertex solver
@@ -103,9 +171,9 @@ const App = function SimpleBlueprints() {
     streetName: "",
     // Polygon lot (S36)
     lotVertices: null, lotEdges: null,
-    // Zone system Ã¢ÂÂ S19
+    // Zone system ÃÂ¢ÃÂÃÂ S19
     zones: [], activeZone: 0, nextZoneId: 1, mainCorners: { BL: { type: "square", size: 0 }, BR: { type: "square", size: 0 }, FL: { type: "square", size: 0 }, FR: { type: "square", size: 0 } },
-    // Site plan Ã¢ÂÂ S27 (defaults seeded from existing flat params)
+    // Site plan ÃÂ¢ÃÂÃÂ S27 (defaults seeded from existing flat params)
     sitePlan: {
       lotShape: "rectangle", lotWidth: 80, lotDepth: 120,
       streetSide: "south", streetName: "",
@@ -173,7 +241,7 @@ const App = function SimpleBlueprints() {
     return next;
   });
 
-  // Ã¢ÂÂÃ¢ÂÂ Zone management functions Ã¢ÂÂÃ¢ÂÂ
+  // ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Zone management functions ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
   const addZone = (parentId, edge) => setP(prev => {
     var parentP = Object.assign({}, prev, { deckWidth: prev.width, deckDepth: prev.depth });
     var defaults = window.addZoneDefaults(parentId, edge, "add", parentP);
@@ -255,7 +323,7 @@ const App = function SimpleBlueprints() {
     return (z && z.corners) || DEF_CORNERS;
   };
 
-  // Ã¢ÂÂÃ¢ÂÂ Provide deckWidth/deckDepth aliases for zoneUtils Ã¢ÂÂÃ¢ÂÂ
+  // ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Provide deckWidth/deckDepth aliases for zoneUtils ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
   // zoneUtils reads p.deckWidth/p.deckDepth, but our flat params use width/depth
   const pForZones = useMemo(() => Object.assign({}, p, { deckWidth: p.width, deckDepth: p.depth, deckHeight: p.height }), [p]);
 
@@ -413,7 +481,7 @@ const App = function SimpleBlueprints() {
                   addZone={addZone} addCutout={addCutout}
                   getCorners={getCorners} setCorner={setCorner} />
                 {planMode === "plan" && <div style={{ textAlign: "center", fontSize: 9, color: br.mu, fontFamily: mono, marginTop: 4, opacity: 0.7 }}>
-                  {zoneMode === "select" && <>Drag the <span style={{ color: "#3d5a2e", fontWeight: 700 }}>green</span> handle to slide the deck ÃÂ· Click <span style={{ color: "#c62828", fontWeight: 700 }}>stairs</span> to select, drag to move, grab <span style={{ color: "#3d5a2e", fontWeight: 700 }}>{"\u21BB"}</span> to rotate</>}
+                  {zoneMode === "select" && <>Drag the <span style={{ color: "#3d5a2e", fontWeight: 700 }}>green</span> handle to slide the deck ÃÂÃÂ· Click <span style={{ color: "#c62828", fontWeight: 700 }}>stairs</span> to select, drag to move, grab <span style={{ color: "#3d5a2e", fontWeight: 700 }}>{"\u21BB"}</span> to rotate</>}
                   {zoneMode === "add" && <>Click <span style={{ color: "#16a34a", fontWeight: 700 }}>+</span> on any edge to add a deck zone</>}
                   {zoneMode === "cut" && <>Click <span style={{ color: "#dc2626", fontWeight: 700 }}>{"\u2702"}</span> on corners for house wraps, center for openings</>}
                   {zoneMode === "chamfer" && <>Click <span style={{ color: "#7c3aed", fontWeight: 700 }}>{"\u25E3"}</span> on corners to toggle 45{"\u00B0"} chamfers</>}
