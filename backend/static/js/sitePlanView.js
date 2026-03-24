@@ -34,6 +34,13 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
   var nVerts = verts.length;
   var lotPolyPoints = verts.map(function(v) { return sx(v[0]) + "," + sy(v[1]); }).join(" ");
 
+  // S38: Polygon bounding box for drag clamp (Bug 1 fix)
+  var lotMaxX = lotW, lotMaxY = lotD;
+  if (p.lotVertices && verts.length > 2) {
+    lotMaxX = Math.max.apply(null, verts.map(function(v) { return v[0]; }));
+    lotMaxY = Math.max.apply(null, verts.map(function(v) { return v[1]; }));
+  }
+
   // Per-edge dimension labels
   var edgeLabels = [];
   (function() {
@@ -201,8 +208,8 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
     if (!lot) return;
     var dr = dragRef.current;
     if (dr.type === "house") {
-      var newHX = Math.round(Math.max(0, Math.min(lotW - hw, lot.x - dr.offsetX)));
-      var newHY = Math.round(Math.max(0, Math.min(lotD - hd, lot.y - dr.offsetY)));
+      var newHX = Math.round(Math.max(0, Math.min(lotMaxX - hw, lot.x - dr.offsetX)));
+      var newHY = Math.round(Math.max(0, Math.min(lotMaxY - hd, lot.y - dr.offsetY)));
       if (newHX !== hx || newHY !== hy) {
         u("houseOffsetSide", newHX);
         u("houseDistFromStreet", newHY);
@@ -210,8 +217,8 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
     } else {
       var el = elems.find(function(e) { return e.id === dr.elId; });
       if (!el) return;
-      var newX = Math.round(Math.max(0, Math.min(lotW - el.w, lot.x - dr.offsetX)));
-      var newY = Math.round(Math.max(0, Math.min(lotD - el.d, lot.y - dr.offsetY)));
+      var newX = Math.round(Math.max(0, Math.min(lotMaxX - el.w, lot.x - dr.offsetX)));
+      var newY = Math.round(Math.max(0, Math.min(lotMaxY - el.d, lot.y - dr.offsetY)));
       if (newX !== el.x || newY !== el.y) {
         u("siteElements", elems.map(function(e) {
           if (e.id !== dr.elId) return e;
