@@ -14,12 +14,20 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
   var dragRef = _useRef(null); // { elId, offsetX, offsetY }
   var [isDragging, setIsDragging] = _useState(false);
 
-  // === LAYOUT ===
+  // === LAYOUT (S38: polygon-aware viewport) ===
   var svgW = 540, svgH = 400, margin = 50;
   var lotW = p.lotWidth || 80, lotD = p.lotDepth || 120;
 
-  var scale = Math.min((svgW - margin * 2) / lotW, (svgH - margin * 2) / lotD);
-  var lotPxW = lotW * scale, lotPxH = lotD * scale;
+  // Compute polygon verts early so we can size viewport to polygon bounds
+  var verts = p.lotVertices || window.computeRectVertices(p);
+  var viewW = lotW, viewD = lotD;
+  if (p.lotVertices && verts.length > 2) {
+    viewW = Math.max.apply(null, verts.map(function(v) { return v[0]; }));
+    viewD = Math.max.apply(null, verts.map(function(v) { return v[1]; }));
+  }
+
+  var scale = Math.min((svgW - margin * 2) / viewW, (svgH - margin * 2) / viewD);
+  var lotPxW = viewW * scale, lotPxH = viewD * scale;
   var ox = (svgW - lotPxW) / 2;
   var oy = (svgH - lotPxH) / 2;
 
@@ -28,18 +36,11 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
   var sw = function(w) { return w * scale; };
   var sh = function(h) { return h * scale; };
 
-  // === POLYGON LOT (S36) ===
-  var verts = p.lotVertices || window.computeRectVertices(p);
+  // === POLYGON LOT (S36, verts computed above for viewport) ===
   var lotEdgeData = p.lotEdges || window.computeRectEdges(p);
   var nVerts = verts.length;
   var lotPolyPoints = verts.map(function(v) { return sx(v[0]) + "," + sy(v[1]); }).join(" ");
 
-  // S38: Polygon bounding box for drag clamp (Bug 1 fix)
-  var lotMaxX = lotW, lotMaxY = lotD;
-  if (p.lotVertices && verts.length > 2) {
-    lotMaxX = Math.max.apply(null, verts.map(function(v) { return v[0]; }));
-    lotMaxY = Math.max.apply(null, verts.map(function(v) { return v[1]; }));
-  }
 
   // Per-edge dimension labels
   var edgeLabels = [];
@@ -208,8 +209,8 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
     if (!lot) return;
     var dr = dragRef.current;
     if (dr.type === "house") {
-      var newHX = Math.round(Math.max(0, Math.min(lotMaxX - hw, lot.x - dr.offsetX)));
-      var newHY = Math.round(Math.max(0, Math.min(lotMaxY - hd, lot.y - dr.offsetY)));
+      var newHX = Math.round(Math.max(0, Math.min(viewW - hw, lot.x - dr.offsetX)));
+      var newHY = Math.round(Math.max(0, Math.min(viewD - hd, lot.y - dr.offsetY)));
       if (newHX !== hx || newHY !== hy) {
         u("houseOffsetSide", newHX);
         u("houseDistFromStreet", newHY);
@@ -217,8 +218,8 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
     } else {
       var el = elems.find(function(e) { return e.id === dr.elId; });
       if (!el) return;
-      var newX = Math.round(Math.max(0, Math.min(lotMaxX - el.w, lot.x - dr.offsetX)));
-      var newY = Math.round(Math.max(0, Math.min(lotMaxY - el.d, lot.y - dr.offsetY)));
+      var newX = Math.round(Math.max(0, Math.min(viewW - el.w, lot.x - dr.offsetX)));
+      var newY = Math.round(Math.max(0, Math.min(viewD - el.d, lot.y - dr.offsetY)));
       if (newX !== el.x || newY !== el.y) {
         u("siteElements", elems.map(function(e) {
           if (e.id !== dr.elId) return e;
@@ -364,15 +365,15 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
   }
 
   // === DISTANCES (bounding box, S30) ===
-  var rearGap = lotD - (bbLy + bbD);
+  var rearGap = viewD - (bbLy + bbD);
   var leftGap = bbLx;
-  var rightGap = lotW - (bbLx + bbW);
+  var rightGap = viewW - (bbLx + bbW);
   var rearWarn = rearGap < sbR;
   var leftWarn = leftGap < sbS;
   var rightWarn = rightGap < sbS;
 
   // === SCALE BAR ===
-  var sbFt = lotW > 150 ? 50 : lotW > 60 ? 20 : 10;
+  var sbFt = viewW > 150 ? 50 : viewW > 60 ? 20 : 10;
   var sbPx = sbFt * scale;
 
   // === DIMENSION ARROW HELPER ===
@@ -559,7 +560,7 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
         }
       }
       if (!streetLabel) streetLabel = p.streetName || "STREET";
-      return React.createElement("text", { x: sx(lotW / 2), y: oy + lotPxH + 30, textAnchor: "middle", style: { fontSize: 8, fill: "#999", fontFamily: mono, letterSpacing: 2 } }, streetLabel.toUpperCase());
+      return React.createElement("text", { x: sx(viewW / 2), y: oy + lotPxH + 30, textAnchor: "middle", style: { fontSize: 8, fill: "#999", fontFamily: mono, letterSpacing: 2 } }, streetLabel.toUpperCase());
     })(),
 
     React.createElement("g", { transform: "translate(" + (ox + lotPxW + 14) + "," + (oy + 8) + ") rotate(" + (p.northAngle || 0) + ",0,10)" },
