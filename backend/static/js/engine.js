@@ -1,5 +1,5 @@
 // ============================================================
-// ENGINE â Structural Calculations + Materials Estimator
+// ENGINE Ã¢ÂÂ Structural Calculations + Materials Estimator
 // ============================================================
 
 const JOIST_SPANS = {
@@ -20,6 +20,25 @@ function getSpanTable(TL) {
 function calcStructure(p) {
   const { width: W, depth: D, height: H, joistSpacing: sp, attachment, snowLoad, frostZone, deckingType } = p;
   const area = W * D;
+
+  // S38: Lot area (single source of truth for all consumers)
+  // Tries lotVertices, then lotEdges via computePolygonVerts, then rectangle fallback
+  var _lotVerts = p.lotVertices;
+  if (!_lotVerts && p.lotEdges && window.computePolygonVerts) {
+    _lotVerts = window.computePolygonVerts(p.lotEdges);
+  }
+  var lotArea;
+  if (_lotVerts && _lotVerts.length >= 3) {
+    var _sa = 0;
+    for (var _li = 0; _li < _lotVerts.length; _li++) {
+      var _lj = (_li + 1) % _lotVerts.length;
+      _sa += _lotVerts[_li][0] * _lotVerts[_lj][1];
+      _sa -= _lotVerts[_lj][0] * _lotVerts[_li][1];
+    }
+    lotArea = Math.round(Math.abs(_sa) / 2);
+  } else {
+    lotArea = (p.lotWidth || 80) * (p.lotDepth || 120);
+  }
   const LL = 40 + (SNOW[snowLoad] || 0);
   const DL = deckingType === "composite" ? 15 : 12;
   const TL = LL + DL;
@@ -115,23 +134,23 @@ function calcStructure(p) {
   // Override warnings
   const joistRank = { "2x6": 0, "2x8": 1, "2x10": 2, "2x12": 3 };
   if (p.overJoist && (joistRank[p.overJoist] || 0) < (joistRank[autoJoist] || 0)) {
-    warnings.push(`â¬ Joist override (${p.overJoist}) is smaller than recommended (${autoJoist}). May not meet code.`);
+    warnings.push(`Ã¢Â¬Â Joist override (${p.overJoist}) is smaller than recommended (${autoJoist}). May not meet code.`);
   }
   const beamRank = { "2-ply 2x8": 0, "2-ply 2x10": 1, "2-ply 2x12": 2, "3-ply 2x10": 3, "3-ply 2x12": 4, "3-ply LVL 1.75x12": 5 };
   if (p.overBeam && (beamRank[p.overBeam] || 0) < (beamRank[autoBeam] || 0)) {
-    warnings.push(`â¬ Beam override (${p.overBeam}) is smaller than recommended (${autoBeam}). May not meet code.`);
+    warnings.push(`Ã¢Â¬Â Beam override (${p.overBeam}) is smaller than recommended (${autoBeam}). May not meet code.`);
   }
   if (p.overPostSize === "4x4" && autoPostSize === "6x6") {
-    warnings.push(`â¬ Post override (4x4) is smaller than recommended (6x6). May not meet code.`);
+    warnings.push(`Ã¢Â¬Â Post override (4x4) is smaller than recommended (6x6). May not meet code.`);
   }
   if (p.overFooting && p.overFooting < autoFDiam) {
-    warnings.push(`â¬ Footing override (${p.overFooting}") is smaller than recommended (${autoFDiam}"). May not meet code.`);
+    warnings.push(`Ã¢Â¬Â Footing override (${p.overFooting}") is smaller than recommended (${autoFDiam}"). May not meet code.`);
   }
   if (p.overPostCount && p.overPostCount < autoNP) {
-    warnings.push(`â¬ Fewer posts (${p.overPostCount}) than recommended (${autoNP}). May not meet code.`);
+    warnings.push(`Ã¢Â¬Â Fewer posts (${p.overPostCount}) than recommended (${autoNP}). May not meet code.`);
   }
 
-  return { W, D, H, area, LL, DL, TL, joistSize, sp, jSpan: +jSpan.toFixed(1), nJ, beamSize, bSpan: +bSpan.toFixed(1), postSize, nP, totalPosts, pp, postHeights, fDiam, fDepth, nF: totalPosts, ledgerSize: joistSize, railLen: +railLen.toFixed(1), midSpanBlocking, blockingCount, stairs, warnings, attachment,
+  return { W, D, H, area, lotArea, LL, DL, TL, joistSize, sp, jSpan: +jSpan.toFixed(1), nJ, beamSize, bSpan: +bSpan.toFixed(1), postSize, nP, totalPosts, pp, postHeights, fDiam, fDepth, nF: totalPosts, ledgerSize: joistSize, railLen: +railLen.toFixed(1), midSpanBlocking, blockingCount, stairs, warnings, attachment,
     auto: { joist: autoJoist, beam: autoBeam, postSize: autoPostSize, postCount: autoNP, footing: autoFDiam }
   };
 }
