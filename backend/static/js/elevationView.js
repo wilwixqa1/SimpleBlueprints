@@ -147,6 +147,16 @@ function ElevationView({ c, p }) {
     if (houseR < gradeLineX2) gradeSegments.push([Math.max(houseR, gradeLineX1), gradeLineX2]);
     if (gradeSegments.length === 0) gradeSegments.push([gradeLineX1, gradeLineX2]);
 
+    // S39: House foundation bottom follows grade (trapezoid, not flat rect)
+    // In SVG Y-down: larger Y = visually lower. Math.max picks the lower point.
+    var gradeAtHL = gradeYatX(houseL);
+    var gradeAtHR = gradeYatX(houseR);
+    var minFoundPx = 1.0 * sY; // minimum 1 foot visible foundation
+    var foundBottomL = Math.max(gnd + minFoundPx, gradeAtHL);
+    var foundBottomR = Math.max(gnd + minFoundPx, gradeAtHR);
+    // First floor level: where siding starts, basement/crawlspace below
+    var firstFloorY = gnd - (H + 1) * sY;
+
     const [svt, sdir] = hasSt ? stairViewType(_exitSide, viewDir) : ["hidden", null];
     const stEls = [];
     if (hasSt && svt !== "hidden") {
@@ -309,55 +319,86 @@ function ElevationView({ c, p }) {
     return (
       <div style={{ flex: "1 1 48%", minWidth: 200 }}>
         <svg viewBox={`0 0 ${svgW} ${svgH}`} style={{ width: "100%", height: "auto", background: "#fcfcfa", borderRadius: 4, border: "1px solid #ddd8cc" }}>
-          {/* S33: Earth hatch patterns */}
+          {/* S39: Brick/masonry hatch pattern (matches permit plan conventions) */}
           <defs>
-            <pattern id="earthH1" width={4} height={4} patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-              <line x1="0" y1="0" x2="0" y2="4" stroke="#999" strokeWidth="0.4" opacity="0.3" />
-            </pattern>
-            <pattern id="earthH2" width={4} height={4} patternUnits="userSpaceOnUse" patternTransform="rotate(-45)">
-              <line x1="0" y1="0" x2="0" y2="4" stroke="#999" strokeWidth="0.3" opacity="0.2" />
+            <pattern id="brickH" width={6} height={4} patternUnits="userSpaceOnUse">
+              <rect width={6} height={4} fill="#e8e0d4" />
+              <line x1={0} y1={2} x2={6} y2={2} stroke="#c0b8a8" strokeWidth="0.3" />
+              <line x1={3} y1={0} x2={3} y2={2} stroke="#c0b8a8" strokeWidth="0.3" />
+              <line x1={0} y1={2} x2={0} y2={4} stroke="#c0b8a8" strokeWidth="0.3" />
+              <line x1={6} y1={2} x2={6} y2={4} stroke="#c0b8a8" strokeWidth="0.3" />
             </pattern>
           </defs>
 
-          {/* Key plan inset */}
-          <KeyPlan viewDir={viewDir} insetX={kpX} insetY={kpY} insetSize={kpSize} />
-
-          {showWidth ? <>
-            <rect x={hX} y={hTop} width={hW} height={hH} fill="#e8e6e0" stroke="#888" strokeWidth="0.5" />
-            <polygon points={`${hX-2},${hTop} ${hX+hW/2},${hTop-roofPk} ${hX+hW+2},${hTop}`} fill="#888" stroke="#444" strokeWidth="0.8" />
-            <text x={hX+hW/2} y={hTop-roofPk/3} textAnchor="middle" style={{ fontSize: 4, fill: "#aaa", fontFamily: "monospace" }}>HOUSE</text>
-          
-          {/* S34: Foundation extension below grade for sloped sites */}
-          {(() => { var _gdL = gradeYatX(hX); var _gdR = gradeYatX(hX + hW); var _lowestG = Math.max(_gdL, _gdR); var _fdrop = _lowestG - gnd; if (_fdrop > 1) return <rect x={hX} y={gnd} width={hW} height={_fdrop} fill="#c8c8c8" stroke="#888" strokeWidth="0.3" />; return null; })()}
-          </> : <>
-            <rect x={hX} y={hTop} width={hW} height={hH} fill="#e8e6e0" stroke="#888" strokeWidth="0.5" />
-            <polygon points={`${hX-1},${hTop} ${hX+hW/2},${hTop-roofPk} ${hX+hW+1},${hTop}`} fill="#888" stroke="#444" strokeWidth="0.8" />
-            <text x={hX+hW/2} y={hTop-roofPk/3} textAnchor="middle" style={{ fontSize: 3.5, fill: "#aaa", fontFamily: "monospace" }}>HOUSE</text>
-          
-          {/* S34: Foundation extension for side views */}
-          {(() => { var _gdL = gradeYatX(hX); var _gdR = gradeYatX(hX + hW); var _lowestG = Math.max(_gdL, _gdR); var _fdrop = _lowestG - gnd; if (_fdrop > 1) return <rect x={hX} y={gnd} width={hW} height={_fdrop} fill="#c8c8c8" stroke="#888" strokeWidth="0.3" />; return null; })()}
-          </>}
-
-          {/* S39: Earth fill below grade (segmented to skip house footprint) */}
+          {/* === LAYER 1: Earth fill (BEHIND everything) === */}
           {(() => { var btm = Math.max(gradeLY, gradeRY) + 16; return <g>
             {gradeSegments.map(function(seg, si) {
               var sx1 = seg[0], sx2 = seg[1];
               var sy1 = gradeYatX(sx1), sy2 = gradeYatX(sx2);
               var pts = sx1+","+sy1+" "+sx2+","+sy2+" "+sx2+","+btm+" "+sx1+","+btm;
-              return <g key={"ef"+si}>
-                <polygon points={pts} fill="#f0ece4" />
-                <polygon points={pts} fill="url(#earthH1)" />
-                <polygon points={pts} fill="url(#earthH2)" />
-              </g>;
+              return <polygon key={"ef"+si} points={pts} fill="url(#brickH)" />;
             })}
           </g>; })()}
-          {/* S39: Grade line (segmented to skip house footprint) */}
+
+          {/* === LAYER 2: Grade line + ticks (on top of earth) === */}
           {gradeSegments.map(function(seg, si) {
             return <line key={"gl"+si} x1={seg[0]} y1={gradeYatX(seg[0])} x2={seg[1]} y2={gradeYatX(seg[1])} stroke="#444" strokeWidth="0.8" />;
           })}
-          {/* S39: Grade tick marks (skip house footprint) */}
           {Array.from({length:Math.ceil((svgW-20)/2.5)},function(_,i){var hx=pad-10+i*2.5;if(hx>=houseL&&hx<=houseR)return null;var gy=gradeYatX(hx);return <line key={i} x1={hx} y1={gy} x2={hx-2} y2={gy+1.5} stroke="#888" strokeWidth="0.25" />;})}
           {slopePct > 0 && gradeSign !== 0 ? <text x={gradeLineX2-5} y={gradeRY-3} textAnchor="end" style={{fontSize:4,fill:"#666",fontFamily:"monospace",fontWeight:600}}>APPROX. {(slopePct*100).toFixed(1)}% GRADE</text> : <text x={gradeLineX2-5} y={gradeRY-3} textAnchor="end" style={{fontSize:3.5,fill:"#999",fontFamily:"monospace",fontStyle:"italic"}}>APPROX. GRADE</text>}
+
+          {/* === LAYER 3: House (ON TOP of earth, foundation polygon follows grade) === */}
+          {(() => {
+            var els = [];
+            var overhang = showWidth ? 2 : 1.5;
+            var sidingH = firstFloorY - hTop; // always 7*sY = 7 feet of wall
+
+            // 3a. Foundation polygon: trapezoid from gnd down to grade on each side
+            var fPts = hX+","+gnd+" "+(hX+hW)+","+gnd+" "+(hX+hW)+","+foundBottomR+" "+hX+","+foundBottomL;
+            els.push(<polygon key="hfound" points={fPts} fill="#c8c8c8" stroke="#888" strokeWidth="0.5" />);
+            var fMaxBtm = Math.max(foundBottomL, foundBottomR);
+            for (var fy = gnd + 2; fy < fMaxBtm - 0.5; fy += 2) {
+              els.push(<line key={"hfl"+Math.round(fy*10)} x1={hX+0.3} y1={fy} x2={hX+hW-0.3} y2={fy} stroke="#aaa" strokeWidth="0.15" />);
+            }
+
+            // 3b. Basement/crawlspace zone: concrete (firstFloorY to gnd)
+            els.push(<rect key="hbase" x={hX} y={firstFloorY} width={hW} height={gnd - firstFloorY} fill="#d4d0c8" stroke="#888" strokeWidth="0.5" />);
+            for (var by = firstFloorY + 1.5; by < gnd; by += 1.5) {
+              els.push(<line key={"hbl"+Math.round(by*10)} x1={hX+0.3} y1={by} x2={hX+hW-0.3} y2={by} stroke="#bbb" strokeWidth="0.15" />);
+            }
+
+            // 3c. Siding zone: wall with horizontal lap siding lines (hTop to firstFloorY)
+            els.push(<rect key="hsiding" x={hX} y={hTop} width={hW} height={sidingH} fill="#e8e6e0" stroke="#888" strokeWidth="0.5" />);
+            for (var sly = hTop + 0.7; sly < firstFloorY; sly += 0.7) {
+              els.push(<line key={"hsl"+Math.round(sly*10)} x1={hX} y1={sly} x2={hX+hW} y2={sly} stroke="#d8d4cc" strokeWidth="0.12" />);
+            }
+
+            // 3d. Windows (only if wall zone tall enough)
+            if (sidingH > 3) {
+              var wFill = "#b0d4e8", wStroke = "#888";
+              var wy = hTop + sidingH * 0.15;
+              var wh = Math.min(sidingH * 0.5, 4 * sY);
+              els.push(<rect key="hw1" x={hX + hW*0.08} y={wy} width={hW*0.14} height={wh} fill={wFill} stroke={wStroke} strokeWidth="0.4" />);
+              els.push(<rect key="hw2" x={hX + hW*0.42} y={wy + wh*0.05} width={hW*0.10} height={wh*0.8} fill={wFill} stroke={wStroke} strokeWidth="0.4" />);
+              els.push(<rect key="hw3" x={hX + hW*0.72} y={wy + wh*0.05} width={hW*0.10} height={wh*0.7} fill={wFill} stroke={wStroke} strokeWidth="0.4" />);
+              // Window mullions
+              els.push(<line key="hw1m" x1={hX + hW*0.08 + hW*0.07} y1={wy} x2={hX + hW*0.08 + hW*0.07} y2={wy+wh} stroke={wStroke} strokeWidth="0.2" />);
+            }
+
+            // 3e. Floor plate line between siding and basement
+            els.push(<line key="hfloor" x1={hX} y1={firstFloorY} x2={hX+hW} y2={firstFloorY} stroke="#777" strokeWidth="0.6" />);
+
+            // 3f. Roof with eave overhang
+            els.push(<polygon key="hroof" points={`${hX-overhang},${hTop} ${hX+hW/2},${hTop-roofPk} ${hX+hW+overhang},${hTop}`} fill="#888" stroke="#444" strokeWidth="0.8" />);
+
+            // 3g. Label
+            els.push(<text key="hlabel" x={hX+hW/2} y={hTop + sidingH*0.4} textAnchor="middle" style={{fontSize: showWidth ? 4 : 3.5, fill:"#aaa", fontFamily:"monospace"}}>EXISTING HOUSE</text>);
+
+            return els;
+          })()}
+
+          {/* Key plan inset */}
+          <KeyPlan viewDir={viewDir} insetX={kpX} insetY={kpY} insetSize={kpSize} />
 
           {postEls}
 
