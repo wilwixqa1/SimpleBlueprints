@@ -1,6 +1,6 @@
 """
-SimpleBlueprints ÃÂ¢ÃÂÃÂ Structural Calculation Engine
-Production version ÃÂ¢ÃÂÃÂ mirrors frontend calcStructure() exactly
+SimpleBlueprints ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ Structural Calculation Engine
+Production version ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ mirrors frontend calcStructure() exactly
 """
 
 import math
@@ -46,6 +46,18 @@ def calculate_structure(params):
     beam_type = params.get("beamType", "dropped")
 
     area = width * depth
+
+    # S38: Lot area (single source of truth, mirrors engine.js)
+    _lot_verts = params.get("lotVertices")
+    if _lot_verts and len(_lot_verts) >= 3:
+        _sa = 0
+        for _i in range(len(_lot_verts)):
+            _j = (_i + 1) % len(_lot_verts)
+            _sa += _lot_verts[_i][0] * _lot_verts[_j][1]
+            _sa -= _lot_verts[_j][0] * _lot_verts[_i][1]
+        lot_area = round(abs(_sa) / 2)
+    else:
+        lot_area = params.get("lotWidth", 80) * params.get("lotDepth", 120)
     DL = 15 if params["deckingType"] == "composite" else 12
     LL = 40 + snow
     TL = DL + LL
@@ -176,7 +188,7 @@ def calculate_structure(params):
         warnings.append("Area >500 SF. Check local permit requirements.")
 
     return {
-        "width": width, "depth": depth, "height": height, "area": round(area, 1),
+        "width": width, "depth": depth, "height": height, "area": round(area, 1), "lot_area": lot_area,
         "attachment": attachment, "beam_type": beam_type, "LL": LL, "DL": DL, "TL": TL,
         "joist_size": joist_size, "joist_spacing": joist_spacing,
         "joist_span": round(joist_span, 1), "num_joists": num_joists,
