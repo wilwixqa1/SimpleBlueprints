@@ -380,7 +380,7 @@ function StepContent(props) {
 
         function commitEdges(newEdges) {
           u("lotEdges", newEdges);
-          var verts = window.computePolygonVerts(newEdges, p.lotArea || null);
+          var verts = window.computePolygonVerts(newEdges);
           u("lotVertices", verts);
         }
 
@@ -916,44 +916,18 @@ function StepContent(props) {
           {extractResult.streetName && <div style={{ fontSize: 9, fontFamily: _mono, color: _br.mu }}>Street: {extractResult.streetName}</div>}
           {extractResult.parcelId && <div style={{ fontSize: 9, fontFamily: _mono, color: _br.mu }}>Parcel: {extractResult.parcelId}</div>}
         </div>}
-        {extractResult.lotEdges && Array.isArray(extractResult.lotEdges) && extractResult.lotEdges.length >= 3 && (() => {
-          var aiEdgesPreview = extractResult.lotEdges;
-          var previewVerts = window.computePolygonVerts(aiEdgesPreview.map(function(e) {
-            return { length: e.length || 1, bearing: e.bearing || null, angle: e.angle || null };
-          }), extractResult.lotArea || null);
-          var computedArea = 0;
-          if (previewVerts && previewVerts.length >= 3) {
-            var nv = previewVerts.length;
-            for (var vi = 0; vi < nv; vi++) {
-              var vj = (vi + 1) % nv;
-              computedArea += previewVerts[vi][0] * previewVerts[vj][1];
-              computedArea -= previewVerts[vj][0] * previewVerts[vi][1];
-            }
-            computedArea = Math.abs(computedArea) / 2;
-          }
-          var statedArea = extractResult.lotArea;
-          var areaDivergence = (statedArea && computedArea > 0) ? Math.abs(computedArea - statedArea) / statedArea * 100 : null;
-          var solverPath = aiEdgesPreview.every(function(e) { return e.bearing; }) ? "bearings (exact)" : (extractResult.lotArea && aiEdgesPreview.length >= 5) ? "area-constrained (good)" : aiEdgesPreview.every(function(e) { return e.angle != null && e.angle > 0; }) ? "angles (fair)" : aiEdgesPreview.length === 4 ? "trapezoid" : "equal-angle (approximate)";
-          return <div style={{ marginTop: 8, padding: "6px 8px", background: "#f0fdf4", borderRadius: 4, border: "1px solid #bbf7d0" }}>
-            <div style={{ fontSize: 8, color: _br.gn, fontFamily: _mono, marginBottom: 4, fontWeight: 700 }}>Polygon Lot Boundary ({aiEdgesPreview.length} edges, solver: {solverPath})</div>
-            {aiEdgesPreview.map(function(e, i) {
-              return <div key={i} style={{ fontSize: 9, fontFamily: _mono, color: _br.tx, display: "flex", gap: 6, marginBottom: 2 }}>
-                <span style={{ color: _br.mu, minWidth: 45 }}>{"Edge " + (i+1)}</span>
-                <span style={{ fontWeight: 700, minWidth: 40 }}>{e.length}'"'"'</span>
-                <span style={{ color: _br.mu, fontSize: 8 }}>{e.type === "street" ? "street" : "prop"}{e.label ? " (" + e.label + ")" : ""}</span>
-                {e.angle != null && <span style={{ color: "#6366f1", fontSize: 7 }}>{e.angle}{"\u00B0"}</span>}
-                {e.bearing && <span style={{ color: "#0891b2", fontSize: 7 }}>{e.bearing}</span>}
-              </div>;
-            })}
-            {statedArea && <div style={{ fontSize: 9, fontFamily: _mono, color: _br.tx, marginTop: 4, display: "flex", gap: 8 }}>
-              <span>Stated: {statedArea.toLocaleString()} SF</span>
-              {computedArea > 0 && <span>Computed: {Math.round(computedArea).toLocaleString()} SF</span>}
-              {areaDivergence != null && <span style={{ color: areaDivergence > 10 ? "#dc2626" : _br.gn, fontWeight: 700 }}>{areaDivergence.toFixed(1)}% {areaDivergence > 10 ? "\u26A0\uFE0F" : "\u2713"}</span>}
-            </div>}
-            {areaDivergence != null && areaDivergence > 10 && <div style={{ fontSize: 8, color: "#dc2626", fontFamily: _mono, marginTop: 2 }}>Area divergence exceeds 10%. Lot shape may be inaccurate. Check edge ordering and angles.</div>}
-            <div style={{ fontSize: 8, color: _br.gn, fontFamily: _mono, marginTop: 4, fontStyle: "italic" }}>This will set a custom polygon lot shape.</div>
-          </div>;
-        })()}
+        {extractResult.lotEdges && Array.isArray(extractResult.lotEdges) && extractResult.lotEdges.length >= 3 && <div style={{ marginTop: 8, padding: "6px 8px", background: "#f0fdf4", borderRadius: 4, border: "1px solid #bbf7d0" }}>
+          <div style={{ fontSize: 8, color: _br.gn, fontFamily: _mono, marginBottom: 4, fontWeight: 700 }}>Polygon Lot Boundary ({extractResult.lotEdges.length} edges)</div>
+          {extractResult.lotEdges.map(function(e, i) {
+            var dirLabels = extractResult.lotEdges.length === 4 ? ["South (Street)", "East", "North (Rear)", "West"] : null;
+            return <div key={i} style={{ fontSize: 9, fontFamily: _mono, color: _br.tx, display: "flex", gap: 6, marginBottom: 2 }}>
+              <span style={{ color: _br.mu, minWidth: 55 }}>{dirLabels ? dirLabels[i] : ("Edge " + (i+1))}</span>
+              <span style={{ fontWeight: 700 }}>{e.length}'"'"'</span>
+              <span style={{ color: _br.mu, fontSize: 8 }}>{e.type === "street" ? "street" : "property"}{e.label ? " (" + e.label + ")" : ""}</span>
+            </div>;
+          })}
+          <div style={{ fontSize: 8, color: _br.gn, fontFamily: _mono, marginTop: 4, fontStyle: "italic" }}>This will set a custom polygon lot shape.</div>
+        </div>}
         <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
           <button onClick={function() {
             var d = extractResult;
@@ -980,8 +954,7 @@ function StepContent(props) {
                 return { type: e.type || "property", label: isStreet ? (e.label || "") : "", length: e.length || 1, setbackType: e.setbackType || "side", neighborLabel: isStreet ? "" : (e.label || "") };
               });
               u("lotEdges", aiEdges);
-              if (d.lotArea) u("lotArea", d.lotArea);
-              var verts = window.computePolygonVerts(aiEdges, d.lotArea || null);
+              var verts = window.computePolygonVerts(aiEdges);
               if (verts) u("lotVertices", verts);
             }
             setExtractResult(null);
