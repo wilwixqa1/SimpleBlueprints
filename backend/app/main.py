@@ -100,7 +100,6 @@ class DeckParams(BaseModel):
     lotWidth: float = 80; lotDepth: float = 120
     lotVertices: Optional[list] = None
     lotEdges: Optional[list] = None
-    lotArea: Optional[float] = None
     setbackFront: float = 25; setbackSide: float = 5
     setbackRear: float = 20; houseOffsetSide: float = 20
     overJoist: Optional[str] = None; overBeam: Optional[str] = None
@@ -325,38 +324,28 @@ Required fields (use null if not found or not readable):
 - streetName: name of the street the property faces (string)
 - northAngle: orientation of the north arrow in degrees clockwise from straight up (number, 0-359). Look for a north arrow or compass rose on the survey. If the arrow points straight up, northAngle is 0. If it points to the upper-right, estimate the clockwise angle. Use null if no north arrow is visible.
 
-CRITICAL: Also extract per-edge lot boundary data and lot area.
-
-Extract the total lot area:
-- lotArea: total lot area in square feet (number or null). Look in area tabulations, legal description, or project data sections. Example: "LOT AREA: 10,473 S.F." would be 10473.
-
-Extract boundary segments as a "lotEdges" array going CLOCKWISE starting from the STREET-FACING edge:
+CRITICAL: Also extract per-edge lot boundary data. Property surveys label each boundary segment with its length. Extract these as a "lotEdges" array going CLOCKWISE starting from the STREET-FACING edge:
 - lotEdges: array of objects, one per boundary segment, each with:
-  - length: edge length in feet (number). Read from the dimension label on the property line.
+  - length: edge length in feet (number). Read this from the dimension label on the property line. Convert any decimal notation (e.g. 78.67') to a number.
   - type: "street" if this edge faces a road/street, "property" otherwise (string)
   - setbackType: "front" for the street edge, "rear" for the edge opposite the street, "side" for left/right edges (string)
-  - label: street name if type is "street", neighbor lot number if labeled (e.g. "LOT 35"), empty string otherwise (string). IMPORTANT: Only use NEIGHBORING lot numbers, never the subject property's own lot number.
-  - bearing: survey bearing notation if shown on the property line (e.g. "N 45 30' E"), null if not shown (string or null). Surveys often label boundaries with bearing and distance like "N 45 E 184.83'".
-  - angle: estimated interior angle in degrees at the vertex where this edge meets the next edge (number). Estimate from the drawing: 90 for right angles, obtuse angles are greater than 90, acute angles are less. A nearly straight line is close to 180. This is critical for accurate lot shape.
+  - label: street name if type is "street", neighbor lot number if labeled (e.g. "LOT 35"), empty string otherwise (string)
 
-CRITICAL EDGE ORDERING: Edge 0 MUST be the street-facing edge. The rendering system places edge 0 along the bottom of the site plan viewport. If the street runs along a short side of the lot, edge 0 is that short side. Getting this wrong produces a rotated or distorted site plan.
-
-Example for a 5-sided lot (Ilaria, LOT 36, Sweetgrass Lane):
+Example for a typical 4-sided lot:
 [
-  {"length": 78.67, "type": "street", "setbackType": "front", "label": "SWEETGRASS LANE", "bearing": null, "angle": 90},
-  {"length": 184.83, "type": "property", "setbackType": "side", "label": "LOT 35", "bearing": null, "angle": 90},
-  {"length": 78.07, "type": "property", "setbackType": "rear", "label": "", "bearing": null, "angle": 90},
-  {"length": 5.50, "type": "property", "setbackType": "side", "label": "", "bearing": null, "angle": 180},
-  {"length": 179.18, "type": "property", "setbackType": "side", "label": "LOT 37", "bearing": null, "angle": 90}
+  {"length": 78.67, "type": "street", "setbackType": "front", "label": "SWEETGRASS LANE"},
+  {"length": 184.83, "type": "property", "setbackType": "side", "label": "LOT 35"},
+  {"length": 78.07, "type": "property", "setbackType": "rear", "label": ""},
+  {"length": 179.18, "type": "property", "setbackType": "side", "label": "LOT 37"}
 ]
 
-For irregular lots with more than 4 sides, include ALL boundary segments. Short connector segments (like 5.50' jogs) are important for accurate shape.
+For irregular lots with more than 4 sides (e.g. pie-shaped, cul-de-sac), include ALL boundary segments. Short connector segments (like 5.50' jogs between longer edges) are important for accurate shape. Assign their setbackType based on orientation: typically "side" for segments connecting front-to-rear edges, or "rear"/"front" if they run parallel to the street.
 
-For curved property lines (arcs), use the arc length as the length value. If only arc notation is given (e.g. "L=49.11, R=1005'"), use the L value as the length.
+For curved property lines (arcs), use the arc length as the length value. If only arc notation is given (e.g. "L=49.11, R=1005'"), use the L value as the length. Keep type as "property" for curved boundaries.
 
-If the lot is clearly rectangular (all 90 degree corners and opposite sides equal), set lotEdges to null and just use lotWidth/lotDepth.
+If the lot is clearly rectangular (all angles are 90 degrees and opposite sides are equal), set lotEdges to null and just use lotWidth/lotDepth.
 
-Also include a "confidence" object with the same keys (including "lotEdges", "lotArea"), each "high", "medium", or "low".
+Also include a "confidence" object with the same keys (including "lotEdges"), each "high", "medium", or "low".
 
 IMPORTANT: Measure dimensions carefully from the survey markings. Property surveys show lot dimensions along boundary lines. House footprint may be labeled or estimated from the scale bar. Return ONLY valid JSON."""
 
