@@ -950,7 +950,8 @@ function StepContent(props) {
             // S40: Apply polygon lot edges from AI extraction
             if (d.lotEdges && Array.isArray(d.lotEdges) && d.lotEdges.length >= 3) {
               var aiEdges = d.lotEdges.map(function(e) {
-                return { type: e.type || "property", label: e.label || "", length: e.length || 1, setbackType: e.setbackType || "", neighborLabel: e.neighborLabel || e.label || "" };
+                var isStreet = (e.type || "property") === "street";
+                return { type: e.type || "property", label: isStreet ? (e.label || "") : "", length: e.length || 1, setbackType: e.setbackType || "side", neighborLabel: isStreet ? "" : (e.label || "") };
               });
               u("lotEdges", aiEdges);
               var verts = window.computePolygonVerts(aiEdges);
