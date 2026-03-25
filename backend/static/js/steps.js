@@ -380,7 +380,7 @@ function StepContent(props) {
 
         function commitEdges(newEdges) {
           u("lotEdges", newEdges);
-          var verts = window.computePolygonVerts(newEdges);
+          var verts = window.computePolygonVerts(newEdges, p.lotArea || null);
           u("lotVertices", verts);
         }
 
@@ -920,7 +920,7 @@ function StepContent(props) {
           var aiEdgesPreview = extractResult.lotEdges;
           var previewVerts = window.computePolygonVerts(aiEdgesPreview.map(function(e) {
             return { length: e.length || 1, bearing: e.bearing || null, angle: e.angle || null };
-          }));
+          }), extractResult.lotArea || null);
           var computedArea = 0;
           if (previewVerts && previewVerts.length >= 3) {
             var nv = previewVerts.length;
@@ -933,7 +933,7 @@ function StepContent(props) {
           }
           var statedArea = extractResult.lotArea;
           var areaDivergence = (statedArea && computedArea > 0) ? Math.abs(computedArea - statedArea) / statedArea * 100 : null;
-          var solverPath = aiEdgesPreview.every(function(e) { return e.bearing; }) ? "bearings (exact)" : aiEdgesPreview.every(function(e) { return e.angle != null && e.angle > 0; }) ? "angles (good)" : aiEdgesPreview.length === 4 ? "trapezoid" : "equal-angle (approximate)";
+          var solverPath = aiEdgesPreview.every(function(e) { return e.bearing; }) ? "bearings (exact)" : (extractResult.lotArea && aiEdgesPreview.length >= 5) ? "area-constrained (good)" : aiEdgesPreview.every(function(e) { return e.angle != null && e.angle > 0; }) ? "angles (fair)" : aiEdgesPreview.length === 4 ? "trapezoid" : "equal-angle (approximate)";
           return <div style={{ marginTop: 8, padding: "6px 8px", background: "#f0fdf4", borderRadius: 4, border: "1px solid #bbf7d0" }}>
             <div style={{ fontSize: 8, color: _br.gn, fontFamily: _mono, marginBottom: 4, fontWeight: 700 }}>Polygon Lot Boundary ({aiEdgesPreview.length} edges, solver: {solverPath})</div>
             {aiEdgesPreview.map(function(e, i) {
@@ -980,7 +980,8 @@ function StepContent(props) {
                 return { type: e.type || "property", label: isStreet ? (e.label || "") : "", length: e.length || 1, setbackType: e.setbackType || "side", neighborLabel: isStreet ? "" : (e.label || "") };
               });
               u("lotEdges", aiEdges);
-              var verts = window.computePolygonVerts(aiEdges);
+              if (d.lotArea) u("lotArea", d.lotArea);
+              var verts = window.computePolygonVerts(aiEdges, d.lotArea || null);
               if (verts) u("lotVertices", verts);
             }
             setExtractResult(null);
