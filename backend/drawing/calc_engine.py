@@ -33,104 +33,6 @@ def get_joist_spans_for_load(total_load):
     return IRC_JOIST_SPANS_BY_LOAD[tiers[-1]]
 
 
-# S40: Stair-aware post placement helpers (mirrors frontend engine.js)
-def get_stair_opening_on_beam(params, width, depth):
-    if not params.get("hasStairs") or (params.get("height", 0) or 0) <= 0.5:
-        return None
-    stair_w = params.get("stairWidth", 4)
-    anchor_x = None
-    if params.get("stairAnchorX") is not None and params.get("stairAngle") is not None:
-        angle = params["stairAngle"] % 360
-        if angle > 5 and abs(angle - 360) > 5:
-            return None
-        if params.get("stairAnchorY") is not None and abs(params["stairAnchorY"] - depth) > 1:
-            return None
-        anchor_x = params["stairAnchorX"]
-    else:
-        if (params.get("stairLocation", "front") or "front") != "front":
-            return None
-        anchor_x = width / 2 + (params.get("stairOffset", 0) or 0)
-    clearance = 0.25
-    return {
-        "left": round(max(0, anchor_x - stair_w / 2 - clearance), 2),
-        "right": round(min(width, anchor_x + stair_w / 2 + clearance), 2),
-    }
-
-
-def place_posts_smartly(width, num_posts, stair_opening):
-    INSET = 2
-    left_end = INSET
-    right_end = width - INSET
-    MIN_GAP = 1.0
-
-    if not stair_opening:
-        pp = [round(left_end + i * (right_end - left_end) / (num_posts - 1), 2) for i in range(num_posts)]
-        return {"pp": pp, "header_span": None, "stair_opening": None}
-
-    s_l = stair_opening["left"]
-    s_r = stair_opening["right"]
-    if s_r <= left_end or s_l >= right_end:
-        pp = [round(left_end + i * (right_end - left_end) / (num_posts - 1), 2) for i in range(num_posts)]
-        return {"pp": pp, "header_span": None, "stair_opening": stair_opening}
-
-    open_l = round(max(s_l, left_end), 2)
-    open_r = round(min(s_r, right_end), 2)
-    if open_l - left_end < MIN_GAP:
-        open_l = left_end
-    if right_end - open_r < MIN_GAP:
-        open_r = right_end
-    header_span = round(open_r - open_l, 2)
-
-    fixed = [left_end]
-    if open_l != left_end:
-        fixed.append(open_l)
-    if open_r != right_end:
-        fixed.append(open_r)
-    fixed.append(right_end)
-    fixed = sorted(set(fixed))
-
-    target_span = (right_end - left_end) / max(num_posts - 1, 1)
-    max_span = max(min(target_span, 8), 4)
-
-    final_posts = []
-    for seg in range(len(fixed) - 1):
-        seg_l = fixed[seg]
-        seg_r = fixed[seg + 1]
-        seg_len = round(seg_r - seg_l, 2)
-
-        if not final_posts or abs(final_posts[-1] - seg_l) > 0.01:
-            final_posts.append(seg_l)
-
-        # Skip header span (stair opening)
-        if abs(seg_l - open_l) < 0.01 and abs(seg_r - open_r) < 0.01:
-            continue
-
-        if seg_len > max_span + 0.1:
-            n_sub = math.ceil(seg_len / max_span)
-            sub_sp = seg_len / n_sub
-            for si in range(1, n_sub):
-                final_posts.append(round(seg_l + si * sub_sp, 2))
-
-    last = fixed[-1]
-    if not final_posts or abs(final_posts[-1] - last) > 0.01:
-        final_posts.append(last)
-
-    return {
-        "pp": final_posts,
-        "header_span": header_span,
-        "stair_opening": {"left": open_l, "right": open_r},
-    }
-
-
-def max_beam_span_from_posts(pp):
-    mx = 0
-    for i in range(1, len(pp)):
-        s = pp[i] - pp[i - 1]
-        if s > mx:
-            mx = s
-    return round(mx, 2)
-
-
 def calculate_structure(params):
     width = params["width"]
     depth = params["depth"]
@@ -171,7 +73,7 @@ def calculate_structure(params):
             break
     joist_size = params.get("overJoist") or auto_joist
 
-    # S40: Auto posts (stair-aware placement)
+    # Auto posts
     if width <= 10: auto_np = 2
     elif width <= 16: auto_np = 3
     elif width <= 24: auto_np = 3
@@ -179,17 +81,7 @@ def calculate_structure(params):
     else: auto_np = max(4, math.ceil(width / 10) + 1)
     num_posts = params.get("overPostCount") or auto_np
 
-    # S40: Compute stair opening on beam line, place posts around it
-    stair_opening = get_stair_opening_on_beam(params, width, depth)
-    post_result = place_posts_smartly(width, num_posts, stair_opening)
-    post_positions = post_result["pp"]
-    requested_np = num_posts  # what user or auto requested before stair adjustment
-    num_posts = len(post_positions)  # actual count after smart placement
-    header_span = post_result["header_span"]
-    stair_opening_resolved = post_result["stair_opening"]
-
-    # S40: Beam span from actual max span between posts
-    beam_span = max_beam_span_from_posts(post_positions)
+    beam_span = width / (num_posts - 1)
 
     # Auto beam
     auto_beam = None
@@ -204,6 +96,13 @@ def calculate_structure(params):
     # Auto post size
     auto_post_size = "6x6"  # Billy Rule 8: 6x6 minimum per IRC R507.8
     post_size = params.get("overPostSize") or auto_post_size
+
+    post_positions = []
+    for i in range(num_posts):
+        if num_posts == 1:
+            post_positions.append(width / 2)
+        else:
+            post_positions.append(round(2 + i * (width - 4) / (num_posts - 1), 2))
 
     total_posts = num_posts if attachment == "ledger" else num_posts * 2
 
@@ -287,9 +186,6 @@ def calculate_structure(params):
         warnings.append("Height >10'. Lateral bracing by engineer recommended.")
     if area > 500:
         warnings.append("Area >500 SF. Check local permit requirements.")
-    # S40: Warn if stair placement required more posts than requested
-    if header_span and num_posts > requested_np:
-        warnings.append(f"Post count adjusted from {requested_np} to {num_posts} to clear stair opening. Header posts required at stair edges.")
 
     return {
         "width": width, "depth": depth, "height": height, "area": round(area, 1), "lot_area": lot_area,
@@ -306,7 +202,6 @@ def calculate_structure(params):
         "mid_span_blocking": mid_span_blocking, "blocking_count": blocking_count,
         "stairs": stair_info, "warnings": warnings,
         "joist_hangers_for_beam": joist_hangers_for_beam,
-        "header_span": header_span, "stair_opening": stair_opening_resolved,
         "auto": {
             "joist": auto_joist, "beam": auto_beam,
             "post_size": auto_post_size, "post_count": auto_np,
