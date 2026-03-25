@@ -100,6 +100,7 @@ class DeckParams(BaseModel):
     lotWidth: float = 80; lotDepth: float = 120
     lotVertices: Optional[list] = None
     lotEdges: Optional[list] = None
+    lotArea: Optional[float] = None
     setbackFront: float = 25; setbackSide: float = 5
     setbackRear: float = 20; houseOffsetSide: float = 20
     overJoist: Optional[str] = None; overBeam: Optional[str] = None
@@ -345,8 +346,8 @@ Example for a 5-sided lot (Ilaria, LOT 36, Sweetgrass Lane):
   {"length": 78.67, "type": "street", "setbackType": "front", "label": "SWEETGRASS LANE", "bearing": null, "angle": 90},
   {"length": 184.83, "type": "property", "setbackType": "side", "label": "LOT 35", "bearing": null, "angle": 90},
   {"length": 78.07, "type": "property", "setbackType": "rear", "label": "", "bearing": null, "angle": 90},
-  {"length": 5.50, "type": "property", "setbackType": "side", "label": "", "bearing": null, "angle": 90},
-  {"length": 179.18, "type": "property", "setbackType": "side", "label": "LOT 37", "bearing": null, "angle": 180}
+  {"length": 5.50, "type": "property", "setbackType": "side", "label": "", "bearing": null, "angle": 180},
+  {"length": 179.18, "type": "property", "setbackType": "side", "label": "LOT 37", "bearing": null, "angle": 90}
 ]
 
 For irregular lots with more than 4 sides, include ALL boundary segments. Short connector segments (like 5.50' jogs) are important for accurate shape.
