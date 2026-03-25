@@ -916,6 +916,18 @@ function StepContent(props) {
           {extractResult.streetName && <div style={{ fontSize: 9, fontFamily: _mono, color: _br.mu }}>Street: {extractResult.streetName}</div>}
           {extractResult.parcelId && <div style={{ fontSize: 9, fontFamily: _mono, color: _br.mu }}>Parcel: {extractResult.parcelId}</div>}
         </div>}
+        {extractResult.lotEdges && Array.isArray(extractResult.lotEdges) && extractResult.lotEdges.length >= 3 && <div style={{ marginTop: 8, padding: "6px 8px", background: "#f0fdf4", borderRadius: 4, border: "1px solid #bbf7d0" }}>
+          <div style={{ fontSize: 8, color: _br.gn, fontFamily: _mono, marginBottom: 4, fontWeight: 700 }}>Polygon Lot Boundary ({extractResult.lotEdges.length} edges)</div>
+          {extractResult.lotEdges.map(function(e, i) {
+            var dirLabels = extractResult.lotEdges.length === 4 ? ["South (Street)", "East", "North (Rear)", "West"] : null;
+            return <div key={i} style={{ fontSize: 9, fontFamily: _mono, color: _br.tx, display: "flex", gap: 6, marginBottom: 2 }}>
+              <span style={{ color: _br.mu, minWidth: 55 }}>{dirLabels ? dirLabels[i] : ("Edge " + (i+1))}</span>
+              <span style={{ fontWeight: 700 }}>{e.length}'"'"'</span>
+              <span style={{ color: _br.mu, fontSize: 8 }}>{e.type === "street" ? "street" : "property"}{e.label ? " (" + e.label + ")" : ""}</span>
+            </div>;
+          })}
+          <div style={{ fontSize: 8, color: _br.gn, fontFamily: _mono, marginTop: 4, fontStyle: "italic" }}>This will set a custom polygon lot shape.</div>
+        </div>}
         <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
           <button onClick={function() {
             var d = extractResult;
@@ -935,6 +947,15 @@ function StepContent(props) {
             if (d.parcelId) setI("lot", d.parcelId);
             if (d.streetName) u("streetName", d.streetName);
             if (d.northAngle != null) u("northAngle", d.northAngle);
+            // S40: Apply polygon lot edges from AI extraction
+            if (d.lotEdges && Array.isArray(d.lotEdges) && d.lotEdges.length >= 3) {
+              var aiEdges = d.lotEdges.map(function(e) {
+                return { type: e.type || "property", label: e.label || "", length: e.length || 1, setbackType: e.setbackType || "", neighborLabel: e.neighborLabel || e.label || "" };
+              });
+              u("lotEdges", aiEdges);
+              var verts = window.computePolygonVerts(aiEdges);
+              if (verts) u("lotVertices", verts);
+            }
             setExtractResult(null);
           }} style={{ flex: 1, padding: "10px", background: "#1d4ed8", color: "#fff", border: "none", borderRadius: 6, fontSize: 11, fontWeight: 700, fontFamily: _mono, cursor: "pointer" }}>{"\u2713"} Apply All Dimensions</button>
           <button onClick={function() { setExtractResult(null); }} style={{ padding: "10px 14px", background: "none", border: "1px solid " + _br.bd, borderRadius: 6, fontSize: 11, fontFamily: _mono, color: _br.mu, cursor: "pointer" }}>Cancel</button>
