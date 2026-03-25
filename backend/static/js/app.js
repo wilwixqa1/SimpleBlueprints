@@ -90,12 +90,90 @@ window.computeSetbackGaps = function(p) {
 };
 
 // S37 Push 5: General polygon vertex solver
+// S41: Added bearing-based (Path 1) and angle-based (Path 2) solver paths
 window.computePolygonVerts = function(edges) {
   var n = edges.length;
   if (n < 3) return null;
 
-  // 4 edges: closed-form trapezoid solver
-  // Fixes south horizontal at y=0, solves for north/west closure
+  // Helper: normalize vertices so min X = 0 and min Y = 0
+  function normalizeVerts(verts) {
+    var minX = verts[0][0], minY = verts[0][1];
+    for (var i = 1; i < verts.length; i++) {
+      if (verts[i][0] < minX) minX = verts[i][0];
+      if (verts[i][1] < minY) minY = verts[i][1];
+    }
+    for (var i = 0; i < verts.length; i++) {
+      verts[i][0] = +(verts[i][0] - minX).toFixed(2);
+      verts[i][1] = +(verts[i][1] - minY).toFixed(2);
+    }
+    return verts;
+  }
+
+  // S41: Parse survey bearing to math heading in radians (0=east, pi/2=north)
+  // Handles formats like "N 45 30' E", "N 45.5 E", "S 30 W"
+  function parseBearing(str) {
+    if (!str) return null;
+    var m = str.match(/([NS])\s*(\d+(?:\.\d+)?)\s*[°]?\s*(?:(\d+(?:\.\d+)?)\s*[']?)?\s*(?:(\d+(?:\.\d+)?)\s*["]?)?\s*([EW])/i);
+    if (!m) return null;
+    var ns = m[1].toUpperCase();
+    var deg = parseFloat(m[2]) + (m[3] ? parseFloat(m[3]) / 60 : 0) + (m[4] ? parseFloat(m[4]) / 3600 : 0);
+    var ew = m[5].toUpperCase();
+    var h;
+    if (ns === "N" && ew === "E") h = 90 - deg;
+    else if (ns === "N" && ew === "W") h = 90 + deg;
+    else if (ns === "S" && ew === "E") h = 270 + deg;
+    else if (ns === "S" && ew === "W") h = 270 - deg;
+    else return null;
+    return h * Math.PI / 180;
+  }
+
+  // Path 1: Bearing-based (exact geometry from survey bearings)
+  var allBearings = true;
+  for (var i = 0; i < n; i++) {
+    if (!edges[i].bearing || parseBearing(edges[i].bearing) === null) { allBearings = false; break; }
+  }
+  if (allBearings) {
+    var rawVerts = [[0, 0]];
+    for (var i = 0; i < n - 1; i++) {
+      var heading = parseBearing(edges[i].bearing);
+      var len = edges[i].length || 1;
+      var prev = rawVerts[rawVerts.length - 1];
+      rawVerts.push([prev[0] + len * Math.cos(heading), prev[1] + len * Math.sin(heading)]);
+    }
+    return normalizeVerts(rawVerts);
+  }
+
+  // Path 2: Angle-based (uses estimated interior angles at each vertex)
+  // edge[i].angle = interior angle at vertex where edge i meets edge i+1
+  var allAngles = true;
+  for (var i = 0; i < n; i++) {
+    if (edges[i].angle == null || edges[i].angle <= 0) { allAngles = false; break; }
+  }
+  if (allAngles) {
+    var rawVerts = [[0, 0]];
+    var heading = 0; // start heading east
+    for (var i = 0; i < n - 1; i++) {
+      var len = edges[i].length || 1;
+      var prev = rawVerts[rawVerts.length - 1];
+      rawVerts.push([prev[0] + len * Math.cos(heading), prev[1] + len * Math.sin(heading)]);
+      // Turn by exterior angle at the vertex we just placed
+      var extAngle = Math.PI - (edges[i].angle * Math.PI / 180);
+      heading += extAngle;
+    }
+    // Distribute closure error
+    var last = rawVerts[n - 1];
+    var lastLen = edges[n - 1].length || 1;
+    var endX = last[0] + lastLen * Math.cos(heading);
+    var endY = last[1] + lastLen * Math.sin(heading);
+    for (var i = 1; i < n; i++) {
+      var frac = i / n;
+      rawVerts[i][0] -= endX * frac;
+      rawVerts[i][1] -= endY * frac;
+    }
+    return normalizeVerts(rawVerts);
+  }
+
+  // Path 3: 4 edges - closed-form trapezoid solver
   if (n === 4) {
     var s = edges[0].length || 1;
     var e = edges[1].length || 1;
@@ -114,48 +192,26 @@ window.computePolygonVerts = function(edges) {
     return [[0, 0], [s, 0], [a + nLen, h], [a, h]];
   }
 
-  // 5+ edges: equal exterior angle distribution with closure correction
-  // Produces the most regular polygon possible for the given edge lengths
+  // Path 4: 5+ edges - equal exterior angle distribution (approximate fallback)
   var extAngle = 2 * Math.PI / n;
   var rawVerts = [[0, 0]];
-  var heading = 0; // start heading east (along positive X)
-
+  var heading = 0;
   for (var i = 0; i < n - 1; i++) {
     var len = edges[i].length || 1;
     var prev = rawVerts[rawVerts.length - 1];
-    rawVerts.push([
-      prev[0] + len * Math.cos(heading),
-      prev[1] + len * Math.sin(heading)
-    ]);
+    rawVerts.push([prev[0] + len * Math.cos(heading), prev[1] + len * Math.sin(heading)]);
     heading += extAngle;
   }
-
-  // Compute where the last edge would end without correction
   var last = rawVerts[n - 1];
   var lastLen = edges[n - 1].length || 1;
   var endX = last[0] + lastLen * Math.cos(heading);
   var endY = last[1] + lastLen * Math.sin(heading);
-
-  // Distribute closure error across all vertices (skip vertex 0 = origin)
-  var errX = endX, errY = endY;
   for (var i = 1; i < n; i++) {
     var frac = i / n;
-    rawVerts[i][0] -= errX * frac;
-    rawVerts[i][1] -= errY * frac;
+    rawVerts[i][0] -= endX * frac;
+    rawVerts[i][1] -= endY * frac;
   }
-
-  // Normalize: shift so min Y = 0 and min X = 0
-  var minX = rawVerts[0][0], minY = rawVerts[0][1];
-  for (var i = 1; i < n; i++) {
-    if (rawVerts[i][0] < minX) minX = rawVerts[i][0];
-    if (rawVerts[i][1] < minY) minY = rawVerts[i][1];
-  }
-  for (var i = 0; i < n; i++) {
-    rawVerts[i][0] = +(rawVerts[i][0] - minX).toFixed(2);
-    rawVerts[i][1] = +(rawVerts[i][1] - minY).toFixed(2);
-  }
-
-  return rawVerts;
+  return normalizeVerts(rawVerts);
 };
 
 const App = function SimpleBlueprints() {
