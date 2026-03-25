@@ -131,27 +131,11 @@ window.buildDeckScene = function(scene, p, c, THREE) {
 
     // For zone 0, use the existing calc's post positions; for other zones, generate basic posts
     if (isZ0) {
-      // Ã¢ÂÂÃ¢ÂÂ Zone 0: Piers + Posts + Caps (existing logic with stair gap filtering) Ã¢ÂÂÃ¢ÂÂ
-      var filteredPP = pp.filter(function(px) {
-        var wpx = z0wx + px;
-        if (frontGap) {
-          if (wpx > frontGap.min - 0.5 && wpx < frontGap.max + 0.5) return false;
-        }
-        if (leftGap) {
-          var wz2 = z0wz + D - 1.5;
-          if (wz2 > leftGap.min - 0.5 && wz2 < leftGap.max + 0.5 && wpx > leftGap.xMin - 0.5 && wpx < leftGap.xMax + 0.5) return false;
-        }
-        if (rightGap) {
-          var wz2 = z0wz + D - 1.5;
-          if (wz2 > rightGap.min - 0.5 && wz2 < rightGap.max + 0.5 && wpx > rightGap.xMin - 0.5 && wpx < rightGap.xMax + 0.5) return false;
-        }
-        return true;
-      });
+      // S40: Render all posts at beam line (1.5' behind rim joist, no stair collision)
       // S34: Variable post heights based on slope
-      filteredPP.forEach(function(px) {
-        var _pi = pp.indexOf(px);
+      pp.forEach(function(px, _pi) {
         var pH = (c.postHeights && _pi >= 0) ? c.postHeights[_pi] : zH;
-        var _gY = H - pH; // ground level at this post position
+        var _gY = H - pH;
         scene.add(new THREE.Mesh(new THREE.CylinderGeometry(pR, pR, 0.5, 16), mats.concrete)).position.set(z0wx + px, _gY + 0.25, z0wz + D - 1.5);
         var po = new THREE.Mesh(new THREE.BoxGeometry(pD, pH, pD), mats.post); po.position.set(z0wx + px, _gY + pH / 2, z0wz + D - 1.5); po.castShadow = true; scene.add(po);
         scene.add(new THREE.Mesh(new THREE.BoxGeometry(pD + 0.2, 0.15, pD + 0.2), mats.metal)).position.set(z0wx + px, zH, z0wz + D - 1.5);
