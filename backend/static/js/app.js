@@ -1,5 +1,5 @@
 // ============================================================
-// MAIN APP ÃÂ¢ÃÂÃÂ Wizard Shell, State, Nav, Preview Panel
+// MAIN APP ÃƒÂƒÃ‚Â¢ÃƒÂ‚Ã‚Â€ÃƒÂ‚Ã‚Â” Wizard Shell, State, Nav, Preview Panel
 // ============================================================
 const { useState, useMemo, useEffect, useRef } = React;
 
@@ -91,7 +91,7 @@ window.computeSetbackGaps = function(p) {
 
 // S37 Push 5: General polygon vertex solver
 // S41: Added bearing-based (Path 1) and angle-based (Path 2) solver paths
-window.computePolygonVerts = function(edges) {
+window.computePolygonVerts = function(edges, targetArea) {
   var n = edges.length;
   if (n < 3) return null;
 
@@ -113,7 +113,7 @@ window.computePolygonVerts = function(edges) {
   // Handles formats like "N 45 30' E", "N 45.5 E", "S 30 W"
   function parseBearing(str) {
     if (!str) return null;
-    var m = str.match(/([NS])\s*(\d+(?:\.\d+)?)\s*[�]?\s*(?:(\d+(?:\.\d+)?)\s*[']?)?\s*(?:(\d+(?:\.\d+)?)\s*["]?)?\s*([EW])/i);
+    var m = str.match(/([NS])\s*(\d+(?:\.\d+)?)\s*[°]?\s*(?:(\d+(?:\.\d+)?)\s*[']?)?\s*(?:(\d+(?:\.\d+)?)\s*["]?)?\s*([EW])/i);
     if (!m) return null;
     var ns = m[1].toUpperCase();
     var deg = parseFloat(m[2]) + (m[3] ? parseFloat(m[3]) / 60 : 0) + (m[4] ? parseFloat(m[4]) / 3600 : 0);
@@ -173,6 +173,59 @@ window.computePolygonVerts = function(edges) {
     return normalizeVerts(rawVerts);
   }
 
+  // Path 2b: Area-constrained discrete angle solver (S41)
+  // For 5+ edges with a known lot area, try all valid angle configs
+  // from {90, 180, 270} and pick the one whose area best matches.
+  if (n >= 5 && targetArea && targetArea > 0) {
+    var targetAngleSum = (n - 2) * 180;
+    var xiTarget = targetAngleSum - n * 90;
+    if (xiTarget >= 0 && xiTarget <= n * 180) {
+      var configs = [];
+      (function gen(pos, rem, cfg) {
+        if (pos === n) { if (rem === 0) configs.push(cfg.slice()); return; }
+        var left = n - pos - 1;
+        for (var xi = 0; xi <= 180; xi += 90) {
+          var r2 = rem - xi;
+          if (r2 < 0 || r2 > left * 180) continue;
+          cfg.push(xi + 90);
+          gen(pos + 1, r2, cfg);
+          cfg.pop();
+        }
+      })(0, xiTarget, []);
+      var bestVerts = null, bestErr = Infinity;
+      for (var ci = 0; ci < configs.length; ci++) {
+        var cfgAngles = configs[ci];
+        var tv = [[0, 0]];
+        var th = 0;
+        for (var i = 0; i < n - 1; i++) {
+          var tl = edges[i].length || 1;
+          var tp = tv[tv.length - 1];
+          tv.push([tp[0] + tl * Math.cos(th), tp[1] + tl * Math.sin(th)]);
+          th += Math.PI - cfgAngles[i] * Math.PI / 180;
+        }
+        var tLast = tv[n - 1];
+        var tLastLen = edges[n - 1].length || 1;
+        var tEndX = tLast[0] + tLastLen * Math.cos(th);
+        var tEndY = tLast[1] + tLastLen * Math.sin(th);
+        for (var i = 1; i < n; i++) {
+          tv[i][0] -= tEndX * (i / n);
+          tv[i][1] -= tEndY * (i / n);
+        }
+        var tArea = 0;
+        for (var i = 0; i < n; i++) {
+          var j = (i + 1) % n;
+          tArea += tv[i][0] * tv[j][1] - tv[j][0] * tv[i][1];
+        }
+        tArea = Math.abs(tArea) / 2;
+        var tErr = Math.abs(tArea - targetArea) / targetArea;
+        if (tErr < bestErr) { bestErr = tErr; bestVerts = tv; }
+      }
+      if (bestVerts && bestErr < 0.15) {
+        return normalizeVerts(bestVerts);
+      }
+    }
+  }
+
   // Path 3: 4 edges - closed-form trapezoid solver
   if (n === 4) {
     var s = edges[0].length || 1;
@@ -226,10 +279,10 @@ const App = function SimpleBlueprints() {
     houseDistFromStreet: null,
     streetName: "",
     // Polygon lot (S36)
-    lotVertices: null, lotEdges: null,
-    // Zone system ÃÂ¢ÃÂÃÂ S19
+    lotVertices: null, lotEdges: null, lotArea: null,
+    // Zone system ÃƒÂƒÃ‚Â¢ÃƒÂ‚Ã‚Â€ÃƒÂ‚Ã‚Â” S19
     zones: [], activeZone: 0, nextZoneId: 1, mainCorners: { BL: { type: "square", size: 0 }, BR: { type: "square", size: 0 }, FL: { type: "square", size: 0 }, FR: { type: "square", size: 0 } },
-    // Site plan ÃÂ¢ÃÂÃÂ S27 (defaults seeded from existing flat params)
+    // Site plan ÃƒÂƒÃ‚Â¢ÃƒÂ‚Ã‚Â€ÃƒÂ‚Ã‚Â” S27 (defaults seeded from existing flat params)
     sitePlan: {
       lotShape: "rectangle", lotWidth: 80, lotDepth: 120,
       streetSide: "south", streetName: "",
@@ -286,6 +339,7 @@ const App = function SimpleBlueprints() {
     if ((k === "lotWidth" || k === "lotDepth") && prev.lotEdges) {
       next.lotEdges = null;
       next.lotVertices = null;
+      next.lotArea = null;
     }
     // S29: clamp houseDistFromStreet when setbackFront changes
     if (k === "setbackFront" && next.houseDistFromStreet !== null && next.houseDistFromStreet < v) {
@@ -297,7 +351,7 @@ const App = function SimpleBlueprints() {
     return next;
   });
 
-  // ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Zone management functions ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
+  // ÃƒÂƒÃ‚Â¢ÃƒÂ‚Ã‚Â”ÃƒÂ‚Ã‚Â€ÃƒÂƒÃ‚Â¢ÃƒÂ‚Ã‚Â”ÃƒÂ‚Ã‚Â€ Zone management functions ÃƒÂƒÃ‚Â¢ÃƒÂ‚Ã‚Â”ÃƒÂ‚Ã‚Â€ÃƒÂƒÃ‚Â¢ÃƒÂ‚Ã‚Â”ÃƒÂ‚Ã‚Â€
   const addZone = (parentId, edge) => setP(prev => {
     var parentP = Object.assign({}, prev, { deckWidth: prev.width, deckDepth: prev.depth });
     var defaults = window.addZoneDefaults(parentId, edge, "add", parentP);
@@ -379,7 +433,7 @@ const App = function SimpleBlueprints() {
     return (z && z.corners) || DEF_CORNERS;
   };
 
-  // ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Provide deckWidth/deckDepth aliases for zoneUtils ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
+  // ÃƒÂƒÃ‚Â¢ÃƒÂ‚Ã‚Â”ÃƒÂ‚Ã‚Â€ÃƒÂƒÃ‚Â¢ÃƒÂ‚Ã‚Â”ÃƒÂ‚Ã‚Â€ Provide deckWidth/deckDepth aliases for zoneUtils ÃƒÂƒÃ‚Â¢ÃƒÂ‚Ã‚Â”ÃƒÂ‚Ã‚Â€ÃƒÂƒÃ‚Â¢ÃƒÂ‚Ã‚Â”ÃƒÂ‚Ã‚Â€
   // zoneUtils reads p.deckWidth/p.deckDepth, but our flat params use width/depth
   const pForZones = useMemo(() => Object.assign({}, p, { deckWidth: p.width, deckDepth: p.depth, deckHeight: p.height }), [p]);
 
@@ -537,7 +591,7 @@ const App = function SimpleBlueprints() {
                   addZone={addZone} addCutout={addCutout}
                   getCorners={getCorners} setCorner={setCorner} />
                 {planMode === "plan" && <div style={{ textAlign: "center", fontSize: 9, color: br.mu, fontFamily: mono, marginTop: 4, opacity: 0.7 }}>
-                  {zoneMode === "select" && <>Drag the <span style={{ color: "#3d5a2e", fontWeight: 700 }}>green</span> handle to slide the deck ÃÂÃÂ· Click <span style={{ color: "#c62828", fontWeight: 700 }}>stairs</span> to select, drag to move, grab <span style={{ color: "#3d5a2e", fontWeight: 700 }}>{"\u21BB"}</span> to rotate</>}
+                  {zoneMode === "select" && <>Drag the <span style={{ color: "#3d5a2e", fontWeight: 700 }}>green</span> handle to slide the deck ÃƒÂƒÃ‚Â‚ÃƒÂ‚Ã‚Â· Click <span style={{ color: "#c62828", fontWeight: 700 }}>stairs</span> to select, drag to move, grab <span style={{ color: "#3d5a2e", fontWeight: 700 }}>{"\u21BB"}</span> to rotate</>}
                   {zoneMode === "add" && <>Click <span style={{ color: "#16a34a", fontWeight: 700 }}>+</span> on any edge to add a deck zone</>}
                   {zoneMode === "cut" && <>Click <span style={{ color: "#dc2626", fontWeight: 700 }}>{"\u2702"}</span> on corners for house wraps, center for openings</>}
                   {zoneMode === "chamfer" && <>Click <span style={{ color: "#7c3aed", fontWeight: 700 }}>{"\u25E3"}</span> on corners to toggle 45{"\u00B0"} chamfers</>}
