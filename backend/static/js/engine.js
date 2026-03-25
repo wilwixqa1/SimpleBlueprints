@@ -17,6 +17,57 @@ function getSpanTable(TL) {
   return JOIST_SPANS[95];
 }
 
+// S40: Stair-aware post placement helpers
+function getStairOpeningOnBeam(p, W, D) {
+  if (!p.hasStairs || (p.height || 0) <= 0.5) return null;
+  var stairW = p.stairWidth || 4;
+  var anchorX;
+  if (p.stairAnchorX != null && p.stairAngle != null) {
+    // Free-placed mode: only front-exiting stairs (angle~0, near front edge) collide
+    if (Math.abs(p.stairAngle % 360) > 5 && Math.abs(p.stairAngle % 360 - 360) > 5) return null;
+    if (p.stairAnchorY != null && Math.abs(p.stairAnchorY - D) > 1) return null;
+    anchorX = p.stairAnchorX;
+  } else {
+    if ((p.stairLocation || "front") !== "front") return null;
+    anchorX = W / 2 + (p.stairOffset || 0);
+  }
+  var clearance = 0.25;
+  return { left: +Math.max(0, anchorX - stairW / 2 - clearance).toFixed(2), right: +Math.min(W, anchorX + stairW / 2 + clearance).toFixed(2) };
+}
+function placePostsSmartly(W, nP, stairOpening) {
+  var INSET = 2, leftEnd = INSET, rightEnd = W - INSET, MIN_GAP = 1.0;
+  if (!stairOpening) {
+    var pp = []; for (var i = 0; i < nP; i++) pp.push(+(leftEnd + i * (rightEnd - leftEnd) / (nP - 1)).toFixed(2));
+    return { pp: pp, headerSpan: null, stairOpening: null };
+  }
+  var sL = stairOpening.left, sR = stairOpening.right;
+  if (sR <= leftEnd || sL >= rightEnd) {
+    var pp = []; for (var i = 0; i < nP; i++) pp.push(+(leftEnd + i * (rightEnd - leftEnd) / (nP - 1)).toFixed(2));
+    return { pp: pp, headerSpan: null, stairOpening: stairOpening };
+  }
+  var openL = +Math.max(sL, leftEnd).toFixed(2), openR = +Math.min(sR, rightEnd).toFixed(2);
+  if (openL - leftEnd < MIN_GAP) openL = leftEnd;
+  if (rightEnd - openR < MIN_GAP) openR = rightEnd;
+  var headerSpan = +(openR - openL).toFixed(2);
+  var fixed = [leftEnd]; if (openL !== leftEnd) fixed.push(openL); if (openR !== rightEnd) fixed.push(openR); fixed.push(rightEnd);
+  fixed = fixed.filter(function(v,i,a){return a.indexOf(v)===i}).sort(function(a,b){return a-b});
+  var targetSpan = (rightEnd - leftEnd) / Math.max(nP - 1, 1);
+  var maxSpan = Math.max(Math.min(targetSpan, 8), 4);
+  var finalPosts = [];
+  for (var seg = 0; seg < fixed.length - 1; seg++) {
+    var segL = fixed[seg], segR = fixed[seg + 1], segLen = +(segR - segL).toFixed(2);
+    if (finalPosts.length === 0 || Math.abs(finalPosts[finalPosts.length - 1] - segL) > 0.01) finalPosts.push(segL);
+    if (Math.abs(segL - openL) < 0.01 && Math.abs(segR - openR) < 0.01) continue;
+    if (segLen > maxSpan + 0.1) { var nSub = Math.ceil(segLen / maxSpan), subSp = segLen / nSub; for (var si = 1; si < nSub; si++) finalPosts.push(+(segL + si * subSp).toFixed(2)); }
+  }
+  var last = fixed[fixed.length - 1];
+  if (finalPosts.length === 0 || Math.abs(finalPosts[finalPosts.length - 1] - last) > 0.01) finalPosts.push(last);
+  return { pp: finalPosts, headerSpan: headerSpan, stairOpening: { left: openL, right: openR } };
+}
+function maxBeamSpanFromPosts(pp) {
+  var max = 0; for (var i = 1; i < pp.length; i++) { var s = pp[i] - pp[i-1]; if (s > max) max = s; } return +max.toFixed(2);
+}
+
 function calcStructure(p) {
   const { width: W, depth: D, height: H, joistSpacing: sp, attachment, snowLoad, frostZone, deckingType } = p;
   const area = W * D;
@@ -52,11 +103,22 @@ function calcStructure(p) {
   const autoJoist = joistSize;
   if (p.overJoist) { joistSize = p.overJoist; joistAuto = false; }
 
-  // === POSTS (overridable count) ===
+  // === POSTS (S40: stair-aware placement) ===
   let nP = W <= 10 ? 2 : W <= 16 ? 3 : W <= 24 ? 3 : W <= 32 ? 4 : Math.max(4, Math.ceil(W / 10) + 1);
   const autoNP = nP;
   if (p.overPostCount) { nP = p.overPostCount; }
-  const bSpan = W / (nP - 1);
+
+  // S40: Compute stair opening on beam line, place posts around it
+  var stairOpening = getStairOpeningOnBeam(p, W, D);
+  var postResult = placePostsSmartly(W, nP, stairOpening);
+  var pp = postResult.pp;
+  var requestedNP = nP; // what user or auto requested before stair adjustment
+  nP = pp.length; // actual count after smart placement
+  var headerSpan = postResult.headerSpan;
+  var stairOpeningResolved = postResult.stairOpening;
+
+  // S40: Beam span from actual max span between posts (not assumed even spacing)
+  const bSpan = maxBeamSpanFromPosts(pp);
 
   // === BEAM (overridable) ===
   let beamSize = "2-ply 2x10";
@@ -71,17 +133,13 @@ function calcStructure(p) {
   const autoPostSize = postSize;
   if (p.overPostSize) { postSize = p.overPostSize; }
 
-  const pp = []; for (let i = 0; i < nP; i++) pp.push(+(2 + i * (W - 4) / (nP - 1)).toFixed(2));
-
   // S34: Slope-adjusted post heights per position
-  // Reference: ground at house attachment (y=0, x=W/2). Slope causes ground to
-  // drop (downhill) or rise (uphill) relative to reference. Post height adjusts accordingly.
   var slopePct = (p.slopePercent || 0) / 100;
   var slopeDir = p.slopeDirection || "front-to-back";
   var beamDepth = D - 1.5;
   var postHeights = [];
   for (var hi = 0; hi < nP; hi++) {
-    var groundDrop = 0; // positive = ground is lower = post is taller
+    var groundDrop = 0;
     if (slopeDir === "front-to-back") groundDrop = slopePct * beamDepth;
     else if (slopeDir === "back-to-front") groundDrop = -slopePct * beamDepth;
     else if (slopeDir === "left-to-right") groundDrop = slopePct * (pp[hi] - W / 2);
@@ -149,8 +207,12 @@ function calcStructure(p) {
   if (p.overPostCount && p.overPostCount < autoNP) {
     warnings.push(`Ã¢Â¬Â Fewer posts (${p.overPostCount}) than recommended (${autoNP}). May not meet code.`);
   }
+  // S40: Warn if stair placement required more posts than requested
+  if (headerSpan && nP > requestedNP) {
+    warnings.push(`Post count adjusted from ${requestedNP} to ${nP} to clear stair opening. Header posts required at stair edges.`);
+  }
 
-  return { W, D, H, area, lotArea, LL, DL, TL, joistSize, sp, jSpan: +jSpan.toFixed(1), nJ, beamSize, bSpan: +bSpan.toFixed(1), postSize, nP, totalPosts, pp, postHeights, fDiam, fDepth, nF: totalPosts, ledgerSize: joistSize, railLen: +railLen.toFixed(1), midSpanBlocking, blockingCount, stairs, warnings, attachment,
+  return { W, D, H, area, lotArea, LL, DL, TL, joistSize, sp, jSpan: +jSpan.toFixed(1), nJ, beamSize, bSpan: +bSpan.toFixed(1), postSize, nP, totalPosts, pp, postHeights, fDiam, fDepth, nF: totalPosts, ledgerSize: joistSize, railLen: +railLen.toFixed(1), midSpanBlocking, blockingCount, stairs, warnings, attachment, headerSpan, stairOpening: stairOpeningResolved,
     auto: { joist: autoJoist, beam: autoBeam, postSize: autoPostSize, postCount: autoNP, footing: autoFDiam }
   };
 }
@@ -277,3 +339,6 @@ window.SNOW = SNOW;
 window.calcStructure = calcStructure;
 window.estMaterials = estMaterials;
 window.calcAllZones = calcAllZones;
+window.getStairOpeningOnBeam = getStairOpeningOnBeam;
+window.placePostsSmartly = placePostsSmartly;
+window.maxBeamSpanFromPosts = maxBeamSpanFromPosts;
