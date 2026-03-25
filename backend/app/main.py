@@ -307,8 +307,8 @@ async def calculate(params: DeckParams):
 SURVEY_EXTRACT_PROMPT = """Analyze this property survey or plat map and extract dimensions. Return ONLY a JSON object with no markdown, no backticks, no other text.
 
 Required fields (use null if not found or not readable):
-- lotWidth: lot width in feet (number)
-- lotDepth: lot depth in feet (number)
+- lotWidth: lot width in feet, measured along the street frontage (number)
+- lotDepth: lot depth in feet, measured from street to rear property line (number)
 - houseWidth: house/dwelling width in feet (number)
 - houseDepth: house/dwelling depth in feet (number)
 - houseDistFromStreet: distance from house front wall to front property line in feet (number)
@@ -324,7 +324,26 @@ Required fields (use null if not found or not readable):
 - streetName: name of the street the property faces (string)
 - northAngle: orientation of the north arrow in degrees clockwise from straight up (number, 0-359). Look for a north arrow or compass rose on the survey. If the arrow points straight up, northAngle is 0. If it points to the upper-right, estimate the clockwise angle. Use null if no north arrow is visible.
 
-Also include a "confidence" object with the same keys, each "high", "medium", or "low".
+CRITICAL: Also extract per-edge lot boundary data. Property surveys label each boundary segment with its length. Extract these as a "lotEdges" array going CLOCKWISE starting from the STREET-FACING edge:
+- lotEdges: array of objects, one per boundary segment, each with:
+  - length: edge length in feet (number). Read this from the dimension label on the property line. Convert any decimal notation (e.g. 78.67') to a number.
+  - type: "street" if this edge faces a road/street, "property" otherwise (string)
+  - setbackType: "front" for the street edge, "rear" for the edge opposite the street, "side" for left/right edges (string)
+  - label: street name if type is "street", neighbor lot number if labeled (e.g. "LOT 35"), empty string otherwise (string)
+
+Example for a typical 4-sided lot:
+[
+  {"length": 78.67, "type": "street", "setbackType": "front", "label": "SWEETGRASS LANE"},
+  {"length": 184.83, "type": "property", "setbackType": "side", "label": "LOT 35"},
+  {"length": 78.07, "type": "property", "setbackType": "rear", "label": ""},
+  {"length": 179.18, "type": "property", "setbackType": "side", "label": "LOT 37"}
+]
+
+For irregular lots with more than 4 sides (e.g. pie-shaped, cul-de-sac), include ALL boundary segments. Short connector segments (like 5.50') between longer edges are important for accurate shape.
+
+If the lot is clearly rectangular (all angles are 90 degrees and opposite sides are equal), set lotEdges to null and just use lotWidth/lotDepth.
+
+Also include a "confidence" object with the same keys (including "lotEdges"), each "high", "medium", or "low".
 
 IMPORTANT: Measure dimensions carefully from the survey markings. Property surveys show lot dimensions along boundary lines. House footprint may be labeled or estimated from the scale bar. Return ONLY valid JSON."""
 
