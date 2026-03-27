@@ -441,6 +441,21 @@ function StepContent(props) {
           edges: tsMeta,
           pdfPage: ts.pdfPage || 1
         });
+        // S43: Merge extraction results if available
+        if (extractResult) {
+          var d = extractResult;
+          if (d.setbackFront) u("setbackFront", d.setbackFront);
+          if (d.setbackRear) u("setbackRear", d.setbackRear);
+          if (d.setbackSide) u("setbackSide", d.setbackSide);
+          if (d.street) setI("address", d.street);
+          if (d.city) setI("city", d.city);
+          if (d.state) setI("state", d.state);
+          if (d.zip) setI("zip", d.zip);
+          if (d.parcelId) setI("lot", d.parcelId);
+          if (d.streetName) u("streetName", d.streetName);
+          if (d.northAngle != null) u("northAngle", d.northAngle);
+          setExtractResult(null);
+        }
         setTraceMode(false);
       }
 
@@ -471,6 +486,17 @@ function StepContent(props) {
             <span style={{ fontSize: 10, fontWeight: 700, color: "#2e7d32", fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>{"\uD83D\uDCCD"} Tracing Lot Boundary</span>
             <button onClick={function() { setTraceMode(false); }} style={{ padding: "4px 12px", fontSize: 9, fontFamily: _mono, cursor: "pointer", border: "1px solid #fca5a5", borderRadius: 4, background: "#fef2f2", color: "#dc2626" }}>Cancel</button>
           </div>
+
+          {/* S43: Extraction status */}
+          {extracting && <div style={{ padding: "6px 10px", marginBottom: 8, background: "#eff6ff", borderRadius: 4, border: "1px solid #93c5fd", fontSize: 9, fontFamily: _mono, color: "#1d4ed8" }}>
+            {"\u23F3"} Extracting property info (address, setbacks, lot area)...
+          </div>}
+          {extractResult && <div style={{ padding: "6px 10px", marginBottom: 8, background: "#f0fdf4", borderRadius: 4, border: "1px solid #bbf7d0", fontSize: 9, fontFamily: _mono, color: "#2e7d32" }}>
+            {"\u2705"} Property info extracted. Will be applied with traced shape.
+          </div>}
+          {extractError && <div style={{ padding: "6px 10px", marginBottom: 8, background: "#fff8e1", borderRadius: 4, border: "1px solid #ffe082", fontSize: 9, fontFamily: _mono, color: "#d97706" }}>
+            {"\u26A0\uFE0F"} Could not extract property info: {extractError}. You can still trace the lot shape.
+          </div>}
 
           {/* Step 1: Calibration */}
           <div style={{ marginBottom: 12, padding: "10px 12px", background: "#fff", borderRadius: 6, border: "1px solid " + (tsPpf ? "#c8e6c9" : "#ffe0b2") }}>
@@ -1119,7 +1145,7 @@ function StepContent(props) {
       </div>}
 
       {/* === TRACE LOT BOUNDARY (S43) === */}
-      {sitePlanFile && !traceMode && !extractResult && <div style={{ marginBottom: 14 }}>
+      {sitePlanFile && !traceMode && <div style={{ marginBottom: 14 }}>
         <button onClick={function() {
           if (p.traceData) {
             setTraceState({
@@ -1143,6 +1169,31 @@ function StepContent(props) {
             });
           }
           setTraceMode(true);
+        // S43: Fire extraction in background
+        if (!extractResult && !extracting) {
+          (async function() {
+            setExtracting(true); setExtractError(null);
+            try {
+              var fileType = sitePlanFile.name.toLowerCase().endsWith(".pdf") ? "pdf" : "image";
+              var b64 = sitePlanB64 || await new Promise(function(resolve, reject) {
+                var reader = new FileReader();
+                reader.onload = function() { resolve(reader.result.split(",")[1]); };
+                reader.onerror = function() { reject(new Error("Failed to read file")); };
+                reader.readAsDataURL(sitePlanFile);
+              });
+              var res = await fetch(API + "/api/extract-survey", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({ surveyData: b64, fileType: fileType })
+              });
+              var data = await res.json();
+              if (data.ok) { setExtractResult(data.data); }
+              else { setExtractError(data.error || "Extraction failed"); }
+            } catch(e) { setExtractError(e.message); }
+            setExtracting(false);
+          })();
+        }
         }} style={{
           width: "100%", padding: "12px 14px",
           background: "#f0fdf4",
@@ -1152,15 +1203,15 @@ function StepContent(props) {
           color: "#2e7d32", fontWeight: 700,
           display: "flex", alignItems: "center", justifyContent: "center", gap: 8
         }}>
-          {"\uD83D\uDCCD"} Trace Lot Boundary on Survey
+          {"\uD83D\uDCCD"} Set Up Lot from Survey
         </button>
         <div style={{ fontSize: 8, color: _br.mu, fontFamily: _mono, marginTop: 4, textAlign: "center" }}>
-          Click corners on your survey image for accurate lot shape
+          Traces lot boundary + extracts property info automatically
         </div>
       </div>}
 
       {/* === AI EXTRACTION (S29) === */}
-      {sitePlanFile && !extractResult && <div style={{ marginBottom: 14 }}>
+      {sitePlanFile && !extractResult && !traceMode && !extracting && <div style={{ marginBottom: 14 }}>
         <button onClick={async function() {
           setExtracting(true); setExtractError(null);
           try {
@@ -1184,19 +1235,19 @@ function StepContent(props) {
           setExtracting(false);
         }} disabled={extracting} style={{
           width: "100%", padding: "12px 14px",
-          background: extracting ? _br.wr : "#eff6ff",
-          border: "1px solid " + (extracting ? _br.bd : "#93c5fd"),
+          background: extracting ? _br.wr : "#fff",
+          border: "1px solid " + _br.bd,
           borderRadius: 8, cursor: extracting ? "wait" : "pointer",
           fontSize: 11, fontFamily: _mono,
           color: extracting ? _br.mu : "#1d4ed8", fontWeight: 700,
           display: "flex", alignItems: "center", justifyContent: "center", gap: 8
         }}>
-          {extracting ? "\u23F3 Analyzing survey with AI..." : "\u2728 Extract dimensions from survey"}
+          {extracting ? "\u23F3 Analyzing survey with AI..." : "\u2728 Just extract text info (no tracing)"}
         </button>
         {extractError && <div style={{ fontSize: 10, color: "#dc2626", fontFamily: _mono, marginTop: 6 }}>{"\u26A0\uFE0F"} {extractError}</div>}
       </div>}
 
-      {extractResult && <div style={{ padding: 14, background: "#eff6ff", borderRadius: 8, border: "1px solid #93c5fd", marginBottom: 14 }}>
+      {extractResult && !traceMode && <div style={{ padding: 14, background: "#eff6ff", borderRadius: 8, border: "1px solid #93c5fd", marginBottom: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
           <div style={{ fontSize: 9, fontWeight: 700, color: "#1d4ed8", fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>{"\u2728"} AI Extracted Dimensions</div>
           <button onClick={function() { setExtractResult(null); }} style={{ fontSize: 8, fontFamily: _mono, color: _br.mu, background: "none", border: "1px solid " + _br.bd, borderRadius: 4, padding: "3px 8px", cursor: "pointer" }}>Dismiss</button>
