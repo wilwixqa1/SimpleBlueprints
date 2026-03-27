@@ -584,7 +584,59 @@ function StepContent(props) {
             </div>
           </div>}
 
-                    {tsSelEdge != null && tsPpf && tsVerts.length >= 3 && (() => {
+                    
+          {/* Edge verification: compare traced vs AI-extracted lengths */}
+          {tsPpf && extractResult && extractResult.lotEdges && extractResult.lotEdges.length >= 3 && tsVerts.length >= 3 && (() => {
+            var aiEdges = extractResult.lotEdges.map(function(e) { return e.length || 0; }).sort(function(a, b) { return a - b; });
+            var tracedEdges = tsLengths.slice().sort(function(a, b) { return a - b; });
+            var matchCount = Math.min(aiEdges.length, tracedEdges.length);
+            var matches = [];
+            var maxPctOff = 0;
+            for (var mi = 0; mi < matchCount; mi++) {
+              var aiLen = aiEdges[mi];
+              var trLen = tracedEdges[mi];
+              var pctOff = aiLen > 0 ? Math.abs(trLen - aiLen) / aiLen * 100 : 0;
+              if (pctOff > maxPctOff) maxPctOff = pctOff;
+              matches.push({ ai: aiLen, traced: trLen, pct: pctOff });
+            }
+            var allGood = maxPctOff < 5;
+            var hasWarning = maxPctOff >= 5 && maxPctOff < 15;
+            var hasError = maxPctOff >= 15;
+            var borderCol = allGood ? "#c8e6c9" : hasError ? "#fca5a5" : "#ffe082";
+            var bgCol = allGood ? "#f0fdf4" : hasError ? "#fef2f2" : "#fff8e1";
+            // Also compare areas if available
+            var aiArea = extractResult.lotArea;
+            var areaPct = (aiArea && tracePreviewArea) ? Math.abs(tracePreviewArea - aiArea) / aiArea * 100 : null;
+            return <div style={{ marginBottom: 12, padding: "10px 12px", background: bgCol, borderRadius: 6, border: "1px solid " + borderCol }}>
+              <div style={{ fontSize: 9, fontWeight: 700, color: allGood ? "#2e7d32" : hasError ? "#dc2626" : "#d97706", fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 6 }}>
+                {allGood ? "\u2705" : hasWarning ? "\u26A0\uFE0F" : "\u274C"} Edge Verification
+              </div>
+              <div style={{ fontSize: 8, color: _br.mu, fontFamily: _mono, marginBottom: 6 }}>Traced vs AI-extracted edge lengths (sorted by size):</div>
+              {matches.map(function(m, mi) {
+                var col = m.pct < 5 ? "#2e7d32" : m.pct < 15 ? "#d97706" : "#dc2626";
+                var icon = m.pct < 5 ? "\u2705" : m.pct < 15 ? "\u26A0\uFE0F" : "\u274C";
+                return <div key={mi} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "2px 0", borderBottom: mi < matches.length - 1 ? "1px solid " + borderCol : "none" }}>
+                  <span style={{ fontSize: 9, fontFamily: _mono, color: _br.mu }}>{icon}</span>
+                  <span style={{ fontSize: 9, fontFamily: _mono, color: _br.tx, fontWeight: 600 }}>{m.traced.toFixed(1)}'</span>
+                  <span style={{ fontSize: 8, fontFamily: _mono, color: _br.mu }}>vs</span>
+                  <span style={{ fontSize: 9, fontFamily: _mono, color: "#1d4ed8", fontWeight: 600 }}>{m.ai.toFixed(1)}' AI</span>
+                  <span style={{ fontSize: 8, fontFamily: _mono, color: col, fontWeight: 700 }}>{m.pct < 1 ? "<1" : m.pct.toFixed(0)}%</span>
+                </div>;
+              })}
+              {areaPct != null && <div style={{ marginTop: 6, padding: "4px 8px", background: "rgba(255,255,255,0.6)", borderRadius: 4, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 8, fontFamily: _mono, color: _br.mu }}>Area:</span>
+                <span style={{ fontSize: 9, fontFamily: _mono, color: _br.tx, fontWeight: 600 }}>{tracePreviewArea.toLocaleString()} SF traced</span>
+                <span style={{ fontSize: 8, fontFamily: _mono, color: _br.mu }}>vs</span>
+                <span style={{ fontSize: 9, fontFamily: _mono, color: "#1d4ed8", fontWeight: 600 }}>{aiArea.toLocaleString()} SF AI</span>
+                <span style={{ fontSize: 8, fontFamily: _mono, color: areaPct < 5 ? "#2e7d32" : areaPct < 15 ? "#d97706" : "#dc2626", fontWeight: 700 }}>{areaPct.toFixed(0)}%</span>
+              </div>}
+              {allGood && <div style={{ fontSize: 8, color: "#2e7d32", fontFamily: _mono, marginTop: 4 }}>All edges match within 5%. Calibration looks accurate.</div>}
+              {hasWarning && <div style={{ fontSize: 8, color: "#d97706", fontFamily: _mono, marginTop: 4 }}>Some edges differ by 5-15%. Consider re-calibrating or adjusting vertex positions.</div>}
+              {hasError && <div style={{ fontSize: 8, color: "#dc2626", fontFamily: _mono, marginTop: 4 }}>Significant difference detected. Try re-calibrating with a different reference edge.</div>}
+            </div>;
+          })()}
+
+          {tsSelEdge != null && tsPpf && tsVerts.length >= 3 && (() => {
             var trMeta = tsMeta[tsSelEdge] || {};
             return <div style={{ marginBottom: 12, padding: "10px 12px", background: "#fff", borderRadius: 6, border: "2px solid #2563eb" }}>
               <div style={{ fontSize: 9, fontWeight: 700, color: "#2563eb", fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 6 }}>
