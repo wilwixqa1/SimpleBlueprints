@@ -476,11 +476,17 @@ function StepContent(props) {
             <div style={{ fontSize: 9, fontWeight: 700, color: tsPpf ? "#2e7d32" : "#e65100", fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 6 }}>
               {tsPpf ? "\u2705 Step 1: Scale Calibrated" : "\uD83D\uDCCF Step 1: Calibrate Scale"}
             </div>
-            {!tsPpf && tsCalPts.length < 2 && <div style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, lineHeight: 1.6 }}>
-              Click two points on the survey image that have a known distance between them (e.g. a labeled property line).
+            {!tsPpf && tsCalPts.length === 0 && <div style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, lineHeight: 1.6 }}>
+              Find a property line on the survey with a labeled dimension (e.g. "184.83'"). Click the two endpoints of that line.
+            </div>}
+            {!tsPpf && tsCalPts.length === 1 && <div>
+              <div style={{ fontSize: 9, color: "#e65100", fontFamily: _mono, lineHeight: 1.6, marginBottom: 6 }}>
+                {"\u2705"} First point placed. Now click the other end of the same dimension line.
+              </div>
+              <button onClick={function() { tsUpdate({ calPoints: [] }); }} style={{ padding: "4px 10px", fontSize: 8, fontFamily: _mono, cursor: "pointer", border: "1px solid " + _br.bd, borderRadius: 4, background: "#fff", color: _br.mu }}>Reset Point</button>
             </div>}
             {!tsPpf && tsCalPts.length === 2 && <div>
-              <div style={{ fontSize: 9, color: "#e65100", fontFamily: _mono, marginBottom: 6 }}>Two points placed. Enter the real-world distance:</div>
+              <div style={{ fontSize: 9, color: "#e65100", fontFamily: _mono, marginBottom: 6 }}>{"\u2705"} Two points placed. Enter the distance between them (read from the survey label):</div>
               <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                 <input type="number" value={ts.calDist || ""} step="0.01" min="0.1"
                   onChange={function(e) { tsUpdate({ calDist: e.target.value }); }}
