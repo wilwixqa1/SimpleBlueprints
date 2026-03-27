@@ -80,7 +80,8 @@ function StepContent(props) {
     sitePlanMode, setSitePlanMode, sitePlanFile, setSitePlanFile, setSitePlanB64,
     isProduction, feedbackDone, setFeedbackDone, feedback, setFeedback, submitFeedback,
     genStatus, genError, generateBlueprint, user, API,
-    zoneMode, setZoneMode, addZone, addCutout, removeZone, updateZone, setCorner, getCorners, pForZones, zc } = props;
+    zoneMode, setZoneMode, addZone, addCutout, removeZone, updateZone, setCorner, getCorners, pForZones, zc,
+    traceMode, setTraceMode, traceState, setTraceState, sitePlanB64 } = props;
 
   const [showDisclaimer, setShowDisclaimer] = _stUS(false);
   const [disclaimerAcked, setDisclaimerAcked] = _stUS(false);
@@ -332,6 +333,277 @@ function StepContent(props) {
     var imperviousTypes = { driveway: true, garage: true, shed: true, patio: true };
     var elArea = (p.siteElements || []).reduce(function(s, el) { return s + (imperviousTypes[el.type] ? el.w * el.d : 0); }, 0);
     var coveragePct = lotArea > 0 ? ((houseArea + deckArea + elArea) / lotArea * 100).toFixed(1) : 0;
+
+    // === TRACE MODE CONTROLS (S43) ===
+    if (traceMode) {
+      var ts = traceState || {};
+      var tsVerts = ts.vertices || [];
+      var tsMeta = ts.edgeMeta || [];
+      var tsLengths = ts.edgeLengths || [];
+      var tsPpf = ts.ppf || null;
+      var tsCalPts = ts.calPoints || [];
+      var tsSelEdge = ts.selectedEdge;
+      var tsSelVert = ts.selectedVertex;
+
+      function tsUpdate(changes) {
+        setTraceState(function(prev) { return Object.assign({}, prev, changes); });
+      }
+
+      function calibrate() {
+        var dist = parseFloat(ts.calDist);
+        if (!dist || dist <= 0 || tsCalPts.length < 2) return;
+        var tdx = tsCalPts[1].px - tsCalPts[0].px;
+        var tdy = tsCalPts[1].py - tsCalPts[0].py;
+        var pxDist = Math.sqrt(tdx * tdx + tdy * tdy);
+        tsUpdate({ ppf: pxDist / dist });
+      }
+
+      function recalibrate() {
+        tsUpdate({ calPoints: [], calDist: "", ppf: null });
+      }
+
+      function removeVertex(idx) {
+        var newVerts = tsVerts.filter(function(_, i) { return i !== idx; });
+        var newMeta = tsMeta.filter(function(_, i) { return i !== idx; });
+        var newSelVert = tsSelVert;
+        var newSelEdge = tsSelEdge;
+        if (newSelVert === idx) newSelVert = null;
+        else if (newSelVert != null && newSelVert > idx) newSelVert--;
+        if (newSelEdge != null && newSelEdge >= newVerts.length) newSelEdge = null;
+        tsUpdate({ vertices: newVerts, edgeMeta: newMeta, selectedVertex: newSelVert, selectedEdge: newSelEdge });
+      }
+
+      function updateEdgeMeta(idx, field, val) {
+        var newMeta = tsMeta.slice();
+        while (newMeta.length <= idx) {
+          newMeta.push({ type: "property", label: "", neighborLabel: "", setbackType: "side", geometry: "line" });
+        }
+        newMeta[idx] = Object.assign({}, newMeta[idx], { [field]: val });
+        if (field === "type") {
+          if (val === "street") {
+            newMeta[idx].setbackType = "front";
+            newMeta[idx].neighborLabel = "";
+          } else {
+            if (newMeta[idx].setbackType === "front") newMeta[idx].setbackType = "side";
+            newMeta[idx].label = "";
+          }
+        }
+        tsUpdate({ edgeMeta: newMeta });
+      }
+
+      function applyTrace() {
+        if (!tsPpf || tsVerts.length < 3) return;
+        var tn = tsVerts.length;
+        var tMinPx = Infinity, tMaxPx = -Infinity, tMinPy = Infinity, tMaxPy = -Infinity;
+        tsVerts.forEach(function(v) {
+          if (v.px < tMinPx) tMinPx = v.px;
+          if (v.px > tMaxPx) tMaxPx = v.px;
+          if (v.py < tMinPy) tMinPy = v.py;
+          if (v.py > tMaxPy) tMaxPy = v.py;
+        });
+        var lotVerts = tsVerts.map(function(v) {
+          return [
+            +((v.px - tMinPx) / tsPpf).toFixed(2),
+            +((tMaxPy - v.py) / tsPpf).toFixed(2)
+          ];
+        });
+        var lotEdgesOut = [];
+        for (var ti = 0; ti < tn; ti++) {
+          var tlv1 = lotVerts[ti], tlv2 = lotVerts[(ti + 1) % tn];
+          var tedx = tlv2[0] - tlv1[0], tedy = tlv2[1] - tlv1[1];
+          var tlen = +Math.sqrt(tedx * tedx + tedy * tedy).toFixed(2);
+          var tem = tsMeta[ti] || {};
+          var tisStr = tem.type === "street";
+          lotEdgesOut.push({
+            type: tem.type || "property",
+            label: tisStr ? (tem.label || "") : "",
+            neighborLabel: tisStr ? "" : (tem.neighborLabel || ""),
+            setbackType: tem.setbackType || "side",
+            length: tlen
+          });
+        }
+        var tArea = 0;
+        for (var ti = 0; ti < tn; ti++) {
+          var tav1 = lotVerts[ti], tav2 = lotVerts[(ti + 1) % tn];
+          tArea += tav1[0] * tav2[1] - tav2[0] * tav1[1];
+        }
+        tArea = +Math.abs(tArea / 2).toFixed(0);
+        var bboxW = +((tMaxPx - tMinPx) / tsPpf).toFixed(1);
+        var bboxD = +((tMaxPy - tMinPy) / tsPpf).toFixed(1);
+        u("lotVertices", lotVerts);
+        u("lotEdges", lotEdgesOut);
+        u("lotArea", tArea);
+        u("lotWidth", Math.max(Math.round(bboxW), 30));
+        u("lotDepth", Math.max(Math.round(bboxD), 50));
+        u("traceData", {
+          calibration: { p1: tsCalPts[0], p2: tsCalPts[1], distanceFt: parseFloat(ts.calDist), pixelsPerFoot: tsPpf },
+          vertices: tsVerts,
+          edges: tsMeta
+        });
+        setTraceMode(false);
+      }
+
+      var tracePreviewArea = null;
+      if (tsPpf && tsVerts.length >= 3) {
+        var tpMinPx = Infinity, tpMaxPy = -Infinity, tpMinPy = Infinity;
+        tsVerts.forEach(function(v) {
+          if (v.px < tpMinPx) tpMinPx = v.px;
+          if (v.py > tpMaxPy) tpMaxPy = v.py;
+          if (v.py < tpMinPy) tpMinPy = v.py;
+        });
+        var tmpV = tsVerts.map(function(v) {
+          return [(v.px - tpMinPx) / tsPpf, (tpMaxPy - v.py) / tsPpf];
+        });
+        var ta2 = 0;
+        for (var ti = 0; ti < tmpV.length; ti++) {
+          var ttv1 = tmpV[ti], ttv2 = tmpV[(ti + 1) % tmpV.length];
+          ta2 += ttv1[0] * ttv2[1] - ttv2[0] * ttv1[1];
+        }
+        tracePreviewArea = +Math.abs(ta2 / 2).toFixed(0);
+      }
+
+      var trSbColors = { front: "#2563eb", side: "#8B7355", rear: "#dc2626", none: "#999" };
+
+      return <>
+        <div style={{ padding: 14, background: "#e8f5e9", borderRadius: 8, border: "1px solid #c8e6c9", marginBottom: 14 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: "#2e7d32", fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>{"\uD83D\uDCCD"} Tracing Lot Boundary</span>
+            <button onClick={function() { setTraceMode(false); }} style={{ padding: "4px 12px", fontSize: 9, fontFamily: _mono, cursor: "pointer", border: "1px solid #fca5a5", borderRadius: 4, background: "#fef2f2", color: "#dc2626" }}>Cancel</button>
+          </div>
+
+          {/* Step 1: Calibration */}
+          <div style={{ marginBottom: 12, padding: "10px 12px", background: "#fff", borderRadius: 6, border: "1px solid " + (tsPpf ? "#c8e6c9" : "#ffe0b2") }}>
+            <div style={{ fontSize: 9, fontWeight: 700, color: tsPpf ? "#2e7d32" : "#e65100", fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 6 }}>
+              {tsPpf ? "\u2705 Step 1: Scale Calibrated" : "\uD83D\uDCCF Step 1: Calibrate Scale"}
+            </div>
+            {!tsPpf && tsCalPts.length < 2 && <div style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, lineHeight: 1.6 }}>
+              Click two points on the survey image that have a known distance between them (e.g. a labeled property line).
+            </div>}
+            {!tsPpf && tsCalPts.length === 2 && <div>
+              <div style={{ fontSize: 9, color: "#e65100", fontFamily: _mono, marginBottom: 6 }}>Two points placed. Enter the real-world distance:</div>
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <input type="number" value={ts.calDist || ""} step="0.01" min="0.1"
+                  onChange={function(e) { tsUpdate({ calDist: e.target.value }); }}
+                  onKeyDown={function(e) { if (e.key === "Enter") calibrate(); }}
+                  placeholder="e.g. 184.83"
+                  autoFocus
+                  style={{ flex: 1, padding: "7px 10px", border: "2px solid #ff9800", borderRadius: 5, fontSize: 14, fontFamily: _mono, fontWeight: 800, color: _br.tx, textAlign: "center", outline: "none", background: "#fff" }}
+                />
+                <span style={{ fontSize: 12, fontFamily: _mono, color: _br.mu, fontWeight: 700 }}>ft</span>
+                <button onClick={calibrate} disabled={!ts.calDist || parseFloat(ts.calDist) <= 0} style={{ padding: "7px 16px", background: (ts.calDist && parseFloat(ts.calDist) > 0) ? "#2e7d32" : "#ccc", color: "#fff", border: "none", borderRadius: 5, fontSize: 11, fontWeight: 700, fontFamily: _mono, cursor: (ts.calDist && parseFloat(ts.calDist) > 0) ? "pointer" : "default" }}>Set Scale</button>
+              </div>
+            </div>}
+            {tsPpf && <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <span style={{ fontSize: 10, fontFamily: _mono, color: "#2e7d32", fontWeight: 700 }}>{tsPpf.toFixed(2)} px/ft</span>
+                <span style={{ fontSize: 9, fontFamily: _mono, color: _br.mu, marginLeft: 6 }}>({ts.calDist}' reference)</span>
+              </div>
+              <button onClick={recalibrate} style={{ padding: "3px 10px", fontSize: 8, fontFamily: _mono, cursor: "pointer", border: "1px solid " + _br.bd, borderRadius: 4, background: "#fff", color: _br.mu }}>Re-calibrate</button>
+            </div>}
+          </div>
+
+          {/* Step 2: Vertices */}
+          {tsPpf && <div style={{ marginBottom: 12, padding: "10px 12px", background: "#fff", borderRadius: 6, border: "1px solid " + _br.bd }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+              <span style={{ fontSize: 9, fontWeight: 700, color: "#2e7d32", fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>
+                {"\uD83D\uDCCD"} Step 2: Place Vertices ({tsVerts.length})
+              </span>
+              {tsVerts.length > 0 && <button onClick={function() { tsUpdate({ vertices: [], edgeMeta: [], selectedVertex: null, selectedEdge: null }); }} style={{ padding: "2px 8px", fontSize: 8, fontFamily: _mono, cursor: "pointer", border: "1px solid #fca5a5", borderRadius: 3, background: "#fef2f2", color: "#dc2626" }}>Clear All</button>}
+            </div>
+            {tsVerts.length === 0 && <div style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, lineHeight: 1.6 }}>
+              Click lot corners on the survey image, clockwise starting from the street side.
+            </div>}
+            {tsVerts.length > 0 && <div style={{ maxHeight: 150, overflowY: "auto" }}>
+              {tsVerts.map(function(v, vi) {
+                var trIsSel = tsSelVert === vi;
+                var trEdgeLen = tsLengths[vi];
+                return <div key={vi} style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 6px", marginBottom: 2, background: trIsSel ? "#e8f5e9" : "transparent", borderRadius: 4, border: trIsSel ? "1px solid #c8e6c9" : "1px solid transparent" }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: trIsSel ? "#2e7d32" : _br.mu, fontFamily: _mono, minWidth: 16 }}>{vi + 1}</span>
+                  <span style={{ fontSize: 9, fontFamily: _mono, color: _br.mu, flex: 1 }}>({v.px}, {v.py})</span>
+                  {trEdgeLen && <span style={{ fontSize: 9, fontFamily: _mono, color: _br.tx, fontWeight: 600 }}>{trEdgeLen.toFixed(1)}'</span>}
+                  <button onClick={function() { removeVertex(vi); }} style={{ padding: "1px 5px", fontSize: 9, cursor: "pointer", border: "1px solid #fca5a5", borderRadius: 3, background: "#fef2f2", color: "#dc2626", lineHeight: 1 }}>{"\u00D7"}</button>
+                </div>;
+              })}
+            </div>}
+            {tracePreviewArea && <div style={{ fontSize: 9, fontFamily: _mono, color: _br.mu, marginTop: 6, padding: "4px 8px", background: "#f0fdf4", borderRadius: 4 }}>
+              Lot area: <span style={{ fontWeight: 700, color: _br.tx }}>{tracePreviewArea.toLocaleString()} SF</span>
+            </div>}
+          </div>}
+
+          {/* Edge metadata (when edge selected) */}
+          {tsSelEdge != null && tsVerts.length >= 3 && (() => {
+            var trMeta = tsMeta[tsSelEdge] || {};
+            return <div style={{ marginBottom: 12, padding: "10px 12px", background: "#fff", borderRadius: 6, border: "2px solid #2563eb" }}>
+              <div style={{ fontSize: 9, fontWeight: 700, color: "#2563eb", fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 6 }}>
+                Edge {tsSelEdge + 1} {tsLengths[tsSelEdge] ? "(" + tsLengths[tsSelEdge].toFixed(1) + "')" : ""}
+              </div>
+              <div style={{ marginBottom: 8 }}>
+                <div style={{ fontSize: 8, fontWeight: 600, color: _br.mu, fontFamily: _mono, marginBottom: 4 }}>TYPE</div>
+                <div style={{ display: "flex", gap: 4 }}>
+                  {["street", "property"].map(function(t) {
+                    var trIsAct = (trMeta.type || "property") === t;
+                    return <button key={t} onClick={function() { updateEdgeMeta(tsSelEdge, "type", t); }} style={{
+                      padding: "4px 12px", fontSize: 9, fontFamily: _mono, cursor: "pointer",
+                      border: trIsAct ? "2px solid " + _br.gn : "1px solid " + _br.bd,
+                      background: trIsAct ? "#edf5e8" : "#fff",
+                      color: trIsAct ? _br.gn : _br.mu,
+                      borderRadius: 4, fontWeight: trIsAct ? 700 : 400, textTransform: "capitalize"
+                    }}>{t}</button>;
+                  })}
+                </div>
+              </div>
+              <div style={{ marginBottom: 8 }}>
+                <div style={{ fontSize: 8, fontWeight: 600, color: _br.mu, fontFamily: _mono, marginBottom: 4 }}>
+                  {trMeta.type === "street" ? "STREET NAME" : "NEIGHBOR LABEL"}
+                </div>
+                <input
+                  value={trMeta.type === "street" ? (trMeta.label || "") : (trMeta.neighborLabel || "")}
+                  onChange={function(e) {
+                    var trField = trMeta.type === "street" ? "label" : "neighborLabel";
+                    updateEdgeMeta(tsSelEdge, trField, e.target.value);
+                  }}
+                  placeholder={trMeta.type === "street" ? "e.g. Sweetgrass Lane" : "e.g. LOT 45"}
+                  style={{ width: "100%", padding: "5px 8px", border: "1px solid " + _br.bd, borderRadius: 4, fontSize: 10, fontFamily: _mono, color: _br.tx, outline: "none", boxSizing: "border-box" }}
+                />
+              </div>
+              <div>
+                <div style={{ fontSize: 8, fontWeight: 600, color: _br.mu, fontFamily: _mono, marginBottom: 4 }}>SETBACK TYPE</div>
+                <div style={{ display: "flex", gap: 3 }}>
+                  {["front", "side", "rear", "none"].map(function(sb) {
+                    var trSbAct = (trMeta.setbackType || "side") === sb;
+                    var trCol = trSbColors[sb];
+                    return <button key={sb} onClick={function() { updateEdgeMeta(tsSelEdge, "setbackType", sb); }} style={{
+                      padding: "3px 8px", fontSize: 8, fontFamily: _mono, cursor: "pointer",
+                      border: trSbAct ? "1.5px solid " + trCol : "1px solid " + _br.bd,
+                      background: trSbAct ? trCol + "18" : "#fff",
+                      color: trSbAct ? trCol : _br.mu,
+                      borderRadius: 3, fontWeight: trSbAct ? 700 : 400, textTransform: "capitalize"
+                    }}>{sb}</button>;
+                  })}
+                </div>
+              </div>
+            </div>;
+          })()}
+
+          {/* Apply button */}
+          {tsVerts.length >= 3 && tsPpf && <button onClick={applyTrace} style={{
+            width: "100%", padding: "12px",
+            background: "#2e7d32", color: "#fff", border: "none", borderRadius: 6,
+            fontSize: 12, fontWeight: 700, fontFamily: _mono, cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+            boxShadow: "0 2px 12px rgba(46,125,50,0.3)"
+          }}>{"\u2713"} Apply Traced Shape ({tsVerts.length} vertices{tracePreviewArea ? ", " + tracePreviewArea.toLocaleString() + " SF" : ""})</button>}
+
+          {tsVerts.length >= 3 && tsPpf && <div style={{ fontSize: 8, color: "#66bb6a", fontFamily: _mono, marginTop: 6, textAlign: "center" }}>
+            Sets lot shape from traced vertices. Re-enter trace mode to adjust later.
+          </div>}
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "space-between" }}>
+          <button onClick={function() { setTraceMode(false); }} style={{ padding: "9px 18px", border: "1px solid " + _br.bd, borderRadius: 6, background: "transparent", color: _br.mu, cursor: "pointer", fontFamily: _mono, fontSize: 11, fontWeight: 600 }}>{"\u2190"} Back to Site Plan</button>
+        </div>
+      </>;
+    }
 
     return <>
       {/* Intro */}
@@ -836,6 +1108,47 @@ function StepContent(props) {
               <div style={{ fontSize: 9, fontFamily: _mono, color: _br.mu, marginTop: 4 }}>PDF, PNG, or JPG</div>
             </div>
           )}
+        </div>
+      </div>}
+
+      {/* === TRACE LOT BOUNDARY (S43) === */}
+      {sitePlanFile && !traceMode && !extractResult && <div style={{ marginBottom: 14 }}>
+        <button onClick={function() {
+          if (p.traceData) {
+            setTraceState({
+              calPoints: p.traceData.calibration ? [p.traceData.calibration.p1, p.traceData.calibration.p2] : [],
+              calDist: p.traceData.calibration ? String(p.traceData.calibration.distanceFt) : "",
+              ppf: p.traceData.calibration ? p.traceData.calibration.pixelsPerFoot : null,
+              vertices: p.traceData.vertices || [],
+              edgeMeta: p.traceData.edges || [],
+              edgeLengths: [],
+              imgW: 0, imgH: 0,
+              selectedEdge: null, selectedVertex: null,
+              pdfPage: 1, pdfPageCount: 1
+            });
+          } else {
+            setTraceState({
+              calPoints: [], calDist: "", ppf: null,
+              vertices: [], edgeMeta: [], edgeLengths: [],
+              imgW: 0, imgH: 0,
+              selectedEdge: null, selectedVertex: null,
+              pdfPage: 1, pdfPageCount: 1
+            });
+          }
+          setTraceMode(true);
+        }} style={{
+          width: "100%", padding: "12px 14px",
+          background: "#f0fdf4",
+          border: "1px solid " + _br.gn,
+          borderRadius: 8, cursor: "pointer",
+          fontSize: 11, fontFamily: _mono,
+          color: "#2e7d32", fontWeight: 700,
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 8
+        }}>
+          {"\uD83D\uDCCD"} Trace Lot Boundary on Survey
+        </button>
+        <div style={{ fontSize: 8, color: _br.mu, fontFamily: _mono, marginTop: 4, textAlign: "center" }}>
+          Click corners on your survey image for accurate lot shape
         </div>
       </div>}
 
