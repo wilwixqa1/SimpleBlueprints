@@ -410,23 +410,7 @@ window.TraceView = function TraceView({ surveyB64, surveyFileType, ts, setTs }) 
         }
       }
 
-      // Calibration hint on selected edge when needs calibration
-      if (needsCalibration && isSel) {
-        var cmx = (ev1.px + ev2.px) / 2, cmy = (ev1.py + ev2.py) / 2;
-        els.push(React.createElement("rect", {
-          key: "calhint",
-          x: cmx - baseFontSize * 4, y: cmy - baseFontSize * 0.7,
-          width: baseFontSize * 8, height: baseFontSize * 1.4,
-          fill: "rgba(230,81,0,0.9)", rx: 4,
-          pointerEvents: "none"
-        }));
-        els.push(React.createElement("text", {
-          key: "caltxt", x: cmx, y: cmy + 1,
-          textAnchor: "middle", dominantBaseline: "central",
-          style: { fontSize: smallFontSize, fill: "#fff", fontFamily: _mono, fontWeight: 700 },
-          pointerEvents: "none"
-        }, "Enter distance in panel \u2192"));
-      }
+
     }
   }
 
@@ -464,7 +448,7 @@ window.TraceView = function TraceView({ surveyB64, surveyFileType, ts, setTs }) 
     statusText = "\uD83D\uDCCD Keep clicking corners (" + n + " placed, need at least 3)";
   } else if (!ppf) {
     statusColor = "#e65100";
-    statusText = "\uD83D\uDCCF " + n + " corners placed. Now click an edge with a labeled dimension to set the scale.";
+    statusText = "\uD83D\uDCCF " + n + " corners placed. Select an edge in the panel to set the scale.";
   } else {
     statusText = "\u2705 " + n + " vertices, scale set. Click to add more, drag to adjust, click edges to label.";
   }
@@ -586,7 +570,7 @@ window.TraceView = function TraceView({ surveyB64, surveyFileType, ts, setTs }) 
     }, zoom > 1
       ? "Scroll to zoom. Drag to pan. Click to place corners."
       : n >= 3 && ppf ? "Scroll to zoom in. Click edges to assign type. Drag vertices to adjust."
-      : n >= 3 ? "Scroll to zoom in. Click an edge to set the scale."
+      : n >= 3 ? "Scroll to zoom in. Select an edge in the panel to set the scale."
       : "Scroll to zoom in for precise corner placement.")
   );
 };
