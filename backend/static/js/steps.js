@@ -351,15 +351,18 @@ function StepContent(props) {
 
       function calibrate() {
         var dist = parseFloat(ts.calDist);
-        if (!dist || dist <= 0 || tsCalPts.length < 2) return;
-        var tdx = tsCalPts[1].px - tsCalPts[0].px;
-        var tdy = tsCalPts[1].py - tsCalPts[0].py;
+        var edgeIdx = ts.selectedEdge;
+        if (!dist || dist <= 0 || edgeIdx == null || tsVerts.length < 2) return;
+        var v1 = tsVerts[edgeIdx];
+        var v2 = tsVerts[(edgeIdx + 1) % tsVerts.length];
+        var tdx = v2.px - v1.px;
+        var tdy = v2.py - v1.py;
         var pxDist = Math.sqrt(tdx * tdx + tdy * tdy);
-        tsUpdate({ ppf: pxDist / dist });
+        tsUpdate({ ppf: pxDist / dist, calEdge: edgeIdx });
       }
 
       function recalibrate() {
-        tsUpdate({ calPoints: [], calDist: "", ppf: null });
+        tsUpdate({ calDist: "", ppf: null, calEdge: null, selectedEdge: null });
       }
 
       function removeVertex(idx) {
@@ -436,7 +439,7 @@ function StepContent(props) {
         u("lotEdges", lotEdgesOut);
         u("lotArea", tArea);
         u("traceData", {
-          calibration: { p1: tsCalPts[0], p2: tsCalPts[1], distanceFt: parseFloat(ts.calDist), pixelsPerFoot: tsPpf },
+          calibration: { calEdge: ts.calEdge || ts.selectedEdge, distanceFt: parseFloat(ts.calDist), pixelsPerFoot: tsPpf },
           vertices: tsVerts,
           edges: tsMeta,
           pdfPage: ts.pdfPage || 1
@@ -498,57 +501,26 @@ function StepContent(props) {
             {"\u26A0\uFE0F"} Could not extract property info: {extractError}. You can still trace the lot shape.
           </div>}
 
-          {/* Step 1: Calibration */}
-          <div style={{ marginBottom: 12, padding: "10px 12px", background: "#fff", borderRadius: 6, border: "1px solid " + (tsPpf ? "#c8e6c9" : "#ffe0b2") }}>
-            <div style={{ fontSize: 9, fontWeight: 700, color: tsPpf ? "#2e7d32" : "#e65100", fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 6 }}>
-              {tsPpf ? "\u2705 Step 1: Scale Calibrated" : "\uD83D\uDCCF Step 1: Calibrate Scale"}
-            </div>
-            {!tsPpf && tsCalPts.length === 0 && <div style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, lineHeight: 1.6 }}>
-              Find a property line on the survey with a labeled dimension (e.g. "184.83'"). Click the two endpoints of that line.
-            </div>}
-            {!tsPpf && tsCalPts.length === 1 && <div>
-              <div style={{ fontSize: 9, color: "#e65100", fontFamily: _mono, lineHeight: 1.6, marginBottom: 6 }}>
-                {"\u2705"} First point placed. Now click the other end of the same dimension line.
-              </div>
-              <button onClick={function() { tsUpdate({ calPoints: [] }); }} style={{ padding: "4px 10px", fontSize: 8, fontFamily: _mono, cursor: "pointer", border: "1px solid " + _br.bd, borderRadius: 4, background: "#fff", color: _br.mu }}>Reset Point</button>
-            </div>}
-            {!tsPpf && tsCalPts.length === 2 && <div>
-              <div style={{ fontSize: 9, color: "#e65100", fontFamily: _mono, marginBottom: 6 }}>{"\u2705"} Two points placed. Enter the distance between them (read from the survey label):</div>
-              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                <input type="number" value={ts.calDist || ""} step="0.01" min="0.1"
-                  onChange={function(e) { tsUpdate({ calDist: e.target.value }); }}
-                  onKeyDown={function(e) { if (e.key === "Enter") calibrate(); }}
-                  placeholder="e.g. 184.83"
-                  autoFocus
-                  style={{ flex: 1, padding: "7px 10px", border: "2px solid #ff9800", borderRadius: 5, fontSize: 14, fontFamily: _mono, fontWeight: 800, color: _br.tx, textAlign: "center", outline: "none", background: "#fff" }}
-                />
-                <span style={{ fontSize: 12, fontFamily: _mono, color: _br.mu, fontWeight: 700 }}>ft</span>
-                <button onClick={calibrate} disabled={!ts.calDist || parseFloat(ts.calDist) <= 0} style={{ padding: "7px 16px", background: (ts.calDist && parseFloat(ts.calDist) > 0) ? "#2e7d32" : "#ccc", color: "#fff", border: "none", borderRadius: 5, fontSize: 11, fontWeight: 700, fontFamily: _mono, cursor: (ts.calDist && parseFloat(ts.calDist) > 0) ? "pointer" : "default" }}>Set Scale</button>
-              </div>
-            </div>}
-            {tsPpf && <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div>
-                <span style={{ fontSize: 10, fontFamily: _mono, color: "#2e7d32", fontWeight: 700 }}>{tsPpf.toFixed(2)} px/ft</span>
-                <span style={{ fontSize: 9, fontFamily: _mono, color: _br.mu, marginLeft: 6 }}>({ts.calDist}' reference)</span>
-              </div>
-              <button onClick={recalibrate} style={{ padding: "3px 10px", fontSize: 8, fontFamily: _mono, cursor: "pointer", border: "1px solid " + _br.bd, borderRadius: 4, background: "#fff", color: _br.mu }}>Re-calibrate</button>
-            </div>}
-          </div>
-
-          {/* Step 2: Vertices */}
-          {tsPpf && <div style={{ marginBottom: 12, padding: "10px 12px", background: "#fff", borderRadius: 6, border: "1px solid " + _br.bd }}>
+          
+          {/* Lot Corners */}
+          <div style={{ marginBottom: 12, padding: "10px 12px", background: "#fff", borderRadius: 6, border: "1px solid " + _br.bd }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
               <span style={{ fontSize: 9, fontWeight: 700, color: "#2e7d32", fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>
-                {"\uD83D\uDCCD"} Step 2: Place Vertices ({tsVerts.length})
+                {"\uD83D\uDCCD"} Lot Corners ({tsVerts.length})
               </span>
-              {tsVerts.length > 0 && <button onClick={function() { tsUpdate({ vertices: [], edgeMeta: [], selectedVertex: null, selectedEdge: null }); }} style={{ padding: "2px 8px", fontSize: 8, fontFamily: _mono, cursor: "pointer", border: "1px solid #fca5a5", borderRadius: 3, background: "#fef2f2", color: "#dc2626" }}>Clear All</button>}
+              <div style={{ display: "flex", gap: 4 }}>
+                {tsVerts.length > 0 && <button onClick={function() { tsUpdate({ vertices: [], edgeMeta: [], edgeLengths: [], selectedVertex: null, selectedEdge: null, ppf: null, calDist: "", calEdge: null }); }} style={{ padding: "2px 8px", fontSize: 8, fontFamily: _mono, cursor: "pointer", border: "1px solid #fca5a5", borderRadius: 3, background: "#fef2f2", color: "#dc2626" }}>Reset All</button>}
+              </div>
             </div>
             {tsVerts.length === 0 && <div style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, lineHeight: 1.6 }}>
-              Click lot corners on the survey image, clockwise starting from the street side.
+              Click the corners of your property boundary on the survey image. Start at any corner and work your way around.
+            </div>}
+            {tsVerts.length > 0 && tsVerts.length < 3 && <div style={{ fontSize: 9, color: "#e65100", fontFamily: _mono, lineHeight: 1.6, marginBottom: 6 }}>
+              Keep clicking corners. Need at least 3 to form a lot shape.
             </div>}
             {tsVerts.length > 0 && <div style={{ maxHeight: 150, overflowY: "auto" }}>
               {tsVerts.map(function(v, vi) {
-                var trIsSel = tsSelVert === vi;
+                var trIsSel = ts.selectedVertex === vi;
                 var trEdgeLen = tsLengths[vi];
                 return <div key={vi} style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 6px", marginBottom: 2, background: trIsSel ? "#e8f5e9" : "transparent", borderRadius: 4, border: trIsSel ? "1px solid #c8e6c9" : "1px solid transparent" }}>
                   <span style={{ fontSize: 10, fontWeight: 700, color: trIsSel ? "#2e7d32" : _br.mu, fontFamily: _mono, minWidth: 16 }}>{vi + 1}</span>
@@ -561,10 +533,46 @@ function StepContent(props) {
             {tracePreviewArea && <div style={{ fontSize: 9, fontFamily: _mono, color: _br.mu, marginTop: 6, padding: "4px 8px", background: "#f0fdf4", borderRadius: 4 }}>
               Lot area: <span style={{ fontWeight: 700, color: _br.tx }}>{tracePreviewArea.toLocaleString()} SF</span>
             </div>}
+          </div>
+
+          {/* Set Scale (when 3+ vertices and not calibrated) */}
+          {tsVerts.length >= 3 && !tsPpf && <div style={{ marginBottom: 12, padding: "10px 12px", background: "#fff", borderRadius: 6, border: "2px solid #ff9800" }}>
+            <div style={{ fontSize: 9, fontWeight: 700, color: "#e65100", fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 6 }}>
+              {"\uD83D\uDCCF"} Set Scale
+            </div>
+            {tsSelEdge == null && <div style={{ fontSize: 9, color: "#e65100", fontFamily: _mono, lineHeight: 1.6 }}>
+              Click an edge on the survey image that has a labeled dimension (e.g. "184.83'" or "501.48'").
+            </div>}
+            {tsSelEdge != null && <div>
+              <div style={{ fontSize: 9, color: "#e65100", fontFamily: _mono, marginBottom: 6 }}>
+                {"\u2705"} Edge {tsSelEdge + 1} selected. Read the distance from the survey label:
+              </div>
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <input type="number" value={ts.calDist || ""} step="0.01" min="0.1"
+                  onChange={function(e) { tsUpdate({ calDist: e.target.value }); }}
+                  onKeyDown={function(e) { if (e.key === "Enter") calibrate(); }}
+                  placeholder="e.g. 184.83"
+                  autoFocus
+                  style={{ flex: 1, padding: "7px 10px", border: "2px solid #ff9800", borderRadius: 5, fontSize: 14, fontFamily: _mono, fontWeight: 800, color: _br.tx, textAlign: "center", outline: "none", background: "#fff" }}
+                />
+                <span style={{ fontSize: 12, fontFamily: _mono, color: _br.mu, fontWeight: 700 }}>ft</span>
+                <button onClick={calibrate} disabled={!ts.calDist || parseFloat(ts.calDist) <= 0} style={{ padding: "7px 16px", background: (ts.calDist && parseFloat(ts.calDist) > 0) ? "#e65100" : "#ccc", color: "#fff", border: "none", borderRadius: 5, fontSize: 11, fontWeight: 700, fontFamily: _mono, cursor: (ts.calDist && parseFloat(ts.calDist) > 0) ? "pointer" : "default" }}>Set Scale</button>
+              </div>
+            </div>}
           </div>}
 
-          {/* Edge metadata (when edge selected) */}
-          {tsSelEdge != null && tsVerts.length >= 3 && (() => {
+          {/* Scale status (when calibrated) */}
+          {tsPpf && <div style={{ marginBottom: 12, padding: "10px 12px", background: "#fff", borderRadius: 6, border: "1px solid #c8e6c9" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <span style={{ fontSize: 10, fontFamily: _mono, color: "#2e7d32", fontWeight: 700 }}>{"\u2705"} {tsPpf.toFixed(2)} px/ft</span>
+                <span style={{ fontSize: 9, fontFamily: _mono, color: _br.mu, marginLeft: 6 }}>({ts.calDist}' reference)</span>
+              </div>
+              <button onClick={recalibrate} style={{ padding: "3px 10px", fontSize: 8, fontFamily: _mono, cursor: "pointer", border: "1px solid " + _br.bd, borderRadius: 4, background: "#fff", color: _br.mu }}>Re-calibrate</button>
+            </div>
+          </div>}
+
+                    {tsSelEdge != null && tsPpf && tsVerts.length >= 3 && (() => {
             var trMeta = tsMeta[tsSelEdge] || {};
             return <div style={{ marginBottom: 12, padding: "10px 12px", background: "#fff", borderRadius: 6, border: "2px solid #2563eb" }}>
               <div style={{ fontSize: 9, fontWeight: 700, color: "#2563eb", fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 6 }}>
@@ -1149,9 +1157,10 @@ function StepContent(props) {
         <button onClick={function() {
           if (p.traceData) {
             setTraceState({
-              calPoints: p.traceData.calibration ? [p.traceData.calibration.p1, p.traceData.calibration.p2] : [],
+              calPoints: [],
               calDist: p.traceData.calibration ? String(p.traceData.calibration.distanceFt) : "",
               ppf: p.traceData.calibration ? p.traceData.calibration.pixelsPerFoot : null,
+              calEdge: p.traceData.calibration ? p.traceData.calibration.calEdge : null,
               vertices: p.traceData.vertices || [],
               edgeMeta: p.traceData.edges || [],
               edgeLengths: [],
