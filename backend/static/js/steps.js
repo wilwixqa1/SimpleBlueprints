@@ -358,7 +358,7 @@ function StepContent(props) {
         var tdx = v2.px - v1.px;
         var tdy = v2.py - v1.py;
         var pxDist = Math.sqrt(tdx * tdx + tdy * tdy);
-        tsUpdate({ ppf: pxDist / dist, calEdge: edgeIdx });
+        tsUpdate({ ppf: pxDist / dist, calEdge: edgeIdx, selectedEdge: null });
       }
 
       function recalibrate() {
@@ -540,12 +540,25 @@ function StepContent(props) {
             <div style={{ fontSize: 9, fontWeight: 700, color: "#e65100", fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 6 }}>
               {"\uD83D\uDCCF"} Set Scale
             </div>
-            {tsSelEdge == null && <div style={{ fontSize: 9, color: "#e65100", fontFamily: _mono, lineHeight: 1.6 }}>
-              Click an edge on the survey image that has a labeled dimension (e.g. "184.83'" or "501.48'").
-            </div>}
+            <div style={{ fontSize: 9, color: "#e65100", fontFamily: _mono, lineHeight: 1.6, marginBottom: 8 }}>
+              Select an edge that has a labeled dimension on the survey, then enter the distance.
+            </div>
+            <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 8 }}>
+              {tsVerts.map(function(v, vi) {
+                var nextVi = (vi + 1) % tsVerts.length;
+                var isSelected = tsSelEdge === vi;
+                return <button key={"edge" + vi} onClick={function() { tsUpdate({ selectedEdge: isSelected ? null : vi, selectedVertex: null }); }} style={{
+                  padding: "4px 10px", fontSize: 9, fontFamily: _mono, cursor: "pointer",
+                  border: isSelected ? "2px solid #e65100" : "1px solid " + _br.bd,
+                  background: isSelected ? "#fff3e0" : "#fff",
+                  color: isSelected ? "#e65100" : _br.mu,
+                  borderRadius: 4, fontWeight: isSelected ? 700 : 400
+                }}>Edge {vi + 1}</button>;
+              })}
+            </div>
             {tsSelEdge != null && <div>
               <div style={{ fontSize: 9, color: "#e65100", fontFamily: _mono, marginBottom: 6 }}>
-                {"\u2705"} Edge {tsSelEdge + 1} selected. Read the distance from the survey label:
+                {"\u2705"} Edge {tsSelEdge + 1} selected (V{tsSelEdge + 1} {"\u2192"} V{(tsSelEdge + 1) % tsVerts.length + 1}). Enter the labeled distance:
               </div>
               <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                 <input type="number" value={ts.calDist || ""} step="0.01" min="0.1"
@@ -561,8 +574,7 @@ function StepContent(props) {
             </div>}
           </div>}
 
-          {/* Scale status (when calibrated) */}
-          {tsPpf && <div style={{ marginBottom: 12, padding: "10px 12px", background: "#fff", borderRadius: 6, border: "1px solid #c8e6c9" }}>
+                    {tsPpf && <div style={{ marginBottom: 12, padding: "10px 12px", background: "#fff", borderRadius: 6, border: "1px solid #c8e6c9" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div>
                 <span style={{ fontSize: 10, fontFamily: _mono, color: "#2e7d32", fontWeight: 700 }}>{"\u2705"} {tsPpf.toFixed(2)} px/ft</span>
