@@ -430,15 +430,16 @@ function StepContent(props) {
         tArea = +Math.abs(tArea / 2).toFixed(0);
         var bboxW = +((tMaxPx - tMinPx) / tsPpf).toFixed(1);
         var bboxD = +((tMaxPy - tMinPy) / tsPpf).toFixed(1);
+        u("lotWidth", Math.max(Math.round(bboxW), 30));
+        u("lotDepth", Math.max(Math.round(bboxD), 50));
         u("lotVertices", lotVerts);
         u("lotEdges", lotEdgesOut);
         u("lotArea", tArea);
-        u("lotWidth", Math.max(Math.round(bboxW), 30));
-        u("lotDepth", Math.max(Math.round(bboxD), 50));
         u("traceData", {
           calibration: { p1: tsCalPts[0], p2: tsCalPts[1], distanceFt: parseFloat(ts.calDist), pixelsPerFoot: tsPpf },
           vertices: tsVerts,
-          edges: tsMeta
+          edges: tsMeta,
+          pdfPage: ts.pdfPage || 1
         });
         setTraceMode(false);
       }
@@ -1130,7 +1131,7 @@ function StepContent(props) {
               edgeLengths: [],
               imgW: 0, imgH: 0,
               selectedEdge: null, selectedVertex: null,
-              pdfPage: 1, pdfPageCount: 1
+              pdfPage: p.traceData.pdfPage || 1, pdfPageCount: 1
             });
           } else {
             setTraceState({
