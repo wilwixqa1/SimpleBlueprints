@@ -100,6 +100,7 @@ class DeckParams(BaseModel):
     lotWidth: float = 80; lotDepth: float = 120
     lotVertices: Optional[list] = None
     lotEdges: Optional[list] = None
+    lotArea: Optional[float] = None
     setbackFront: float = 25; setbackSide: float = 5
     setbackRear: float = 20; houseOffsetSide: float = 20
     overJoist: Optional[str] = None; overBeam: Optional[str] = None
