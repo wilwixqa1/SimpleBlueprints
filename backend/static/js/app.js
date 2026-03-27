@@ -90,28 +90,64 @@ window.computeSetbackGaps = function(p) {
 };
 
 // S37 Push 5: General polygon vertex solver
-window.computePolygonVerts = function(edges) {
+window.computePolygonVerts = function(edges, targetArea) {
   var n = edges.length;
   if (n < 3) return null;
 
-  // 4 edges: closed-form trapezoid solver
-  // Fixes south horizontal at y=0, solves for north/west closure
-  if (n === 4) {
-    var s = edges[0].length || 1;
-    var e = edges[1].length || 1;
-    var nLen = edges[2].length || 1;
-    var w = edges[3].length || 1;
-    var D = nLen - s;
+  // Helper: trapezoid solver returning {verts, area} or null
+  function solveTrap4(s, e, nr, w) {
+    var D = nr - s;
     var a, h;
-    if (Math.abs(D) < 0.01) {
-      a = 0; h = e;
-    } else {
+    if (Math.abs(D) < 0.01) { a = 0; h = e; }
+    else {
       a = (e * e - w * w - D * D) / (2 * D);
       var hSq = w * w - a * a;
-      if (hSq < 1) { a = 0; h = Math.max(e, w); }
-      else { h = Math.sqrt(hSq); }
+      if (hSq < 1) return null;
+      h = Math.sqrt(hSq);
     }
-    return [[0, 0], [s, 0], [a + nLen, h], [a, h]];
+    var v = [[0, 0], [s, 0], [a + nr, h], [a, h]];
+    var area = Math.abs((v[0][0]*v[1][1]-v[1][0]*v[0][1]) + (v[1][0]*v[2][1]-v[2][0]*v[1][1]) + (v[2][0]*v[3][1]-v[3][0]*v[2][1]) + (v[3][0]*v[0][1]-v[0][0]*v[3][1])) / 2;
+    return { verts: v, area: area };
+  }
+
+  // 4 edges: trapezoid solver with area-based template matching (S42)
+  if (n === 4) {
+    var A = edges[0].length || 1;
+    var B = edges[1].length || 1;
+    var C = edges[2].length || 1;
+    var Dv = edges[3].length || 1;
+
+    // Default: original ordering
+    var original = solveTrap4(A, B, C, Dv);
+    if (!original) return [[0, 0], [A, 0], [A, Math.max(B, Dv)], [0, Math.max(B, Dv)]];
+
+    // If no targetArea, use original ordering
+    if (!targetArea || targetArea <= 0) return original.verts;
+
+    // Check if original already matches within 5%
+    var origErr = Math.abs(original.area - targetArea) / targetArea;
+    if (origErr <= 0.05) return original.verts;
+
+    // Template matching: try all 6 permutations of non-street edges
+    var others = [B, C, Dv];
+    var perms = [
+      [others[0], others[1], others[2]],
+      [others[0], others[2], others[1]],
+      [others[1], others[0], others[2]],
+      [others[1], others[2], others[0]],
+      [others[2], others[0], others[1]],
+      [others[2], others[1], others[0]]
+    ];
+    var bestResult = original, bestErr = origErr;
+    for (var pi = 0; pi < perms.length; pi++) {
+      var r = solveTrap4(A, perms[pi][0], perms[pi][1], perms[pi][2]);
+      if (!r) continue;
+      var err = Math.abs(r.area - targetArea) / targetArea;
+      if (err < bestErr) { bestErr = err; bestResult = r; }
+    }
+
+    // Only use reordered result if within 5%
+    return (bestErr <= 0.05) ? bestResult.verts : original.verts;
   }
 
   // 5+ edges: equal exterior angle distribution with closure correction
@@ -170,7 +206,7 @@ const App = function SimpleBlueprints() {
     houseDistFromStreet: null,
     streetName: "",
     // Polygon lot (S36)
-    lotVertices: null, lotEdges: null,
+    lotVertices: null, lotEdges: null, lotArea: null,
     // Zone system ÃÂ¢ÃÂÃÂ S19
     zones: [], activeZone: 0, nextZoneId: 1, mainCorners: { BL: { type: "square", size: 0 }, BR: { type: "square", size: 0 }, FL: { type: "square", size: 0 }, FR: { type: "square", size: 0 } },
     // Site plan ÃÂ¢ÃÂÃÂ S27 (defaults seeded from existing flat params)
@@ -230,6 +266,7 @@ const App = function SimpleBlueprints() {
     if ((k === "lotWidth" || k === "lotDepth") && prev.lotEdges) {
       next.lotEdges = null;
       next.lotVertices = null;
+      next.lotArea = null;
     }
     // S29: clamp houseDistFromStreet when setbackFront changes
     if (k === "setbackFront" && next.houseDistFromStreet !== null && next.houseDistFromStreet < v) {
