@@ -438,7 +438,7 @@ function StepContent(props) {
             var pct = aiSorted[ai] > 0 ? Math.abs(tracedSorted[ai] - aiSorted[ai]) / aiSorted[ai] * 100 : 0;
             if (pct > maxPctOff) maxPctOff = pct;
           }
-          if (maxPctOff <= 10) {
+          if (maxPctOff <= 25) {
             // Match each traced edge to its closest AI edge by length
             var aiUsed = new Array(aiLens.length);
             for (var ei = 0; ei < tn; ei++) {
@@ -631,9 +631,9 @@ function StepContent(props) {
               if (pctOff > maxPctOff) maxPctOff = pctOff;
               matches.push({ ai: aiLen, traced: trLen, pct: pctOff });
             }
-            var allGood = maxPctOff < 5;
-            var hasWarning = maxPctOff >= 5 && maxPctOff < 10;
-            var hasError = maxPctOff >= 10;
+            var allGood = maxPctOff < 15;
+            var hasWarning = maxPctOff >= 15 && maxPctOff < 25;
+            var hasError = maxPctOff >= 25;
             var borderCol = allGood ? "#c8e6c9" : hasError ? "#fca5a5" : "#ffe082";
             var bgCol = allGood ? "#f0fdf4" : hasError ? "#fef2f2" : "#fff8e1";
             // Also compare areas if available
@@ -645,8 +645,8 @@ function StepContent(props) {
               </div>
               <div style={{ fontSize: 8, color: _br.mu, fontFamily: _mono, marginBottom: 6 }}>Traced vs AI-extracted edge lengths (sorted by size):</div>
               {matches.map(function(m, mi) {
-                var col = m.pct < 5 ? "#2e7d32" : m.pct < 15 ? "#d97706" : "#dc2626";
-                var icon = m.pct < 5 ? "\u2705" : m.pct < 15 ? "\u26A0\uFE0F" : "\u274C";
+                var col = m.pct < 15 ? "#2e7d32" : m.pct < 25 ? "#d97706" : "#dc2626";
+                var icon = m.pct < 15 ? "\u2705" : m.pct < 25 ? "\u26A0\uFE0F" : "\u274C";
                 return <div key={mi} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "2px 0", borderBottom: mi < matches.length - 1 ? "1px solid " + borderCol : "none" }}>
                   <span style={{ fontSize: 9, fontFamily: _mono, color: _br.mu }}>{icon}</span>
                   <span style={{ fontSize: 9, fontFamily: _mono, color: _br.tx, fontWeight: 600 }}>{m.traced.toFixed(1)}'</span>
@@ -660,12 +660,12 @@ function StepContent(props) {
                 <span style={{ fontSize: 9, fontFamily: _mono, color: _br.tx, fontWeight: 600 }}>{tracePreviewArea.toLocaleString()} SF traced</span>
                 <span style={{ fontSize: 8, fontFamily: _mono, color: _br.mu }}>vs</span>
                 <span style={{ fontSize: 9, fontFamily: _mono, color: "#1d4ed8", fontWeight: 600 }}>{aiArea.toLocaleString()} SF AI</span>
-                <span style={{ fontSize: 8, fontFamily: _mono, color: areaPct < 5 ? "#2e7d32" : areaPct < 15 ? "#d97706" : "#dc2626", fontWeight: 700 }}>{areaPct.toFixed(0)}%</span>
+                <span style={{ fontSize: 8, fontFamily: _mono, color: areaPct < 15 ? "#2e7d32" : areaPct < 25 ? "#d97706" : "#dc2626", fontWeight: 700 }}>{areaPct.toFixed(0)}%</span>
               </div>}
               {allGood && <div style={{ fontSize: 8, color: "#2e7d32", fontFamily: _mono, marginTop: 4 }}>All edges match within 5%. Calibration looks accurate.</div>}
               {allGood && <div style={{ fontSize: 8, color: "#1d4ed8", fontFamily: _mono, marginTop: 2 }}>Using exact dimensions from survey document.</div>}
-              {hasWarning && <div style={{ fontSize: 8, color: "#d97706", fontFamily: _mono, marginTop: 4 }}>Some edges differ by 5-10%. Using survey dimensions, but consider adjusting vertex positions for a better shape.</div>}
-              {hasError && <div style={{ fontSize: 8, color: "#dc2626", fontFamily: _mono, marginTop: 4 }}>Significant difference (>10%). Survey dimensions NOT used. Re-trace vertices or re-calibrate with a different edge.</div>}
+              {hasWarning && <div style={{ fontSize: 8, color: "#d97706", fontFamily: _mono, marginTop: 4 }}>Some edges differ by 15-25%. Using survey dimensions, but consider adjusting vertex positions for a better shape.</div>}
+              {hasError && <div style={{ fontSize: 8, color: "#dc2626", fontFamily: _mono, marginTop: 4 }}>Significant difference (>25%). Survey dimensions NOT used. Re-trace vertices or re-calibrate with a different edge.</div>}
             </div>;
           })()}
 
