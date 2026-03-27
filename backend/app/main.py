@@ -217,26 +217,8 @@ def generate_blueprint_pdf(params: dict) -> tuple[str, dict]:
             except Exception as e:
                 print(f"Survey image embed error: {e}")
 
-    # After PdfPages closes: merge uploaded PDF survey pages using pypdf
-    if sp_file and survey_is_pdf:
-        try:
-            import base64 as b64mod, io
-            from pypdf import PdfReader, PdfWriter
-            survey_data = b64mod.b64decode(sp_file)
-            writer = PdfWriter()
-            # Add all generated pages
-            generated = PdfReader(str(output_path))
-            for page in generated.pages:
-                writer.add_page(page)
-            # Append all survey pages
-            survey_reader = PdfReader(io.BytesIO(survey_data))
-            for page in survey_reader.pages:
-                writer.add_page(page)
-            # Write merged file back
-            writer.write(str(output_path))
-            print(f"Merged {len(survey_reader.pages)} survey page(s) into blueprint PDF")
-        except Exception as e:
-            print(f"Survey PDF merge error: {e}")
+    # S43: PDF survey merge removed. Survey is used for trace/extraction only,
+    # not appended to the blueprint. The generated A-6 site plan is sufficient.
 
     return file_id, calc
 
