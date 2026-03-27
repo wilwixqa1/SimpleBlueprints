@@ -421,7 +421,7 @@ const App = function SimpleBlueprints() {
       if (!res.ok) throw new Error(`Server error: ${res.status}`);
       const data = await res.json();
       if (data.download_url) {
-        window.open(`${API}${data.download_url}`, "_blank");
+        const _a = document.createElement("a"); _a.href = `${API}${data.download_url}`; _a.target = "_blank"; document.body.appendChild(_a); _a.click(); document.body.removeChild(_a);
         setGenStatus("done");
       } else {
         throw new Error("No download URL returned");
