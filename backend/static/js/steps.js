@@ -425,6 +425,38 @@ function StepContent(props) {
             length: tlen
           });
         }
+        // S43: Auto-replace traced edge lengths with AI-extracted values when close
+        var aiEdgeLengthsUsed = false;
+        if (extractResult && extractResult.lotEdges && extractResult.lotEdges.length === tn) {
+          var aiLens = extractResult.lotEdges.map(function(e) { return e.length || 0; });
+          var tracedLens = lotEdgesOut.map(function(e) { return e.length; });
+          // Sort both to match by size (edges may be in different order)
+          var aiSorted = aiLens.slice().sort(function(a, b) { return a - b; });
+          var tracedSorted = tracedLens.slice().sort(function(a, b) { return a - b; });
+          var maxPctOff = 0;
+          for (var ai = 0; ai < aiSorted.length; ai++) {
+            var pct = aiSorted[ai] > 0 ? Math.abs(tracedSorted[ai] - aiSorted[ai]) / aiSorted[ai] * 100 : 0;
+            if (pct > maxPctOff) maxPctOff = pct;
+          }
+          if (maxPctOff <= 10) {
+            // Match each traced edge to its closest AI edge by length
+            var aiUsed = new Array(aiLens.length);
+            for (var ei = 0; ei < tn; ei++) {
+              var bestMatch = -1, bestDiff = Infinity;
+              for (var aj = 0; aj < aiLens.length; aj++) {
+                if (aiUsed[aj]) continue;
+                var diff = Math.abs(lotEdgesOut[ei].length - aiLens[aj]);
+                if (diff < bestDiff) { bestDiff = diff; bestMatch = aj; }
+              }
+              if (bestMatch >= 0) {
+                lotEdgesOut[ei].length = aiLens[bestMatch];
+                aiUsed[bestMatch] = true;
+              }
+            }
+            aiEdgeLengthsUsed = true;
+          }
+        }
+
         var tArea = 0;
         for (var ti = 0; ti < tn; ti++) {
           var tav1 = lotVerts[ti], tav2 = lotVerts[(ti + 1) % tn];
@@ -600,8 +632,8 @@ function StepContent(props) {
               matches.push({ ai: aiLen, traced: trLen, pct: pctOff });
             }
             var allGood = maxPctOff < 5;
-            var hasWarning = maxPctOff >= 5 && maxPctOff < 15;
-            var hasError = maxPctOff >= 15;
+            var hasWarning = maxPctOff >= 5 && maxPctOff < 10;
+            var hasError = maxPctOff >= 10;
             var borderCol = allGood ? "#c8e6c9" : hasError ? "#fca5a5" : "#ffe082";
             var bgCol = allGood ? "#f0fdf4" : hasError ? "#fef2f2" : "#fff8e1";
             // Also compare areas if available
@@ -631,8 +663,9 @@ function StepContent(props) {
                 <span style={{ fontSize: 8, fontFamily: _mono, color: areaPct < 5 ? "#2e7d32" : areaPct < 15 ? "#d97706" : "#dc2626", fontWeight: 700 }}>{areaPct.toFixed(0)}%</span>
               </div>}
               {allGood && <div style={{ fontSize: 8, color: "#2e7d32", fontFamily: _mono, marginTop: 4 }}>All edges match within 5%. Calibration looks accurate.</div>}
-              {hasWarning && <div style={{ fontSize: 8, color: "#d97706", fontFamily: _mono, marginTop: 4 }}>Some edges differ by 5-15%. Consider re-calibrating or adjusting vertex positions.</div>}
-              {hasError && <div style={{ fontSize: 8, color: "#dc2626", fontFamily: _mono, marginTop: 4 }}>Significant difference detected. Try re-calibrating with a different reference edge.</div>}
+              {allGood && <div style={{ fontSize: 8, color: "#1d4ed8", fontFamily: _mono, marginTop: 2 }}>Using exact dimensions from survey document.</div>}
+              {hasWarning && <div style={{ fontSize: 8, color: "#d97706", fontFamily: _mono, marginTop: 4 }}>Some edges differ by 5-10%. Using survey dimensions, but consider adjusting vertex positions for a better shape.</div>}
+              {hasError && <div style={{ fontSize: 8, color: "#dc2626", fontFamily: _mono, marginTop: 4 }}>Significant difference (>10%). Survey dimensions NOT used. Re-trace vertices or re-calibrate with a different edge.</div>}
             </div>;
           })()}
 
