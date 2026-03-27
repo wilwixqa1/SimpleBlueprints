@@ -383,6 +383,14 @@ const App = function SimpleBlueprints() {
   const [sitePlanMode, setSitePlanMode] = useState("generate");
   const [sitePlanFile, setSitePlanFile] = useState(null);
   const [sitePlanB64, setSitePlanB64] = useState(null);
+  const [traceMode, setTraceMode] = useState(false);
+  const [traceState, setTraceState] = useState({
+    calPoints: [], calDist: "", ppf: null,
+    vertices: [], edgeMeta: [], edgeLengths: [],
+    imgW: 0, imgH: 0,
+    selectedEdge: null, selectedVertex: null,
+    pdfPage: 1, pdfPageCount: 1
+  });
   const [genError, setGenError] = useState("");
   const [feedbackDone, setFeedbackDone] = useState(false);
   const [feedback, setFeedback] = useState({ role: "", source: "", price: "", feedback: "", email: "" });
@@ -444,6 +452,7 @@ const App = function SimpleBlueprints() {
   const HomePage = window.HomePage;
   const StepContent = window.StepContent;
   const SitePlanView = window.SitePlanView;
+  const TraceView = window.TraceView;
 
   // HOME
   if (page === "home") return <HomePage setPage={setPage} />;
@@ -486,7 +495,10 @@ const App = function SimpleBlueprints() {
               user={user} API={API}
               zoneMode={zoneMode} setZoneMode={setZoneMode}
               addZone={addZone} addCutout={addCutout} removeZone={removeZone} updateZone={updateZone}
-              setCorner={setCorner} getCorners={getCorners} pForZones={pForZones} />
+              setCorner={setCorner} getCorners={getCorners} pForZones={pForZones}
+              traceMode={traceMode} setTraceMode={setTraceMode}
+              traceState={traceState} setTraceState={setTraceState}
+              sitePlanB64={sitePlanB64} />
 
             <div style={{ display: "flex", justifyContent: "space-between", marginTop: 20 }}>
               <button onClick={() => step > 0 ? setStep(step - 1) : setPage("home")} style={{ padding: "9px 18px", border: `1px solid ${br.bd}`, borderRadius: 6, background: "transparent", color: br.mu, cursor: "pointer", fontFamily: mono, fontSize: 11, fontWeight: 600 }}>{"\u2190"} {step > 0 ? "Back" : "Home"}</button>
@@ -506,7 +518,12 @@ const App = function SimpleBlueprints() {
             </div>
 
             <div style={{ background: step === 3 ? br.cr : (view === "3d" ? "transparent" : br.cr), border: step === 3 || view !== "3d" ? `1px solid ${br.bd}` : "none", borderRadius: 6, padding: step === 3 ? 8 : (view === "3d" ? 0 : 12), minHeight: 320 }}>
-              {step === 3 && SitePlanView && <SitePlanView p={p} c={c} u={u} />}
+              {step === 3 && !traceMode && SitePlanView && <SitePlanView p={p} c={c} u={u} />}
+              {step === 3 && traceMode && TraceView && <TraceView
+                surveyB64={sitePlanB64}
+                surveyFileType={sitePlanFile && sitePlanFile.name.toLowerCase().endsWith(".pdf") ? "pdf" : "image"}
+                ts={traceState} setTs={setTraceState}
+              />}
               {step !== 3 && view === "plan" && <>
                 <div style={{ display: "flex", gap: 4, marginBottom: 8, flexWrap: "wrap" }}>
                   {[["plan", "Deck Plan"], ["framing", "Framing"]].map(([id, label]) => <button key={id} onClick={() => setPlanMode(id)} style={{ padding: "4px 10px", fontSize: 9, fontFamily: mono, cursor: "pointer", border: planMode === id ? `1px solid ${br.gn}` : `1px solid ${br.bd}`, background: planMode === id ? br.gn : "transparent", color: planMode === id ? "#fff" : br.mu, borderRadius: 4, fontWeight: planMode === id ? 700 : 400 }}>{label}</button>)}
