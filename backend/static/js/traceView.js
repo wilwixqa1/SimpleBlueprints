@@ -1,7 +1,7 @@
 // ============================================================
 // TRACE VIEW - Click-to-place lot boundary vertices on survey
-// S43: Scale calibration + vertex tracing + edge metadata
-// S43 update: Zoom/pan for accurate vertex placement on dense PDFs
+// S43: Vertices-first flow, calibrate via edge selection
+// S43: Zoom/pan for accurate vertex placement on dense PDFs
 // Forward-compatible: geometry:"line" field for future arc support
 // ============================================================
 
@@ -19,14 +19,12 @@ window.TraceView = function TraceView({ surveyB64, surveyFileType, ts, setTs }) 
   // Zoom and pan state
   var [zoom, setZoom] = React.useState(1);
   var [panOffset, setPanOffset] = React.useState({ x: 0, y: 0 });
-  // Refs for event handler closures (wheel handler)
   var zoomRef = React.useRef(1);
   var panRef = React.useRef({ x: 0, y: 0 });
   zoomRef.current = zoom;
   panRef.current = panOffset;
 
   // Read trace state
-  var calPoints = ts.calPoints || [];
   var vertices = ts.vertices || [];
   var edgeMeta = ts.edgeMeta || [];
   var ppf = ts.ppf || null;
@@ -42,7 +40,6 @@ window.TraceView = function TraceView({ surveyB64, surveyFileType, ts, setTs }) 
   // === Load image (PNG/JPG direct, PDF via pdf.js) ===
   React.useEffect(function() {
     if (!surveyB64) return;
-    // Reset zoom/pan when page changes
     setZoom(1);
     setPanOffset({ x: 0, y: 0 });
     if (surveyFileType === "pdf") {
@@ -107,7 +104,6 @@ window.TraceView = function TraceView({ surveyB64, surveyFileType, ts, setTs }) 
   }
 
   // === Coordinate conversion (client -> image pixels) ===
-  // Works regardless of zoom/pan because SVG CTM accounts for viewBox
   function clientToImg(clientX, clientY) {
     var svg = svgRef.current;
     if (!svg || !imgW) return null;
@@ -123,7 +119,7 @@ window.TraceView = function TraceView({ surveyB64, surveyFileType, ts, setTs }) 
     };
   }
 
-  // === Scroll-wheel zoom (passive:false via ref-based listener) ===
+  // === Scroll-wheel zoom ===
   React.useEffect(function() {
     var el = svgRef.current;
     if (!el || !imgW || !imgH) return;
@@ -133,20 +129,15 @@ window.TraceView = function TraceView({ surveyB64, surveyFileType, ts, setTs }) 
       var p = panRef.current;
       var factor = e.deltaY > 0 ? 0.9 : 1.1;
       var newZoom = Math.max(1, Math.min(10, z * factor));
-
-      // Zoom toward cursor position
       var rect = el.getBoundingClientRect();
       var fracX = (e.clientX - rect.left) / rect.width;
       var fracY = (e.clientY - rect.top) / rect.height;
       var oldVbW = imgW / z, oldVbH = imgH / z;
       var newVbW = imgW / newZoom, newVbH = imgH / newZoom;
-      // Point under cursor in image coordinates
       var imgX = p.x + fracX * oldVbW;
       var imgY = p.y + fracY * oldVbH;
-      // New pan to keep that point under cursor
       var newPanX = imgX - fracX * newVbW;
       var newPanY = imgY - fracY * newVbH;
-
       setZoom(newZoom);
       setPanOffset({
         x: Math.max(0, Math.min(imgW - newVbW, newPanX)),
@@ -157,10 +148,9 @@ window.TraceView = function TraceView({ surveyB64, surveyFileType, ts, setTs }) 
     return function() { el.removeEventListener("wheel", handleWheel); };
   }, [imgW, imgH]);
 
-  // === Zoom toolbar actions ===
+  // === Zoom toolbar ===
   function zoomIn() {
     var newZoom = Math.min(10, zoom * 1.3);
-    // Zoom toward center
     var vbW = imgW / zoom, vbH = imgH / zoom;
     var newVbW = imgW / newZoom, newVbH = imgH / newZoom;
     var cx = panOffset.x + vbW / 2, cy = panOffset.y + vbH / 2;
@@ -181,22 +171,11 @@ window.TraceView = function TraceView({ surveyB64, surveyFileType, ts, setTs }) 
       y: Math.max(0, Math.min(imgH - newVbH, cy - newVbH / 2))
     });
   }
-  function zoomReset() {
-    setZoom(1);
-    setPanOffset({ x: 0, y: 0 });
-  }
+  function zoomReset() { setZoom(1); setPanOffset({ x: 0, y: 0 }); }
 
-  // === Point placement (calibration or vertex) ===
+  // === Point placement (always adds vertex) ===
   function handlePointPlacement(pt) {
     if (!pt) return;
-    // Calibration mode: place calibration reference points
-    if (!ppf) {
-      if (calPoints.length < 2) {
-        update({ calPoints: calPoints.concat([pt]) });
-      }
-      return;
-    }
-    // Trace mode: add vertex
     var newVerts = vertices.concat([pt]);
     var newMeta = edgeMeta.slice();
     while (newMeta.length < newVerts.length) {
@@ -207,14 +186,11 @@ window.TraceView = function TraceView({ surveyB64, surveyFileType, ts, setTs }) 
 
   // === Pointer handlers (click-vs-pan disambiguation) ===
   function onSvgPointerDown(e) {
-    if (e.button && e.button !== 0) return; // left click only
+    if (e.button && e.button !== 0) return;
     var cX = e.clientX != null ? e.clientX : (e.touches && e.touches[0] ? e.touches[0].clientX : null);
     var cY = e.clientY != null ? e.clientY : (e.touches && e.touches[0] ? e.touches[0].clientY : null);
     if (cX == null) return;
-
-    // If a vertex drag is starting, don't start a pan
     if (dragRef.current) return;
-
     var pt = clientToImg(cX, cY);
     panStartRef.current = {
       clientX: cX, clientY: cY,
@@ -229,7 +205,6 @@ window.TraceView = function TraceView({ surveyB64, surveyFileType, ts, setTs }) 
     dragRef.current = { idx: idx };
     setIsDragging(true);
     update({ selectedVertex: idx, selectedEdge: null });
-    // Clear any pan start so we don't confuse the handlers
     panStartRef.current = null;
   }
 
@@ -237,8 +212,6 @@ window.TraceView = function TraceView({ surveyB64, surveyFileType, ts, setTs }) 
     var cX = e.clientX != null ? e.clientX : (e.touches && e.touches[0] ? e.touches[0].clientX : null);
     var cY = e.clientY != null ? e.clientY : (e.touches && e.touches[0] ? e.touches[0].clientY : null);
     if (cX == null) return;
-
-    // Vertex drag
     if (dragRef.current) {
       e.preventDefault();
       var pt = clientToImg(cX, cY);
@@ -249,8 +222,6 @@ window.TraceView = function TraceView({ surveyB64, surveyFileType, ts, setTs }) 
       update({ vertices: newVerts });
       return;
     }
-
-    // Pan drag (only when zoomed in)
     var ps = panStartRef.current;
     if (ps && zoom > 1) {
       var dx = cX - ps.clientX;
@@ -267,11 +238,9 @@ window.TraceView = function TraceView({ surveyB64, surveyFileType, ts, setTs }) 
           var vbH = imgH / zoom;
           var scaleX = vbW / rect.width;
           var scaleY = vbH / rect.height;
-          var newPanX = ps.startPan.x - dx * scaleX;
-          var newPanY = ps.startPan.y - dy * scaleY;
           setPanOffset({
-            x: Math.max(0, Math.min(imgW - vbW, newPanX)),
-            y: Math.max(0, Math.min(imgH - vbH, newPanY))
+            x: Math.max(0, Math.min(imgW - vbW, ps.startPan.x - dx * scaleX)),
+            y: Math.max(0, Math.min(imgH - vbH, ps.startPan.y - dy * scaleY))
           });
         }
       }
@@ -279,26 +248,21 @@ window.TraceView = function TraceView({ surveyB64, surveyFileType, ts, setTs }) 
   }
 
   function onSvgPointerUp(e) {
-    // End vertex drag
     if (dragRef.current) {
       dragRef.current = null;
       setTimeout(function() { setIsDragging(false); }, 50);
       return;
     }
-
-    // End pan or handle click
     var ps = panStartRef.current;
     panStartRef.current = null;
     if (ps && !ps.wasPan && ps.imgPt) {
-      // It was a click (no pan movement) - place point
       handlePointPlacement(ps.imgPt);
     }
   }
 
-  // === Edge click (select for metadata editing in left panel) ===
+  // === Edge click (select for calibration or metadata) ===
   function onEdgeClick(e, idx) {
     e.stopPropagation();
-    // Prevent if we were panning
     if (panStartRef.current && panStartRef.current.wasPan) return;
     update({ selectedEdge: idx, selectedVertex: null });
   }
@@ -313,7 +277,6 @@ window.TraceView = function TraceView({ surveyB64, surveyFileType, ts, setTs }) 
       edgeLengths.push(+(Math.sqrt(dx * dx + dy * dy) / ppf).toFixed(2));
     }
   }
-  // Expose edge lengths for left panel controls
   React.useEffect(function() {
     if (edgeLengths.length > 0 && JSON.stringify(edgeLengths) !== JSON.stringify(ts.edgeLengths)) {
       update({ edgeLengths: edgeLengths });
@@ -334,8 +297,8 @@ window.TraceView = function TraceView({ surveyB64, surveyFileType, ts, setTs }) 
     }, "Could not load survey image. Try a PNG or JPG file.");
   }
 
-  var isCalibrating = !ppf;
   var n = vertices.length;
+  var needsCalibration = !ppf && n >= 3;
 
   // Compute viewBox from zoom and pan
   var vbW = imgW / zoom;
@@ -343,7 +306,7 @@ window.TraceView = function TraceView({ surveyB64, surveyFileType, ts, setTs }) 
   var vbX = Math.max(0, Math.min(imgW - vbW, panOffset.x));
   var vbY = Math.max(0, Math.min(imgH - vbH, panOffset.y));
 
-  // Font sizes scaled to viewBox (so they stay readable when zoomed)
+  // Font sizes scaled to viewBox
   var baseFontSize = Math.max(8, Math.min(16, vbW / 60));
   var smallFontSize = Math.max(6, Math.min(12, vbW / 80));
   var vertexR = Math.max(4, Math.min(10, vbW / 120));
@@ -376,16 +339,18 @@ window.TraceView = function TraceView({ surveyB64, surveyFileType, ts, setTs }) 
       var isSel = selectedEdge === ei;
       var meta = edgeMeta[ei] || {};
       var isStreet = meta.type === "street";
+      // When needs calibration, highlight selected edge in orange
+      var edgeColor = isSel ? (needsCalibration ? "#e65100" : "#2563eb") : (isStreet ? "#e53935" : "#3d5a2e");
 
       els.push(React.createElement("line", {
         key: "ev" + ei,
         x1: ev1.px, y1: ev1.py, x2: ev2.px, y2: ev2.py,
-        stroke: isSel ? "#2563eb" : (isStreet ? "#e53935" : "#3d5a2e"),
+        stroke: edgeColor,
         strokeWidth: isSel ? Math.max(3, vbW / 250) : Math.max(1.5, vbW / 400),
         pointerEvents: "none"
       }));
 
-      // Invisible click target for edge selection
+      // Invisible click target
       els.push(React.createElement("line", {
         key: "ec" + ei,
         x1: ev1.px, y1: ev1.py, x2: ev2.px, y2: ev2.py,
@@ -393,6 +358,7 @@ window.TraceView = function TraceView({ surveyB64, surveyFileType, ts, setTs }) 
         onClick: (function(idx) { return function(e) { onEdgeClick(e, idx); }; })(ei)
       }));
 
+      // Edge length labels (only when calibrated)
       if (ppf && edgeLengths[ei]) {
         var emx = (ev1.px + ev2.px) / 2, emy = (ev1.py + ev2.py) / 2;
         var edx = ev2.px - ev1.px, edy = ev2.py - ev1.py;
@@ -443,59 +409,36 @@ window.TraceView = function TraceView({ surveyB64, surveyFileType, ts, setTs }) 
           }
         }
       }
-    }
-  }
 
-  // Calibration elements
-  calPoints.forEach(function(cp, ci) {
-    els.push(React.createElement("circle", {
-      key: "cp" + ci, cx: cp.px, cy: cp.py, r: vertexR * 1.3,
-      fill: "#e53935", stroke: "#fff", strokeWidth: Math.max(2, vertexR * 0.4), pointerEvents: "none"
-    }));
-    if (ci === calPoints.length - 1 && !ppf) {
-      els.push(React.createElement("circle", {
-        key: "cpr" + ci, cx: cp.px, cy: cp.py, r: vertexR * 2.5,
-        fill: "none", stroke: "#e53935", strokeWidth: Math.max(1.5, vertexR * 0.3), opacity: 0.5,
-        pointerEvents: "none"
-      }));
-    }
-  });
-  if (calPoints.length === 2) {
-    els.push(React.createElement("line", {
-      key: "calln",
-      x1: calPoints[0].px, y1: calPoints[0].py,
-      x2: calPoints[1].px, y2: calPoints[1].py,
-      stroke: "#e53935", strokeWidth: Math.max(2.5, vbW / 300), strokeDasharray: (vbW / 60) + "," + (vbW / 100),
-      pointerEvents: "none"
-    }));
-    if (ts.calDist) {
-      var cmx = (calPoints[0].px + calPoints[1].px) / 2;
-      var cmy = (calPoints[0].py + calPoints[1].py) / 2;
-      els.push(React.createElement("rect", {
-        key: "clbg", x: cmx - baseFontSize * 2.5, y: cmy - baseFontSize - 4,
-        width: baseFontSize * 5, height: baseFontSize * 1.4,
-        fill: "rgba(255,255,255,0.9)", rx: 3, pointerEvents: "none"
-      }));
-      els.push(React.createElement("text", {
-        key: "cltx", x: cmx, y: cmy - baseFontSize * 0.3,
-        textAnchor: "middle",
-        style: { fontSize: baseFontSize, fill: "#e53935", fontFamily: _mono, fontWeight: 700 },
-        pointerEvents: "none"
-      }, ts.calDist + "'"));
+      // Calibration hint on selected edge when needs calibration
+      if (needsCalibration && isSel) {
+        var cmx = (ev1.px + ev2.px) / 2, cmy = (ev1.py + ev2.py) / 2;
+        els.push(React.createElement("rect", {
+          key: "calhint",
+          x: cmx - baseFontSize * 4, y: cmy - baseFontSize * 0.7,
+          width: baseFontSize * 8, height: baseFontSize * 1.4,
+          fill: "rgba(230,81,0,0.9)", rx: 4,
+          pointerEvents: "none"
+        }));
+        els.push(React.createElement("text", {
+          key: "caltxt", x: cmx, y: cmy + 1,
+          textAnchor: "middle", dominantBaseline: "central",
+          style: { fontSize: smallFontSize, fill: "#fff", fontFamily: _mono, fontWeight: 700 },
+          pointerEvents: "none"
+        }, "Enter distance in panel \u2192"));
+      }
     }
   }
 
   // Vertex dots (rendered last so they appear on top)
   vertices.forEach(function(v, vi) {
     var isSel = selectedVertex === vi;
-    // Invisible larger hit target for drag
     els.push(React.createElement("circle", {
       key: "vt" + vi, cx: v.px, cy: v.py, r: vertexR * 2.5,
       fill: "transparent", cursor: "grab",
       onMouseDown: function(e) { onVertexDown(e, vi); },
       onTouchStart: function(e) { e.preventDefault(); onVertexDown(e, vi); }
     }));
-    // Visible dot
     els.push(React.createElement("circle", {
       key: "vd" + vi, cx: v.px, cy: v.py,
       r: isSel ? vertexR * 1.3 : vertexR,
@@ -503,7 +446,6 @@ window.TraceView = function TraceView({ surveyB64, surveyFileType, ts, setTs }) 
       stroke: "#fff", strokeWidth: Math.max(1.5, vertexR * 0.3),
       pointerEvents: "none"
     }));
-    // Vertex number label
     els.push(React.createElement("text", {
       key: "vn" + vi, x: v.px, y: v.py - vertexR * 1.8,
       textAnchor: "middle",
@@ -515,17 +457,16 @@ window.TraceView = function TraceView({ surveyB64, surveyFileType, ts, setTs }) 
 
   // === Status text ===
   var statusText = "";
-  var statusColor = "";
-  if (isCalibrating) {
+  var statusColor = "#2e7d32";
+  if (n === 0) {
+    statusText = "\uD83D\uDCCD Click lot corners on the survey image. Start at any corner.";
+  } else if (n < 3) {
+    statusText = "\uD83D\uDCCD Keep clicking corners (" + n + " placed, need at least 3)";
+  } else if (!ppf) {
     statusColor = "#e65100";
-    if (calPoints.length === 0) statusText = "\uD83D\uDCCF Click two points on a dimension you know (e.g. a labeled property line)";
-    else if (calPoints.length === 1) statusText = "\uD83D\uDCCF Click the second reference point";
-    else statusText = "\uD83D\uDCCF Enter the distance between reference points in the panel on the left";
+    statusText = "\uD83D\uDCCF " + n + " corners placed. Now click an edge with a labeled dimension to set the scale.";
   } else {
-    statusColor = "#2e7d32";
-    if (n === 0) statusText = "\uD83D\uDCCD Click lot corners clockwise starting from the street side";
-    else if (n < 3) statusText = "\uD83D\uDCCD Keep clicking corners (" + n + " placed, need at least 3)";
-    else statusText = "\u2705 " + n + " vertices placed. Click to add more, drag to adjust, click edges to label.";
+    statusText = "\u2705 " + n + " vertices, scale set. Click to add more, drag to adjust, click edges to label.";
   }
 
   // === SVG event props ===
@@ -540,7 +481,6 @@ window.TraceView = function TraceView({ surveyB64, surveyFileType, ts, setTs }) 
     onTouchCancel: function() { onSvgPointerUp(); panStartRef.current = null; }
   };
 
-  // Zoom toolbar button style
   var zBtnStyle = {
     padding: "3px 10px", fontSize: 11, fontFamily: _mono, cursor: "pointer",
     border: "1px solid " + _br.bd, borderRadius: 4,
@@ -553,9 +493,9 @@ window.TraceView = function TraceView({ surveyB64, surveyFileType, ts, setTs }) 
     React.createElement("div", {
       style: {
         padding: "8px 12px", marginBottom: 6,
-        background: isCalibrating ? "#fff3e0" : "#e8f5e9",
+        background: needsCalibration ? "#fff3e0" : "#e8f5e9",
         borderRadius: 6,
-        border: "1px solid " + (isCalibrating ? "#ffe0b2" : "#c8e6c9"),
+        border: "1px solid " + (needsCalibration ? "#ffe0b2" : "#c8e6c9"),
         fontSize: 10, fontFamily: _mono, fontWeight: 600, color: statusColor
       }
     }, statusText),
@@ -564,7 +504,6 @@ window.TraceView = function TraceView({ surveyB64, surveyFileType, ts, setTs }) 
     React.createElement("div", {
       style: { display: "flex", gap: 8, alignItems: "center", marginBottom: 6, flexWrap: "wrap" }
     },
-      // Page buttons (PDF only)
       (ts.pdfPageCount || 1) > 1 ? React.createElement("div", {
         style: { display: "flex", gap: 3, alignItems: "center" }
       },
@@ -587,11 +526,7 @@ window.TraceView = function TraceView({ surveyB64, surveyFileType, ts, setTs }) 
           }, "" + pg);
         })
       ) : null,
-
-      // Spacer
       React.createElement("div", { style: { flex: 1 } }),
-
-      // Zoom controls
       React.createElement("div", {
         style: { display: "flex", gap: 3, alignItems: "center" }
       },
@@ -612,10 +547,7 @@ window.TraceView = function TraceView({ surveyB64, surveyFileType, ts, setTs }) 
         }, "+"),
         React.createElement("button", {
           onClick: zoomReset, disabled: zoom === 1,
-          style: Object.assign({}, zBtnStyle, {
-            fontSize: 9, padding: "3px 8px",
-            opacity: zoom === 1 ? 0.4 : 1
-          })
+          style: Object.assign({}, zBtnStyle, { fontSize: 9, padding: "3px 8px", opacity: zoom === 1 ? 0.4 : 1 })
         }, "Fit"),
         zoom > 1 ? React.createElement("span", {
           style: { fontSize: 8, fontFamily: _mono, color: "#888", marginLeft: 4 }
@@ -623,7 +555,7 @@ window.TraceView = function TraceView({ surveyB64, surveyFileType, ts, setTs }) 
       )
     ),
 
-    // SVG with survey image and overlays
+    // SVG
     React.createElement("svg",
       Object.assign({
         ref: svgRef,
@@ -632,7 +564,7 @@ window.TraceView = function TraceView({ surveyB64, surveyFileType, ts, setTs }) 
         style: {
           width: "100%", height: "auto", maxHeight: "65vh",
           border: "1px solid " + _br.bd, borderRadius: 6,
-          cursor: isCalibrating ? "crosshair" : (isDragging ? "grabbing" : (zoom > 1 ? "grab" : "crosshair")),
+          cursor: isDragging ? "grabbing" : (zoom > 1 ? "grab" : "crosshair"),
           touchAction: "none",
           background: "#f5f5f0",
           userSelect: "none"
@@ -647,14 +579,14 @@ window.TraceView = function TraceView({ surveyB64, surveyFileType, ts, setTs }) 
       React.createElement("g", null, els)
     ),
 
-    // Bottom hint text
+    // Bottom hint
     React.createElement("div", {
       style: { textAlign: "center", fontSize: 8, color: _br.mu, fontFamily: _mono,
         marginTop: 4, fontStyle: "italic" }
     }, zoom > 1
-      ? "Scroll to zoom. Drag to pan. Click to place points."
-      : n >= 3 ? "Scroll to zoom in. Click edges to assign type. Drag vertices to adjust."
-      : isCalibrating ? "Scroll to zoom in for precise placement."
-      : "Scroll to zoom in. Click lot corners clockwise from the street side.")
+      ? "Scroll to zoom. Drag to pan. Click to place corners."
+      : n >= 3 && ppf ? "Scroll to zoom in. Click edges to assign type. Drag vertices to adjust."
+      : n >= 3 ? "Scroll to zoom in. Click an edge to set the scale."
+      : "Scroll to zoom in for precise corner placement.")
   );
 };
