@@ -7,6 +7,7 @@ S28: Consumes p.sitePlan when present, falls back to flat params.
      house placement matches frontend SVG preview, deckOffset applied.
 S29: houseDistFromStreet support (house can be further from street than setback).
 S32: Site elements, stair projection, impervious coverage on PDF.
+S44: Graphic scale bar, expanded area tabulations, disclaimer.
 """
 
 import math
@@ -553,7 +554,6 @@ def draw_site_plan(fig, params, calc):
     slope_pct = params.get("slopePercent", 0)
     slope_dir = params.get("slopeDirection", "front-to-back")
     if slope_pct and slope_pct > 0:
-        # Direction angles: 0=toward rear, 90=toward right, 180=toward front, 270=toward left
         _dir_angles = {
             "front-to-back": 0,
             "left-to-right": 90,
@@ -579,6 +579,33 @@ def draw_site_plan(fig, params, calc):
                 "GRADE", ha='center', fontsize=4.5,
                 fontfamily='monospace', color='#8B7355', fontstyle='italic')
 
+    # === GRAPHIC SCALE BAR (S44) ===
+    _lot_span = max(poly_max_x, poly_max_y)
+    _nice_units = [5, 10, 20, 25, 40, 50, 100, 200]
+    _scale_unit = 10
+    for _u in _nice_units:
+        if _u >= _lot_span * 0.08 and _u <= _lot_span * 0.3:
+            _scale_unit = _u
+            break
+    _bar_y = -margin + 6.5
+    _bar_x = 0
+    _bar_segs = 4
+    _seg_w = _scale_unit / _bar_segs
+    for _si in range(_bar_segs):
+        _sx = _bar_x + _si * _seg_w
+        _fc = BRAND["dark"] if _si % 2 == 0 else "white"
+        ax.add_patch(patches.Rectangle(
+            (_sx, _bar_y), _seg_w, 1.5,
+            fc=_fc, ec=BRAND["dark"], lw=0.6, zorder=10))
+    ax.text(_bar_x, _bar_y - 1.2, "0", ha='center', fontsize=5,
+            fontfamily='monospace', color=BRAND["dark"], fontweight='bold', zorder=10)
+    ax.text(_bar_x + _scale_unit, _bar_y - 1.2, f"{_scale_unit}'",
+            ha='center', fontsize=5, fontfamily='monospace',
+            color=BRAND["dark"], fontweight='bold', zorder=10)
+    ax.text(_bar_x + _scale_unit / 2, _bar_y + 2.5,
+            "GRAPHIC SCALE (FEET)", ha='center', fontsize=4.5,
+            fontfamily='monospace', color=BRAND["mute"], zorder=10)
+
     # === TITLE ===
     fig.text(0.44, 0.94, "SITE PLAN", ha='center',
              fontsize=16, fontweight='bold', fontfamily='monospace',
@@ -591,11 +618,6 @@ def draw_site_plan(fig, params, calc):
         subtitle_parts.append(f"PARCEL: {parcel_id}")
     if subtitle_parts:
         fig.text(0.44, 0.92, "  |  ".join(subtitle_parts),
-                 ha='center', fontsize=7, fontfamily='monospace', color=BRAND["mute"])
-        fig.text(0.44, 0.905, 'SCALE: NOT TO SCALE',
-                 ha='center', fontsize=7, fontfamily='monospace', color=BRAND["mute"])
-    else:
-        fig.text(0.44, 0.92, 'SCALE: NOT TO SCALE',
                  ha='center', fontsize=7, fontfamily='monospace', color=BRAND["mute"])
 
     # === LEGEND ===
@@ -639,35 +661,74 @@ def draw_site_plan(fig, params, calc):
         fig.text(leg_x + 0.06, y, f"{val}'", fontsize=6, fontfamily='monospace',
                  color=BRAND["dark"], fontweight='bold')
 
-    # === LOT COVERAGE (S32) ===
-    # S38: Read from calc engine (single source of truth)
+    # === AREA TABULATIONS (S44: expanded from LOT COVERAGE) ===
     lot_area = calc.get("lot_area", lot_w * lot_d)
     house_area = house_w * house_d
     deck_area = total_area if total_area > 0 else deck_w * deck_d
     total_impervious = house_area + deck_area + el_impervious_area
     coverage_pct = (total_impervious / lot_area * 100) if lot_area > 0 else 0
 
-    cov_y = setback_y - 0.03 * (len(setbacks) + 1) - 0.02
-    fig.text(leg_x, cov_y, "LOT COVERAGE", fontsize=8, fontweight='bold',
+    tab_y = setback_y - 0.03 * (len(setbacks) + 1) - 0.02
+    fig.text(leg_x, tab_y, "AREA TABULATIONS", fontsize=8, fontweight='bold',
              fontfamily='monospace', color=BRAND["dark"])
-    fig.text(leg_x, cov_y - 0.03, f"House:", fontsize=6, fontfamily='monospace',
+
+    _row_y = tab_y - 0.03
+    fig.text(leg_x, _row_y, "Lot Area:", fontsize=6, fontfamily='monospace',
              color=BRAND["mute"], fontweight='bold')
-    fig.text(leg_x + 0.06, cov_y - 0.03, f"{house_area:.0f} SF", fontsize=6,
-             fontfamily='monospace', color=BRAND["dark"], fontweight='bold')
-    fig.text(leg_x, cov_y - 0.06, f"Deck:", fontsize=6, fontfamily='monospace',
-             color=BRAND["mute"], fontweight='bold')
-    fig.text(leg_x + 0.06, cov_y - 0.06, f"{deck_area:.0f} SF", fontsize=6,
-             fontfamily='monospace', color=BRAND["dark"], fontweight='bold')
-    if el_impervious_area > 0:
-        fig.text(leg_x, cov_y - 0.09, f"Other:", fontsize=6, fontfamily='monospace',
-                 color=BRAND["mute"], fontweight='bold')
-        fig.text(leg_x + 0.06, cov_y - 0.09, f"{el_impervious_area:.0f} SF", fontsize=6,
-                 fontfamily='monospace', color=BRAND["dark"], fontweight='bold')
-        total_line_y = cov_y - 0.12
+    if lot_area >= 43560:
+        _acres = lot_area / 43560
+        fig.text(leg_x + 0.06, _row_y,
+                 f"{_acres:.2f} AC ({lot_area:,.0f} SF)",
+                 fontsize=5.5, fontfamily='monospace',
+                 color=BRAND["dark"], fontweight='bold')
     else:
-        total_line_y = cov_y - 0.09
-    warn_color = "#e65100" if coverage_pct > 45 else BRAND["dark"]
-    fig.text(leg_x, total_line_y, f"Total:", fontsize=6, fontfamily='monospace',
+        fig.text(leg_x + 0.06, _row_y, f"{lot_area:,.0f} SF",
+                 fontsize=6, fontfamily='monospace',
+                 color=BRAND["dark"], fontweight='bold')
+
+    _row_y -= 0.025
+    fig.text(leg_x, _row_y, "Building:", fontsize=6, fontfamily='monospace',
              color=BRAND["mute"], fontweight='bold')
-    fig.text(leg_x + 0.06, total_line_y, f"{coverage_pct:.1f}%", fontsize=7,
+    fig.text(leg_x + 0.06, _row_y, f"{house_area:,.0f} SF", fontsize=6,
+             fontfamily='monospace', color=BRAND["dark"], fontweight='bold')
+
+    _row_y -= 0.025
+    fig.text(leg_x, _row_y, "Deck:", fontsize=6, fontfamily='monospace',
+             color=BRAND["mute"], fontweight='bold')
+    fig.text(leg_x + 0.06, _row_y, f"{deck_area:,.0f} SF", fontsize=6,
+             fontfamily='monospace', color=BRAND["dark"], fontweight='bold')
+
+    if el_impervious_area > 0:
+        _row_y -= 0.025
+        fig.text(leg_x, _row_y, "Other:", fontsize=6, fontfamily='monospace',
+                 color=BRAND["mute"], fontweight='bold')
+        fig.text(leg_x + 0.06, _row_y, f"{el_impervious_area:,.0f} SF", fontsize=6,
+                 fontfamily='monospace', color=BRAND["dark"], fontweight='bold')
+
+    # Divider
+    _row_y -= 0.012
+    fig.plot([leg_x, leg_x + 0.12], [_row_y, _row_y],
+             color=BRAND["border"], lw=0.5, transform=fig.transFigure, clip_on=False)
+
+    _row_y -= 0.02
+    fig.text(leg_x, _row_y, "Covered:", fontsize=6, fontfamily='monospace',
+             color=BRAND["mute"], fontweight='bold')
+    fig.text(leg_x + 0.06, _row_y, f"{total_impervious:,.0f} SF", fontsize=6,
+             fontfamily='monospace', color=BRAND["dark"], fontweight='bold')
+
+    _row_y -= 0.025
+    warn_color = "#e65100" if coverage_pct > 45 else BRAND["dark"]
+    fig.text(leg_x, _row_y, "Coverage:", fontsize=6, fontfamily='monospace',
+             color=BRAND["mute"], fontweight='bold')
+    fig.text(leg_x + 0.06, _row_y, f"{coverage_pct:.1f}%", fontsize=7,
              fontfamily='monospace', color=warn_color, fontweight='bold')
+
+    # === DISCLAIMER (S44) ===
+    _disc_y = _row_y - 0.04
+    _disc_text = (
+        "Contractor shall verify all dimensions\n"
+        "and site conditions prior to construction.\n"
+        "Report any discrepancies to the designer."
+    )
+    fig.text(leg_x, _disc_y, _disc_text, fontsize=5, fontfamily='monospace',
+             color=BRAND["mute"], fontstyle='italic', va='top', linespacing=1.5)
