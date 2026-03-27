@@ -304,11 +304,14 @@ async def calculate(params: DeckParams):
 # ============================================================
 # AI SURVEY EXTRACTION (S29)
 # ============================================================
-SURVEY_EXTRACT_PROMPT = """Analyze this property survey or plat map and extract dimensions. Return ONLY a JSON object with no markdown, no backticks, no other text.
+SURVEY_EXTRACT_PROMPT = """Analyze this property survey or plat map and extract dimensions. Focus on the SITE PLAN sheet. Look for property line dimensions, setback lines, and area tabulations. Ignore cover sheets, elevation drawings, framing plans, and structural details.
+
+Return ONLY a JSON object with no markdown, no backticks, no other text.
 
 Required fields (use null if not found or not readable):
 - lotWidth: lot width in feet, measured along the street frontage (number)
 - lotDepth: lot depth in feet, measured from street to rear property line (number)
+- lotArea: total lot area in square feet (number). Look in "AREA TABULATIONS" or "LOT AREA" sections, typically formatted as "LOT AREA: XX,XXX S.F." If given in acres, convert to square feet (1 acre = 43,560 SF).
 - houseWidth: house/dwelling width in feet (number)
 - houseDepth: house/dwelling depth in feet (number)
 - houseDistFromStreet: distance from house front wall to front property line in feet (number)
@@ -320,7 +323,7 @@ Required fields (use null if not found or not readable):
 - city: city name (string)
 - state: state abbreviation, e.g. "NY" (string)
 - zip: ZIP or postal code (string)
-- parcelId: lot or parcel number (string)
+- parcelId: lot number from the plat (e.g. "LOT 36", "LOT 46"). Use the lot number, not the parcel ID number or account number. Look for "LOT XX" labels on the site plan.
 - streetName: name of the street the property faces (string)
 - northAngle: orientation of the north arrow in degrees clockwise from straight up (number, 0-359). Look for a north arrow or compass rose on the survey. If the arrow points straight up, northAngle is 0. If it points to the upper-right, estimate the clockwise angle. Use null if no north arrow is visible.
 
@@ -329,14 +332,17 @@ CRITICAL: Also extract per-edge lot boundary data. Property surveys label each b
   - length: edge length in feet (number). Read this from the dimension label on the property line. Convert any decimal notation (e.g. 78.67') to a number.
   - type: "street" if this edge faces a road/street, "property" otherwise (string)
   - setbackType: "front" for the street edge, "rear" for the edge opposite the street, "side" for left/right edges (string)
-  - label: street name if type is "street", neighbor lot number if labeled (e.g. "LOT 35"), empty string otherwise (string)
+  - label: street name if type is "street" (e.g. "SWEETGRASS LANE"), empty string otherwise (string)
+  - neighborLabel: adjacent lot number if this is a property edge (e.g. "LOT 35"), empty string for street edges (string)
+
+The street-facing edge is always edge 0. Identify the street by looking for road names, sidewalks, curb and gutter markings, or driveway access.
 
 Example for a typical 4-sided lot:
 [
-  {"length": 78.67, "type": "street", "setbackType": "front", "label": "SWEETGRASS LANE"},
-  {"length": 184.83, "type": "property", "setbackType": "side", "label": "LOT 35"},
-  {"length": 78.07, "type": "property", "setbackType": "rear", "label": ""},
-  {"length": 179.18, "type": "property", "setbackType": "side", "label": "LOT 37"}
+  {"length": 78.67, "type": "street", "setbackType": "front", "label": "SWEETGRASS LANE", "neighborLabel": ""},
+  {"length": 184.83, "type": "property", "setbackType": "side", "label": "", "neighborLabel": "LOT 35"},
+  {"length": 78.07, "type": "property", "setbackType": "rear", "label": "", "neighborLabel": ""},
+  {"length": 179.18, "type": "property", "setbackType": "side", "label": "", "neighborLabel": "LOT 37"}
 ]
 
 For irregular lots with more than 4 sides (e.g. pie-shaped, cul-de-sac), include ALL boundary segments. Short connector segments (like 5.50' jogs between longer edges) are important for accurate shape. Assign their setbackType based on orientation: typically "side" for segments connecting front-to-rear edges, or "rear"/"front" if they run parallel to the street.
@@ -345,7 +351,7 @@ For curved property lines (arcs), use the arc length as the length value. If onl
 
 If the lot is clearly rectangular (all angles are 90 degrees and opposite sides are equal), set lotEdges to null and just use lotWidth/lotDepth.
 
-Also include a "confidence" object with the same keys (including "lotEdges"), each "high", "medium", or "low".
+Also include a "confidence" object with the same keys (including "lotEdges" and "lotArea"), each "high", "medium", or "low".
 
 IMPORTANT: Measure dimensions carefully from the survey markings. Property surveys show lot dimensions along boundary lines. House footprint may be labeled or estimated from the scale bar. Return ONLY valid JSON."""
 
@@ -383,6 +389,7 @@ async def extract_survey(request: Request):
         payload = {
             "model": "claude-sonnet-4-20250514",
             "max_tokens": 1024,
+            "temperature": 0,
             "messages": [{
                 "role": "user",
                 "content": [doc_block, {"type": "text", "text": SURVEY_EXTRACT_PROMPT}]
