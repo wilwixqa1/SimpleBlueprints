@@ -380,7 +380,7 @@ function StepContent(props) {
 
         function commitEdges(newEdges) {
           u("lotEdges", newEdges);
-          var verts = window.computePolygonVerts(newEdges);
+          var verts = window.computePolygonVerts(newEdges, p.lotArea || null);
           u("lotVertices", verts);
         }
 
@@ -951,10 +951,11 @@ function StepContent(props) {
             if (d.lotEdges && Array.isArray(d.lotEdges) && d.lotEdges.length >= 3) {
               var aiEdges = d.lotEdges.map(function(e) {
                 var isStreet = (e.type || "property") === "street";
-                return { type: e.type || "property", label: isStreet ? (e.label || "") : "", length: e.length || 1, setbackType: e.setbackType || "side", neighborLabel: isStreet ? "" : (e.label || "") };
+                return { type: e.type || "property", label: isStreet ? (e.label || "") : "", length: e.length || 1, setbackType: e.setbackType || "side", neighborLabel: isStreet ? "" : (e.neighborLabel || e.label || "") };
               });
               u("lotEdges", aiEdges);
-              var verts = window.computePolygonVerts(aiEdges);
+              if (d.lotArea) u("lotArea", d.lotArea);
+              var verts = window.computePolygonVerts(aiEdges, d.lotArea || null);
               if (verts) u("lotVertices", verts);
             }
             setExtractResult(null);
