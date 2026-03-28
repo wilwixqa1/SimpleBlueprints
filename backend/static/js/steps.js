@@ -2737,6 +2737,76 @@ function StepContent(props) {
       </div>
     </div>
 
+    {/* S50: PPRBD Deck Attachment Sheet checklist (Colorado Springs only) */}
+    {(() => {
+      var cosZips = new Set(["80901","80902","80903","80904","80905","80906","80907","80908","80909","80910","80911","80912","80913","80914","80915","80916","80917","80918","80919","80920","80921","80922","80923","80924","80925","80926","80927","80928","80929","80930","80931","80932","80933","80934","80935","80936","80937","80938","80939","80940","80941","80942","80943","80944","80945","80946","80947","80948","80949","80950","80951"]);
+      var isCOS = (info.city || "").toLowerCase().indexOf("colorado springs") >= 0 || cosZips.has((info.zip || "").slice(0, 5));
+      if (!isCOS) return null;
+
+      var heightIn = (p.height || 4) * 12;
+      var footingDepth = c.footing_depth || 36;
+      var isDetached = p.attachmentType === "freestanding";
+      var jcl = p.jurisdictionChecklist || {};
+
+      // Auto-computed defaults
+      var items = [
+        { key: "cover", label: "Deck design includes a solid cover or pergola style cover", auto: false },
+        { key: "electrical", label: "Electrical service and meter location may be affected by deck", auto: false },
+        { key: "hottub", label: "Deck supports hot tub or spa loading", auto: false },
+        { key: "cantilever", label: "Deck is supported by cantilever at house (existing inverted hanger installation verified or engineering provided)", auto: false },
+        { key: "under18", label: "Walking surface less than 18\" above grade", auto: heightIn <= 18 },
+        { key: "over8ft", label: "Walking surface 8'0\" or more above grade", auto: heightIn >= 96 },
+        { key: "freestanding", label: "Deck is freestanding and not attached to a structure (detached)", auto: isDetached },
+        { key: "excavation", label: "Proposed excavation or vertical penetration greater than 3'-0\" in depth", auto: footingDepth > 36 }
+      ];
+
+      var toggleItem = function(key, currentVal) {
+        var updated = Object.assign({}, jcl);
+        updated[key] = !currentVal;
+        u("jurisdictionChecklist", updated);
+      };
+
+      return <div style={{ padding: 16, background: "#f0f7ff", borderRadius: 8, border: "1px solid #bbdefb", marginBottom: 14 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: "#1565c0", fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>PPRBD Deck Attachment Sheet</div>
+          <span style={{ fontSize: 8, color: "#64b5f6", fontFamily: _mono, fontWeight: 400 }}>Colorado Springs</span>
+        </div>
+        <div style={{ fontSize: 9, color: "#5c6b7a", fontFamily: _mono, marginBottom: 12, lineHeight: 1.5 }}>
+          Pikes Peak Regional Building Dept. requires this checklist with all deck permits. We auto-filled it from your design. Review and adjust if needed. This will be included as a page in your blueprint PDF.
+        </div>
+        <div style={{ display: "flex", gap: 24, marginBottom: 8, paddingLeft: 2 }}>
+          <span style={{ fontSize: 8, fontFamily: _mono, fontWeight: 700, color: "#1565c0", width: 30, textAlign: "center" }}>YES</span>
+          <span style={{ fontSize: 8, fontFamily: _mono, fontWeight: 700, color: "#1565c0", width: 30, textAlign: "center" }}>NO</span>
+        </div>
+        {items.map(function(item) {
+          var val = jcl.hasOwnProperty(item.key) ? jcl[item.key] : item.auto;
+          var wasOverridden = jcl.hasOwnProperty(item.key) && jcl[item.key] !== item.auto;
+          return <div key={item.key} style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 6, paddingLeft: 2 }}>
+            <div style={{ display: "flex", gap: 24, flexShrink: 0 }}>
+              <button onClick={function() { toggleItem(item.key, val); }} style={{
+                width: 30, height: 20, borderRadius: 3, cursor: "pointer",
+                border: val ? "2px solid #1565c0" : "1px solid #bbb",
+                background: val ? "#e3f2fd" : "#fff",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 12, fontWeight: 900, color: "#1565c0", fontFamily: _mono
+              }}>{val ? "X" : ""}</button>
+              <button onClick={function() { toggleItem(item.key, val); }} style={{
+                width: 30, height: 20, borderRadius: 3, cursor: "pointer",
+                border: !val ? "2px solid #1565c0" : "1px solid #bbb",
+                background: !val ? "#e3f2fd" : "#fff",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 12, fontWeight: 900, color: "#1565c0", fontFamily: _mono
+              }}>{!val ? "X" : ""}</button>
+            </div>
+            <span style={{ fontSize: 9, fontFamily: _mono, color: _br.tx, lineHeight: 1.5, paddingTop: 2 }}>
+              {item.label}
+              {wasOverridden && <span style={{ color: "#f57f17", fontSize: 7, marginLeft: 4 }}>(manually changed)</span>}
+            </span>
+          </div>;
+        })}
+      </div>;
+    })()}
+
     {isProduction && !feedbackDone && <div style={{ padding: 16, background: "#fff8e1", borderRadius: 8, border: "1px solid #ffe082", marginBottom: 14 }}>
       <div style={{ fontSize: 10, fontWeight: 700, color: "#f57f17", fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 8 }}>Quick Feedback <span style={{ fontWeight: 400, color: "#ffa000", fontSize: 8 }}>(helps us build what you need)</span></div>
       <div style={{ marginBottom: 8 }}><label style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, display: "block", marginBottom: 2 }}>I am a...</label><div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>{[["diy","DIY Homeowner"],["contractor","Contractor"],["designer","Designer"],["other","Other"]].map(([v,t])=>(<button key={v} onClick={()=>setFeedback(f=>({...f,role:v}))} style={{padding:"5px 12px",borderRadius:5,fontSize:10,fontFamily:_mono,cursor:"pointer",border:feedback.role===v?"2px solid #f57f17":"1px solid "+_br.bd,background:feedback.role===v?"#fff3e0":"#fff",color:feedback.role===v?"#e65100":_br.tx,fontWeight:feedback.role===v?700:400}}>{t}</button>))}</div></div>
@@ -2758,7 +2828,9 @@ function StepContent(props) {
     <div style={{background:_br.dk,borderRadius:10,padding:20,textAlign:"center",marginBottom:10}}>
       <div style={{fontSize:10,fontFamily:_mono,color:"rgba(255,255,255,0.5)",letterSpacing:"2px",textTransform:"uppercase",marginBottom:6}}>Your Blueprint Package</div>
       <div style={{display:"flex",justifyContent:"center",gap:16,marginBottom:12,flexWrap:"wrap"}}>
-        {["Plan View","Framing Plan","Elevations","Details","Material List"].map(s=>(<div key={s} style={{display:"flex",alignItems:"center",gap:4}}><span style={{color:"#66bb6a",fontSize:11}}>{"\u2713"}</span><span style={{fontSize:10,fontFamily:_mono,color:"rgba(255,255,255,0.8)"}}>{s}</span></div>))}
+        {["Plan View","Framing Plan","Elevations","Details","Material List","Site Plan"].concat(
+          (info.city || "").toLowerCase().indexOf("colorado springs") >= 0 || (function(){ var cosZ = new Set(["80901","80902","80903","80904","80905","80906","80907","80908","80909","80910","80911","80912","80913","80914","80915","80916","80917","80918","80919","80920","80921","80922","80923","80924","80925","80926","80927","80928","80929","80930","80931","80932","80933","80934","80935","80936","80937","80938","80939","80940","80941","80942","80943","80944","80945","80946","80947","80948","80949","80950","80951"]); return cosZ.has((info.zip||"").slice(0,5)); })() ? ["PPRBD Attachment"] : []
+        ).map(s=>(<div key={s} style={{display:"flex",alignItems:"center",gap:4}}><span style={{color:"#66bb6a",fontSize:11}}>{"\u2713"}</span><span style={{fontSize:10,fontFamily:_mono,color:"rgba(255,255,255,0.8)"}}>{s}</span></div>))}
       </div>
       {user ? <>
       <button onClick={function(){var miss=[];if(!info.owner)miss.push("Owner / Applicant Name");if(!info.address)miss.push("Property Address");if(!info.city)miss.push("City");if(!info.state)miss.push("State");if(!info.zip)miss.push("ZIP");if(miss.length>0&&!missingFieldsAcked){setShowMissingModal(miss);return;}disclaimerAcked?generateBlueprint():setShowDisclaimer(true);}} disabled={genStatus==="generating"||(isProduction&&!feedbackDone)} style={{padding:"14px 40px",background:genStatus==="generating"?"#555":genStatus==="done"?"#2e7d32":_br.gn,color:"#fff",border:"none",borderRadius:8,fontSize:16,fontWeight:800,cursor:genStatus==="generating"?"wait":"pointer",fontFamily:_mono,letterSpacing:"1px",boxShadow:"0 4px 20px rgba(61,90,46,0.4)",transition:"all 0.2s"}}>
