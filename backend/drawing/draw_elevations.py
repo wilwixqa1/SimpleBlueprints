@@ -1043,7 +1043,7 @@ def draw_side_elevation(ax, params, calc, direction="east", compact=False):
 # ============================================================
 def draw_elevations_sheet(fig, params, calc):
     axes = fig.subplots(2, 2)
-    fig.subplots_adjust(left=0.04, right=0.96, top=0.92, bottom=0.06, hspace=0.22, wspace=0.12)
+    fig.subplots_adjust(left=0.04, right=0.84, top=0.92, bottom=0.06, hspace=0.22, wspace=0.12)
 
     ax_south = axes[0, 0]
     ax_north = axes[0, 1]

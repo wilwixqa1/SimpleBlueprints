@@ -276,7 +276,7 @@ def draw_details_sheet(fig, params, calc):
     """Draw all 4 detail views on one sheet"""
 
     axes = fig.subplots(2, 2)
-    fig.subplots_adjust(left=0.04, right=0.96, top=0.93, bottom=0.06, hspace=0.3, wspace=0.15)
+    fig.subplots_adjust(left=0.04, right=0.84, top=0.93, bottom=0.06, hspace=0.3, wspace=0.15)
 
     draw_ledger_detail(axes[0, 0], params, calc)
     draw_footing_detail(axes[0, 1], params, calc)

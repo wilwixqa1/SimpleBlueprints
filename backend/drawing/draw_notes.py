@@ -26,7 +26,7 @@ def draw_notes_sheet(fig, params, calc):
     needs_blocking = joist_span > 7
     rail_height = 42 if H > 8 else 36  # IRC R507.7.3
 
-    ax = fig.add_axes([0, 0, 1, 1])
+    ax = fig.add_axes([0, 0, 0.84, 1])
     ax.set_xlim(0, 14)
     ax.set_ylim(0, 8.5)
     ax.axis('off')

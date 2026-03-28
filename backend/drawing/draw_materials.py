@@ -279,7 +279,7 @@ def draw_materials_sheet(fig, params, calc):
     W = calc["width"]
     D = calc["depth"]
 
-    ax = fig.add_axes([0.06, 0.06, 0.88, 0.88])
+    ax = fig.add_axes([0.06, 0.06, 0.78, 0.88])
     ax.set_xlim(0, 100)
     ax.set_ylim(0, 70)
     ax.axis('off')
