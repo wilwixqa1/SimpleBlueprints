@@ -621,6 +621,8 @@ function StepContent(props) {
   const [extractError, setExtractError] = _stUS(null);
   const [showMissingModal, setShowMissingModal] = _stUS(false);
   const [missingFieldsAcked, setMissingFieldsAcked] = _stUS(false);
+  const [showPprbdModal, setShowPprbdModal] = _stUS(false);
+  const [pprbdChecklistAcked, setPprbdChecklistAcked] = _stUS(false);
   const [showSiteElements, setShowSiteElements] = _stUS(false);
   const [showLotShape, setShowLotShape] = _stUS(false);
   const [selectedElId, setSelectedElId] = _stUS(null);
@@ -2756,59 +2758,69 @@ function StepContent(props) {
       var isDetached = p.attachmentType === "freestanding";
       var jcl = p.jurisdictionChecklist || {};
 
-      // Auto-computed defaults
+      // autoVal: true/false = we can determine from config, null = user must answer
       var items = [
-        { key: "cover", label: "Deck design includes a solid cover or pergola style cover", auto: false },
-        { key: "electrical", label: "Electrical service and meter location may be affected by deck", auto: false },
-        { key: "hottub", label: "Deck supports hot tub or spa loading", auto: false },
-        { key: "cantilever", label: "Deck is supported by cantilever at house (existing inverted hanger installation verified or engineering provided)", auto: false },
-        { key: "under18", label: "Walking surface less than 18\" above grade", auto: heightIn <= 18 },
-        { key: "over8ft", label: "Walking surface 8'0\" or more above grade", auto: heightIn >= 96 },
-        { key: "freestanding", label: "Deck is freestanding and not attached to a structure (detached)", auto: isDetached },
-        { key: "excavation", label: "Proposed excavation or vertical penetration greater than 3'-0\" in depth", auto: footingDepth > 36 }
+        { key: "cover", label: "Deck design includes a solid cover or pergola style cover", autoVal: null },
+        { key: "electrical", label: "Electrical service and meter location may be affected by deck", autoVal: null },
+        { key: "hottub", label: "Deck supports hot tub or spa loading", autoVal: null },
+        { key: "cantilever", label: "Deck is supported by cantilever at house (existing inverted hanger installation verified or engineering provided)", autoVal: null },
+        { key: "under18", label: "Walking surface less than 18\" above grade", autoVal: heightIn <= 18 },
+        { key: "over8ft", label: "Walking surface 8'0\" or more above grade", autoVal: heightIn >= 96 },
+        { key: "freestanding", label: "Deck is freestanding and not attached to a structure (detached)", autoVal: isDetached },
+        { key: "excavation", label: "Proposed excavation or vertical penetration greater than 3'-0\" in depth", autoVal: footingDepth > 36 }
       ];
 
-      var toggleItem = function(key, currentVal) {
+      var setItem = function(key, newVal) {
         var updated = Object.assign({}, jcl);
-        updated[key] = !currentVal;
+        updated[key] = newVal;
         u("jurisdictionChecklist", updated);
       };
 
-      return <div style={{ padding: 16, background: "#f0f7ff", borderRadius: 8, border: "1px solid #bbdefb", marginBottom: 14 }}>
+      var unansweredCount = 0;
+      items.forEach(function(item) {
+        var resolved = jcl.hasOwnProperty(item.key) ? jcl[item.key] : item.autoVal;
+        if (resolved === null || resolved === undefined) unansweredCount++;
+      });
+
+      return <div style={{ padding: 16, background: "#f0f7ff", borderRadius: 8, border: unansweredCount > 0 ? "1.5px solid #f59e0b" : "1px solid #bbdefb", marginBottom: 14 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: "#1565c0", fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>PPRBD Deck Attachment Sheet</div>
           <span style={{ fontSize: 8, color: "#64b5f6", fontFamily: _mono, fontWeight: 400 }}>Pikes Peak Region</span>
         </div>
         <div style={{ fontSize: 9, color: "#5c6b7a", fontFamily: _mono, marginBottom: 12, lineHeight: 1.5 }}>
-          Pikes Peak Regional Building Dept. requires this checklist with all deck permits in El Paso County and Woodland Park. We auto-filled it from your design. Review and adjust if needed. This will be included as a page in your blueprint PDF.
+          Pikes Peak Regional Building Dept. requires this checklist with all deck permits in El Paso County and Woodland Park. Items marked with a green check were auto-filled from your design. Please answer the remaining items or skip when generating.
         </div>
+        {unansweredCount > 0 && <div style={{ padding: "6px 10px", background: "#fff8e1", borderRadius: 4, border: "1px solid #ffe082", borderLeft: "3px solid #f59e0b", marginBottom: 12 }}>
+          <span style={{ fontSize: 9, fontFamily: _mono, color: "#d97706", fontWeight: 600 }}>{unansweredCount} item{unansweredCount > 1 ? "s" : ""} still need{unansweredCount === 1 ? "s" : ""} your answer</span>
+        </div>}
         <div style={{ display: "flex", gap: 24, marginBottom: 8, paddingLeft: 2 }}>
           <span style={{ fontSize: 8, fontFamily: _mono, fontWeight: 700, color: "#1565c0", width: 30, textAlign: "center" }}>YES</span>
           <span style={{ fontSize: 8, fontFamily: _mono, fontWeight: 700, color: "#1565c0", width: 30, textAlign: "center" }}>NO</span>
         </div>
         {items.map(function(item) {
-          var val = jcl.hasOwnProperty(item.key) ? jcl[item.key] : item.auto;
-          var wasOverridden = jcl.hasOwnProperty(item.key) && jcl[item.key] !== item.auto;
-          return <div key={item.key} style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 6, paddingLeft: 2 }}>
+          var val = jcl.hasOwnProperty(item.key) ? jcl[item.key] : item.autoVal;
+          var isUnanswered = val === null || val === undefined;
+          var isAutoFilled = !jcl.hasOwnProperty(item.key) && item.autoVal !== null;
+          return <div key={item.key} style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 6, paddingLeft: 2, padding: "4px 2px", borderRadius: 4, background: isUnanswered ? "#fff8e1" : "transparent" }}>
             <div style={{ display: "flex", gap: 24, flexShrink: 0 }}>
-              <button onClick={function() { toggleItem(item.key, val); }} style={{
+              <button onClick={function() { setItem(item.key, true); }} style={{
                 width: 30, height: 20, borderRadius: 3, cursor: "pointer",
-                border: val ? "2px solid #1565c0" : "1px solid #bbb",
-                background: val ? "#e3f2fd" : "#fff",
+                border: val === true ? "2px solid #1565c0" : isUnanswered ? "1.5px solid #f59e0b" : "1px solid #bbb",
+                background: val === true ? "#e3f2fd" : "#fff",
                 display: "flex", alignItems: "center", justifyContent: "center",
                 fontSize: 12, fontWeight: 900, color: "#1565c0", fontFamily: _mono
-              }}>{val ? "X" : ""}</button>
-              <button onClick={function() { toggleItem(item.key, val); }} style={{
+              }}>{val === true ? "X" : ""}</button>
+              <button onClick={function() { setItem(item.key, false); }} style={{
                 width: 30, height: 20, borderRadius: 3, cursor: "pointer",
-                border: !val ? "2px solid #1565c0" : "1px solid #bbb",
-                background: !val ? "#e3f2fd" : "#fff",
+                border: val === false ? "2px solid #1565c0" : isUnanswered ? "1.5px solid #f59e0b" : "1px solid #bbb",
+                background: val === false ? "#e3f2fd" : "#fff",
                 display: "flex", alignItems: "center", justifyContent: "center",
                 fontSize: 12, fontWeight: 900, color: "#1565c0", fontFamily: _mono
-              }}>{!val ? "X" : ""}</button>
+              }}>{val === false ? "X" : ""}</button>
             </div>
             <span style={{ fontSize: 9, fontFamily: _mono, color: _br.tx, lineHeight: 1.5, paddingTop: 2 }}>
               {item.label}
-              {wasOverridden && <span style={{ color: "#f57f17", fontSize: 7, marginLeft: 4 }}>(manually changed)</span>}
+              {isAutoFilled && <span style={{ color: "#2e7d32", fontSize: 7, marginLeft: 4 }}>(auto-filled)</span>}
             </span>
           </div>;
         })}
@@ -2841,7 +2853,7 @@ function StepContent(props) {
         ).map(s=>(<div key={s} style={{display:"flex",alignItems:"center",gap:4}}><span style={{color:"#66bb6a",fontSize:11}}>{"\u2713"}</span><span style={{fontSize:10,fontFamily:_mono,color:"rgba(255,255,255,0.8)"}}>{s}</span></div>))}
       </div>
       {user ? <>
-      <button onClick={function(){var miss=[];if(!info.owner)miss.push("Owner / Applicant Name");if(!info.address)miss.push("Property Address");if(!info.city)miss.push("City");if(!info.state)miss.push("State");if(!info.zip)miss.push("ZIP");if(miss.length>0&&!missingFieldsAcked){setShowMissingModal(miss);return;}disclaimerAcked?generateBlueprint():setShowDisclaimer(true);}} disabled={genStatus==="generating"||(isProduction&&!feedbackDone)} style={{padding:"14px 40px",background:genStatus==="generating"?"#555":genStatus==="done"?"#2e7d32":_br.gn,color:"#fff",border:"none",borderRadius:8,fontSize:16,fontWeight:800,cursor:genStatus==="generating"?"wait":"pointer",fontFamily:_mono,letterSpacing:"1px",boxShadow:"0 4px 20px rgba(61,90,46,0.4)",transition:"all 0.2s"}}>
+      <button onClick={function(){var miss=[];if(!info.owner)miss.push("Owner / Applicant Name");if(!info.address)miss.push("Property Address");if(!info.city)miss.push("City");if(!info.state)miss.push("State");if(!info.zip)miss.push("ZIP");if(miss.length>0&&!missingFieldsAcked){setShowMissingModal(miss);return;}if(_isPPRBD&&!pprbdChecklistAcked){var jcl=p.jurisdictionChecklist||{};var hIn=(p.height||4)*12;var fDep=c.footing_depth||36;var isDet=p.attachmentType==="freestanding";var autos={under18:hIn<=18,over8ft:hIn>=96,freestanding:isDet,excavation:fDep>36};var uKeys=[];["cover","electrical","hottub","cantilever","under18","over8ft","freestanding","excavation"].forEach(function(k){var v=jcl.hasOwnProperty(k)?jcl[k]:(autos.hasOwnProperty(k)?autos[k]:null);if(v===null||v===undefined)uKeys.push(k);});if(uKeys.length>0){setShowPprbdModal(uKeys);return;}}disclaimerAcked?generateBlueprint():setShowDisclaimer(true);}} disabled={genStatus==="generating"||(isProduction&&!feedbackDone)} style={{padding:"14px 40px",background:genStatus==="generating"?"#555":genStatus==="done"?"#2e7d32":_br.gn,color:"#fff",border:"none",borderRadius:8,fontSize:16,fontWeight:800,cursor:genStatus==="generating"?"wait":"pointer",fontFamily:_mono,letterSpacing:"1px",boxShadow:"0 4px 20px rgba(61,90,46,0.4)",transition:"all 0.2s"}}>
         {genStatus==="generating"?"Generating PDF...":genStatus==="done"?"\u2713 Download Complete \u2014 Generate Again?":"Generate Blueprint \u2014 FREE BETA"}
       </button>
       {genStatus==="error"&&<div style={{fontSize:10,color:"#f44336",fontFamily:_mono,marginTop:8}}>Error: {genError}</div>}
@@ -2882,6 +2894,18 @@ function StepContent(props) {
         <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
           <button onClick={function(){setShowMissingModal(false);}} style={{padding:"10px 18px",background:"none",border:"1px solid "+_br.bd,borderRadius:6,fontSize:11,fontFamily:_mono,color:_br.mu,cursor:"pointer"}}>Fill in Fields</button>
           <button onClick={function(){setMissingFieldsAcked(true);setShowMissingModal(false);disclaimerAcked?generateBlueprint():setShowDisclaimer(true);}} style={{padding:"10px 24px",background:"#d97706",border:"none",borderRadius:6,fontSize:11,fontFamily:_mono,color:"#fff",fontWeight:700,cursor:"pointer"}}>Generate Anyway</button>
+        </div>
+      </div>
+    </div>}
+
+    {showPprbdModal && <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9999}} onClick={()=>setShowPprbdModal(false)}>
+      <div style={{background:"#fff",borderRadius:12,padding:28,maxWidth:440,margin:"0 20px",boxShadow:"0 8px 40px rgba(0,0,0,0.25)"}} onClick={e=>e.stopPropagation()}>
+        <div style={{fontSize:11,fontWeight:700,color:"#1565c0",fontFamily:_mono,letterSpacing:"1px",textTransform:"uppercase",marginBottom:14}}>{"\u26A0\uFE0F"} PPRBD Checklist Incomplete</div>
+        <p style={{fontSize:12,color:_br.tx,fontFamily:_sans,lineHeight:1.7,margin:"0 0 10px"}}>Your property is in PPRBD jurisdiction. The Deck Attachment Sheet has {showPprbdModal.length} unanswered item{showPprbdModal.length > 1 ? "s" : ""}. The permit office will need these filled in.</p>
+        <p style={{fontSize:11,color:_br.mu,fontFamily:_sans,lineHeight:1.6,margin:"0 0 18px"}}>You can answer them now in the checklist above, or skip and fill them in by hand after printing.</p>
+        <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+          <button onClick={function(){setShowPprbdModal(false);}} style={{padding:"10px 18px",background:"none",border:"1px solid "+_br.bd,borderRadius:6,fontSize:11,fontFamily:_mono,color:_br.mu,cursor:"pointer"}}>Answer Items</button>
+          <button onClick={function(){setPprbdChecklistAcked(true);setShowPprbdModal(false);disclaimerAcked?generateBlueprint():setShowDisclaimer(true);}} style={{padding:"10px 24px",background:"#1565c0",border:"none",borderRadius:6,fontSize:11,fontFamily:_mono,color:"#fff",fontWeight:700,cursor:"pointer"}}>Skip & Generate</button>
         </div>
       </div>
     </div>}

@@ -85,29 +85,31 @@ def is_colorado_springs(project_info):
 
 def compute_checklist(params, calc):
     """
-    Auto-fill the PPRBD checklist from deck parameters.
-    Returns dict of {row_key: True/False} where True = YES, False = NO.
-    Frontend can override these via params['jurisdictionChecklist'].
+    Compute the PPRBD checklist from deck parameters.
+    Returns dict of {row_key: True/False/None}.
+    None = unanswered (user skipped), True = YES, False = NO.
+    Frontend overrides via params['jurisdictionChecklist'] take priority.
     """
     height_inches = params.get("height", 4) * 12  # height is in feet
     footing_depth = calc.get("footing_depth", 36)
     attachment = params.get("attachmentType", "attached")
 
+    # Auto-computable values get True/False; unknowable items get None
     defaults = {
-        "cover":       False,  # We don't support covers
-        "electrical":  False,  # Default NO, user can override
-        "hottub":      False,  # We don't support hot tub loading
-        "cantilever":  False,  # We don't support cantilever
+        "cover":       None,   # We can't determine this
+        "electrical":  None,   # We can't determine this
+        "hottub":      None,   # We can't determine this
+        "cantilever":  None,   # We can't determine this
         "under18":     height_inches <= 18,
         "over8ft":     height_inches >= 96,
         "freestanding": attachment == "freestanding",
         "excavation":  footing_depth > 36,
     }
 
-    # Allow frontend overrides
+    # Frontend overrides (explicit user answers)
     overrides = params.get("jurisdictionChecklist") or {}
     for key in defaults:
-        if key in overrides:
+        if key in overrides and overrides[key] is not None:
             defaults[key] = bool(overrides[key])
 
     return defaults
@@ -141,12 +143,13 @@ def build_overlay_pdf(params, calc, project_info):
         c.setFont("Helvetica", 10)
         c.drawString(ADDRESS_X, ADDRESS_Y - 3, address_text)
 
-    # Draw checkmarks
+    # Draw checkmarks (skip unanswered/None items - user will fill by hand)
     c.setFont("Helvetica-Bold", 14)
     for key, row_y in CHECKBOX_ROWS.items():
-        is_yes = checklist.get(key, False)
-        x = YES_X if is_yes else NO_X
-        # Draw an X mark centered in the checkbox
+        val = checklist.get(key)
+        if val is None:
+            continue  # Leave blank for unanswered items
+        x = YES_X if val else NO_X
         c.drawCentredString(x, row_y - 4, "X")
 
     c.save()
