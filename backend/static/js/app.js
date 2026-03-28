@@ -1,5 +1,5 @@
 // ============================================================
-// MAIN APP ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ Wizard Shell, State, Nav, Preview Panel
+// MAIN APP ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Wizard Shell, State, Nav, Preview Panel
 // ============================================================
 const { useState, useMemo, useEffect, useRef } = React;
 
@@ -314,7 +314,7 @@ window.generateCandidateShapes = function(edges, targetArea) {
     if (i !== streetIdx) otherEdges.push(edges[i]);
   }
 
-  if (n !== 4) return []; // Only 4-sided lots for now
+  if (n < 4 || n > 5) return []; // 4 and 5-sided lots supported
 
   var allPerms = permutations(otherEdges);
   var candidates = [];
@@ -378,8 +378,79 @@ window.generateCandidateShapes = function(edges, targetArea) {
     }
   }
 
-  candidates.sort(function(a, b) { return a.areaError - b.areaError; });
-  return candidates.slice(0, 6);
+  
+  // === 5-sided lot solver (S46) ===
+  // 2D sweep: alpha for edge1 angle, beta for edge2 angle
+  // Edge3-4 closure via circle intersection (same as 4-sided)
+  if (n === 5) {
+    var allPerms5 = permutations(otherEdges);
+    var samples5 = 60;
+
+    for (var pi5 = 0; pi5 < allPerms5.length; pi5++) {
+      var e1 = allPerms5[pi5][0].length;
+      var e2 = allPerms5[pi5][1].length;
+      var e3 = allPerms5[pi5][2].length;
+      var e4 = allPerms5[pi5][3].length;
+      var edgesOrd5 = [streetEdge].concat(allPerms5[pi5]);
+
+      for (var ai5 = 1; ai5 < samples5; ai5++) {
+        var alpha5 = (ai5 / samples5) * Math.PI;
+        var cx5 = streetLen + e1 * Math.cos(alpha5);
+        var cy5 = e1 * Math.sin(alpha5);
+
+        var prev5 = [{}, {}];
+
+        for (var bi5 = 1; bi5 < samples5; bi5++) {
+          var beta5 = (bi5 / samples5) * Math.PI;
+          var dx5 = cx5 + e2 * Math.cos(alpha5 + beta5);
+          var dy5 = cy5 + e2 * Math.sin(alpha5 + beta5);
+
+          var ePs5 = circleIntersect(dx5, dy5, e3, 0, 0, e4);
+
+          for (var di5 = 0; di5 < ePs5.length; di5++) {
+            var verts5 = [[0, 0], [streetLen, 0], [cx5, cy5], [dx5, dy5], [ePs5[di5][0], ePs5[di5][1]]];
+            var area5 = shoelaceArea(verts5);
+            var areaErr5 = Math.abs(area5 - targetArea) / targetArea;
+
+            if (areaErr5 < 0.005 && !isSelfIntersecting(verts5)) {
+              tryAdd(candidates, verts5, edgesOrd5, targetArea);
+            }
+
+            var p5 = prev5[di5];
+            if (p5 && p5.area !== undefined) {
+              if ((p5.area - targetArea) * (area5 - targetArea) < 0) {
+                var lo5 = p5.beta, hi5 = beta5;
+                var loA5 = p5.area;
+                for (var bs5 = 0; bs5 < 30; bs5++) {
+                  var mid5 = (lo5 + hi5) / 2;
+                  var mdx5 = cx5 + e2 * Math.cos(alpha5 + mid5);
+                  var mdy5 = cy5 + e2 * Math.sin(alpha5 + mid5);
+                  var mePs5 = circleIntersect(mdx5, mdy5, e3, 0, 0, e4);
+                  if (mePs5.length <= di5) { hi5 = mid5; continue; }
+                  var mv5 = [[0, 0], [streetLen, 0], [cx5, cy5], [mdx5, mdy5], [mePs5[di5][0], mePs5[di5][1]]];
+                  var ma5 = shoelaceArea(mv5);
+                  if ((loA5 - targetArea) * (ma5 - targetArea) < 0) { hi5 = mid5; }
+                  else { lo5 = mid5; loA5 = ma5; }
+                }
+                var fb5 = (lo5 + hi5) / 2;
+                var fdx5 = cx5 + e2 * Math.cos(alpha5 + fb5);
+                var fdy5 = cy5 + e2 * Math.sin(alpha5 + fb5);
+                var fePs5 = circleIntersect(fdx5, fdy5, e3, 0, 0, e4);
+                if (fePs5.length > di5) {
+                  var fv5 = [[0, 0], [streetLen, 0], [cx5, cy5], [fdx5, fdy5], [fePs5[di5][0], fePs5[di5][1]]];
+                  tryAdd(candidates, fv5, edgesOrd5, targetArea);
+                }
+              }
+            }
+            prev5[di5] = { area: area5, beta: beta5 };
+          }
+        }
+      }
+    }
+  }
+
+candidates.sort(function(a, b) { return a.areaError - b.areaError; });
+  return candidates.slice(0, 8);
 };
 
 const App = function SimpleBlueprints() {
@@ -395,9 +466,9 @@ const App = function SimpleBlueprints() {
     streetName: "",
     // Polygon lot (S36)
     lotVertices: null, lotEdges: null, lotArea: null,
-    // Zone system ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ S19
+    // Zone system ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ S19
     zones: [], activeZone: 0, nextZoneId: 1, mainCorners: { BL: { type: "square", size: 0 }, BR: { type: "square", size: 0 }, FL: { type: "square", size: 0 }, FR: { type: "square", size: 0 } },
-    // Site plan ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ S27 (defaults seeded from existing flat params)
+    // Site plan ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ S27 (defaults seeded from existing flat params)
     sitePlan: {
       lotShape: "rectangle", lotWidth: 80, lotDepth: 120,
       streetSide: "south", streetName: "",
@@ -466,7 +537,7 @@ const App = function SimpleBlueprints() {
     return next;
   });
 
-  // ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ Zone management functions ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ
+  // ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Zone management functions ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ
   const addZone = (parentId, edge) => setP(prev => {
     var parentP = Object.assign({}, prev, { deckWidth: prev.width, deckDepth: prev.depth });
     var defaults = window.addZoneDefaults(parentId, edge, "add", parentP);
@@ -548,7 +619,7 @@ const App = function SimpleBlueprints() {
     return (z && z.corners) || DEF_CORNERS;
   };
 
-  // ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ Provide deckWidth/deckDepth aliases for zoneUtils ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ
+  // ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Provide deckWidth/deckDepth aliases for zoneUtils ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ
   // zoneUtils reads p.deckWidth/p.deckDepth, but our flat params use width/depth
   const pForZones = useMemo(() => Object.assign({}, p, { deckWidth: p.width, deckDepth: p.depth, deckHeight: p.height }), [p]);
 
@@ -723,7 +794,7 @@ const App = function SimpleBlueprints() {
                   addZone={addZone} addCutout={addCutout}
                   getCorners={getCorners} setCorner={setCorner} />
                 {planMode === "plan" && <div style={{ textAlign: "center", fontSize: 9, color: br.mu, fontFamily: mono, marginTop: 4, opacity: 0.7 }}>
-                  {zoneMode === "select" && <>Drag the <span style={{ color: "#3d5a2e", fontWeight: 700 }}>green</span> handle to slide the deck ÃÂÃÂÃÂÃÂ· Click <span style={{ color: "#c62828", fontWeight: 700 }}>stairs</span> to select, drag to move, grab <span style={{ color: "#3d5a2e", fontWeight: 700 }}>{"\u21BB"}</span> to rotate</>}
+                  {zoneMode === "select" && <>Drag the <span style={{ color: "#3d5a2e", fontWeight: 700 }}>green</span> handle to slide the deck ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ· Click <span style={{ color: "#c62828", fontWeight: 700 }}>stairs</span> to select, drag to move, grab <span style={{ color: "#3d5a2e", fontWeight: 700 }}>{"\u21BB"}</span> to rotate</>}
                   {zoneMode === "add" && <>Click <span style={{ color: "#16a34a", fontWeight: 700 }}>+</span> on any edge to add a deck zone</>}
                   {zoneMode === "cut" && <>Click <span style={{ color: "#dc2626", fontWeight: 700 }}>{"\u2702"}</span> on corners for house wraps, center for openings</>}
                   {zoneMode === "chamfer" && <>Click <span style={{ color: "#7c3aed", fontWeight: 700 }}>{"\u25E3"}</span> on corners to toggle 45{"\u00B0"} chamfers</>}
