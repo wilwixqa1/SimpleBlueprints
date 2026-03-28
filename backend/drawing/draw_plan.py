@@ -86,14 +86,14 @@ def draw_dimension_v(ax, x, y1, y2, text, offset=1.5, color="#333", fontsize=6):
             bbox=dict(boxstyle='square,pad=0.15', fc='white', ec='none', alpha=0.9))
 
 
-def draw_north_arrow(ax, x, y, angle=0):
+def draw_north_arrow(ax, x, y, angle=0, size=1.2):
     rad = math.radians(angle)
-    dx = 2 * math.sin(rad)
-    dy = 2 * math.cos(rad)
+    dx = size * math.sin(rad)
+    dy = size * math.cos(rad)
     ax.annotate('', xy=(x + dx, y + dy), xytext=(x, y),
                 arrowprops=dict(arrowstyle='->', color=BRAND["dark"], lw=1.5))
-    tx = x + 2.5 * math.sin(rad)
-    ty = y + 2.5 * math.cos(rad)
+    tx = x + (size + 0.3) * math.sin(rad)
+    ty = y + (size + 0.3) * math.cos(rad)
     ax.text(tx, ty, 'N', ha='center', va='center', fontsize=8, fontweight='bold')
 
 
@@ -591,11 +591,11 @@ def draw_plan_and_framing(fig, params, calc):
         draw_dimension_v(ax, W, 0, D, format_feet_inches(D),
                          offset=max(W * 0.04, 1.2), color=BRAND["blue"], fontsize=7)
 
-        # S22: North arrow + scale bar - position relative to bbox
-        draw_north_arrow(ax, bbox["x"] + bbox["w"] + margin_x_right - 1,
-                         bbox["y"] + bbox["d"] + margin_y - 5,
+        # S47: North arrow in upper-left margin, scale bar below house
+        draw_north_arrow(ax, bbox["x"] - margin_x_left + 2,
+                         bbox["y"] + bbox["d"] + margin_y - 2.5,
                          angle=params.get("northAngle", 0) or 0)
-        draw_scale_bar(ax, bbox["x"], -house_depth - margin_y * 0.25)
+        draw_scale_bar(ax, bbox["x"], -house_depth - margin_y * 0.35)
 
 # ============================================================
 # TEST: Generate 3 configs
