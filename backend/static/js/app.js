@@ -840,7 +840,7 @@ const App = function SimpleBlueprints() {
                   </div>
                   <div style={{ flex: "1 1 45%", maxHeight: "70vh", overflowY: "auto" }}>
                     <div style={{ fontSize: 8, fontWeight: 700, color: br.mu, fontFamily: mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 4 }}>Proposed Shapes</div>
-                    <CompareShapes />
+                    <CompareShapes candidates={window._shapeCompareData ? window._shapeCompareData.candidates : []} previewIdx={previewIdx} />
                     {previewIdx != null && <button onClick={() => { if (window._selectShape) window._selectShape(previewIdx); }} style={{
                       width: "100%", padding: "12px", background: "#2e7d32", color: "#fff", border: "none",
                       borderRadius: 8, cursor: "pointer", fontSize: 12, fontFamily: mono, fontWeight: 700,

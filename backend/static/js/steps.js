@@ -70,14 +70,11 @@ function SurveyPreview({ b64, fileType }) {
 window.SurveyPreview = SurveyPreview;
 
 // S48: Shape cards for compare view with preview selection
-function CompareShapes() {
-  var data = window._shapeCompareData;
-  if (!data || !data.candidates || data.candidates.length === 0) return React.createElement("div", { style: { fontSize: 10, color: _br.mu, fontFamily: _mono } }, "No shapes available");
-  var shapeCandidates = data.candidates;
-  var previewIdx = window._previewShapeIndex;
+function CompareShapes({ candidates, previewIdx }) {
+  if (!candidates || candidates.length === 0) return React.createElement("div", { style: { fontSize: 10, color: _br.mu, fontFamily: _mono } }, "No shapes available");
   var edgeColors = ["#e53935", "#2563eb", "#8B7355", "#7c3aed", "#0d9488"];
   return React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr", gap: 8 } },
-    shapeCandidates.map(function(cand, ci) {
+    candidates.map(function(cand, ci) {
       var isSelected = previewIdx === ci;
       var cv = cand.vertices;
       var cmaxX = 0, cmaxY = 0;
