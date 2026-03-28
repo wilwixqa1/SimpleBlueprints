@@ -744,13 +744,29 @@ const App = function SimpleBlueprints() {
     // S48: Include extracted house dimensions in preview
     var ext = data.extractResult;
     if (ext) {
-      if (ext.houseWidth) overrides.houseWidth = ext.houseWidth;
-      if (ext.houseDepth) overrides.houseDepth = ext.houseDepth;
-      if (ext.houseDistFromStreet) overrides.houseDistFromStreet = ext.houseDistFromStreet;
-      if (ext.houseOffsetSide) overrides.houseOffsetSide = ext.houseOffsetSide;
+      var _hw = ext.houseWidth || 40;
+      var _hd = ext.houseDepth || 30;
+      if (ext.houseWidth) overrides.houseWidth = _hw;
+      if (ext.houseDepth) overrides.houseDepth = _hd;
       if (ext.setbackFront) overrides.setbackFront = ext.setbackFront;
       if (ext.setbackRear) overrides.setbackRear = ext.setbackRear;
       if (ext.setbackSide) overrides.setbackSide = ext.setbackSide;
+      // S48: Percentage cross-check for position
+      var bbW = overrides.lotWidth, bbD = overrides.lotDepth;
+      var offSide = ext.houseOffsetSide || 20;
+      var distStreet = ext.houseDistFromStreet || 25;
+      if (ext.houseXPercent != null && ext.houseXPercent >= 0 && ext.houseXPercent <= 100) {
+        var pctX = Math.round(bbW * (ext.houseXPercent / 100) - _hw / 2);
+        pctX = Math.max(0, pctX);
+        if (offSide > 0 && Math.abs(pctX - offSide) / Math.max(offSide, pctX) > 0.2) offSide = pctX;
+      }
+      if (ext.houseYPercent != null && ext.houseYPercent >= 0 && ext.houseYPercent <= 100) {
+        var pctY = Math.round(bbD * (ext.houseYPercent / 100) - _hd / 2);
+        pctY = Math.max(0, pctY);
+        if (distStreet > 0 && Math.abs(pctY - distStreet) / Math.max(distStreet, pctY) > 0.2) distStreet = pctY;
+      }
+      overrides.houseOffsetSide = offSide;
+      overrides.houseDistFromStreet = distStreet;
     }
     return Object.assign({}, p, overrides);
   }, [previewIdx, p]);

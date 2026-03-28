@@ -246,10 +246,35 @@ function StepContent(props) {
         if (d.setbackRear) u("setbackRear", d.setbackRear);
         if (d.setbackSide) u("setbackSide", d.setbackSide);
         // S48: Apply extracted house dimensions
-        if (d.houseWidth) u("houseWidth", d.houseWidth);
-        if (d.houseDepth) u("houseDepth", d.houseDepth);
-        if (d.houseDistFromStreet) u("houseDistFromStreet", d.houseDistFromStreet);
-        if (d.houseOffsetSide) u("houseOffsetSide", d.houseOffsetSide);
+        var _hw = d.houseWidth || 40;
+        var _hd = d.houseDepth || 30;
+        if (d.houseWidth) u("houseWidth", _hw);
+        if (d.houseDepth) u("houseDepth", _hd);
+
+        // S48: Smart house position - use percentage cross-check
+        var lotBBW = Math.max(30, Math.round(cmaxX));
+        var lotBBD = Math.max(50, Math.round(cmaxY));
+        var finalOffsetSide = d.houseOffsetSide || 20;
+        var finalDistFromStreet = d.houseDistFromStreet || 25;
+
+        // If percentage estimates available, compute position from them
+        if (d.houseXPercent != null && d.houseXPercent >= 0 && d.houseXPercent <= 100) {
+          var pctDerivedX = Math.round(lotBBW * (d.houseXPercent / 100) - _hw / 2);
+          pctDerivedX = Math.max(0, pctDerivedX);
+          // If absolute and percentage disagree by more than 20%, prefer percentage
+          if (finalOffsetSide > 0 && Math.abs(pctDerivedX - finalOffsetSide) / Math.max(finalOffsetSide, pctDerivedX) > 0.2) {
+            finalOffsetSide = pctDerivedX;
+          }
+        }
+        if (d.houseYPercent != null && d.houseYPercent >= 0 && d.houseYPercent <= 100) {
+          var pctDerivedY = Math.round(lotBBD * (d.houseYPercent / 100) - _hd / 2);
+          pctDerivedY = Math.max(0, pctDerivedY);
+          if (finalDistFromStreet > 0 && Math.abs(pctDerivedY - finalDistFromStreet) / Math.max(finalDistFromStreet, pctDerivedY) > 0.2) {
+            finalDistFromStreet = pctDerivedY;
+          }
+        }
+        u("houseOffsetSide", finalOffsetSide);
+        u("houseDistFromStreet", finalDistFromStreet);
         if (d.street) setI("address", d.street);
         if (d.city) setI("city", d.city);
         if (d.state) setI("state", d.state);

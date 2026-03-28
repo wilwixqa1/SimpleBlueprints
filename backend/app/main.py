@@ -305,6 +305,8 @@ Required fields (use null if not found or not readable):
 - parcelId: lot number from the plat (e.g. "LOT 36", "LOT 46"). Use the lot number, not the parcel ID number or account number. Look for "LOT XX" labels on the site plan.
 - streetName: name of the street the property faces (string)
 - northAngle: orientation of the north arrow in degrees clockwise from straight up (number, 0-359). Look for a north arrow or compass rose on the survey. If the arrow points straight up, northAngle is 0. If it points to the upper-right, estimate the clockwise angle. Use null if no north arrow is visible.
+- houseXPercent: house center X position as percentage of lot bounding box width (number, 0-100). See HOUSE POSITION ESTIMATION below.
+- houseYPercent: house center Y position as percentage from street to rear (number, 0-100). See HOUSE POSITION ESTIMATION below.
 
 CRITICAL: Also extract per-edge lot boundary data. Property surveys label each boundary segment with its length. Extract these as a "lotEdges" array going CLOCKWISE starting from the STREET-FACING edge:
 - lotEdges: array of objects, one per boundary segment, each with:
@@ -357,19 +359,25 @@ House dimensions are essential for accurate site plans. Use ALL available signal
 5. CROSS-CHECK: If building area is given (e.g. 1,140 SF) and you estimate 38' x 30' = 1,140 SF, that confirms your estimate.
 
 HOUSE POSITION ESTIMATION (CRITICAL):
-Even if not explicitly labeled, estimate the house position from the site plan drawing:
-- houseDistFromStreet: Measure from the street property line to the front wall of the house using the graphic scale. Often the house sits at or near the front setback line.
-- houseOffsetSide: Measure from the left property line to the left wall of the house using the graphic scale.
-If setback lines are drawn (dashed lines), use them as reference points. The house is often positioned relative to these lines.
+Accurate house positioning is essential. Use this two-step method:
+
+Step 1 - ANCHOR TO SETBACK LINES: Setback lines (dashed) are drawn at known distances from property lines. Estimate the house position RELATIVE to these setback lines:
+- houseDistFromStreet: If the house front wall appears to be AT the front setback line, use the front setback value. If it appears further back, estimate the additional distance using the graphic scale and add it. Example: front setback is 25', house appears about 15' behind the setback line, so houseDistFromStreet = 40.
+- houseOffsetSide: If the house left wall appears to be AT the side setback line, use the side setback value. If it appears further in from the setback, estimate the additional distance and add it. Example: side setback is 15', house left wall appears about 45' beyond the setback line, so houseOffsetSide = 60.
+
+Step 2 - CROSS-CHECK WITH RELATIVE POSITION: Also estimate these percentage fields to verify your absolute estimates:
+- houseXPercent: What percentage across the lot's bounding box is the house center? 0 = left edge, 50 = centered, 100 = right edge. (number, 0-100)
+- houseYPercent: What percentage from street to rear is the house center? 0 = at the street, 100 = at the rear property line. (number, 0-100)
+Use these to sanity-check: if the lot is 195' wide and houseXPercent is 40%, the house center is at about 78' from the left, so houseOffsetSide should be roughly 78 - houseWidth/2. If your absolute estimate disagrees significantly with the percentage estimate, prefer the percentage-derived value.
 
 OBJECT POSITION ESTIMATION:
-For all objects (house, garage, site objects), estimate positions using the graphic scale and known reference points:
-- Property line lengths give you the lot dimensions for reference
-- Setback lines (dashed) give you known distances from property lines
-- The graphic scale bar lets you measure any distance on the drawing
-- Cross-check positions against setback distances when available
+For all objects (garage, site objects), use the same approach:
+- Use setback lines and the graphic scale as reference points
+- Estimate xFromLeft and yFromStreet using the graphic scale bar
+- Also estimate approximate percentage position as a mental cross-check
+- Property line lengths and setback distances are your most reliable reference points
 
-Never return null for houseWidth, houseDepth, houseDistFromStreet, or houseOffsetSide if a house footprint is visible on the site plan. Use your best estimate from the graphic scale.
+Never return null for houseWidth, houseDepth, houseDistFromStreet, or houseOffsetSide if a house footprint is visible on the site plan. Use your best estimate.
 
 Return ONLY valid JSON."""
 
