@@ -212,7 +212,9 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
       var newHX = Math.round(Math.max(0, Math.min(viewW - hw, lot.x - dr.offsetX)));
       var newHY = Math.round(Math.max(0, Math.min(viewD - hd, lot.y - dr.offsetY)));
       if (newHX !== hx || newHY !== hy) {
-        u("houseOffsetSide", newHX);
+        // S48: Store offset relative to left polygon edge at this Y
+        var leftAtNewY = leftEdgeAtY(newHY + hd / 2);
+        u("houseOffsetSide", Math.max(0, newHX - leftAtNewY));
         u("houseDistFromStreet", newHY);
       }
     } else {
@@ -237,10 +239,32 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
   }
 
   // === HOUSE ===
-  var hx = p.houseOffsetSide || 20;
+  // S48: Polygon-aware house X placement
+  // houseOffsetSide means "distance from left property line at this Y"
+  // For irregular polygons, the left edge X varies by Y position
   var hy = p.houseDistFromStreet || p.setbackFront || 25;
   var hw = p.houseWidth || 40;
   var hd = p.houseDepth || 30;
+  var houseOffsetVal = p.houseOffsetSide || 20;
+
+  // Find the left boundary X at a given Y by scanning polygon edges
+  function leftEdgeAtY(yVal) {
+    if (!p.lotVertices || verts.length < 3) return 0; // rectangle: left edge is x=0
+    var minX = Infinity;
+    for (var ei = 0; ei < nVerts; ei++) {
+      var a = verts[ei], b = verts[(ei + 1) % nVerts];
+      var yLo = Math.min(a[1], b[1]), yHi = Math.max(a[1], b[1]);
+      if (yVal < yLo || yVal > yHi || yLo === yHi) continue;
+      var t = (yVal - a[1]) / (b[1] - a[1]);
+      var xAt = a[0] + t * (b[0] - a[0]);
+      if (xAt < minX) minX = xAt;
+    }
+    return minX === Infinity ? 0 : minX;
+  }
+  // Use the midpoint of the house (vertically) to find left edge
+  var houseMidY = hy + hd / 2;
+  var leftX = leftEdgeAtY(houseMidY);
+  var hx = leftX + houseOffsetVal;
 
   // === DECK ===
   var deckCX = hx + hw / 2 + (p.deckOffset || 0);

@@ -270,6 +270,28 @@ def draw_site_plan(fig, params, calc):
                     bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="none", alpha=0.8))
 
     # === HOUSE FOOTPRINT ===
+    # S48: Polygon-aware house X placement
+    # houseOffsetSide means "distance from left property line at this Y"
+    def left_edge_at_y(y_val):
+        """Find the leftmost X of the polygon boundary at a given Y."""
+        if not sp.get("lot_vertices"):
+            return 0  # rectangle: left edge is always x=0
+        min_x = float('inf')
+        for ei in range(n_verts):
+            a = lot_verts[ei]
+            b = lot_verts[(ei + 1) % n_verts]
+            y_lo, y_hi = min(a[1], b[1]), max(a[1], b[1])
+            if y_val < y_lo or y_val > y_hi or y_lo == y_hi:
+                continue
+            t = (y_val - a[1]) / (b[1] - a[1])
+            x_at = a[0] + t * (b[0] - a[0])
+            if x_at < min_x:
+                min_x = x_at
+        return 0 if min_x == float('inf') else min_x
+
+    house_mid_y = house_y + house_d / 2
+    house_x = left_edge_at_y(house_mid_y) + house_x  # house_x was houseOffsetSide
+
     house_rect = patches.Rectangle(
         (house_x, house_y), house_w, house_d,
         fc='#e8e6e0', ec=BRAND["dark"], lw=1.5, hatch='///', zorder=3
