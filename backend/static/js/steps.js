@@ -210,7 +210,6 @@ function StepContent(props) {
   const [showLotShape, setShowLotShape] = _stUS(false);
   const [selectedElId, setSelectedElId] = _stUS(null);
   const [showLotHouse, setShowLotHouse] = _stUS(true);
-  const [pendingSiteObjects, setPendingSiteObjects] = _stUS(null);
   var dialDragRef = React.useRef(false);
   _stUE(function() { u("_selectedElId", selectedElId); }, [selectedElId]);
 
@@ -282,11 +281,14 @@ function StepContent(props) {
         if (d.parcelId) setI("lot", d.parcelId);
         if (d.streetName) u("streetName", d.streetName);
         if (d.northAngle != null) u("northAngle", d.northAngle);
-        // S48: Save extracted site objects for review
+        // S48: Auto-apply extracted site objects (filter out decks/porches - those are what the user is designing)
         if (d.siteObjects && d.siteObjects.length > 0) {
-          setPendingSiteObjects(d.siteObjects.map(function(obj, oi) {
-            return { id: Date.now() + oi, type: obj.type || "fence", x: Math.round(obj.xFromLeft || 0), y: Math.round(obj.yFromStreet || 0), w: Math.round(obj.w || 10), d: Math.round(obj.d || 1), label: obj.label || obj.type.toUpperCase(), accepted: true };
-          }));
+          var validTypes = { fence: true, pool: true, shed: true, driveway: true, garage: true, ac_unit: true, tree: true };
+          var existing = p.siteElements || [];
+          var newEls = d.siteObjects.filter(function(obj) { return validTypes[obj.type]; }).map(function(obj, oi) {
+            return { id: Date.now() + oi, type: obj.type, x: Math.round(obj.xFromLeft || 0), y: Math.round(obj.yFromStreet || 0), w: Math.round(obj.w || 10), d: Math.round(obj.d || 1), label: obj.label || obj.type.toUpperCase() };
+          });
+          if (newEls.length > 0) u("siteElements", existing.concat(newEls));
         }
         setExtractResult(null);
         if (setCompareMode) setCompareMode(false);
@@ -1137,55 +1139,6 @@ function StepContent(props) {
         </React.Fragment>;
       })()}
 
-      {/* === S48: EXTRACTED SITE OBJECTS REVIEW === */}
-      {pendingSiteObjects && pendingSiteObjects.length > 0 && <div style={{ padding: 14, background: "#f0fdf4", borderRadius: 8, border: "1px solid #bbf7d0", marginBottom: 14 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-          <span style={{ fontSize: 9, fontWeight: 700, color: "#2e7d32", fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>{"\uD83D\uDDFA\uFE0F"} Detected on Survey</span>
-          <button onClick={function() { setPendingSiteObjects(null); }} style={{ fontSize: 8, fontFamily: _mono, color: _br.mu, background: "none", border: "1px solid " + _br.bd, borderRadius: 4, padding: "3px 8px", cursor: "pointer" }}>Dismiss</button>
-        </div>
-        <div style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, marginBottom: 10, lineHeight: 1.5 }}>
-          We found {pendingSiteObjects.length} object{pendingSiteObjects.length !== 1 ? "s" : ""} on your survey. Toggle any you want added to your site plan.
-        </div>
-        {pendingSiteObjects.map(function(obj, oi) {
-          var typeNames = { fence: "Fence", pool: "Pool", shed: "Shed", driveway: "Driveway", garage: "Garage", patio: "Patio", ac_unit: "A/C Unit", tree: "Tree" };
-          var typeIcons = { fence: "\u2502", pool: "\u223C", shed: "\u2302", driveway: "\uD83D\uDE97", garage: "\uD83D\uDE99", patio: "\u25A3", ac_unit: "\u2744", tree: "\u2742" };
-          return <div key={oi} onClick={function() {
-            setPendingSiteObjects(pendingSiteObjects.map(function(o, i) { return i === oi ? Object.assign({}, o, { accepted: !o.accepted }) : o; }));
-          }} style={{
-            display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", marginBottom: 4,
-            background: obj.accepted ? "#fff" : "#f5f5f5", borderRadius: 6,
-            border: "1px solid " + (obj.accepted ? "#2e7d32" : _br.bd),
-            cursor: "pointer", opacity: obj.accepted ? 1 : 0.5, transition: "all 0.15s"
-          }}>
-            <span style={{ fontSize: 16, flexShrink: 0 }}>{obj.accepted ? "\u2705" : "\u2B1C"}</span>
-            <span style={{ fontSize: 14, flexShrink: 0 }}>{typeIcons[obj.type] || "\u25A1"}</span>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, fontFamily: _mono, color: _br.tx }}>{typeNames[obj.type] || obj.type}</div>
-              <div style={{ fontSize: 9, fontFamily: _mono, color: _br.mu }}>{obj.label}{obj.w && obj.d ? " (" + obj.w + "' x " + obj.d + "')" : ""}</div>
-            </div>
-          </div>;
-        })}
-        <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-          <button onClick={function() {
-            var accepted = pendingSiteObjects.filter(function(o) { return o.accepted; });
-            if (accepted.length > 0) {
-              var existing = p.siteElements || [];
-              var newEls = accepted.map(function(obj) {
-                return { id: obj.id, type: obj.type, x: obj.x, y: obj.y, w: obj.w, d: obj.d, label: obj.label };
-              });
-              u("siteElements", existing.concat(newEls));
-            }
-            setPendingSiteObjects(null);
-          }} style={{
-            flex: 1, padding: "10px", background: "#2e7d32", color: "#fff", border: "none",
-            borderRadius: 8, cursor: "pointer", fontSize: 11, fontFamily: _mono, fontWeight: 700
-          }}>Add {pendingSiteObjects.filter(function(o) { return o.accepted; }).length} to Site Plan</button>
-          <button onClick={function() { setPendingSiteObjects(null); }} style={{
-            padding: "10px 16px", background: "none", color: _br.mu, border: "1px solid " + _br.bd,
-            borderRadius: 8, cursor: "pointer", fontSize: 11, fontFamily: _mono
-          }}>Skip</button>
-        </div>
-      </div>}
 
       {/* === SITE ELEMENTS (S31) === */}
       {(() => {

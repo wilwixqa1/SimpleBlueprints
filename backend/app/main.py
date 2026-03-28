@@ -348,7 +348,7 @@ Common survey indicators:
 - Sheds/garages: shown as rectangles with labels and sometimes dimensions.
 - Driveways: shown as rectangles or trapezoids connecting house area to street.
 
-If no site objects are visible, set siteObjects to an empty array []. CRITICAL: Only include objects you can actually SEE drawn on the site plan. Do NOT invent or assume objects exist. If a garage is listed in area tabulations but its footprint is not drawn on the site plan, do NOT include it in siteObjects.
+If no site objects are visible, set siteObjects to an empty array []. CRITICAL: Only include objects you can actually SEE drawn on the site plan. Do NOT invent or assume objects exist. If a garage is listed in area tabulations but its footprint is not drawn on the site plan, do NOT include it in siteObjects. NEVER include decks, porches, or patios in siteObjects - these are what the user is designing and are handled separately. Only include EXISTING permanent structures like garages, sheds, pools, driveways, fences, and A/C units.
 
 HOUSE DIMENSION ESTIMATION (CRITICAL):
 House dimensions are essential for accurate site plans. Use ALL available signals:
