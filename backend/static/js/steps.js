@@ -319,16 +319,69 @@ GUIDE_PHASES_STEP0.forEach(function(ph) { _guidePhaseMap[ph.id] = ph; });
 // All phase IDs in order for progress calculation
 var _guidePhaseOrder = GUIDE_PHASES_STEP0.map(function(ph) { return ph.id; });
 
+// S49: Step 1 guide phases
+var GUIDE_PHASES_STEP1 = [
+  {
+    id: 's1_deck_size',
+    // message/tip are dynamic based on extraction, set at render time
+    sections: ['deckSize'],
+    focusFields: ['width', 'depth', 'height'],
+    actions: [
+      { label: 'Continue', next: 's1_attachment', style: 'primary' }
+    ]
+  },
+  {
+    id: 's1_attachment',
+    message: "How will the deck attach to your house?",
+    tip: "Ledger board bolts directly to the house. Freestanding uses its own posts near the house wall.",
+    sections: ['attachment'],
+    actions: [
+      { label: 'Continue', next: 's1_stairs', style: 'primary' }
+    ]
+  },
+  {
+    id: 's1_stairs',
+    message: "Do you need stairs?",
+    tip: "If your deck is more than 30 inches above grade, stairs are required by code.",
+    sections: ['stairs'],
+    actions: [
+      { label: 'Continue', next: 's1_complete', style: 'primary' }
+    ]
+  },
+  {
+    id: 's1_complete',
+    message: "Deck design is set!",
+    tip: "Review the plan view on the right. Next up: structural specifications.",
+    sections: [],
+    actions: [
+      { label: 'Continue to Structure \u2192', action: 'advance_step', style: 'primary' }
+    ]
+  }
+];
+
+// Add Step 1 phases to the lookup map
+GUIDE_PHASES_STEP1.forEach(function(ph) { _guidePhaseMap[ph.id] = ph; });
+var _guideStep1Order = GUIDE_PHASES_STEP1.map(function(ph) { return ph.id; });
+
 // GuidePanel: embedded guide at top of wizard step
-function GuidePanel({ phase, onAction, onBack, history, onToggleOff }) {
+function GuidePanel({ phase, onAction, onBack, history, onToggleOff, message, tip }) {
   var ph = _guidePhaseMap[phase];
   if (!ph) return null;
 
-  // Progress: position in the order (approximate, since paths branch)
+  // Progress: check both step arrays
   var idx = _guidePhaseOrder.indexOf(phase);
   var total = _guidePhaseOrder.length;
+  if (idx < 0) {
+    idx = _guideStep1Order.indexOf(phase);
+    total = _guideStep1Order.length;
+  }
   var pct = total > 0 ? Math.round(((idx + 1) / total) * 100) : 0;
-  if (phase === 'complete') pct = 100;
+  if (phase === 'complete' || phase === 's1_complete') pct = 100;
+  if (pct < 5) pct = 5;
+
+  // Use dynamic message/tip if provided, otherwise phase defaults
+  var displayMsg = message || ph.message;
+  var displayTip = tip || ph.tip;
   if (pct < 5) pct = 5;
 
   var canGoBack = history && history.length > 0;
@@ -351,12 +404,12 @@ function GuidePanel({ phase, onAction, onBack, history, onToggleOff }) {
 
     {/* Message */}
     <div style={{ fontSize: 14, fontWeight: 700, color: _br.dk, fontFamily: _sans, lineHeight: 1.4, marginBottom: 4 }}>
-      {ph.message}
+      {displayMsg}
     </div>
 
     {/* Tip */}
-    {ph.tip && <div style={{ fontSize: 11, color: _br.mu, fontFamily: _sans, lineHeight: 1.5, marginBottom: 12 }}>
-      {ph.tip}
+    {displayTip && <div style={{ fontSize: 11, color: _br.mu, fontFamily: _sans, lineHeight: 1.5, marginBottom: 12 }}>
+      {displayTip}
     </div>}
 
     {/* Action buttons */}
@@ -541,7 +594,7 @@ function StepContent(props) {
       u('northAngle', angle);
     }
     if (act.action === 'advance_step') {
-      if (props.setStep) props.setStep(1);
+      if (props.setStep) props.setStep(step + 1);
       return;
     }
     if (act.action === 'expand_for_edit') {
@@ -647,6 +700,27 @@ function StepContent(props) {
       guideAdvance('verify_extracted');
     }
   }, [guideActive, guidePhase, extracting, extractResult, extractError, compareMode, traceMode, p.lotVertices, step]);
+
+  // S49: Auto-init guide phase when step changes
+  _stUE(function() {
+    if (!guideActive) return;
+    if (step === 1 && guidePhase.indexOf('s1_') !== 0 && guidePhase !== 'complete') {
+      // Entering Step 1: set phase and auto-fill deck size from house width
+      setGuideHistory([]);
+      setGuidePeeked({});
+      setGuidePhase('s1_deck_size');
+      // Auto-fill deck width to match house width if it looks like user hasn't customized
+      if (p.houseWidth && p.houseWidth > 20 && p.width === 20) {
+        u('width', Math.min(p.houseWidth, 50));
+      }
+    }
+    if (step === 2 && guidePhase.indexOf('s2_') !== 0 && guidePhase !== 's1_complete') {
+      // Entering Step 2: auto-complete for now (future session)
+      setGuideHistory([]);
+      setGuidePeeked({});
+      setGuideActive(false); // fall back to manual for steps 2+
+    }
+  }, [step]);
 
 
   // S46: Compute candidate lot shapes from extraction result
@@ -796,6 +870,30 @@ function StepContent(props) {
   var isCutout = activeZoneObj && activeZoneObj.type === "cutout";
 
   if (step === 1) return <>
+    {/* S49: Guide panel for Step 1 */}
+    {guideActive === true && (() => {
+      var s1Msg = null, s1Tip = null;
+      if (guidePhase === 's1_deck_size') {
+        var autoFilled = p.houseWidth && p.houseWidth > 20 && p.width === p.houseWidth;
+        var matched = p.houseWidth && p.width === Math.min(p.houseWidth, 50);
+        if (autoFilled || matched) {
+          s1Msg = "We set your deck to " + p.width + "' wide to match your house. Adjust if you want it smaller.";
+          s1Tip = "A standard depth is 12'. Height is how far off the ground your deck sits.";
+        } else {
+          s1Msg = "How big should your deck be?";
+          s1Tip = "Width runs along the house wall. Depth is how far it extends into the yard.";
+        }
+      }
+      return <GuidePanel
+        phase={guidePhase}
+        onAction={guideHandleAction}
+        onBack={guideBack}
+        history={guideHistory}
+        onToggleOff={function() { setGuideActive(false); }}
+        message={s1Msg}
+        tip={s1Tip}
+      />;
+    })()}
 // {/*   Zone selector bar   */}
     {p.zones.length > 0 && <div style={{ marginBottom: 16, padding: 10, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}` }}>
       <div style={{ fontSize: 9, fontWeight: 700, color: _br.mu, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 6 }}>Zones</div>
