@@ -1,5 +1,5 @@
 // ============================================================
-// MAIN APP ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Wizard Shell, State, Nav, Preview Panel
+// MAIN APP ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Wizard Shell, State, Nav, Preview Panel
 // ============================================================
 const { useState, useMemo, useEffect, useRef } = React;
 
@@ -450,7 +450,7 @@ window.generateCandidateShapes = function(edges, targetArea) {
   }
 
 candidates.sort(function(a, b) { return a.areaError - b.areaError; });
-  return candidates.slice(0, 8);
+  return candidates.slice(0, n === 4 ? 6 : 8);
 };
 
 const App = function SimpleBlueprints() {
@@ -466,9 +466,9 @@ const App = function SimpleBlueprints() {
     streetName: "",
     // Polygon lot (S36)
     lotVertices: null, lotEdges: null, lotArea: null,
-    // Zone system ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ S19
+    // Zone system ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ S19
     zones: [], activeZone: 0, nextZoneId: 1, mainCorners: { BL: { type: "square", size: 0 }, BR: { type: "square", size: 0 }, FL: { type: "square", size: 0 }, FR: { type: "square", size: 0 } },
-    // Site plan ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ S27 (defaults seeded from existing flat params)
+    // Site plan ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ S27 (defaults seeded from existing flat params)
     sitePlan: {
       lotShape: "rectangle", lotWidth: 80, lotDepth: 120,
       streetSide: "south", streetName: "",
@@ -537,7 +537,7 @@ const App = function SimpleBlueprints() {
     return next;
   });
 
-  // ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Zone management functions ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ
+  // ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Zone management functions ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ
   const addZone = (parentId, edge) => setP(prev => {
     var parentP = Object.assign({}, prev, { deckWidth: prev.width, deckDepth: prev.depth });
     var defaults = window.addZoneDefaults(parentId, edge, "add", parentP);
@@ -619,7 +619,7 @@ const App = function SimpleBlueprints() {
     return (z && z.corners) || DEF_CORNERS;
   };
 
-  // ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Provide deckWidth/deckDepth aliases for zoneUtils ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ
+  // ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Provide deckWidth/deckDepth aliases for zoneUtils ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ
   // zoneUtils reads p.deckWidth/p.deckDepth, but our flat params use width/depth
   const pForZones = useMemo(() => Object.assign({}, p, { deckWidth: p.width, deckDepth: p.depth, deckHeight: p.height }), [p]);
 
@@ -777,6 +777,11 @@ const App = function SimpleBlueprints() {
             </div>
 
             <div style={{ background: step === 3 ? br.cr : (view === "3d" ? "transparent" : br.cr), border: step === 3 || view !== "3d" ? `1px solid ${br.bd}` : "none", borderRadius: 6, padding: step === 3 ? 8 : (view === "3d" ? 0 : 12), minHeight: 320 }}>
+              {/* S46: Show survey in preview when shape picker active */}
+              {step === 3 && !traceMode && sitePlanB64 && <div style={{ padding: 8, background: br.cr, border: "1px solid " + br.bd, borderRadius: 6, marginBottom: 8 }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: br.mu, fontFamily: mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 6 }}>Your Survey</div>
+                <img src={"data:" + (sitePlanFile && sitePlanFile.name.toLowerCase().endsWith(".pdf") ? "application/pdf" : "image/png") + ";base64," + sitePlanB64} style={{ width: "100%", maxHeight: "50vh", objectFit: "contain", borderRadius: 4, border: "1px solid " + br.bd }} onError={function(e) { e.target.style.display = "none"; }} />
+              </div>}
               {step === 3 && !traceMode && SitePlanView && <SitePlanView p={p} c={c} u={u} />}
               {step === 3 && traceMode && TraceView && <TraceView
                 surveyB64={sitePlanB64}
@@ -794,7 +799,7 @@ const App = function SimpleBlueprints() {
                   addZone={addZone} addCutout={addCutout}
                   getCorners={getCorners} setCorner={setCorner} />
                 {planMode === "plan" && <div style={{ textAlign: "center", fontSize: 9, color: br.mu, fontFamily: mono, marginTop: 4, opacity: 0.7 }}>
-                  {zoneMode === "select" && <>Drag the <span style={{ color: "#3d5a2e", fontWeight: 700 }}>green</span> handle to slide the deck ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ· Click <span style={{ color: "#c62828", fontWeight: 700 }}>stairs</span> to select, drag to move, grab <span style={{ color: "#3d5a2e", fontWeight: 700 }}>{"\u21BB"}</span> to rotate</>}
+                  {zoneMode === "select" && <>Drag the <span style={{ color: "#3d5a2e", fontWeight: 700 }}>green</span> handle to slide the deck ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ· Click <span style={{ color: "#c62828", fontWeight: 700 }}>stairs</span> to select, drag to move, grab <span style={{ color: "#3d5a2e", fontWeight: 700 }}>{"\u21BB"}</span> to rotate</>}
                   {zoneMode === "add" && <>Click <span style={{ color: "#16a34a", fontWeight: 700 }}>+</span> on any edge to add a deck zone</>}
                   {zoneMode === "cut" && <>Click <span style={{ color: "#dc2626", fontWeight: 700 }}>{"\u2702"}</span> on corners for house wraps, center for openings</>}
                   {zoneMode === "chamfer" && <>Click <span style={{ color: "#7c3aed", fontWeight: 700 }}>{"\u25E3"}</span> on corners to toggle 45{"\u00B0"} chamfers</>}
