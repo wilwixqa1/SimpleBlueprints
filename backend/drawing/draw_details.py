@@ -112,7 +112,7 @@ def draw_footing_detail(ax, params, calc):
             f'{calc["footing_diam"]}" \u00d8\nCONCRETE\nPIER', ha='center', fontsize=5, color='#555')
 
     # Grade label
-    ax.text(10, 0.3, 'GRADE', fontsize=4.5, color=BRAND["dark"])
+    ax.text(11, 0.3, 'GRADE', fontsize=4.5, color=BRAND["dark"])
 
     # Gravel base
     ax.add_patch(patches.Rectangle((3, -pier_visual_depth - 0.5), pier_width, 0.5,
@@ -123,14 +123,13 @@ def draw_footing_detail(ax, params, calc):
     ax.add_patch(patches.Rectangle((3.5, 0), pier_width - 1, 0.5,
                  fc='#888', ec=BRAND["dark"], lw=0.8))
     post_base_name = "ABU66Z" if calc["post_size"] == "6x6" else "ABU44Z"
-    ax.text(10, 0.5, f"SIMPSON '{post_base_name}'", fontsize=4.5, color=BRAND["dark"])
-    ax.text(10, -0.1, "POST BASE", fontsize=4.5, color=BRAND["dark"])
+    ax.text(10, 1.2, f"SIMPSON '{post_base_name}'\nPOST BASE", fontsize=4.5, color=BRAND["dark"])
 
     # Post
     post_visual_w = 2.2 if calc["post_size"] == "6x6" else 1.5
     ax.add_patch(patches.Rectangle((3 + (pier_width - post_visual_w) / 2, 0.5),
                  post_visual_w, 6, fc=BRAND["post"], ec=BRAND["dark"], lw=1))
-    ax.text(10, 3.5, f'{calc["post_size"]} PT POST', fontsize=5, fontweight='bold', color=BRAND["dark"])
+    ax.text(10, 4.5, f'{calc["post_size"]} PT POST', fontsize=5, fontweight='bold', color=BRAND["dark"])
 
     # Rebar
     ax.plot([4, 4], [-pier_visual_depth + 0.5, 0], color=BRAND["red"], lw=0.8)
@@ -140,11 +139,11 @@ def draw_footing_detail(ax, params, calc):
     # Frost line
     frost_visual = min(pier_visual_depth * 0.3, 2)
     ax.plot([-1, 9], [-frost_visual, -frost_visual], color=BRAND["blue"], lw=0.5, ls='-.')
-    ax.text(-1, -frost_visual + 0.3, 'FROST LINE', fontsize=3.5, color=BRAND["blue"])
+    ax.text(10, -frost_visual, 'FROST LINE', fontsize=4, color=BRAND["blue"])
 
     # Dimensions
-    draw_dimension_v(ax, 2, -pier_visual_depth, 0,
-                     f'{calc["footing_depth"]}" MIN.', offset=-2.5, color=BRAND["blue"], fontsize=5)
+    draw_dimension_v(ax, 1.5, -pier_visual_depth, 0,
+                     f'{calc["footing_depth"]}" MIN.', offset=-2, color=BRAND["blue"], fontsize=5)
     draw_dimension_h(ax, 3, 3 + pier_width, -pier_visual_depth,
                      f'{calc["footing_diam"]}" DIA.', offset=-2, color=BRAND["red"], fontsize=5)
 
