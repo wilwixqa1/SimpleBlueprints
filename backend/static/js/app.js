@@ -1,5 +1,5 @@
 // ============================================================
-// MAIN APP ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Wizard Shell, State, Nav, Preview Panel
+// MAIN APP   Wizard Shell, State, Nav, Preview Panel
 // ============================================================
 const { useState, useMemo, useEffect, useRef } = React;
 
@@ -466,9 +466,9 @@ const App = function SimpleBlueprints() {
     streetName: "",
     // Polygon lot (S36)
     lotVertices: null, lotEdges: null, lotArea: null,
-    // Zone system ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ S19
+// Zone system   S19
     zones: [], activeZone: 0, nextZoneId: 1, mainCorners: { BL: { type: "square", size: 0 }, BR: { type: "square", size: 0 }, FL: { type: "square", size: 0 }, FR: { type: "square", size: 0 } },
-    // Site plan ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ S27 (defaults seeded from existing flat params)
+// Site plan   S27 (defaults seeded from existing flat params)
     sitePlan: {
       lotShape: "rectangle", lotWidth: 80, lotDepth: 120,
       streetSide: "south", streetName: "",
@@ -537,7 +537,7 @@ const App = function SimpleBlueprints() {
     return next;
   });
 
-  // ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Zone management functions ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ
+// Zone management functions
   const addZone = (parentId, edge) => setP(prev => {
     var parentP = Object.assign({}, prev, { deckWidth: prev.width, deckDepth: prev.depth });
     var defaults = window.addZoneDefaults(parentId, edge, "add", parentP);
@@ -619,7 +619,7 @@ const App = function SimpleBlueprints() {
     return (z && z.corners) || DEF_CORNERS;
   };
 
-  // ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Provide deckWidth/deckDepth aliases for zoneUtils ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ
+// Provide deckWidth/deckDepth aliases for zoneUtils
   // zoneUtils reads p.deckWidth/p.deckDepth, but our flat params use width/depth
   const pForZones = useMemo(() => Object.assign({}, p, { deckWidth: p.width, deckDepth: p.depth, deckHeight: p.height }), [p]);
 
@@ -799,7 +799,7 @@ const App = function SimpleBlueprints() {
                   addZone={addZone} addCutout={addCutout}
                   getCorners={getCorners} setCorner={setCorner} />
                 {planMode === "plan" && <div style={{ textAlign: "center", fontSize: 9, color: br.mu, fontFamily: mono, marginTop: 4, opacity: 0.7 }}>
-                  {zoneMode === "select" && <>Drag the <span style={{ color: "#3d5a2e", fontWeight: 700 }}>green</span> handle to slide the deck ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ· Click <span style={{ color: "#c62828", fontWeight: 700 }}>stairs</span> to select, drag to move, grab <span style={{ color: "#3d5a2e", fontWeight: 700 }}>{"\u21BB"}</span> to rotate</>}
+// {zoneMode === "select" && <>Drag the <span style={{ color: "#3d5a2e", fontWeight: 700 }}>green</span> handle to slide the deck   Click <span style={{ color: "#c62828", fontWeight: 700 }}>stairs</span> to select, drag to move, grab <span style={{ color: "#3d5a2e", fontWeight: 700 }}>{"\u21BB"}</span> to rotate</>}
                   {zoneMode === "add" && <>Click <span style={{ color: "#16a34a", fontWeight: 700 }}>+</span> on any edge to add a deck zone</>}
                   {zoneMode === "cut" && <>Click <span style={{ color: "#dc2626", fontWeight: 700 }}>{"\u2702"}</span> on corners for house wraps, center for openings</>}
                   {zoneMode === "chamfer" && <>Click <span style={{ color: "#7c3aed", fontWeight: 700 }}>{"\u25E3"}</span> on corners to toggle 45{"\u00B0"} chamfers</>}

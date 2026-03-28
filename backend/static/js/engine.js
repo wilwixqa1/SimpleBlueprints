@@ -1,5 +1,5 @@
 // ============================================================
-// ENGINE Ã¢ÂÂ Structural Calculations + Materials Estimator
+// ENGINE   Structural Calculations + Materials Estimator
 // ============================================================
 
 const JOIST_SPANS = {
@@ -134,20 +134,20 @@ function calcStructure(p) {
   // Override warnings
   const joistRank = { "2x6": 0, "2x8": 1, "2x10": 2, "2x12": 3 };
   if (p.overJoist && (joistRank[p.overJoist] || 0) < (joistRank[autoJoist] || 0)) {
-    warnings.push(`Ã¢Â¬Â Joist override (${p.overJoist}) is smaller than recommended (${autoJoist}). May not meet code.`);
+// warnings.push(`  Joist override (${p.overJoist}) is smaller than recommended (${autoJoist}). May not meet code.`);
   }
   const beamRank = { "2-ply 2x8": 0, "2-ply 2x10": 1, "2-ply 2x12": 2, "3-ply 2x10": 3, "3-ply 2x12": 4, "3-ply LVL 1.75x12": 5 };
   if (p.overBeam && (beamRank[p.overBeam] || 0) < (beamRank[autoBeam] || 0)) {
-    warnings.push(`Ã¢Â¬Â Beam override (${p.overBeam}) is smaller than recommended (${autoBeam}). May not meet code.`);
+// warnings.push(`  Beam override (${p.overBeam}) is smaller than recommended (${autoBeam}). May not meet code.`);
   }
   if (p.overPostSize === "4x4" && autoPostSize === "6x6") {
-    warnings.push(`Ã¢Â¬Â Post override (4x4) is smaller than recommended (6x6). May not meet code.`);
+// warnings.push(`  Post override (4x4) is smaller than recommended (6x6). May not meet code.`);
   }
   if (p.overFooting && p.overFooting < autoFDiam) {
-    warnings.push(`Ã¢Â¬Â Footing override (${p.overFooting}") is smaller than recommended (${autoFDiam}"). May not meet code.`);
+// warnings.push(`  Footing override (${p.overFooting}") is smaller than recommended (${autoFDiam}"). May not meet code.`);
   }
   if (p.overPostCount && p.overPostCount < autoNP) {
-    warnings.push(`Ã¢Â¬Â Fewer posts (${p.overPostCount}) than recommended (${autoNP}). May not meet code.`);
+// warnings.push(`  Fewer posts (${p.overPostCount}) than recommended (${autoNP}). May not meet code.`);
   }
 
   return { W, D, H, area, lotArea, LL, DL, TL, joistSize, sp, jSpan: +jSpan.toFixed(1), nJ, beamSize, bSpan: +bSpan.toFixed(1), postSize, nP, totalPosts, pp, postHeights, fDiam, fDepth, nF: totalPosts, ledgerSize: joistSize, railLen: +railLen.toFixed(1), midSpanBlocking, blockingCount, stairs, warnings, attachment,

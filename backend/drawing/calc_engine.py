@@ -1,6 +1,6 @@
 """
-SimpleBlueprints ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ Structural Calculation Engine
-Production version ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ mirrors frontend calcStructure() exactly
+# SimpleBlueprints   Structural Calculation Engine
+# Production version   mirrors frontend calcStructure() exactly
 """
 
 import math
