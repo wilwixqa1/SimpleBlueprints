@@ -334,17 +334,20 @@ If the lot is clearly rectangular (all angles are 90 degrees and opposite sides 
 
 Also include a "confidence" object with the same keys (including "lotEdges" and "lotArea"), each "high", "medium", or "low".
 
-Also extract visible site objects as a "siteObjects" array. For each object you can ACTUALLY SEE drawn on the site plan (fences, pools, sheds, driveways, garages, patios, A/C units), extract:
-- type: one of "fence", "pool", "shed", "driveway", "garage", "patio", "ac_unit" (string)
+Also extract visible site objects as a "siteObjects" array. For each object you can ACTUALLY SEE drawn on the site plan (fences, pools, sheds, driveways, garages, A/C units), extract:
+- type: one of "fence", "pool", "shed", "driveway", "garage", "ac_unit" (string)
 - w: width in feet (number). For fences, this is the fence length. Estimate from graphic scale if not labeled.
 - d: depth in feet (number). For fences, use 1. Estimate from graphic scale if not labeled.
-- xFromLeft: distance from the LEFT property line to the left edge of the object, in feet (number). Estimate from graphic scale.
-- yFromStreet: distance from the STREET property line to the bottom edge of the object, in feet (number). Estimate from graphic scale.
 - label: descriptive label like "FENCE", "POOL", "6' PRIVACY FENCE", "GARAGE" (string)
+- relativeToHouse: spatial relationship to the house. One of: "left", "right", "behind", "front", "detached-left", "detached-right", "detached-behind" (string). Use "left"/"right"/"behind"/"front" when the object is attached or immediately adjacent to the house. Use "detached-*" when there is clear space between the object and the house.
+- flushWithHouse: is the object's front wall aligned with the house front wall? One of: "flush", "set-back", "forward" (string). "flush" means same Y position as house front. "set-back" means further from street. "forward" means closer to street.
+- nearestEdge: which property line is the object closest to? One of: "street", "left", "right", "rear" (string). This helps with fallback positioning.
+
+Do NOT include xFromLeft or yFromStreet. Instead, use the relational fields above so the application can compute precise coordinates from the house position.
 
 Common survey indicators:
-- Fences: shown as dashed lines labeled "FENCE", "WOOD FENCE", "CHAIN LINK FENCE", "6' PRIVACY FENCE", etc. Measure the length along the fence line. Multiple fence segments should be separate entries.
-- Pools: shown as rounded rectangles labeled "POOL" with dimensions.
+- Fences: shown as dashed lines labeled "FENCE", "WOOD FENCE", "CHAIN LINK FENCE", "6' PRIVACY FENCE", etc. Measure the length along the fence line. Multiple fence segments should be separate entries. For relativeToHouse, describe which side of the property the fence is on. For fences along property lines, set nearestEdge to the property line they follow.
+- Pools: shown as rounded rectangles labeled "POOL" with dimensions. Usually behind the house.
 - Sheds/garages: shown as rectangles with labels and sometimes dimensions.
 - Driveways: shown as rectangles or trapezoids connecting house area to street.
 

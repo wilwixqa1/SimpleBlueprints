@@ -281,31 +281,64 @@ function StepContent(props) {
         if (d.parcelId) setI("lot", d.parcelId);
         if (d.streetName) u("streetName", d.streetName);
         if (d.northAngle != null) u("northAngle", d.northAngle);
-        // S48: Auto-apply extracted site objects (filter out decks/porches - those are what the user is designing)
+        // S48: Auto-apply extracted site objects using relational placement
         if (d.siteObjects && d.siteObjects.length > 0) {
           var validTypes = { fence: true, pool: true, shed: true, driveway: true, garage: true, ac_unit: true, tree: true };
-          // S48: Polygon-aware position for site objects (same logic as house)
-          var _nv = cv.length;
-          function _leftEdgeAtY(yVal) {
-            if (!cv || _nv < 3) return 0;
-            var minX = Infinity;
-            for (var ei = 0; ei < _nv; ei++) {
-              var a = cv[ei], b = cv[(ei + 1) % _nv];
-              var yLo = Math.min(a[1], b[1]), yHi = Math.max(a[1], b[1]);
-              if (yVal < yLo || yVal > yHi || yLo === yHi) continue;
-              var t = (yVal - a[1]) / (b[1] - a[1]);
-              var xAt = a[0] + t * (b[0] - a[0]);
-              if (xAt < minX) minX = xAt;
-            }
-            return minX === Infinity ? 0 : minX;
-          }
           var existing = p.siteElements || [];
+          var _hx = finalOffsetSide;
+          var _hy = finalDistFromStreet;
+          var _hw2 = d.houseWidth || 40;
+          var _hd2 = d.houseDepth || 30;
+          var _lotBBW = Math.max(30, Math.round(cmaxX));
+          var _lotBBD = Math.max(50, Math.round(cmaxY));
+
           var newEls = d.siteObjects.filter(function(obj) { return validTypes[obj.type]; }).map(function(obj, oi) {
-            var objY = Math.round(obj.yFromStreet || 0);
-            var objD = Math.round(obj.d || 1);
-            var leftX = _leftEdgeAtY(objY + objD / 2);
-            var objX = Math.round(leftX + (obj.xFromLeft || 0));
-            return { id: Date.now() + oi, type: obj.type, x: objX, y: objY, w: Math.round(obj.w || 10), d: objD, label: obj.label || obj.type.toUpperCase() };
+            var ow = Math.round(obj.w || 10);
+            var od = Math.round(obj.d || 1);
+            var rel = obj.relativeToHouse || "";
+            var flush = obj.flushWithHouse || "flush";
+            var near = obj.nearestEdge || "";
+            var ox, oy;
+
+            // Compute Y from flush relationship
+            if (flush === "flush") { oy = _hy; }
+            else if (flush === "set-back") { oy = _hy + Math.round(_hd2 * 0.3); }
+            else if (flush === "forward") { oy = Math.max(0, _hy - Math.round(_hd2 * 0.3)); }
+            else { oy = _hy; }
+
+            // Compute X from relative position
+            if (rel === "left" || rel === "detached-left") {
+              ox = rel === "detached-left" ? Math.max(0, _hx - ow - 5) : Math.max(0, _hx - ow);
+            } else if (rel === "right" || rel === "detached-right") {
+              ox = rel === "detached-right" ? _hx + _hw2 + 5 : _hx + _hw2;
+            } else if (rel === "behind" || rel === "detached-behind") {
+              ox = _hx;
+              oy = rel === "detached-behind" ? _hy + _hd2 + 10 : _hy + _hd2;
+            } else if (rel === "front") {
+              ox = _hx;
+              oy = Math.max(0, _hy - od);
+            } else {
+              // Fallback: use nearestEdge
+              if (near === "left") { ox = 2; }
+              else if (near === "right") { ox = _lotBBW - ow - 2; }
+              else if (near === "rear") { ox = _hx; oy = _lotBBD - od - 5; }
+              else if (near === "street") { ox = _hx; oy = 2; }
+              else { ox = _hx; }
+            }
+
+            // Special cases by type
+            if (obj.type === "driveway") {
+              // Driveways connect to street
+              oy = 0;
+              if (!rel && near !== "left" && near !== "right") ox = _hx;
+            } else if (obj.type === "fence" && near) {
+              // Fences along property lines
+              if (near === "left") { ox = 0; oy = _hy; }
+              else if (near === "right") { ox = _lotBBW - 1; oy = _hy; }
+              else if (near === "rear") { ox = 0; oy = _lotBBD - 1; }
+            }
+
+            return { id: Date.now() + oi, type: obj.type, x: Math.round(ox), y: Math.round(oy), w: ow, d: od, label: obj.label || obj.type.toUpperCase() };
           });
           if (newEls.length > 0) u("siteElements", existing.concat(newEls));
         }
