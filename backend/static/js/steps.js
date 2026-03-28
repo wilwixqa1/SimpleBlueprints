@@ -284,9 +284,28 @@ function StepContent(props) {
         // S48: Auto-apply extracted site objects (filter out decks/porches - those are what the user is designing)
         if (d.siteObjects && d.siteObjects.length > 0) {
           var validTypes = { fence: true, pool: true, shed: true, driveway: true, garage: true, ac_unit: true, tree: true };
+          // S48: Polygon-aware position for site objects (same logic as house)
+          var _nv = cv.length;
+          function _leftEdgeAtY(yVal) {
+            if (!cv || _nv < 3) return 0;
+            var minX = Infinity;
+            for (var ei = 0; ei < _nv; ei++) {
+              var a = cv[ei], b = cv[(ei + 1) % _nv];
+              var yLo = Math.min(a[1], b[1]), yHi = Math.max(a[1], b[1]);
+              if (yVal < yLo || yVal > yHi || yLo === yHi) continue;
+              var t = (yVal - a[1]) / (b[1] - a[1]);
+              var xAt = a[0] + t * (b[0] - a[0]);
+              if (xAt < minX) minX = xAt;
+            }
+            return minX === Infinity ? 0 : minX;
+          }
           var existing = p.siteElements || [];
           var newEls = d.siteObjects.filter(function(obj) { return validTypes[obj.type]; }).map(function(obj, oi) {
-            return { id: Date.now() + oi, type: obj.type, x: Math.round(obj.xFromLeft || 0), y: Math.round(obj.yFromStreet || 0), w: Math.round(obj.w || 10), d: Math.round(obj.d || 1), label: obj.label || obj.type.toUpperCase() };
+            var objY = Math.round(obj.yFromStreet || 0);
+            var objD = Math.round(obj.d || 1);
+            var leftX = _leftEdgeAtY(objY + objD / 2);
+            var objX = Math.round(leftX + (obj.xFromLeft || 0));
+            return { id: Date.now() + oi, type: obj.type, x: objX, y: objY, w: Math.round(obj.w || 10), d: objD, label: obj.label || obj.type.toUpperCase() };
           });
           if (newEls.length > 0) u("siteElements", existing.concat(newEls));
         }
