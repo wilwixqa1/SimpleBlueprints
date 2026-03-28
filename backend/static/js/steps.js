@@ -1280,7 +1280,7 @@ function StepContent(props) {
               var data = await res.json();
               if (data.ok) {
                 setExtractResult(data.data);
-                var hasShapes = data.data.lotEdges && data.data.lotEdges.length === 4 && data.data.lotArea;
+                var hasShapes = data.data.lotEdges && data.data.lotEdges.length >= 4 && data.data.lotArea;
                 if (!hasShapes) {
                   setTraceState({
                     calPoints: [], calDist: "", ppf: null,
