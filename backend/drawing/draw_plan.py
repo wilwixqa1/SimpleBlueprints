@@ -229,7 +229,7 @@ def draw_plan_and_framing(fig, params, calc):
     has_zones = len(params.get("zones", [])) > 0
 
     ax1, ax2 = fig.subplots(1, 2)
-    fig.subplots_adjust(left=0.04, right=0.96, top=0.91, bottom=0.08, wspace=0.12)
+    fig.subplots_adjust(left=0.04, right=0.84, top=0.91, bottom=0.08, wspace=0.12)
 
     # S21: Zone-aware plan view data
     add_rects = get_additive_rects(params)
