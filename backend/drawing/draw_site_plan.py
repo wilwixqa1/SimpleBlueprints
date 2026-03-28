@@ -707,8 +707,11 @@ def draw_site_plan(fig, params, calc):
 
     # Divider
     _row_y -= 0.012
-    fig.plot([leg_x, leg_x + 0.12], [_row_y, _row_y],
-             color=BRAND["border"], lw=0.5, transform=fig.transFigure, clip_on=False)
+    from matplotlib.lines import Line2D
+    _divider = Line2D([leg_x, leg_x + 0.12], [_row_y, _row_y],
+                      color=BRAND["border"], lw=0.5, transform=fig.transFigure)
+    _divider.set_clip_on(False)
+    fig.add_artist(_divider)
 
     _row_y -= 0.02
     fig.text(leg_x, _row_y, "Covered:", fontsize=6, fontfamily='monospace',
