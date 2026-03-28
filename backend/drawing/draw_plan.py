@@ -253,7 +253,8 @@ def draw_plan_and_framing(fig, params, calc):
         title_y = bbox["y"] + bbox["d"] + margin_y - 1
         ax.text(bbox["x"], title_y, title, fontsize=10, fontweight='bold',
                 fontfamily='monospace', color=BRAND["dark"])
-        ax.text(bbox["x"], title_y - 1.2, 'SCALE: 1/4" = 1\''-0"', fontsize=5.5,
+        _scale_txt = 'SCALE: 1/4" = 1' + "'" + '-0"'
+        ax.text(bbox["x"], title_y - 1.2, _scale_txt, fontsize=5.5,
                 fontfamily='monospace', color=BRAND["mute"])
 
         # House
