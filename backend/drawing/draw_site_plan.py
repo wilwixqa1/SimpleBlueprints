@@ -15,6 +15,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+from matplotlib.lines import Line2D
 from matplotlib.patches import FancyArrowPatch
 import numpy as np
 from .zone_utils import get_additive_rects, get_cutout_rects, get_bounding_box
@@ -723,7 +724,6 @@ def draw_site_plan(fig, params, calc):
 
     # Divider
     _row_y -= 0.012
-    from matplotlib.lines import Line2D
     _divider = Line2D([leg_x, leg_x + 0.12], [_row_y, _row_y],
                       color=BRAND["border"], lw=0.5, transform=fig.transFigure)
     _divider.set_clip_on(False)
