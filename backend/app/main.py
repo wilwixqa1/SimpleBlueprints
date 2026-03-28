@@ -332,6 +332,21 @@ If the lot is clearly rectangular (all angles are 90 degrees and opposite sides 
 
 Also include a "confidence" object with the same keys (including "lotEdges" and "lotArea"), each "high", "medium", or "low".
 
+Also extract visible site objects as a "siteObjects" array. For each object found on the survey (fences, pools, sheds, driveways, garages, patios, A/C units), extract:
+- type: one of "fence", "pool", "shed", "driveway", "garage", "patio", "ac_unit" (string)
+- w: width in feet (number). For fences, this is the fence length.
+- d: depth in feet (number). For fences, use 1.
+- xFromLeft: distance from the LEFT property line to the left edge of the object, in feet (number)
+- yFromStreet: distance from the STREET property line to the bottom edge of the object, in feet (number)
+- label: descriptive label like "FENCE", "POOL", "6' PRIVACY FENCE" (string)
+
+Common survey indicators:
+- Fences: shown as dashed lines labeled "FENCE", "WOOD FENCE", "CHAIN LINK FENCE", "6' PRIVACY FENCE", etc. Measure the length along the fence line. If a fence runs along a property line, xFromLeft is 0 (left side fence) or lot width (right side fence). yFromStreet is the distance from street to where the fence starts. Multiple fence segments should be separate entries.
+- Pools: shown as rounded rectangles labeled "POOL" with dimensions.
+- Sheds/garages: shown as rectangles with labels and sometimes dimensions.
+
+If no site objects are visible, set siteObjects to an empty array [].
+
 IMPORTANT: Measure dimensions carefully from the survey markings. Property surveys show lot dimensions along boundary lines. House footprint may be labeled or estimated from the scale bar. Return ONLY valid JSON."""
 
 @app.post("/api/extract-survey")
