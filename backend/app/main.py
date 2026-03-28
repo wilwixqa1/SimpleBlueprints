@@ -291,10 +291,10 @@ Required fields (use null if not found or not readable):
 - lotWidth: lot width in feet, measured along the street frontage (number)
 - lotDepth: lot depth in feet, measured from street to rear property line (number)
 - lotArea: total lot area in square feet (number). Look in "AREA TABULATIONS" or "LOT AREA" sections, typically formatted as "LOT AREA: XX,XXX S.F." If given in acres, convert to square feet (1 acre = 43,560 SF).
-- houseWidth: house/dwelling width in feet (number)
-- houseDepth: house/dwelling depth in feet (number)
-- houseDistFromStreet: distance from house front wall to front property line in feet (number)
-- houseOffsetSide: distance from house left wall to left/west property line in feet (number)
+- houseWidth: house/dwelling width in feet (number). See HOUSE DIMENSION ESTIMATION below.
+- houseDepth: house/dwelling depth in feet (number). See HOUSE DIMENSION ESTIMATION below.
+- houseDistFromStreet: distance from house front wall to front property line in feet (number). Estimate from the site plan using the graphic scale if not explicitly labeled. The house is typically set back from the street by the front setback distance or more.
+- houseOffsetSide: distance from house left wall to left/west property line in feet (number). Estimate from the site plan using the graphic scale if not explicitly labeled.
 - setbackFront: front setback requirement if shown on survey (number)
 - setbackRear: rear setback requirement if shown on survey (number)
 - setbackSide: side setback requirement if shown on survey (number)
@@ -332,22 +332,46 @@ If the lot is clearly rectangular (all angles are 90 degrees and opposite sides 
 
 Also include a "confidence" object with the same keys (including "lotEdges" and "lotArea"), each "high", "medium", or "low".
 
-Also extract visible site objects as a "siteObjects" array. For each object found on the survey (fences, pools, sheds, driveways, garages, patios, A/C units), extract:
+Also extract visible site objects as a "siteObjects" array. For each object you can ACTUALLY SEE drawn on the site plan (fences, pools, sheds, driveways, garages, patios, A/C units), extract:
 - type: one of "fence", "pool", "shed", "driveway", "garage", "patio", "ac_unit" (string)
-- w: width in feet (number). For fences, this is the fence length.
-- d: depth in feet (number). For fences, use 1.
-- xFromLeft: distance from the LEFT property line to the left edge of the object, in feet (number)
-- yFromStreet: distance from the STREET property line to the bottom edge of the object, in feet (number)
-- label: descriptive label like "FENCE", "POOL", "6' PRIVACY FENCE" (string)
+- w: width in feet (number). For fences, this is the fence length. Estimate from graphic scale if not labeled.
+- d: depth in feet (number). For fences, use 1. Estimate from graphic scale if not labeled.
+- xFromLeft: distance from the LEFT property line to the left edge of the object, in feet (number). Estimate from graphic scale.
+- yFromStreet: distance from the STREET property line to the bottom edge of the object, in feet (number). Estimate from graphic scale.
+- label: descriptive label like "FENCE", "POOL", "6' PRIVACY FENCE", "GARAGE" (string)
 
 Common survey indicators:
-- Fences: shown as dashed lines labeled "FENCE", "WOOD FENCE", "CHAIN LINK FENCE", "6' PRIVACY FENCE", etc. Measure the length along the fence line. If a fence runs along a property line, xFromLeft is 0 (left side fence) or lot width (right side fence). yFromStreet is the distance from street to where the fence starts. Multiple fence segments should be separate entries.
+- Fences: shown as dashed lines labeled "FENCE", "WOOD FENCE", "CHAIN LINK FENCE", "6' PRIVACY FENCE", etc. Measure the length along the fence line. Multiple fence segments should be separate entries.
 - Pools: shown as rounded rectangles labeled "POOL" with dimensions.
 - Sheds/garages: shown as rectangles with labels and sometimes dimensions.
+- Driveways: shown as rectangles or trapezoids connecting house area to street.
 
-If no site objects are visible, set siteObjects to an empty array [].
+If no site objects are visible, set siteObjects to an empty array []. CRITICAL: Only include objects you can actually SEE drawn on the site plan. Do NOT invent or assume objects exist. If a garage is listed in area tabulations but its footprint is not drawn on the site plan, do NOT include it in siteObjects.
 
-IMPORTANT: Measure dimensions carefully from the survey markings. Property surveys show lot dimensions along boundary lines. House footprint may be labeled or estimated from the scale bar. Return ONLY valid JSON."""
+HOUSE DIMENSION ESTIMATION (CRITICAL):
+House dimensions are essential for accurate site plans. Use ALL available signals:
+1. LABELED DIMENSIONS: If the house footprint has width/depth labels, use those directly.
+2. AREA TABULATIONS: Look for "BUILDING: X,XXX S.F." in area tabulation sections. Use this as a cross-check (width x depth should approximate this area).
+3. GRAPHIC SCALE: Every site plan has a graphic scale bar (e.g. "1' = 40'"). Measure the house footprint against this scale to estimate width and depth. This is the primary method when dimensions are not labeled.
+4. DECK PLAN PAGES: If the document includes a deck plan at larger scale (e.g. 1/4" = 1'0"), the house outline is drawn much larger and easier to measure. Use this for more accurate estimates.
+5. CROSS-CHECK: If building area is given (e.g. 1,140 SF) and you estimate 38' x 30' = 1,140 SF, that confirms your estimate.
+
+HOUSE POSITION ESTIMATION (CRITICAL):
+Even if not explicitly labeled, estimate the house position from the site plan drawing:
+- houseDistFromStreet: Measure from the street property line to the front wall of the house using the graphic scale. Often the house sits at or near the front setback line.
+- houseOffsetSide: Measure from the left property line to the left wall of the house using the graphic scale.
+If setback lines are drawn (dashed lines), use them as reference points. The house is often positioned relative to these lines.
+
+OBJECT POSITION ESTIMATION:
+For all objects (house, garage, site objects), estimate positions using the graphic scale and known reference points:
+- Property line lengths give you the lot dimensions for reference
+- Setback lines (dashed) give you known distances from property lines
+- The graphic scale bar lets you measure any distance on the drawing
+- Cross-check positions against setback distances when available
+
+Never return null for houseWidth, houseDepth, houseDistFromStreet, or houseOffsetSide if a house footprint is visible on the site plan. Use your best estimate from the graphic scale.
+
+Return ONLY valid JSON."""
 
 @app.post("/api/extract-survey")
 async def extract_survey(request: Request):
