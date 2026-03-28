@@ -102,7 +102,6 @@ def draw_site_plan(fig, params, calc):
     ax.set_aspect('equal')
     ax.axis('off')
 
-    margin = 15
     # === LOT POLYGON (S37: polygon-aware) ===
     lot_verts = sp.get("lot_vertices")
     lot_edge_data = sp.get("lot_edges")
@@ -120,6 +119,12 @@ def draw_site_plan(fig, params, calc):
     poly_max_y = max(v[1] for v in lot_verts)
     cx_lot = sum(v[0] for v in lot_verts) / n_verts
     cy_lot = sum(v[1] for v in lot_verts) / n_verts
+
+    # S44: Adaptive scaling for large lots
+    _lot_span = max(poly_max_x, poly_max_y)
+    _sf = max(1.0, _lot_span / 120.0)  # 1.0 for default lots, ~4 for Welborn
+    _is_large = _sf > 2.0  # True when lot span > 240'
+    margin = max(15, 15 * _sf)
 
     ax.set_xlim(-margin, poly_max_x + margin)
     ax.set_ylim(-margin, poly_max_y + margin)
@@ -150,7 +155,7 @@ def draw_site_plan(fig, params, calc):
         nx, ny = -edy/seg_len, edx/seg_len
         if nx*(cx_lot-mx) + ny*(cy_lot-my) > 0:
             nx, ny = -nx, -ny
-        lx, ly = mx + nx * 4.5, my + ny * 4.5
+        lx, ly = mx + nx * 4.5 * _sf, my + ny * 4.5 * _sf
         angle = math.degrees(math.atan2(edy, edx))
         while angle > 90: angle -= 180
         while angle < -90: angle += 180
@@ -175,7 +180,7 @@ def draw_site_plan(fig, params, calc):
         nx, ny = -edy/seg_len, edx/seg_len
         if nx*(cx_lot-mx) + ny*(cy_lot-my) > 0:
             nx, ny = -nx, -ny
-        lx, ly = mx + nx * 9, my + ny * 9
+        lx, ly = mx + nx * 9 * _sf, my + ny * 9 * _sf
         angle = math.degrees(math.atan2(edy, edx))
         while angle > 90: angle -= 180
         while angle < -90: angle += 180
@@ -269,17 +274,21 @@ def draw_site_plan(fig, params, calc):
         fc='#e8e6e0', ec=BRAND["dark"], lw=1.5, hatch='///', zorder=3
     )
     ax.add_patch(house_rect)
+    # S44: Simpler label on large lots where house rect is tiny
+    _house_label = "EXISTING\nRESIDENCE" if _is_large else house_label
     ax.text(house_x + house_w / 2, house_y + house_d / 2,
-            house_label,
+            _house_label,
             ha='center', va='center', fontsize=7, fontweight='bold',
             fontfamily='monospace', color=BRAND["dark"], zorder=4)
 
-    ax.text(house_x + house_w / 2, house_y - 2.5, f"{house_w}'",
-            ha='center', fontsize=6, fontfamily='monospace', color=BRAND["mute"],
-            fontweight='bold')
-    ax.text(house_x - 3, house_y + house_d / 2, f"{house_d}'",
-            ha='center', fontsize=6, fontfamily='monospace', color=BRAND["mute"],
-            fontweight='bold', rotation=90)
+    # S44: Skip house dimension labels on large lots (unreadable, cluttery)
+    if not _is_large:
+        ax.text(house_x + house_w / 2, house_y - 2.5, f"{house_w}'",
+                ha='center', fontsize=6, fontfamily='monospace', color=BRAND["mute"],
+                fontweight='bold')
+        ax.text(house_x - 3, house_y + house_d / 2, f"{house_d}'",
+                ha='center', fontsize=6, fontfamily='monospace', color=BRAND["mute"],
+                fontweight='bold', rotation=90)
 
     # === SITE ELEMENTS (S32) ===
     site_elements = params.get("siteElements") or []
@@ -384,7 +393,11 @@ def draw_site_plan(fig, params, calc):
     total_area = sum(r["rect"]["w"] * r["rect"]["d"] for r in add_rects)
     total_area -= sum(r["rect"]["w"] * r["rect"]["d"] for r in cut_rects)
 
-    if zones:
+    # S44: Simpler label on large lots (dimensions unreadable, show SF instead)
+    _deck_area = total_area if total_area > 0 else deck_w * deck_d
+    if _is_large:
+        label = f"PROPOSED DECK\n{_deck_area:.0f} SF"
+    elif zones:
         label = f"PROPOSED DECK\n{total_area:.0f} S.F."
     else:
         label = f"PROPOSED DECK\n{deck_w}'\u00D7{deck_d}'"
@@ -393,20 +406,21 @@ def draw_site_plan(fig, params, calc):
             ha='center', va='center', fontsize=7, fontweight='bold',
             fontfamily='monospace', color=BRAND["green"], zorder=5)
 
-    # Deck dimensions (bounding box)
-    ax.annotate('', xy=(bb_x + bb_w, bb_y + bb_d + 3),
-                xytext=(bb_x, bb_y + bb_d + 3),
-                arrowprops=dict(arrowstyle='<->', color=BRAND["blue"], lw=0.8))
-    ax.text(bb_x + bb_w / 2, bb_y + bb_d + 4.5, f"{bb_w:.0f}'",
-            ha='center', fontsize=6, fontweight='bold', fontfamily='monospace',
-            color=BRAND["blue"])
+    # Deck dimensions (bounding box) - S44: skip on large lots
+    if not _is_large:
+        ax.annotate('', xy=(bb_x + bb_w, bb_y + bb_d + 3),
+                    xytext=(bb_x, bb_y + bb_d + 3),
+                    arrowprops=dict(arrowstyle='<->', color=BRAND["blue"], lw=0.8))
+        ax.text(bb_x + bb_w / 2, bb_y + bb_d + 4.5, f"{bb_w:.0f}'",
+                ha='center', fontsize=6, fontweight='bold', fontfamily='monospace',
+                color=BRAND["blue"])
 
-    ax.annotate('', xy=(bb_x + bb_w + 3, bb_y + bb_d),
-                xytext=(bb_x + bb_w + 3, bb_y),
-                arrowprops=dict(arrowstyle='<->', color=BRAND["blue"], lw=0.8))
-    ax.text(bb_x + bb_w + 5, bb_y + bb_d / 2, f"{bb_d:.0f}'",
-            ha='center', fontsize=6, fontweight='bold', fontfamily='monospace',
-            color=BRAND["blue"], rotation=90)
+        ax.annotate('', xy=(bb_x + bb_w + 3, bb_y + bb_d),
+                    xytext=(bb_x + bb_w + 3, bb_y),
+                    arrowprops=dict(arrowstyle='<->', color=BRAND["blue"], lw=0.8))
+        ax.text(bb_x + bb_w + 5, bb_y + bb_d / 2, f"{bb_d:.0f}'",
+                ha='center', fontsize=6, fontweight='bold', fontfamily='monospace',
+                color=BRAND["blue"], rotation=90)
 
     # === STAIR PROJECTION (S32) ===
     has_stairs = params.get("hasStairs", False)
@@ -493,34 +507,35 @@ def draw_site_plan(fig, params, calc):
                     fontfamily='monospace', color='#8B7355',
                     fontweight='bold', zorder=2.7)
 
-    # === DISTANCE TO PROPERTY LINES ===
-    rear_dist = lot_d - (bb_y + bb_d)
-    if rear_dist > 0:
-        mid_y = bb_y + bb_d + rear_dist / 2
-        ax.plot([bb_x + bb_w / 2, bb_x + bb_w / 2],
-                [bb_y + bb_d, lot_d],
-                color=BRAND["mute"], lw=0.5, linestyle=':')
-        ax.text(bb_x + bb_w / 2 + 3, mid_y, f"{rear_dist:.0f}'",
-                ha='left', fontsize=6, fontfamily='monospace', color=BRAND["mute"],
-                fontweight='bold')
+    # === DISTANCE TO PROPERTY LINES (S44: skip on large lots) ===
+    if not _is_large:
+        rear_dist = lot_d - (bb_y + bb_d)
+        if rear_dist > 0:
+            mid_y = bb_y + bb_d + rear_dist / 2
+            ax.plot([bb_x + bb_w / 2, bb_x + bb_w / 2],
+                    [bb_y + bb_d, lot_d],
+                    color=BRAND["mute"], lw=0.5, linestyle=':')
+            ax.text(bb_x + bb_w / 2 + 3, mid_y, f"{rear_dist:.0f}'",
+                    ha='left', fontsize=6, fontfamily='monospace', color=BRAND["mute"],
+                    fontweight='bold')
 
-    left_dist = bb_x
-    if left_dist > 0:
-        ax.plot([0, bb_x], [bb_y + bb_d / 2, bb_y + bb_d / 2],
-                color=BRAND["mute"], lw=0.5, linestyle=':')
-        ax.text(left_dist / 2, bb_y + bb_d / 2 - 2, f"{left_dist:.0f}'",
-                ha='center', fontsize=6, fontfamily='monospace', color=BRAND["mute"],
-                fontweight='bold')
+        left_dist = bb_x
+        if left_dist > 0:
+            ax.plot([0, bb_x], [bb_y + bb_d / 2, bb_y + bb_d / 2],
+                    color=BRAND["mute"], lw=0.5, linestyle=':')
+            ax.text(left_dist / 2, bb_y + bb_d / 2 - 2, f"{left_dist:.0f}'",
+                    ha='center', fontsize=6, fontfamily='monospace', color=BRAND["mute"],
+                    fontweight='bold')
 
-    right_dist = lot_w - (bb_x + bb_w)
-    if right_dist > 0:
-        ax.plot([bb_x + bb_w, lot_w],
-                [bb_y + bb_d / 2, bb_y + bb_d / 2],
-                color=BRAND["mute"], lw=0.5, linestyle=':')
-        ax.text(bb_x + bb_w + right_dist / 2, bb_y + bb_d / 2 - 2,
-                f"{right_dist:.0f}'",
-                ha='center', fontsize=6, fontfamily='monospace', color=BRAND["mute"],
-                fontweight='bold')
+        right_dist = lot_w - (bb_x + bb_w)
+        if right_dist > 0:
+            ax.plot([bb_x + bb_w, lot_w],
+                    [bb_y + bb_d / 2, bb_y + bb_d / 2],
+                    color=BRAND["mute"], lw=0.5, linestyle=':')
+            ax.text(bb_x + bb_w + right_dist / 2, bb_y + bb_d / 2 - 2,
+                    f"{right_dist:.0f}'",
+                    ha='center', fontsize=6, fontfamily='monospace', color=BRAND["mute"],
+                    fontweight='bold')
 
     # === STREET (S37: polygon-aware) ===
     _st_label = ""
@@ -530,23 +545,24 @@ def draw_site_plan(fig, params, calc):
             break
     if not _st_label:
         _st_label = street_name or "STREET"
-    ax.add_patch(patches.Rectangle((-margin, -margin), poly_max_x + 2 * margin, margin - 10,
+    _st_band_h = max(5, margin * 0.4)
+    ax.add_patch(patches.Rectangle((-margin, -margin), poly_max_x + 2 * margin, _st_band_h,
                  fc='#e0e0e0', ec='none'))
-    ax.text(poly_max_x / 2, -margin + 3, _st_label.upper(),
+    ax.text(poly_max_x / 2, -margin + _st_band_h * 0.5, _st_label.upper(),
             ha='center', va='center', fontsize=10, fontweight='bold',
             fontfamily='monospace', color=BRAND["mute"])
 
     # === NORTH ARROW (S32: rotatable) ===
-    na_x, na_y = poly_max_x + 8, poly_max_y - 10
+    na_x, na_y = poly_max_x + 8 * _sf, poly_max_y - 10 * _sf
     north_angle = params.get("northAngle", 0) or 0
     na_rad = math.radians(north_angle)
-    na_len = 8
+    na_len = 8 * _sf
     na_dx = na_len * math.sin(na_rad)
     na_dy = na_len * math.cos(na_rad)
     ax.annotate('', xy=(na_x + na_dx, na_y + na_dy), xytext=(na_x, na_y),
                 arrowprops=dict(arrowstyle='->', color=BRAND["dark"], lw=2))
-    na_tx = na_x + (na_len + 2) * math.sin(na_rad)
-    na_ty = na_y + (na_len + 2) * math.cos(na_rad)
+    na_tx = na_x + (na_len + 2 * _sf) * math.sin(na_rad)
+    na_ty = na_y + (na_len + 2 * _sf) * math.cos(na_rad)
     ax.text(na_tx, na_ty, "N", ha='center', va='center', fontsize=12, fontweight='bold',
             fontfamily='monospace', color=BRAND["dark"])
 
@@ -580,29 +596,29 @@ def draw_site_plan(fig, params, calc):
                 fontfamily='monospace', color='#8B7355', fontstyle='italic')
 
     # === GRAPHIC SCALE BAR (S44) ===
-    _lot_span = max(poly_max_x, poly_max_y)
     _nice_units = [5, 10, 20, 25, 40, 50, 100, 200]
     _scale_unit = 10
     for _u in _nice_units:
         if _u >= _lot_span * 0.08 and _u <= _lot_span * 0.3:
             _scale_unit = _u
             break
-    _bar_y = -margin + 6.5
+    _bar_y = -margin + 6.5 * _sf
     _bar_x = 0
     _bar_segs = 4
     _seg_w = _scale_unit / _bar_segs
+    _bar_h = 1.5 * _sf
     for _si in range(_bar_segs):
         _sx = _bar_x + _si * _seg_w
         _fc = BRAND["dark"] if _si % 2 == 0 else "white"
         ax.add_patch(patches.Rectangle(
-            (_sx, _bar_y), _seg_w, 1.5,
+            (_sx, _bar_y), _seg_w, _bar_h,
             fc=_fc, ec=BRAND["dark"], lw=0.6, zorder=10))
-    ax.text(_bar_x, _bar_y - 1.2, "0", ha='center', fontsize=5,
+    ax.text(_bar_x, _bar_y - 1.2 * _sf, "0", ha='center', fontsize=5,
             fontfamily='monospace', color=BRAND["dark"], fontweight='bold', zorder=10)
-    ax.text(_bar_x + _scale_unit, _bar_y - 1.2, f"{_scale_unit}'",
+    ax.text(_bar_x + _scale_unit, _bar_y - 1.2 * _sf, f"{_scale_unit}'",
             ha='center', fontsize=5, fontfamily='monospace',
             color=BRAND["dark"], fontweight='bold', zorder=10)
-    ax.text(_bar_x + _scale_unit / 2, _bar_y + 2.5,
+    ax.text(_bar_x + _scale_unit / 2, _bar_y + _bar_h + 1.0 * _sf,
             "GRAPHIC SCALE (FEET)", ha='center', fontsize=4.5,
             fontfamily='monospace', color=BRAND["mute"], zorder=10)
 
