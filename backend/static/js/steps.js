@@ -57,23 +57,28 @@ function SurveyPreview({ b64, fileType }) {
   var btnStyle = { fontSize: 10, fontFamily: _mono, padding: "3px 10px", cursor: "pointer", background: "none", border: "1px solid " + _br.bd, borderRadius: 4, color: _br.tx, fontWeight: 700 };
   return React.createElement("div", null,
     React.createElement("img", { src: src, style: { width: "100%", objectFit: "contain", borderRadius: 4, border: "1px solid " + _br.bd } }),
-    fileType === "pdf" && pageCount > 1 && React.createElement("div", { style: { display: "flex", justifyContent: "center", alignItems: "center", gap: 8, marginTop: 6 } },
+    fileType === "pdf" && pageCount > 1 && React.createElement("div", { style: { display: "flex", flexDirection: "column", alignItems: "center", gap: 4, marginTop: 6 } },
+      React.createElement("span", { style: { fontSize: 8, fontFamily: _mono, color: _br.mu, fontStyle: "italic" } }, "Navigate to the page showing your lot boundary"),
+      React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
       React.createElement("button", { onClick: function() { if (page > 1) { setPage(page - 1); } }, disabled: page <= 1, style: Object.assign({}, btnStyle, page <= 1 ? { opacity: 0.3, cursor: "default" } : {}) }, "\u25C0"),
       React.createElement("span", { style: { fontSize: 9, fontFamily: _mono, color: _br.mu } }, "Page " + page + " of " + pageCount),
       React.createElement("button", { onClick: function() { if (page < pageCount) { setPage(page + 1); } }, disabled: page >= pageCount, style: Object.assign({}, btnStyle, page >= pageCount ? { opacity: 0.3, cursor: "default" } : {}) }, "\u25B6")
+      )
     )
   );
 }
 window.SurveyPreview = SurveyPreview;
 
-// S47: Shape cards for compare view (reads data from window._shapeCompareData)
+// S48: Shape cards for compare view with preview selection
 function CompareShapes() {
   var data = window._shapeCompareData;
   if (!data || !data.candidates || data.candidates.length === 0) return React.createElement("div", { style: { fontSize: 10, color: _br.mu, fontFamily: _mono } }, "No shapes available");
   var shapeCandidates = data.candidates;
+  var previewIdx = window._previewShapeIndex;
   var edgeColors = ["#e53935", "#2563eb", "#8B7355", "#7c3aed", "#0d9488"];
   return React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr", gap: 8 } },
     shapeCandidates.map(function(cand, ci) {
+      var isSelected = previewIdx === ci;
       var cv = cand.vertices;
       var cmaxX = 0, cmaxY = 0;
       cv.forEach(function(v) { if (v[0] > cmaxX) cmaxX = v[0]; if (v[1] > cmaxY) cmaxY = v[1]; });
@@ -83,14 +88,15 @@ function CompareShapes() {
       var csw = Math.max(1.5, cvbW / 200);
       return React.createElement("div", {
         key: ci,
-        onClick: function() { if (window._selectShape) window._selectShape(ci); },
-        style: { cursor: "pointer", padding: 10, background: "#fff", borderRadius: 8, border: "2px solid " + _br.bd, transition: "all 0.15s" },
-        onMouseOver: function(e) { e.currentTarget.style.borderColor = _br.gn; e.currentTarget.style.boxShadow = "0 2px 8px rgba(61,90,46,0.15)"; },
-        onMouseOut: function(e) { e.currentTarget.style.borderColor = _br.bd; e.currentTarget.style.boxShadow = "none"; }
+        onClick: function() { if (window._onPreviewShape) window._onPreviewShape(ci); },
+        style: { cursor: "pointer", padding: 10, background: isSelected ? "#f0fdf4" : "#fff", borderRadius: 8, border: "2px solid " + (isSelected ? "#2e7d32" : _br.bd), transition: "all 0.15s", position: "relative" },
+        onMouseOver: function(e) { if (!isSelected) { e.currentTarget.style.borderColor = _br.gn; e.currentTarget.style.boxShadow = "0 2px 8px rgba(61,90,46,0.15)"; } },
+        onMouseOut: function(e) { if (!isSelected) { e.currentTarget.style.borderColor = _br.bd; e.currentTarget.style.boxShadow = "none"; } }
       },
+        isSelected && React.createElement("div", { style: { position: "absolute", top: 6, right: 8, fontSize: 14 } }, "\u2705"),
         React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10 } },
           React.createElement("svg", { viewBox: "0 0 " + cvbW.toFixed(0) + " " + cvbH.toFixed(0), style: { width: 80, height: 80, flexShrink: 0 }, preserveAspectRatio: "xMidYMid meet" },
-            React.createElement("polygon", { points: cpts, fill: "rgba(61,90,46,0.08)", stroke: "#3d5a2e", strokeWidth: csw, strokeLinejoin: "round" }),
+            React.createElement("polygon", { points: cpts, fill: isSelected ? "rgba(46,125,50,0.12)" : "rgba(61,90,46,0.08)", stroke: isSelected ? "#2e7d32" : "#3d5a2e", strokeWidth: csw, strokeLinejoin: "round" }),
             cv.map(function(v, vi) {
               var v2 = cv[(vi + 1) % cv.length];
               var mx = (v[0] + v2[0]) / 2 + cpad;
@@ -1535,7 +1541,7 @@ function StepContent(props) {
           We found {shapeCandidates.length} possible shapes matching the survey dimensions ({extractResult.lotArea ? extractResult.lotArea.toLocaleString() : "?"} SF).
           {sitePlanB64 ? " Compare them to your survey to find the best match." : " Tap the one that looks like your lot."}
         </div>
-        {sitePlanB64 && setCompareMode && <button onClick={function() { setCompareMode(true); }} style={{
+        {sitePlanB64 && setCompareMode && <button onClick={function() { setCompareMode(true); setTimeout(function() { window.scrollTo({ top: 0, behavior: "smooth" }); }, 50); }} style={{
           width: "100%", padding: "14px", background: "#2e7d32", color: "#fff", border: "none",
           borderRadius: 8, cursor: "pointer", fontSize: 12, fontFamily: _mono, fontWeight: 700,
           marginBottom: 10, display: "flex", alignItems: "center", justifyContent: "center", gap: 8

@@ -644,6 +644,11 @@ const App = function SimpleBlueprints() {
   const [sitePlanB64, setSitePlanB64] = useState(null);
   const [traceMode, setTraceMode] = useState(false);
   const [compareMode, setCompareMode] = useState(false);
+  const [previewIdx, setPreviewIdx] = useState(null);
+  // S48: Reset preview when exiting compare mode
+  useEffect(() => { if (!compareMode) { setPreviewIdx(null); window._previewShapeIndex = null; } }, [compareMode]);
+  // S48: Expose preview callback for CompareShapes
+  useEffect(() => { window._onPreviewShape = function(idx) { setPreviewIdx(idx); window._previewShapeIndex = idx; }; return () => { window._onPreviewShape = null; }; }, []);
   const [traceState, setTraceState] = useState({
     calPoints: [], calDist: "", ppf: null,
     vertices: [], edgeMeta: [], edgeLengths: [],
@@ -716,6 +721,28 @@ const App = function SimpleBlueprints() {
   const SurveyPreview = window.SurveyPreview;
   const CompareShapes = window.CompareShapes;
 
+  // S48: Compute temporary p for shape preview
+  const previewP = useMemo(() => {
+    if (previewIdx == null || !window._shapeCompareData) return null;
+    var data = window._shapeCompareData;
+    var cand = data.candidates[previewIdx];
+    if (!cand) return null;
+    var cv = cand.vertices;
+    var cmaxX = 0, cmaxY = 0;
+    cv.forEach(v => { if (v[0] > cmaxX) cmaxX = v[0]; if (v[1] > cmaxY) cmaxY = v[1]; });
+    return Object.assign({}, p, {
+      lotWidth: Math.max(30, Math.round(cmaxX)),
+      lotDepth: Math.max(50, Math.round(cmaxY)),
+      lotVertices: cv,
+      lotEdges: cand.edges.map(e => ({
+        type: e.type || "property", label: e.type === "street" ? (e.label || "") : "",
+        length: e.length || 1, setbackType: e.setbackType || "side",
+        neighborLabel: e.type === "street" ? "" : (e.neighborLabel || "")
+      })),
+      lotArea: cand.area
+    });
+  }, [previewIdx, p]);
+
   // HOME
   if (page === "home") return <HomePage setPage={setPage} />;
 
@@ -781,20 +808,32 @@ const App = function SimpleBlueprints() {
             </div>
 
             <div style={{ background: step === 3 ? br.cr : (view === "3d" ? "transparent" : br.cr), border: step === 3 || view !== "3d" ? `1px solid ${br.bd}` : "none", borderRadius: 6, padding: step === 3 ? 8 : (view === "3d" ? 0 : 12), minHeight: 320 }}>
-              {/* S47: Compare mode - survey + shapes side by side */}
+              {/* S48: Compare mode - survey + shapes + preview */}
               {step === 3 && compareMode && sitePlanB64 && SurveyPreview && <div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                   <span style={{ fontSize: 10, fontWeight: 700, color: br.dk, fontFamily: mono }}>Compare survey to proposed shapes</span>
                   <button onClick={() => setCompareMode(false)} style={{ fontSize: 9, fontFamily: mono, color: br.mu, background: "none", border: "1px solid " + br.bd, borderRadius: 4, padding: "4px 10px", cursor: "pointer" }}>Back</button>
                 </div>
+                <div style={{ fontSize: 9, color: br.mu, fontFamily: mono, marginBottom: 10, lineHeight: 1.5, fontStyle: "italic" }}>Use the arrows to find the site plan page in your survey. Tap a shape that matches your lot.</div>
                 <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-                  <div style={{ flex: "1 1 55%", position: "sticky", top: 8 }}>
+                  <div style={{ flex: "1 1 55%" }}>
                     <div style={{ fontSize: 8, fontWeight: 700, color: br.mu, fontFamily: mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 4 }}>Your Survey</div>
                     <SurveyPreview b64={sitePlanB64} fileType={sitePlanFile && sitePlanFile.name.toLowerCase().endsWith(".pdf") ? "pdf" : "image"} />
+                    {previewP && SitePlanView && <div style={{ marginTop: 10 }}>
+                      <div style={{ fontSize: 8, fontWeight: 700, color: br.mu, fontFamily: mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 4 }}>Site Plan Preview</div>
+                      <div style={{ border: "1px solid " + br.bd, borderRadius: 6, padding: 4, background: "#fff" }}>
+                        <SitePlanView p={previewP} c={c} u={() => {}} />
+                      </div>
+                    </div>}
                   </div>
                   <div style={{ flex: "1 1 45%", maxHeight: "70vh", overflowY: "auto" }}>
                     <div style={{ fontSize: 8, fontWeight: 700, color: br.mu, fontFamily: mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 4 }}>Proposed Shapes</div>
                     <CompareShapes />
+                    {previewIdx != null && <button onClick={() => { if (window._selectShape) window._selectShape(previewIdx); }} style={{
+                      width: "100%", padding: "12px", background: "#2e7d32", color: "#fff", border: "none",
+                      borderRadius: 8, cursor: "pointer", fontSize: 12, fontFamily: mono, fontWeight: 700,
+                      marginTop: 10, display: "flex", alignItems: "center", justifyContent: "center", gap: 6
+                    }}>{"\u2705"} Confirm Option {previewIdx + 1}</button>}
                   </div>
                 </div>
               </div>}
