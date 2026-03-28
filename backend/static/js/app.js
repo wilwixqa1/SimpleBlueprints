@@ -803,6 +803,7 @@ const App = function SimpleBlueprints() {
             <h2 style={{ margin: "0 0 18px", fontSize: 15, fontWeight: 800, color: br.dk, fontFamily: sans, borderBottom: `2px solid ${br.gn}`, paddingBottom: 8 }}>{steps[step].i} {steps[step].t}</h2>
 
             <StepContent step={step} p={p} u={u} c={c} m={m} zc={zc} info={info} setI={setI}
+              setStep={setStep}
               showAdvanced={showAdvanced} setShowAdvanced={setShowAdvanced}
               sitePlanMode={sitePlanMode} setSitePlanMode={setSitePlanMode}
               sitePlanFile={sitePlanFile} setSitePlanFile={setSitePlanFile} setSitePlanB64={setSitePlanB64}

@@ -1399,10 +1399,27 @@ function StepContent(props) {
     }
 
     return <>
-      {/* Intro */}
-      <div style={{ fontSize: 11, color: _br.tx, fontFamily: _sans, lineHeight: 1.7, marginBottom: 14 }}>
-        Your permit office needs a site plan showing your property, house, and proposed deck. Enter your lot dimensions below to generate one automatically.
-      </div>
+      {/* S49: Choice screen (first time only) */}
+      {step === 0 && guideActive === null && <GuideChoiceScreen onChoose={guideChoose} />}
+
+      {/* S49: Guide panel (when active) */}
+      {step === 0 && guideActive === true && !traceMode && !compareMode && <GuidePanel
+        phase={guidePhase}
+        onAction={guideHandleAction}
+        onBack={guideBack}
+        history={guideHistory}
+        onToggleOff={function() { setGuideActive(false); }}
+      />}
+
+      {/* S49: Intro text (manual mode or after choosing) */}
+      {(guideActive === false) && <div style={{ fontSize: 11, color: _br.tx, fontFamily: _sans, lineHeight: 1.7, marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <span>Your permit office needs a site plan showing your property, house, and proposed deck. Enter your lot dimensions below to generate one automatically.</span>
+        <button onClick={function() { setGuideActive(true); setGuidePhase('has_survey'); }} style={{
+          fontSize: 9, fontFamily: _mono, color: _br.gn, background: "none",
+          border: "1px solid " + _br.gn + "44", borderRadius: 4, padding: "4px 10px",
+          cursor: "pointer", flexShrink: 0, marginLeft: 10, whiteSpace: "nowrap"
+        }}>Switch to guided</button>
+      </div>}
 
       {/* === LOT & HOUSE SLIDERS (collapsible, S31) === */}
       <button onClick={function() { setShowLotHouse(!showLotHouse); }} style={{
