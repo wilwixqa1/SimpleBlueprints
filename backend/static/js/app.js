@@ -712,6 +712,7 @@ const App = function SimpleBlueprints() {
   const StepContent = window.StepContent;
   const SitePlanView = window.SitePlanView;
   const TraceView = window.TraceView;
+  const SurveyPreview = window.SurveyPreview;
 
   // HOME
   if (page === "home") return <HomePage setPage={setPage} />;
@@ -777,6 +778,11 @@ const App = function SimpleBlueprints() {
             </div>
 
             <div style={{ background: step === 3 ? br.cr : (view === "3d" ? "transparent" : br.cr), border: step === 3 || view !== "3d" ? `1px solid ${br.bd}` : "none", borderRadius: 6, padding: step === 3 ? 8 : (view === "3d" ? 0 : 12), minHeight: 320 }}>
+              {/* S47: Survey preview in right panel with page navigation */}
+              {step === 3 && !traceMode && sitePlanB64 && SurveyPreview && <div style={{ padding: 8, background: br.cr, border: "1px solid " + br.bd, borderRadius: 6, marginBottom: 8 }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: br.mu, fontFamily: mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 6 }}>Your Survey</div>
+                <SurveyPreview b64={sitePlanB64} fileType={sitePlanFile && sitePlanFile.name.toLowerCase().endsWith(".pdf") ? "pdf" : "image"} />
+              </div>}
               {step === 3 && !traceMode && SitePlanView && <SitePlanView p={p} c={c} u={u} />}
               {step === 3 && traceMode && TraceView && <TraceView
                 surveyB64={sitePlanB64}

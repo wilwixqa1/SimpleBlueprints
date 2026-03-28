@@ -7,9 +7,31 @@
 const { useState: _stUS, useEffect: _stUE, useMemo: _stUM } = React;
 const { br: _br, mono: _mono, sans: _sans } = window.SB;
 
-// S47: Survey preview component (pdf.js for PDFs, img for images)
+// S47: Survey preview component with page navigation (pdf.js for PDFs, img for images)
 function SurveyPreview({ b64, fileType }) {
   var _s = _stUS(null), src = _s[0], setSrc = _s[1];
+  var _p = _stUS(1), page = _p[0], setPage = _p[1];
+  var _pc = _stUS(1), pageCount = _pc[0], setPageCount = _pc[1];
+  function renderPage(pg) {
+    if (!b64 || fileType !== "pdf") return;
+    try {
+      var raw = atob(b64);
+      var arr = new Uint8Array(raw.length);
+      for (var i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+      window.pdfjsLib.getDocument({ data: arr }).promise.then(function(pdf) {
+        setPageCount(pdf.numPages);
+        return pdf.getPage(pg);
+      }).then(function(pg2) {
+        var vp = pg2.getViewport({ scale: 1.5 });
+        var canvas = document.createElement("canvas");
+        canvas.width = vp.width; canvas.height = vp.height;
+        var ctx = canvas.getContext("2d");
+        return pg2.render({ canvasContext: ctx, viewport: vp }).promise.then(function() {
+          setSrc(canvas.toDataURL("image/png"));
+        });
+      }).catch(function(err) { console.error("Survey PDF render error:", err); });
+    } catch (err) { console.error("Survey PDF decode error:", err); }
+  }
   _stUE(function() {
     if (!b64) { setSrc(null); return; }
     if (fileType !== "pdf") {
@@ -17,40 +39,32 @@ function SurveyPreview({ b64, fileType }) {
       setSrc("data:image/" + mime + ";base64," + b64);
       return;
     }
-    function doRender() {
-      try {
-        var raw = atob(b64);
-        var arr = new Uint8Array(raw.length);
-        for (var i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
-        window.pdfjsLib.getDocument({ data: arr }).promise.then(function(pdf) {
-          return pdf.getPage(1);
-        }).then(function(page) {
-          var vp = page.getViewport({ scale: 1.5 });
-          var canvas = document.createElement("canvas");
-          canvas.width = vp.width; canvas.height = vp.height;
-          var ctx = canvas.getContext("2d");
-          return page.render({ canvasContext: ctx, viewport: vp }).promise.then(function() {
-            setSrc(canvas.toDataURL("image/png"));
-          });
-        }).catch(function(err) { console.error("Survey PDF render error:", err); });
-      } catch (err) { console.error("Survey PDF decode error:", err); }
-    }
-    if (window.pdfjsLib) { doRender(); }
+    function doLoad() { renderPage(page); }
+    if (window.pdfjsLib) { doLoad(); }
     else {
       var sc = document.createElement("script");
       sc.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
       sc.onload = function() {
         window.pdfjsLib.GlobalWorkerOptions.workerSrc =
           "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
-        doRender();
+        doLoad();
       };
       sc.onerror = function() { console.error("Failed to load pdf.js"); };
       document.head.appendChild(sc);
     }
-  }, [b64, fileType]);
+  }, [b64, fileType, page]);
   if (!src) return null;
-  return React.createElement("img", { src: src, style: { width: "100%", objectFit: "contain", borderRadius: 4, border: "1px solid #ddd8cc" } });
+  var btnStyle = { fontSize: 10, fontFamily: _mono, padding: "3px 10px", cursor: "pointer", background: "none", border: "1px solid " + _br.bd, borderRadius: 4, color: _br.tx, fontWeight: 700 };
+  return React.createElement("div", null,
+    React.createElement("img", { src: src, style: { width: "100%", objectFit: "contain", borderRadius: 4, border: "1px solid " + _br.bd } }),
+    fileType === "pdf" && pageCount > 1 && React.createElement("div", { style: { display: "flex", justifyContent: "center", alignItems: "center", gap: 8, marginTop: 6 } },
+      React.createElement("button", { onClick: function() { if (page > 1) { setPage(page - 1); } }, disabled: page <= 1, style: Object.assign({}, btnStyle, page <= 1 ? { opacity: 0.3, cursor: "default" } : {}) }, "\u25C0"),
+      React.createElement("span", { style: { fontSize: 9, fontFamily: _mono, color: _br.mu } }, "Page " + page + " of " + pageCount),
+      React.createElement("button", { onClick: function() { if (page < pageCount) { setPage(page + 1); } }, disabled: page >= pageCount, style: Object.assign({}, btnStyle, page >= pageCount ? { opacity: 0.3, cursor: "default" } : {}) }, "\u25B6")
+    )
+  );
 }
+window.SurveyPreview = SurveyPreview;
 
 // Feet-inches formatter (20.5   20'-6")
 function fmtFtIn(v) {
@@ -1429,12 +1443,6 @@ function StepContent(props) {
         <div style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, marginBottom: 10, lineHeight: 1.6 }}>
           We found {shapeCandidates.length} possible shapes matching the survey dimensions ({extractResult.lotArea ? extractResult.lotArea.toLocaleString() : "?"} SF). Tap the one that looks like your lot.
         </div>
-        <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-          {sitePlanB64 && <div style={{ flex: "0 0 40%", position: "sticky", top: 8 }}>
-            <div style={{ fontSize: 8, fontWeight: 700, color: _br.mu, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 4 }}>Your Survey</div>
-            <SurveyPreview b64={sitePlanB64} fileType={sitePlanFile && sitePlanFile.name.toLowerCase().endsWith(".pdf") ? "pdf" : "image"} />
-          </div>}
-          <div style={{ flex: 1 }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: 8 }}>
           {shapeCandidates.map(function(cand, ci) {
             var cv = cand.vertices;
@@ -1500,8 +1508,6 @@ function StepContent(props) {
               </div>
             </div>;
           })}
-        </div>
-          </div>
         </div>
         <div style={{ marginTop: 10, textAlign: "center" }}>
           <span style={{ fontSize: 9, color: _br.mu, fontFamily: _mono }}>None of these match? </span>
