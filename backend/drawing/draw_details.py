@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-SimpleBlueprints — Parametric PDF Drawing Engine
+SimpleBlueprints - Parametric PDF Drawing Engine
 Step 1d: Structural Details (Sheet 3 of 4)
 Ledger detail, footing detail, guard rail detail, post/beam connection
 """
@@ -65,9 +65,9 @@ def draw_ledger_detail(ax, params, calc):
 
     # Decking on top
     if params["deckingType"] == "composite":
-        deck_label = '1\u00d76 TREX\nCOMPOSITE'
+        deck_label = '1x6 TREX\nCOMPOSITE'
     else:
-        deck_label = '5/4\u00d76 PT\nDECKING'
+        deck_label = '5/4x6 PT\nDECKING'
     ax.add_patch(patches.Rectangle((3.5, 8.5), 4, 0.35, fc='#8B7355', ec=BRAND["dark"], lw=0.6))
     ax.text(8.5, 8.8, deck_label, fontsize=4.5, color=BRAND["dark"])
 
@@ -109,7 +109,7 @@ def draw_footing_detail(ax, params, calc):
                  fc=BRAND["concrete"], ec=BRAND["mute"], lw=0.8, ls='--'))
 
     ax.text(3 + pier_width / 2, -pier_visual_depth / 2,
-            f'{calc["footing_diam"]}" \u00d8\nCONCRETE\nPIER', ha='center', fontsize=5, color='#555')
+            f'{calc["footing_diam"]}" DIA.\nCONCRETE\nPIER', ha='center', fontsize=5, color='#555')
 
     # Grade label
     ax.text(11, 0.3, 'GRADE', fontsize=4.5, color=BRAND["dark"])
@@ -138,7 +138,7 @@ def draw_footing_detail(ax, params, calc):
 
     # Frost line
     frost_visual = min(pier_visual_depth * 0.3, 2)
-    ax.plot([-1, 9], [-frost_visual, -frost_visual], color=BRAND["blue"], lw=0.5, ls='-.')
+    ax.plot([-1, 14], [-frost_visual, -frost_visual], color=BRAND["blue"], lw=0.5, ls='-.')
     ax.text(10, -frost_visual, 'FROST LINE', fontsize=4, color=BRAND["blue"])
 
     # Dimensions
@@ -248,7 +248,7 @@ def draw_post_beam_detail(ax, params, calc):
 
     is_lvl = "LVL" in calc["beam_size"]
     if is_lvl:
-        beam_label = f'({plies}) 1-3/4" \u00d7 11-7/8"\n2.0E LVL EXT. GRADE'
+        beam_label = f'({plies}) 1-3/4" x 11-7/8"\n2.0E LVL EXT. GRADE'
     else:
         beam_lumber = calc["beam_size"].split(" ", 1)[1] if " " in calc["beam_size"] else calc["beam_size"]
         beam_label = f'({plies}) {beam_lumber}\nPT BEAM'
