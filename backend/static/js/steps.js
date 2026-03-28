@@ -631,6 +631,16 @@ function StepContent(props) {
   // S49: AI Guide state
   // null = choice screen not yet shown, true = guided, false = manual
   const [guideActive, setGuideActive] = _stUS(null);
+
+  // S50: PPRBD jurisdiction detection helper
+  var _pprbdCities = ["colorado springs","fountain","manitou springs","green mountain falls","monument","palmer lake","woodland park","security","widefield","cascade","peyton","falcon","black forest"];
+  var _pprbdZips = new Set(["80808","80809","80817","80819","80829","80831","80840","80863","80132","80133","80911","80913","80914","80925","80926","80928","80929","80930","80938","80939"]);
+  for (var _zi = 80901; _zi <= 80951; _zi++) _pprbdZips.add(String(_zi));
+  var _isPPRBD = (function() {
+    var c = (info.city || "").toLowerCase();
+    for (var i = 0; i < _pprbdCities.length; i++) { if (c.indexOf(_pprbdCities[i]) >= 0) return true; }
+    return _pprbdZips.has((info.zip || "").slice(0, 5));
+  })();
   const [guidePhase, setGuidePhase] = _stUS('has_survey');
   const [guideHistory, setGuideHistory] = _stUS([]);
   const [guidePeeked, setGuidePeeked] = _stUS({});
@@ -2737,11 +2747,9 @@ function StepContent(props) {
       </div>
     </div>
 
-    {/* S50: PPRBD Deck Attachment Sheet checklist (Colorado Springs only) */}
+    {/* S50: PPRBD Deck Attachment Sheet checklist (PPRBD jurisdiction only) */}
     {(() => {
-      var cosZips = new Set(["80901","80902","80903","80904","80905","80906","80907","80908","80909","80910","80911","80912","80913","80914","80915","80916","80917","80918","80919","80920","80921","80922","80923","80924","80925","80926","80927","80928","80929","80930","80931","80932","80933","80934","80935","80936","80937","80938","80939","80940","80941","80942","80943","80944","80945","80946","80947","80948","80949","80950","80951"]);
-      var isCOS = (info.city || "").toLowerCase().indexOf("colorado springs") >= 0 || cosZips.has((info.zip || "").slice(0, 5));
-      if (!isCOS) return null;
+      if (!_isPPRBD) return null;
 
       var heightIn = (p.height || 4) * 12;
       var footingDepth = c.footing_depth || 36;
@@ -2769,10 +2777,10 @@ function StepContent(props) {
       return <div style={{ padding: 16, background: "#f0f7ff", borderRadius: 8, border: "1px solid #bbdefb", marginBottom: 14 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: "#1565c0", fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>PPRBD Deck Attachment Sheet</div>
-          <span style={{ fontSize: 8, color: "#64b5f6", fontFamily: _mono, fontWeight: 400 }}>Colorado Springs</span>
+          <span style={{ fontSize: 8, color: "#64b5f6", fontFamily: _mono, fontWeight: 400 }}>Pikes Peak Region</span>
         </div>
         <div style={{ fontSize: 9, color: "#5c6b7a", fontFamily: _mono, marginBottom: 12, lineHeight: 1.5 }}>
-          Pikes Peak Regional Building Dept. requires this checklist with all deck permits. We auto-filled it from your design. Review and adjust if needed. This will be included as a page in your blueprint PDF.
+          Pikes Peak Regional Building Dept. requires this checklist with all deck permits in El Paso County and Woodland Park. We auto-filled it from your design. Review and adjust if needed. This will be included as a page in your blueprint PDF.
         </div>
         <div style={{ display: "flex", gap: 24, marginBottom: 8, paddingLeft: 2 }}>
           <span style={{ fontSize: 8, fontFamily: _mono, fontWeight: 700, color: "#1565c0", width: 30, textAlign: "center" }}>YES</span>
@@ -2829,7 +2837,7 @@ function StepContent(props) {
       <div style={{fontSize:10,fontFamily:_mono,color:"rgba(255,255,255,0.5)",letterSpacing:"2px",textTransform:"uppercase",marginBottom:6}}>Your Blueprint Package</div>
       <div style={{display:"flex",justifyContent:"center",gap:16,marginBottom:12,flexWrap:"wrap"}}>
         {["Plan View","Framing Plan","Elevations","Details","Material List","Site Plan"].concat(
-          (info.city || "").toLowerCase().indexOf("colorado springs") >= 0 || (function(){ var cosZ = new Set(["80901","80902","80903","80904","80905","80906","80907","80908","80909","80910","80911","80912","80913","80914","80915","80916","80917","80918","80919","80920","80921","80922","80923","80924","80925","80926","80927","80928","80929","80930","80931","80932","80933","80934","80935","80936","80937","80938","80939","80940","80941","80942","80943","80944","80945","80946","80947","80948","80949","80950","80951"]); return cosZ.has((info.zip||"").slice(0,5)); })() ? ["PPRBD Attachment"] : []
+          _isPPRBD ? ["PPRBD Attachment"] : []
         ).map(s=>(<div key={s} style={{display:"flex",alignItems:"center",gap:4}}><span style={{color:"#66bb6a",fontSize:11}}>{"\u2713"}</span><span style={{fontSize:10,fontFamily:_mono,color:"rgba(255,255,255,0.8)"}}>{s}</span></div>))}
       </div>
       {user ? <>

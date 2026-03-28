@@ -13,8 +13,39 @@ import pypdf
 # Path to stored jurisdiction PDFs
 JURISDICTION_DIR = Path(__file__).parent / "jurisdiction"
 
-# Colorado Springs zip codes (El Paso County core COS range)
-COS_ZIPS = set(str(z) for z in range(80901, 80952))
+# PPRBD jurisdiction: all of El Paso County + City of Woodland Park (Teller County)
+# Does NOT include unincorporated Teller County (Divide, Cripple Creek, etc.)
+# or the townships of Ramah and Calhan
+PPRBD_ZIPS = set(str(z) for z in range(80901, 80952))  # Colorado Springs core
+PPRBD_ZIPS.update([
+    "80808",  # Calhan area (unincorp El Paso) - note: PPRBD excludes Calhan township
+    "80809",  # Cascade
+    "80817",  # Fountain
+    "80819",  # Green Mountain Falls
+    "80829",  # Manitou Springs
+    "80831",  # Peyton / Falcon
+    "80840",  # USAF Academy
+    "80863",  # Woodland Park (Teller County, but in PPRBD)
+    "80132",  # Monument
+    "80133",  # Palmer Lake
+    "80911",  # Security-Widefield
+    "80913",  # Fort Carson
+    "80914",  # Peterson AFB
+    "80925",  # South El Paso County
+    "80926",  # Fort Carson area
+    "80928",  # East El Paso County
+    "80929",  # Schriever area
+    "80930",  # East COS
+    "80938",  # East COS
+    "80939",  # East COS
+])
+
+# City names that fall under PPRBD jurisdiction
+PPRBD_CITIES = [
+    "colorado springs", "fountain", "manitou springs", "green mountain falls",
+    "monument", "palmer lake", "woodland park", "security", "widefield",
+    "cascade", "peyton", "falcon", "black forest",
+]
 
 # Checkbox row Y positions (pdfplumber coords, top of page = 0)
 # Converted to reportlab coords (bottom = 0) via: rl_y = 792 - plumber_y
@@ -39,14 +70,15 @@ ADDRESS_Y = 792 - 48.2
 
 
 def is_colorado_springs(project_info):
-    """Check if the project is in Colorado Springs based on city or zip."""
+    """Check if the project is in PPRBD jurisdiction (El Paso County + Woodland Park)."""
     if not project_info:
         return False
     city = (project_info.get("city") or "").strip().lower()
     zipcode = (project_info.get("zip") or "").strip()[:5]
-    if "colorado springs" in city:
-        return True
-    if zipcode in COS_ZIPS:
+    for pprbd_city in PPRBD_CITIES:
+        if pprbd_city in city:
+            return True
+    if zipcode in PPRBD_ZIPS:
         return True
     return False
 
