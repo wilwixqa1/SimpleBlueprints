@@ -262,7 +262,7 @@ var GUIDE_PHASES_STEP0 = [
     sections: ['lotHouse'],
     focusFields: ['setbackFront', 'setbackSide', 'setbackRear'],
     actions: [
-      { label: 'Use common defaults', action: 'apply_default_setbacks', style: 'secondary' },
+      { label: 'Use common defaults', action: 'apply_default_setbacks', next: 'site_elements_check', style: 'secondary' },
       { label: 'Continue', next: 'site_elements_check', style: 'primary' }
     ]
   },
@@ -280,9 +280,14 @@ var GUIDE_PHASES_STEP0 = [
   {
     id: 'north_arrow',
     message: "Which direction is north?",
-    tip: "Check Google Maps if unsure. Most streets run roughly N-S or E-W.",
+    tip: "Check Google Maps if unsure. Use the compass below or pick a direction.",
     sections: ['northArrow'],
     actions: [
+      { label: 'N', action: 'set_north_0', style: 'secondary' },
+      { label: 'NE', action: 'set_north_45', style: 'secondary' },
+      { label: 'E', action: 'set_north_90', style: 'secondary' },
+      { label: 'S', action: 'set_north_180', style: 'secondary' },
+      { label: 'W', action: 'set_north_270', style: 'secondary' },
       { label: 'Continue', next: 'slope', style: 'primary' }
     ]
   },
@@ -292,7 +297,7 @@ var GUIDE_PHASES_STEP0 = [
     tip: "Most lots have a gentle slope. Set to 0% if your yard looks flat.",
     sections: ['slope'],
     actions: [
-      { label: 'Flat lot (0%)', action: 'set_flat', style: 'secondary' },
+      { label: 'Flat lot (0%)', action: 'set_flat', next: 'complete', style: 'secondary' },
       { label: 'Continue', next: 'complete', style: 'primary' }
     ]
   },
@@ -384,10 +389,12 @@ function GuidePanel({ phase, onAction, onBack, history, onToggleOff }) {
         border: "none", cursor: "pointer", padding: "2px 0", opacity: 0.7
       }}>Switch to manual</button>
     </div>
+    {/* S49: Down-arrow connector when sections follow */}
+    {ph.sections && ph.sections.length > 0 && <div style={{ textAlign: "center", marginTop: -8, marginBottom: -8, position: "relative", zIndex: 1 }}>
+      <span style={{ fontSize: 16, color: _br.gn, opacity: 0.5 }}>{"\u25BC"}</span>
+    </div>}
   </div>;
 }
-
-// Choice screen: shown before guide activates (S49)
 function GuideChoiceScreen({ onChoose }) {
   var cardBase = {
     flex: "1 1 200px",
@@ -529,16 +536,31 @@ function StepContent(props) {
     if (act.action === 'set_flat') {
       u('slopePercent', 0);
     }
+    if (act.action && act.action.startsWith('set_north_')) {
+      var angle = parseInt(act.action.replace('set_north_', ''));
+      u('northAngle', angle);
+    }
     if (act.action === 'advance_step') {
       if (props.setStep) props.setStep(1);
       return;
     }
     if (act.action === 'expand_for_edit') {
       setShowLotHouse(true);
+      setGuidePeeked(function(prev) { var copy = Object.assign({}, prev); copy.lotHouse = true; return copy; });
+      setTimeout(function() {
+        var el = document.querySelector('[data-guide-section="lotHouse"]');
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
       return;
     }
     if (act.action === 'expand_site_elements') {
       setShowSiteElements(true);
+      setGuidePeeked(function(prev) { var copy = Object.assign({}, prev); copy.siteElements = true; return copy; });
+      // Scroll to site elements section
+      setTimeout(function() {
+        var el = document.querySelector('[data-guide-section="siteElements"]');
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 100);
       return;
     }
     if (act.action === 'start_trace') {
@@ -1414,7 +1436,7 @@ function StepContent(props) {
       {step === 0 && guideActive === null && <GuideChoiceScreen onChoose={guideChoose} />}
 
       {/* S49: Guide panel (when active) */}
-      {step === 0 && guideActive === true && !traceMode && !compareMode && <GuidePanel
+      {step === 0 && guideActive === true && !traceMode && <GuidePanel
         phase={guidePhase}
         onAction={guideHandleAction}
         onBack={guideBack}
@@ -1681,7 +1703,7 @@ function StepContent(props) {
           }));
         }
         return <React.Fragment>
-          <button onClick={function() { guideSectionToggle('siteElements', showSiteElements, setShowSiteElements); }} style={{
+          <button data-guide-section="siteElements" onClick={function() { guideSectionToggle('siteElements', showSiteElements, setShowSiteElements); }} style={{
             width: "100%", padding: "10px 14px", marginBottom: guideSectionVisible('siteElements', showSiteElements) ? 0 : 14,
             background: elArr.length > 0 ? "#f5f0e8" : "none",
             border: "1px solid " + (elArr.length > 0 ? "#c4a060" : _br.bd),
