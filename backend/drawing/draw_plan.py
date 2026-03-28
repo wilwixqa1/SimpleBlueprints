@@ -238,12 +238,13 @@ def draw_plan_and_framing(fig, params, calc):
     bbox = get_bounding_box(params)
 
     # S22: Adaptive margins - wider multi-zone decks need proportionally more room
-    margin_x = max(bbox["w"] * 0.20, 5)
+    margin_x_left = max(bbox["w"] * 0.20, 5)
+    margin_x_right = max(bbox["w"] * 0.10, 3)  # tighter for title block strip
     margin_y = max(bbox["d"] * 0.30, 4)
     house_depth = min(D * 0.5, 8)
 
     for ax, title, is_framing in [(ax1, "MAIN LEVEL DECK PLAN", False), (ax2, "DECK FRAMING", True)]:
-        ax.set_xlim(bbox["x"] - margin_x, bbox["x"] + bbox["w"] + margin_x)
+        ax.set_xlim(bbox["x"] - margin_x_left, bbox["x"] + bbox["w"] + margin_x_right)
         ax.set_ylim(-house_depth - margin_y * 0.4, bbox["y"] + bbox["d"] + margin_y)
         ax.set_aspect('equal')
         ax.axis('off')
@@ -346,7 +347,7 @@ def draw_plan_and_framing(fig, params, calc):
                         ax.plot([jx, jx + sp_ft], [block_y, block_y],
                                 color=BRAND["dark"], lw=0.6, ls='--', dashes=(1.5, 1.5))
                 # S22: Position blocking label relative to bbox right edge
-                block_label_x = bbox["x"] + bbox["w"] + margin_x * 0.3
+                block_label_x = bbox["x"] + bbox["w"] + margin_x_right * 0.3
                 ax.text(block_label_x, block_y,
                         f'{calc["joist_size"]} SOLID BLOCKING\nAT MID-SPAN',
                         fontsize=3.5, fontfamily='monospace', color=BRAND["dark"], va='center')
@@ -388,7 +389,7 @@ def draw_plan_and_framing(fig, params, calc):
 
             # S22/S45: Hardware labels - position relative to bbox right edge
             # S45: Increased vertical spacing between lines (was 0.8, now 1.0)
-            label_x = bbox["x"] + bbox["w"] + margin_x * 0.3
+            label_x = bbox["x"] + bbox["w"] + margin_x_right * 0.3
             label_top = beam_y + 0.8
             label_step = 1.0  # S45: increased from ~0.8 for readability
 
@@ -411,7 +412,7 @@ def draw_plan_and_framing(fig, params, calc):
             # Loads box - S45: offset down slightly to avoid overlap with hardware labels
             lbx = label_x
             lby = max(0.5, label_top - label_step * 4.5 - 4.5)
-            ax.add_patch(patches.Rectangle((lbx, lby), 8, 3.5,
+            ax.add_patch(patches.Rectangle((lbx, lby), 6, 3.5,
                          fc='#fafaf8', ec=BRAND["dark"], lw=0.5))
             ax.text(lbx + 0.3, lby + 2.9, 'DECK LOADS:', fontsize=5,
                     fontweight='bold', color=BRAND["dark"])
@@ -600,7 +601,7 @@ def draw_plan_and_framing(fig, params, calc):
                          offset=max(W * 0.06, 2), color=BRAND["blue"], fontsize=7)
 
         # S22: North arrow + scale bar - position relative to bbox
-        draw_north_arrow(ax, bbox["x"] + bbox["w"] + margin_x - 2,
+        draw_north_arrow(ax, bbox["x"] + bbox["w"] + margin_x_right - 1,
                          bbox["y"] + bbox["d"] + margin_y - 5,
                          angle=params.get("northAngle", 0) or 0)
         draw_scale_bar(ax, bbox["x"], -house_depth - margin_y * 0.25)
