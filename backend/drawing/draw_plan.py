@@ -347,10 +347,10 @@ def draw_plan_and_framing(fig, params, calc):
                         ax.plot([jx, jx + sp_ft], [block_y, block_y],
                                 color=BRAND["dark"], lw=0.6, ls='--', dashes=(1.5, 1.5))
                 # S22: Position blocking label relative to bbox right edge
-                block_label_x = bbox["x"] + bbox["w"] + margin_x_right * 0.3
-                ax.text(block_label_x, block_y,
-                        f'{calc["joist_size"]} SOLID BLOCKING\nAT MID-SPAN',
-                        fontsize=3.5, fontfamily='monospace', color=BRAND["dark"], va='center')
+                ax.text(W / 2, block_y + 0.5,
+                        f'{calc["joist_size"]} SOLID BLOCKING AT MID-SPAN',
+                        ha='center', fontsize=3.5, fontfamily='monospace', color=BRAND["dark"],
+                        bbox=dict(boxstyle='square,pad=0.15', fc='white', ec='none', alpha=0.85))
 
             # Joist label
             ax.text(W / 2, D / 2 - 1.5,
@@ -452,7 +452,7 @@ def draw_plan_and_framing(fig, params, calc):
             # Beam setback dimension (right side, vertical)
             draw_dimension_v(ax, W, D - beam_setback, D,
                              format_feet_inches(beam_setback),
-                             offset=max(W * 0.08, 3.5), color='#8B6914', fontsize=4.5)
+                             offset=max(W * 0.04, 1.5), color='#8B6914', fontsize=4.5)
 
             # Joist count label
             n_joists = int(W / (calc["joist_spacing"] / 12)) + 1
@@ -598,7 +598,7 @@ def draw_plan_and_framing(fig, params, calc):
         draw_dimension_h(ax, 0, W, D, format_feet_inches(W),
                          offset=max(D * 0.15, 2), color=BRAND["red"], fontsize=7)
         draw_dimension_v(ax, W, 0, D, format_feet_inches(D),
-                         offset=max(W * 0.06, 2), color=BRAND["blue"], fontsize=7)
+                         offset=max(W * 0.04, 1.2), color=BRAND["blue"], fontsize=7)
 
         # S22: North arrow + scale bar - position relative to bbox
         draw_north_arrow(ax, bbox["x"] + bbox["w"] + margin_x_right - 1,
