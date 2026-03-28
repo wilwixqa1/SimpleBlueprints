@@ -135,7 +135,7 @@ function Label({ children }) {
   return <label style={{ display: "block", fontSize: 10, fontWeight: 700, color: _br.mu, marginBottom: 4, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>{children}</label>;
 }
 
-function Slider({ label, value, min, max, step: s = 1, field, unit = "'", fmt, u, p }) {
+function Slider({ label, value, min, max, step: s = 1, field, unit = "'", fmt, u, p, focused }) {
   const [editing, setEditing] = _stUS(false);
   const [draft, setDraft] = _stUS(String(value));
   const commit = () => {
@@ -148,7 +148,7 @@ function Slider({ label, value, min, max, step: s = 1, field, unit = "'", fmt, u
   };
   _stUE(() => { if (!editing) setDraft(String(value)); }, [value, editing]);
   return (
-    <div style={{ marginBottom: 16 }}><Label>{label}</Label>
+    <div style={{ marginBottom: 16, borderLeft: focused ? ("3px solid " + _br.gn) : "3px solid transparent", paddingLeft: focused ? 10 : 0, transition: "all 0.2s" }}><Label>{label}</Label>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <input type="range" min={min} max={max} step={s} value={value} onChange={e => u(field, Number(e.target.value))} style={{ flex: 1, accentColor: _br.gn, height: 6 }} />
         {editing ? (
@@ -1422,18 +1422,18 @@ function StepContent(props) {
       </div>}
 
       {/* === LOT & HOUSE SLIDERS (collapsible, S31) === */}
-      <button onClick={function() { setShowLotHouse(!showLotHouse); }} style={{
-        width: "100%", padding: "10px 14px", marginBottom: showLotHouse ? 0 : 14,
+      <button onClick={function() { guideSectionToggle('lotHouse', showLotHouse, setShowLotHouse); }} style={{
+        width: "100%", padding: "10px 14px", marginBottom: guideSectionVisible('lotHouse', showLotHouse) ? 0 : 14,
         background: _br.wr,
         border: "1px solid " + _br.bd,
-        borderRadius: showLotHouse ? "8px 8px 0 0" : 8,
+        borderRadius: guideSectionVisible('lotHouse', showLotHouse) ? "8px 8px 0 0" : 8,
         cursor: "pointer", fontSize: 10, fontFamily: _mono, color: _br.mu,
         display: "flex", justifyContent: "space-between", alignItems: "center"
       }}>
         <span>{"\uD83D\uDCCF"} Lot Dimensions, House Position & Setbacks</span>
-        <span style={{ transform: showLotHouse ? "rotate(180deg)" : "none", transition: "0.2s" }}>{"\u25BE"}</span>
+        <span style={{ transform: guideSectionVisible('lotHouse', showLotHouse) ? "rotate(180deg)" : "none", transition: "0.2s" }}>{"\u25BE"}</span>
       </button>
-      {showLotHouse && <div style={{ padding: 14, background: _br.wr, borderRadius: "0 0 8px 8px", border: "1px solid " + _br.bd, borderTop: "none", marginBottom: 14 }}>
+      {guideSectionVisible('lotHouse', showLotHouse) && <div style={{ padding: 14, background: _br.wr, borderRadius: "0 0 8px 8px", border: "1px solid " + _br.bd, borderTop: "none", marginBottom: 14 }}>
         <div style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, marginBottom: 12, lineHeight: 1.6, padding: "8px 10px", background: "#fff", borderRadius: 6, border: "1px solid " + _br.bd }}>
           {"\uD83D\uDCA1"} Don't know your exact lot size? Check your county assessor or tax records online, or look at your closing documents. Approximate dimensions are fine for planning.
         </div>
@@ -1441,18 +1441,18 @@ function StepContent(props) {
         {p.lotEdges && <div style={{ marginBottom: 8, padding: "6px 10px", background: "#f0fdf4", borderRadius: 4, border: "1px solid #bbf7d0" }}>
           <span style={{ fontSize: 8, fontFamily: _mono, color: _br.gn, fontWeight: 600 }}>{"\u2713"} Custom polygon active. Editing these sliders will reset to rectangle.</span>
         </div>}
-        <Slider label="Lot width (front to back neighbor)" value={p.lotWidth} min={30} max={300} field="lotWidth" u={u} p={p} />
-        <Slider label="Lot depth (street to back)" value={p.lotDepth} min={50} max={400} field="lotDepth" u={u} p={p} />
+        <Slider label="Lot width (front to back neighbor)" value={p.lotWidth} min={30} max={300} field="lotWidth" u={u} p={p} focused={guideFieldFocused('lotWidth')} />
+        <Slider label="Lot depth (street to back)" value={p.lotDepth} min={50} max={400} field="lotDepth" u={u} p={p} focused={guideFieldFocused('lotDepth')} />
         <div style={{ fontSize: 9, fontWeight: 700, color: _br.mu, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 8, marginTop: 12 }}>House Position</div>
-        <Slider label="House width" value={p.houseWidth} min={20} max={80} field="houseWidth" u={u} p={p} />
-        <Slider label="House depth" value={p.houseDepth} min={20} max={60} field="houseDepth" u={u} p={p} />
-        <Slider label="House offset from left property line" value={p.houseOffsetSide} min={5} max={Math.max(5, p.lotWidth - p.houseWidth - 5)} field="houseOffsetSide" u={u} p={p} />
-        <Slider label="House distance from street" value={p.houseDistFromStreet || p.setbackFront} min={p.setbackFront} max={Math.max(p.setbackFront + 1, p.lotDepth - p.houseDepth - 10)} field="houseDistFromStreet" u={u} p={p} />
+        <Slider label="House width" value={p.houseWidth} min={20} max={80} field="houseWidth" u={u} p={p} focused={guideFieldFocused('houseWidth')} />
+        <Slider label="House depth" value={p.houseDepth} min={20} max={60} field="houseDepth" u={u} p={p} focused={guideFieldFocused('houseDepth')} />
+        <Slider label="House offset from left property line" value={p.houseOffsetSide} min={5} max={Math.max(5, p.lotWidth - p.houseWidth - 5)} field="houseOffsetSide" u={u} p={p} focused={guideFieldFocused('houseOffsetSide')} />
+        <Slider label="House distance from street" value={p.houseDistFromStreet || p.setbackFront} min={p.setbackFront} max={Math.max(p.setbackFront + 1, p.lotDepth - p.houseDepth - 10)} field="houseDistFromStreet" u={u} p={p} focused={guideFieldFocused('houseDistFromStreet')} />
         <div style={{ fontSize: 8, color: _br.mu, fontFamily: _mono, marginTop: -12, marginBottom: 12, fontStyle: "italic" }}>Front setback is the minimum ({p.setbackFront}'). Your house may sit further back.</div>
         <div style={{ fontSize: 9, fontWeight: 700, color: _br.mu, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 8, marginTop: 12 }}>Setbacks (from zoning code)</div>
-        <Slider label="Front setback" value={p.setbackFront} min={0} max={50} field="setbackFront" u={u} p={p} />
-        <Slider label="Side setback" value={p.setbackSide} min={0} max={30} field="setbackSide" u={u} p={p} />
-        <Slider label="Rear setback" value={p.setbackRear} min={0} max={50} field="setbackRear" u={u} p={p} />
+        <Slider label="Front setback" value={p.setbackFront} min={0} max={50} field="setbackFront" u={u} p={p} focused={guideFieldFocused('setbackFront')} />
+        <Slider label="Side setback" value={p.setbackSide} min={0} max={30} field="setbackSide" u={u} p={p} focused={guideFieldFocused('setbackSide')} />
+        <Slider label="Rear setback" value={p.setbackRear} min={0} max={50} field="setbackRear" u={u} p={p} focused={guideFieldFocused('setbackRear')} />
       </div>}
 
       {/* === ADJUST LOT SHAPE (S37) === */}
@@ -1509,19 +1509,19 @@ function StepContent(props) {
         var sbColors = { front: "#2563eb", side: "#8B7355", rear: "#dc2626", none: "#999" };
 
         return <React.Fragment>
-          <button onClick={function() { setShowLotShape(!showLotShape); }} style={{
-            width: "100%", padding: "10px 14px", marginBottom: showLotShape ? 0 : 14,
+          <button onClick={function() { guideSectionToggle('lotShape', showLotShape, setShowLotShape); }} style={{
+            width: "100%", padding: "10px 14px", marginBottom: guideSectionVisible('lotShape', showLotShape) ? 0 : 14,
             background: isCustom ? "#f0fdf4" : "none",
             border: "1px solid " + (isCustom ? _br.gn : _br.bd),
-            borderRadius: showLotShape ? "8px 8px 0 0" : 8,
+            borderRadius: guideSectionVisible('lotShape', showLotShape) ? "8px 8px 0 0" : 8,
             cursor: "pointer", fontSize: 10, fontFamily: _mono,
             color: isCustom ? _br.gn : _br.mu,
             display: "flex", justifyContent: "space-between", alignItems: "center"
           }}>
             <span>{isCustom ? ("\u270E Custom lot shape (" + currentEdges.length + " edges)") : "\u270E Adjust lot shape (polygon lots)"}</span>
-            <span style={{ transform: showLotShape ? "rotate(180deg)" : "none", transition: "0.2s" }}>{"\u25BE"}</span>
+            <span style={{ transform: guideSectionVisible('lotShape', showLotShape) ? "rotate(180deg)" : "none", transition: "0.2s" }}>{"\u25BE"}</span>
           </button>
-          {showLotShape && <div style={{
+          {guideSectionVisible('lotShape', showLotShape) && <div style={{
             padding: 14, background: _br.wr, borderRadius: "0 0 8px 8px",
             border: "1px solid " + _br.bd, borderTop: "none", marginBottom: 14
           }}>
@@ -1669,19 +1669,19 @@ function StepContent(props) {
           }));
         }
         return <React.Fragment>
-          <button onClick={function() { setShowSiteElements(!showSiteElements); }} style={{
-            width: "100%", padding: "10px 14px", marginBottom: showSiteElements ? 0 : 14,
+          <button onClick={function() { guideSectionToggle('siteElements', showSiteElements, setShowSiteElements); }} style={{
+            width: "100%", padding: "10px 14px", marginBottom: guideSectionVisible('siteElements', showSiteElements) ? 0 : 14,
             background: elArr.length > 0 ? "#f5f0e8" : "none",
             border: "1px solid " + (elArr.length > 0 ? "#c4a060" : _br.bd),
-            borderRadius: showSiteElements ? "8px 8px 0 0" : 8,
+            borderRadius: guideSectionVisible('siteElements', showSiteElements) ? "8px 8px 0 0" : 8,
             cursor: "pointer", fontSize: 10, fontFamily: _mono,
             color: elArr.length > 0 ? "#8B7355" : _br.mu,
             display: "flex", justifyContent: "space-between", alignItems: "center"
           }}>
             <span>{elArr.length > 0 ? ("\u2302 " + elArr.length + " site element" + (elArr.length !== 1 ? "s" : "") + " placed") : "\u2302 Add site elements (shed, pool, driveway...)"}</span>
-            <span style={{ transform: showSiteElements ? "rotate(180deg)" : "none", transition: "0.2s" }}>{"\u25BE"}</span>
+            <span style={{ transform: guideSectionVisible('siteElements', showSiteElements) ? "rotate(180deg)" : "none", transition: "0.2s" }}>{"\u25BE"}</span>
           </button>
-          {showSiteElements && <div style={{ padding: 14, background: _br.wr, borderRadius: "0 0 8px 8px", border: "1px solid " + _br.bd, borderTop: "none", marginBottom: 14 }}>
+          {guideSectionVisible('siteElements', showSiteElements) && <div style={{ padding: 14, background: _br.wr, borderRadius: "0 0 8px 8px", border: "1px solid " + _br.bd, borderTop: "none", marginBottom: 14 }}>
             <div style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, marginBottom: 8, lineHeight: 1.5 }}>Click to place elements on your site plan.</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, marginBottom: 10 }}>
               {Object.keys(siteElDefs).map(function(type) {
@@ -1779,7 +1779,7 @@ function StepContent(props) {
 
 
       {/* === NORTH ARROW (S32) === */}
-      {(() => {
+      {guideSectionVisible('northArrow', guideActive === false) && (() => {
         var northAngle = p.northAngle || 0;
         function calcAngle(e, svg) {
           var rect = svg.getBoundingClientRect();
@@ -1849,7 +1849,7 @@ function StepContent(props) {
       })()}
 
       {/* === SLOPE / GRADE (S33) === */}
-      <div style={{ padding: 14, background: _br.wr, borderRadius: 8, border: "1px solid " + _br.bd, marginBottom: 14 }}>
+      {guideSectionVisible('slope', guideActive === false) && <div style={{ padding: 14, background: _br.wr, borderRadius: 8, border: "1px solid " + _br.bd, marginBottom: 14 }}>
         <div style={{ fontSize: 9, fontWeight: 700, color: _br.mu, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 8 }}>{"\u2B06\uFE0F"} Site Slope / Grade</div>
         <Slider label="Slope %" value={p.slopePercent || 0} min={0} max={15} step={0.5} field="slopePercent" unit="%" u={u} p={p} />
         {(p.slopePercent || 0) > 0 && <div style={{ marginBottom: 12 }}>
@@ -1878,21 +1878,21 @@ function StepContent(props) {
           </div>;
         })()}
         {(p.slopePercent || 0) === 0 && <div style={{ fontSize: 8, color: _br.mu, fontFamily: _mono, fontStyle: "italic" }}>Set to 0% for a flat lot. Most residential lots have 2-6% slope.</div>}
-      </div>
+      </div>}
 
       {/* === UPLOAD SURVEY (collapsible) === */}
-      <button onClick={function() { setShowUpload(!showUpload); }} style={{
-        width: "100%", padding: "10px 14px", marginBottom: showUpload || sitePlanFile ? 0 : 14,
+      <button onClick={function() { guideSectionToggle('upload', showUpload, setShowUpload); }} style={{
+        width: "100%", padding: "10px 14px", marginBottom: guideSectionVisible('upload', showUpload || !!sitePlanFile) ? 0 : 14,
         background: sitePlanFile ? "#edf5e8" : "none",
         border: "1px solid " + (sitePlanFile ? _br.gn : _br.bd),
-        borderRadius: showUpload || sitePlanFile ? "8px 8px 0 0" : 8,
+        borderRadius: guideSectionVisible('upload', showUpload || !!sitePlanFile) ? "8px 8px 0 0" : 8,
         cursor: "pointer", fontSize: 10, fontFamily: _mono, color: sitePlanFile ? _br.gn : _br.mu,
         display: "flex", justifyContent: "space-between", alignItems: "center"
       }}>
         <span>{sitePlanFile ? ("\u2713 Survey attached: " + sitePlanFile.name) : "\uD83D\uDCC4 Have a property survey? Upload it here"}</span>
-        <span style={{ transform: (showUpload || sitePlanFile) ? "rotate(180deg)" : "none", transition: "0.2s" }}>{"\u25BE"}</span>
+        <span style={{ transform: guideSectionVisible('upload', showUpload || !!sitePlanFile) ? "rotate(180deg)" : "none", transition: "0.2s" }}>{"\u25BE"}</span>
       </button>
-      {(showUpload || sitePlanFile) && <div style={{ padding: 14, background: _br.wr, borderRadius: "0 0 8px 8px", border: "1px solid " + _br.bd, borderTop: "none", marginBottom: 14 }}>
+      {guideSectionVisible('upload', showUpload || !!sitePlanFile) && <div style={{ padding: 14, background: _br.wr, borderRadius: "0 0 8px 8px", border: "1px solid " + _br.bd, borderTop: "none", marginBottom: 14 }}>
         <div style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, marginBottom: 10, lineHeight: 1.6, padding: "8px 10px", background: "#fff", borderRadius: 6, border: "1px solid " + _br.bd }}>
           {"\uD83D\uDCA1"} Upload your property survey, plat map, or site plan. This will be included as a separate sheet in your blueprint package. The dimensions above will still be used for the generated site plan.
         </div>
@@ -1927,6 +1927,8 @@ function StepContent(props) {
         <button onClick={function() {
           (async function() {
             setExtracting(true); setExtractError(null);
+            // S49: Advance guide to extracting phase
+            if (guideActive && guidePhase === 'upload_survey') guideAdvance('extracting');
             try {
               var fileType = sitePlanFile.name.toLowerCase().endsWith(".pdf") ? "pdf" : "image";
               var b64 = sitePlanB64 || await new Promise(function(resolve, reject) {
@@ -2049,7 +2051,7 @@ function StepContent(props) {
           We found {shapeCandidates.length} possible shapes matching the survey dimensions ({extractResult.lotArea ? extractResult.lotArea.toLocaleString() : "?"} SF).
           {sitePlanB64 ? " Compare them to your survey to find the best match." : " Tap the one that looks like your lot."}
         </div>
-        {sitePlanB64 && setCompareMode && <button onClick={function() { setCompareMode(true); setTimeout(function() { window.scrollTo({ top: 0, behavior: "smooth" }); }, 50); }} style={{
+        {sitePlanB64 && setCompareMode && <button onClick={function() { setCompareMode(true); if (guideActive) guideAdvance('shape_select'); setTimeout(function() { window.scrollTo({ top: 0, behavior: "smooth" }); }, 50); }} style={{
           width: "100%", padding: "14px", background: "#2e7d32", color: "#fff", border: "none",
           borderRadius: 8, cursor: "pointer", fontSize: 12, fontFamily: _mono, fontWeight: 700,
           marginBottom: 10, display: "flex", alignItems: "center", justifyContent: "center", gap: 8
