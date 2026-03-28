@@ -730,7 +730,7 @@ const App = function SimpleBlueprints() {
     var cv = cand.vertices;
     var cmaxX = 0, cmaxY = 0;
     cv.forEach(v => { if (v[0] > cmaxX) cmaxX = v[0]; if (v[1] > cmaxY) cmaxY = v[1]; });
-    return Object.assign({}, p, {
+    var overrides = {
       lotWidth: Math.max(30, Math.round(cmaxX)),
       lotDepth: Math.max(50, Math.round(cmaxY)),
       lotVertices: cv,
@@ -740,7 +740,19 @@ const App = function SimpleBlueprints() {
         neighborLabel: e.type === "street" ? "" : (e.neighborLabel || "")
       })),
       lotArea: cand.area
-    });
+    };
+    // S48: Include extracted house dimensions in preview
+    var ext = data.extractResult;
+    if (ext) {
+      if (ext.houseWidth) overrides.houseWidth = ext.houseWidth;
+      if (ext.houseDepth) overrides.houseDepth = ext.houseDepth;
+      if (ext.houseDistFromStreet) overrides.houseDistFromStreet = ext.houseDistFromStreet;
+      if (ext.houseOffsetSide) overrides.houseOffsetSide = ext.houseOffsetSide;
+      if (ext.setbackFront) overrides.setbackFront = ext.setbackFront;
+      if (ext.setbackRear) overrides.setbackRear = ext.setbackRear;
+      if (ext.setbackSide) overrides.setbackSide = ext.setbackSide;
+    }
+    return Object.assign({}, p, overrides);
   }, [previewIdx, p]);
 
   // HOME
