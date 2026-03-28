@@ -662,6 +662,7 @@ const App = function SimpleBlueprints() {
   const isProduction = typeof window !== 'undefined' && window.location.hostname.includes("simpleblueprints.xyz");
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [materialsUrl, setMaterialsUrl] = useState(null);
 
   const API = "https://simpleblueprints-production.up.railway.app";
 
@@ -673,7 +674,7 @@ const App = function SimpleBlueprints() {
   }, []);
 
   const generateBlueprint = async () => {
-    setGenStatus("generating"); setGenError("");
+    setGenStatus("generating"); setGenError(""); setMaterialsUrl(null);
     try {
       const coverImage = await window.capture3D(p, c);
       const res = await fetch(`${API}/api/generate-test`, {
@@ -686,7 +687,8 @@ const App = function SimpleBlueprints() {
       if (!res.ok) throw new Error(`Server error: ${res.status}`);
       const data = await res.json();
       if (data.download_url) {
-        const _a = document.createElement("a"); _a.href = `${API}${data.download_url}`; _a.target = "_blank"; document.body.appendChild(_a); _a.click(); document.body.removeChild(_a);
+        const _a = document.createElement("a"); _a.href = `${API}${data.download_url}?type=permit`; _a.target = "_blank"; document.body.appendChild(_a); _a.click(); document.body.removeChild(_a);
+        if (data.materials_url) { setMaterialsUrl(`${API}${data.materials_url}?type=materials`); }
         setGenStatus("done");
       } else {
         throw new Error("No download URL returned");
@@ -810,7 +812,7 @@ const App = function SimpleBlueprints() {
               isProduction={isProduction} feedbackDone={feedbackDone} setFeedbackDone={setFeedbackDone}
               feedback={feedback} setFeedback={setFeedback} submitFeedback={submitFeedback}
               genStatus={genStatus} genError={genError} generateBlueprint={generateBlueprint}
-              user={user} API={API}
+              user={user} API={API} materialsUrl={materialsUrl}
               zoneMode={zoneMode} setZoneMode={setZoneMode}
               addZone={addZone} addCutout={addCutout} removeZone={removeZone} updateZone={updateZone}
               setCorner={setCorner} getCorners={getCorners} pForZones={pForZones}

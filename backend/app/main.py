@@ -126,7 +126,8 @@ class DeckParams(BaseModel):
 # ============================================================
 # PDF GENERATION
 # ============================================================
-def generate_blueprint_pdf(params: dict) -> tuple[str, dict]:
+def generate_blueprint_pdf(params: dict) -> tuple[str, str, dict]:
+    """Generate two PDFs: permit plan set and materials list. Returns (permit_id, materials_id, calc)."""
     # S38: Validate lotVertices
     _lv = params.get("lotVertices")
     if _lv:
@@ -168,64 +169,52 @@ def generate_blueprint_pdf(params: dict) -> tuple[str, dict]:
     cover_img = params.get("coverImage", None)
     sp_mode = params.get("sitePlanMode", "generate")
     sp_file = params.get("sitePlanFile", None)
-    file_id = str(uuid.uuid4())
-    output_path = PDF_DIR / f"{file_id}.pdf"
 
-    sheets = [
+    # S50: Two separate PDFs
+    permit_id = str(uuid.uuid4())
+    materials_id = str(uuid.uuid4())
+    permit_path = PDF_DIR / f"{permit_id}.pdf"
+    materials_path = PDF_DIR / f"{materials_id}.pdf"
+
+    # -- Permit Plan Set (Cover + A-1 through A-5) --
+    permit_sheets = [
         ("A-1", "DECK PLAN & FRAMING", draw_plan_and_framing),
         ("A-2", "ELEVATIONS", draw_elevations_sheet),
         ("A-3", "GENERAL NOTES", draw_notes_sheet),
         ("A-4", "STRUCTURAL DETAILS", draw_details_sheet),
-        ("A-5", "MATERIAL LIST", draw_materials_sheet),
     ]
 
-    with PdfPages(str(output_path)) as pdf:
+    with PdfPages(str(permit_path)) as pdf:
         fig0 = plt.figure(figsize=(14, 8.5)); fig0.set_facecolor('white')
         draw_cover_sheet(fig0, params, calc, pi, cover_img)
         pdf.savefig(fig0, dpi=200); plt.close(fig0)
 
-        for sheet_num, sheet_name, draw_fn in sheets:
+        for sheet_num, sheet_name, draw_fn in permit_sheets:
             fig = plt.figure(figsize=(14, 8.5)); fig.set_facecolor('white')
             draw_fn(fig, params, calc)
             draw_title_block(fig, sheet_num, sheet_name, calc, pi)
             pdf.savefig(fig, dpi=200); plt.close(fig)
 
-        # A-6: Always include the generated site plan
-        fig6 = plt.figure(figsize=(14,8.5)); fig6.set_facecolor('white')
-        draw_site_plan(fig6,params,calc); draw_title_block(fig6,"A-6","SITE PLAN",calc,pi)
-        pdf.savefig(fig6,dpi=200); plt.close(fig6)
-
-        # A-7: If user uploaded a survey image (PNG/JPG), embed it
-        # PDF surveys are merged after PdfPages closes (see below)
-        survey_is_pdf = False
-        if sp_file:
-            try:
-                import base64 as b64mod, io
-                img_data = b64mod.b64decode(sp_file)
-                if sp_file[:5] == 'JVBER':
-                    survey_is_pdf = True  # handle after PdfPages closes
-                else:
-                    from PIL import Image
-                    img = Image.open(io.BytesIO(img_data))
-                    fig7 = plt.figure(figsize=(14,8.5)); fig7.set_facecolor('white')
-                    ax7 = fig7.add_axes([0.02,0.05,0.96,0.88]); ax7.axis('off')
-                    ax7.imshow(np.array(img), aspect='auto')
-                    draw_title_block(fig7,"A-7","UPLOADED SURVEY",calc,pi)
-                    pdf.savefig(fig7,dpi=200); plt.close(fig7)
-            except Exception as e:
-                print(f"Survey image embed error: {e}")
-
-    # S43: PDF survey merge removed. Survey is used for trace/extraction only,
-    # not appended to the blueprint. The generated A-6 site plan is sufficient.
+        # A-5: Site plan (was A-6 before S50)
+        fig5 = plt.figure(figsize=(14,8.5)); fig5.set_facecolor('white')
+        draw_site_plan(fig5,params,calc); draw_title_block(fig5,"A-5","SITE PLAN",calc,pi)
+        pdf.savefig(fig5,dpi=200); plt.close(fig5)
 
     # S50: Append jurisdiction-specific sheets (Colorado Springs PPRBD)
     if is_colorado_springs(pi):
         try:
-            append_cos_attachment(output_path, params, calc, pi)
+            append_cos_attachment(permit_path, params, calc, pi)
         except Exception as e:
             print(f"COS attachment sheet error: {e}")
 
-    return file_id, calc
+    # -- Materials & Cost Estimate (separate PDF) --
+    with PdfPages(str(materials_path)) as pdf:
+        fig_m = plt.figure(figsize=(14, 8.5)); fig_m.set_facecolor('white')
+        draw_materials_sheet(fig_m, params, calc)
+        draw_title_block(fig_m, "", "MATERIALS & COST ESTIMATE", calc, pi)
+        pdf.savefig(fig_m, dpi=200); plt.close(fig_m)
+
+    return permit_id, materials_id, calc
 
 
 # ============================================================
@@ -475,17 +464,20 @@ async def generate_test(request: Request):
         params = DeckParams(**json.loads(body))
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="Invalid JSON")
-    file_id, calc = generate_blueprint_pdf(params.dict())
-    try: db_log_generation(user_id, params.dict(), calc, file_id)
+    permit_id, materials_id, calc = generate_blueprint_pdf(params.dict())
+    try: db_log_generation(user_id, params.dict(), calc, permit_id)
     except Exception as e: print(f"Log error: {e}")
-    return {"file_id": file_id, "download_url": f"/api/download/{file_id}", "calc": calc}
+    return {"file_id": permit_id, "download_url": f"/api/download/{permit_id}",
+            "materials_id": materials_id, "materials_url": f"/api/download/{materials_id}",
+            "calc": calc}
 
 @app.get("/api/download/{file_id}")
-async def download(file_id: str):
+async def download(file_id: str, type: str = "permit"):
     safe_id = file_id.replace("/","").replace("..","")
     path = PDF_DIR / f"{safe_id}.pdf"
     if not path.exists(): raise HTTPException(status_code=404)
-    return FileResponse(str(path), media_type="application/pdf", filename=f"SimpleBlueprints-{safe_id[:8]}.pdf",
+    fname = f"SimpleBlueprints-Materials-{safe_id[:8]}.pdf" if type == "materials" else f"SimpleBlueprints-Permit-Plans-{safe_id[:8]}.pdf"
+    return FileResponse(str(path), media_type="application/pdf", filename=fname,
                         headers={"Cache-Control": "no-store"})
 
 @app.post("/api/checkout")
@@ -508,8 +500,9 @@ async def check_payment(session_id: str):
         if session.payment_status == "paid":
             pj = session.metadata.get("deck_params")
             if pj:
-                file_id, calc = generate_blueprint_pdf(json.loads(pj))
-                return {"status":"paid","download_url":f"/api/download/{file_id}","calc":calc}
+                permit_id, materials_id, calc = generate_blueprint_pdf(json.loads(pj))
+                return {"status":"paid","download_url":f"/api/download/{permit_id}",
+                        "materials_url":f"/api/download/{materials_id}","calc":calc}
         return {"status":"pending"}
     except Exception as e: return {"status":"error","message":str(e)}
 

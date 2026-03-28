@@ -608,7 +608,7 @@ function StepContent(props) {
   const { step, p, u, c, m, info, setI, showAdvanced, setShowAdvanced,
     sitePlanMode, setSitePlanMode, sitePlanFile, setSitePlanFile, setSitePlanB64,
     isProduction, feedbackDone, setFeedbackDone, feedback, setFeedback, submitFeedback,
-    genStatus, genError, generateBlueprint, user, API,
+    genStatus, genError, generateBlueprint, user, API, materialsUrl,
     zoneMode, setZoneMode, addZone, addCutout, removeZone, updateZone, setCorner, getCorners, pForZones, zc,
     traceMode, setTraceMode, traceState, setTraceState, sitePlanB64,
     compareMode, setCompareMode } = props;
@@ -2848,16 +2848,22 @@ function StepContent(props) {
     <div style={{background:_br.dk,borderRadius:10,padding:20,textAlign:"center",marginBottom:10}}>
       <div style={{fontSize:10,fontFamily:_mono,color:"rgba(255,255,255,0.5)",letterSpacing:"2px",textTransform:"uppercase",marginBottom:6}}>Your Blueprint Package</div>
       <div style={{display:"flex",justifyContent:"center",gap:16,marginBottom:12,flexWrap:"wrap"}}>
-        {["Plan View","Framing Plan","Elevations","Details","Material List","Site Plan"].concat(
+        {["Plan View","Framing Plan","Elevations","Details","Site Plan"].concat(
           _isPPRBD ? ["PPRBD Attachment"] : []
         ).map(s=>(<div key={s} style={{display:"flex",alignItems:"center",gap:4}}><span style={{color:"#66bb6a",fontSize:11}}>{"\u2713"}</span><span style={{fontSize:10,fontFamily:_mono,color:"rgba(255,255,255,0.8)"}}>{s}</span></div>))}
       </div>
+      <div style={{fontSize:8,color:"rgba(255,255,255,0.35)",fontFamily:_mono,marginBottom:12}}>Materials & Cost Estimate included as separate download</div>
       {user ? <>
       <button onClick={function(){var miss=[];if(!info.owner)miss.push("Owner / Applicant Name");if(!info.address)miss.push("Property Address");if(!info.city)miss.push("City");if(!info.state)miss.push("State");if(!info.zip)miss.push("ZIP");if(miss.length>0&&!missingFieldsAcked){setShowMissingModal(miss);return;}if(_isPPRBD&&!pprbdChecklistAcked){var jcl=p.jurisdictionChecklist||{};var hIn=(p.height||4)*12;var fDep=c.footing_depth||36;var isDet=p.attachmentType==="freestanding";var autos={under18:hIn<=18,over8ft:hIn>=96,freestanding:isDet,excavation:fDep>36};var uKeys=[];["cover","electrical","hottub","cantilever","under18","over8ft","freestanding","excavation"].forEach(function(k){var v=jcl.hasOwnProperty(k)?jcl[k]:(autos.hasOwnProperty(k)?autos[k]:null);if(v===null||v===undefined)uKeys.push(k);});if(uKeys.length>0){setShowPprbdModal(uKeys);return;}}disclaimerAcked?generateBlueprint():setShowDisclaimer(true);}} disabled={genStatus==="generating"||(isProduction&&!feedbackDone)} style={{padding:"14px 40px",background:genStatus==="generating"?"#555":genStatus==="done"?"#2e7d32":_br.gn,color:"#fff",border:"none",borderRadius:8,fontSize:16,fontWeight:800,cursor:genStatus==="generating"?"wait":"pointer",fontFamily:_mono,letterSpacing:"1px",boxShadow:"0 4px 20px rgba(61,90,46,0.4)",transition:"all 0.2s"}}>
         {genStatus==="generating"?"Generating PDF...":genStatus==="done"?"\u2713 Download Complete \u2014 Generate Again?":"Generate Blueprint \u2014 FREE BETA"}
       </button>
       {genStatus==="error"&&<div style={{fontSize:10,color:"#f44336",fontFamily:_mono,marginTop:8}}>Error: {genError}</div>}
-      <div style={{fontSize:8,color:"rgba(255,255,255,0.4)",fontFamily:_mono,marginTop:8}}>{genStatus==="done"?"PDF opened in new tab \u00B7 Check your downloads":"Instant PDF download \u00B7 Print-ready quality \u00B7 Permit-office format"}</div>
+      {genStatus==="done" && materialsUrl ? <div style={{marginTop:10}}>
+        <div style={{fontSize:8,color:"rgba(255,255,255,0.5)",fontFamily:_mono,marginBottom:6}}>Permit plans opened in new tab</div>
+        <a href={materialsUrl} target="_blank" rel="noopener noreferrer" style={{display:"inline-flex",alignItems:"center",gap:6,padding:"8px 16px",background:"rgba(255,255,255,0.12)",border:"1px solid rgba(255,255,255,0.25)",borderRadius:6,color:"#fff",fontSize:11,fontFamily:_mono,fontWeight:600,textDecoration:"none",cursor:"pointer"}}>
+          {"\u2193"} Materials & Cost Estimate
+        </a>
+      </div> : <div style={{fontSize:8,color:"rgba(255,255,255,0.4)",fontFamily:_mono,marginTop:8}}>{genStatus==="done"?"PDF opened in new tab":"Instant PDF download \u00B7 Print-ready quality \u00B7 Permit-office format"}</div>}
       </> : <div style={{textAlign:"center"}}>
         <div style={{fontSize:11,color:"rgba(255,255,255,0.6)",fontFamily:_mono,marginBottom:12}}>Sign in to generate your blueprint</div>
         <button onClick={()=>{window.location.href=`${API}/auth/login`;}} style={{padding:"12px 32px",background:"#fff",color:"#333",border:"none",borderRadius:8,fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:_mono,display:"inline-flex",alignItems:"center",gap:10,boxShadow:"0 2px 12px rgba(0,0,0,0.15)"}}>
