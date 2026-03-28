@@ -176,6 +176,282 @@ function Spec({ l, v, color }) {
   return <div style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", borderBottom: `1px solid ${_br.wr}` }}><span style={{ fontSize: 11, color: _br.mu, fontFamily: _mono }}>{l}</span><span style={{ fontSize: 11, fontWeight: 700, color: color || _br.tx, fontFamily: _mono }}>{v}</span></div>;
 }
 
+// ============================================================
+// AI GUIDE   Phase definitions + GuidePanel component (S49)
+// ============================================================
+
+var GUIDE_PHASES_STEP0 = [
+  // --- FIRST QUESTION ---
+  {
+    id: 'has_survey',
+    message: "Do you have a property survey or plot map?",
+    tip: "This is usually from your closing documents or a surveyor. A plat map from your county works too.",
+    sections: [],
+    actions: [
+      { label: 'Yes, I have one', next: 'upload_survey', style: 'primary' },
+      { label: 'No, I will enter manually', next: 'lot_dims', style: 'secondary' }
+    ]
+  },
+  // --- SURVEY PATH ---
+  {
+    id: 'upload_survey',
+    message: "Upload your property survey or plot map.",
+    tip: "PDF works best. You can also use a photo of the document.",
+    sections: ['upload'],
+    actions: []
+  },
+  {
+    id: 'extracting',
+    message: "Analyzing your survey...",
+    tip: "Detecting lot shape, dimensions, and property info.",
+    sections: ['upload'],
+    actions: []
+  },
+  {
+    id: 'shape_select',
+    message: "Which shape matches your lot?",
+    tip: "Compare the options to your survey in the preview panel.",
+    sections: [],
+    actions: []
+  },
+  {
+    id: 'verify_extracted',
+    message: "Here is what we found. Do these numbers look right?",
+    tip: "Check the preview on the right. Adjust any values that seem off.",
+    sections: ['lotHouse'],
+    actions: [
+      { label: 'Looks good', next: 'site_elements_check', style: 'primary' },
+      { label: 'Let me adjust', action: 'expand_for_edit', style: 'secondary' }
+    ]
+  },
+  {
+    id: 'trace_or_manual',
+    message: "We could not auto-detect the lot shape.",
+    tip: "You can trace it on the survey image or enter dimensions manually.",
+    sections: ['upload'],
+    actions: [
+      { label: 'Trace on survey', action: 'start_trace', style: 'primary' },
+      { label: 'Enter manually', next: 'lot_dims', style: 'secondary' }
+    ]
+  },
+  // --- MANUAL PATH ---
+  {
+    id: 'lot_dims',
+    message: "How big is your property?",
+    tip: "Check your county tax records or closing documents for exact dimensions.",
+    sections: ['lotHouse'],
+    focusFields: ['lotWidth', 'lotDepth'],
+    actions: [
+      { label: 'Continue', next: 'house_position', style: 'primary' }
+    ]
+  },
+  {
+    id: 'house_position',
+    message: "Where does your house sit on the lot?",
+    tip: "House width is the wall where your deck will attach.",
+    sections: ['lotHouse'],
+    focusFields: ['houseWidth', 'houseDepth', 'houseOffsetSide', 'houseDistFromStreet'],
+    actions: [
+      { label: 'Continue', next: 'setbacks', style: 'primary' }
+    ]
+  },
+  {
+    id: 'setbacks',
+    message: "What are your zoning setbacks?",
+    tip: "Your building department can tell you these. Common: 25' front, 10' side, 25' rear.",
+    sections: ['lotHouse'],
+    focusFields: ['setbackFront', 'setbackSide', 'setbackRear'],
+    actions: [
+      { label: 'Use common defaults', action: 'apply_default_setbacks', style: 'secondary' },
+      { label: 'Continue', next: 'site_elements_check', style: 'primary' }
+    ]
+  },
+  // --- MERGED PATH ---
+  {
+    id: 'site_elements_check',
+    message: "Any other structures on your lot?",
+    tip: "Garages, sheds, pools, driveways. These show on the site plan.",
+    sections: ['siteElements'],
+    actions: [
+      { label: 'Add elements', action: 'expand_site_elements', style: 'secondary' },
+      { label: 'Skip', next: 'north_arrow', style: 'primary' }
+    ]
+  },
+  {
+    id: 'north_arrow',
+    message: "Which direction is north?",
+    tip: "Check Google Maps if unsure. Most streets run roughly N-S or E-W.",
+    sections: ['northArrow'],
+    actions: [
+      { label: 'Continue', next: 'slope', style: 'primary' }
+    ]
+  },
+  {
+    id: 'slope',
+    message: "Does your yard slope?",
+    tip: "Most lots have a gentle slope. Set to 0% if your yard looks flat.",
+    sections: ['slope'],
+    actions: [
+      { label: 'Flat lot (0%)', action: 'set_flat', style: 'secondary' },
+      { label: 'Continue', next: 'complete', style: 'primary' }
+    ]
+  },
+  {
+    id: 'complete',
+    message: "Your property is set up!",
+    tip: "Review the site plan on the right, then continue to design your deck.",
+    sections: [],
+    actions: [
+      { label: 'Design my deck \u2192', action: 'advance_step', style: 'primary' }
+    ]
+  }
+];
+
+// Build a lookup map for phases
+var _guidePhaseMap = {};
+GUIDE_PHASES_STEP0.forEach(function(ph) { _guidePhaseMap[ph.id] = ph; });
+
+// All phase IDs in order for progress calculation
+var _guidePhaseOrder = GUIDE_PHASES_STEP0.map(function(ph) { return ph.id; });
+
+// GuidePanel: embedded guide at top of wizard step
+function GuidePanel({ phase, onAction, onBack, history, onToggleOff }) {
+  var ph = _guidePhaseMap[phase];
+  if (!ph) return null;
+
+  // Progress: position in the order (approximate, since paths branch)
+  var idx = _guidePhaseOrder.indexOf(phase);
+  var total = _guidePhaseOrder.length;
+  var pct = total > 0 ? Math.round(((idx + 1) / total) * 100) : 0;
+  if (phase === 'complete') pct = 100;
+  if (pct < 5) pct = 5;
+
+  var canGoBack = history && history.length > 0;
+
+  return <div style={{
+    marginBottom: 16,
+    padding: "16px 18px",
+    background: "linear-gradient(135deg, #f0fdf4 0%, #faf8f3 100%)",
+    borderRadius: 10,
+    border: "1px solid " + _br.gn + "44",
+    boxShadow: "0 2px 8px rgba(61,90,46,0.08)"
+  }}>
+    {/* Progress bar */}
+    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+      <div style={{ flex: 1, height: 4, background: _br.wr, borderRadius: 2, overflow: "hidden" }}>
+        <div style={{ width: pct + "%", height: "100%", background: _br.gn, borderRadius: 2, transition: "width 0.4s ease" }} />
+      </div>
+      <span style={{ fontSize: 8, fontFamily: _mono, color: _br.mu, flexShrink: 0 }}>{pct}%</span>
+    </div>
+
+    {/* Message */}
+    <div style={{ fontSize: 14, fontWeight: 700, color: _br.dk, fontFamily: _sans, lineHeight: 1.4, marginBottom: 4 }}>
+      {ph.message}
+    </div>
+
+    {/* Tip */}
+    {ph.tip && <div style={{ fontSize: 11, color: _br.mu, fontFamily: _sans, lineHeight: 1.5, marginBottom: 12 }}>
+      {ph.tip}
+    </div>}
+
+    {/* Action buttons */}
+    {ph.actions && ph.actions.length > 0 && <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+      {ph.actions.map(function(act, ai) {
+        var isPrimary = act.style === 'primary';
+        return <button key={ai} onClick={function() { onAction(act); }} style={{
+          padding: "9px 18px",
+          borderRadius: 6,
+          fontSize: 11,
+          fontFamily: _mono,
+          fontWeight: 700,
+          cursor: "pointer",
+          border: isPrimary ? "none" : ("1px solid " + _br.gn),
+          background: isPrimary ? _br.gn : "transparent",
+          color: isPrimary ? "#fff" : _br.gn,
+          transition: "all 0.15s"
+        }}>{act.label}</button>;
+      })}
+    </div>}
+
+    {/* Footer: back + mode toggle */}
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: ph.actions && ph.actions.length > 0 ? 12 : 4, paddingTop: 8, borderTop: "1px solid " + _br.gn + "22" }}>
+      {canGoBack ? <button onClick={onBack} style={{
+        fontSize: 10, fontFamily: _mono, color: _br.mu, background: "none",
+        border: "none", cursor: "pointer", padding: "2px 0"
+      }}>{"\u2190"} Back</button> : <span />}
+      <button onClick={onToggleOff} style={{
+        fontSize: 9, fontFamily: _mono, color: _br.mu, background: "none",
+        border: "none", cursor: "pointer", padding: "2px 0", opacity: 0.7
+      }}>Switch to manual</button>
+    </div>
+  </div>;
+}
+
+// Choice screen: shown before guide activates (S49)
+function GuideChoiceScreen({ onChoose }) {
+  var cardBase = {
+    flex: "1 1 200px",
+    padding: "24px 20px",
+    borderRadius: 10,
+    cursor: "pointer",
+    textAlign: "center",
+    transition: "all 0.2s",
+    minHeight: 160,
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "space-between"
+  };
+  return <div style={{ marginBottom: 16 }}>
+    <div style={{ fontSize: 14, fontWeight: 800, color: _br.dk, fontFamily: _sans, marginBottom: 4, textAlign: "center" }}>
+      How would you like to get started?
+    </div>
+    <div style={{ fontSize: 11, color: _br.mu, fontFamily: _sans, marginBottom: 16, textAlign: "center" }}>
+      You can switch modes at any time.
+    </div>
+    <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+      <div onClick={function() { onChoose('guided'); }}
+        onMouseOver={function(e) { e.currentTarget.style.borderColor = _br.gn; e.currentTarget.style.boxShadow = "0 4px 16px rgba(61,90,46,0.15)"; }}
+        onMouseOut={function(e) { e.currentTarget.style.borderColor = _br.gn + "66"; e.currentTarget.style.boxShadow = "0 2px 8px rgba(61,90,46,0.06)"; }}
+        style={Object.assign({}, cardBase, {
+          background: "linear-gradient(135deg, #f0fdf4 0%, #e8f5e9 100%)",
+          border: "2px solid " + _br.gn + "66",
+          boxShadow: "0 2px 8px rgba(61,90,46,0.06)"
+        })}>
+        <div>
+          <div style={{ fontSize: 28, marginBottom: 10 }}>{"\uD83E\uDDED"}</div>
+          <div style={{ fontSize: 13, fontWeight: 800, color: _br.gn, fontFamily: _sans, marginBottom: 6 }}>Guided Setup</div>
+          <div style={{ fontSize: 11, color: _br.tx, fontFamily: _sans, lineHeight: 1.5 }}>
+            Simple questions walk you through each step. About 5 minutes.
+          </div>
+        </div>
+        <div style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, marginTop: 12, fontStyle: "italic" }}>
+          Best for homeowners
+        </div>
+      </div>
+      <div onClick={function() { onChoose('manual'); }}
+        onMouseOver={function(e) { e.currentTarget.style.borderColor = _br.bd; e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,0.08)"; }}
+        onMouseOut={function(e) { e.currentTarget.style.borderColor = _br.bd; e.currentTarget.style.boxShadow = "0 1px 4px rgba(0,0,0,0.04)"; }}
+        style={Object.assign({}, cardBase, {
+          background: "#fff",
+          border: "2px solid " + _br.bd,
+          boxShadow: "0 1px 4px rgba(0,0,0,0.04)"
+        })}>
+        <div>
+          <div style={{ fontSize: 28, marginBottom: 10 }}>{"\u2699\uFE0F"}</div>
+          <div style={{ fontSize: 13, fontWeight: 800, color: _br.tx, fontFamily: _sans, marginBottom: 6 }}>Manual Setup</div>
+          <div style={{ fontSize: 11, color: _br.tx, fontFamily: _sans, lineHeight: 1.5 }}>
+            Fill in dimensions and settings yourself. All controls visible.
+          </div>
+        </div>
+        <div style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, marginTop: 12, fontStyle: "italic" }}>
+          Best for contractors & repeat users
+        </div>
+      </div>
+    </div>
+  </div>;
+}
+
+
 // Stair template icons (unchanged)
 function stairIcon(key) {
   var c = "#3d5a2e", f = "#faf8f3", lc = "#e8e6d8", s = 0.8, ao = 0.6;
@@ -212,6 +488,132 @@ function StepContent(props) {
   const [showLotHouse, setShowLotHouse] = _stUS(true);
   var dialDragRef = React.useRef(false);
   _stUE(function() { u("_selectedElId", selectedElId); }, [selectedElId]);
+
+  // S49: AI Guide state
+  // null = choice screen not yet shown, true = guided, false = manual
+  const [guideActive, setGuideActive] = _stUS(null);
+  const [guidePhase, setGuidePhase] = _stUS('has_survey');
+  const [guideHistory, setGuideHistory] = _stUS([]);
+  const [guidePeeked, setGuidePeeked] = _stUS({});
+
+  function guideAdvance(nextPhase) {
+    setGuideHistory(function(prev) { return prev.concat([guidePhase]); });
+    setGuidePhase(nextPhase);
+    // Auto-expand the section for the new phase
+    var ph = _guidePhaseMap[nextPhase];
+    if (ph && ph.sections) {
+      ph.sections.forEach(function(s) {
+        if (s === 'lotHouse') setShowLotHouse(true);
+        if (s === 'siteElements') setShowSiteElements(true);
+        if (s === 'upload') setShowUpload(true);
+        if (s === 'lotShape') setShowLotShape(true);
+      });
+    }
+  }
+
+  function guideBack() {
+    setGuideHistory(function(prev) {
+      var copy = prev.slice();
+      var last = copy.pop();
+      if (last) setGuidePhase(last);
+      return copy;
+    });
+  }
+
+  function guideHandleAction(act) {
+    if (act.action === 'apply_default_setbacks') {
+      u('setbackFront', 25);
+      u('setbackSide', 10);
+      u('setbackRear', 25);
+    }
+    if (act.action === 'set_flat') {
+      u('slopePercent', 0);
+    }
+    if (act.action === 'advance_step') {
+      if (props.setStep) props.setStep(1);
+      return;
+    }
+    if (act.action === 'expand_for_edit') {
+      setShowLotHouse(true);
+      return;
+    }
+    if (act.action === 'expand_site_elements') {
+      setShowSiteElements(true);
+      return;
+    }
+    if (act.action === 'start_trace') {
+      setTraceState({
+        calPoints: [], calDist: "", ppf: null,
+        vertices: [], edgeMeta: [], edgeLengths: [],
+        imgW: 0, imgH: 0,
+        selectedEdge: null, selectedVertex: null,
+        pdfPage: 1, pdfPageCount: 1
+      });
+      setTraceMode(true);
+      return;
+    }
+    if (act.next) {
+      guideAdvance(act.next);
+    }
+  }
+
+  function guideChoose(mode) {
+    if (mode === 'guided') {
+      setGuideActive(true);
+      setGuidePhase('has_survey');
+    } else {
+      setGuideActive(false);
+    }
+  }
+
+  // Guide helper: is a section relevant to current phase?
+  function guideSectionVisible(sectionId, manualToggle) {
+    if (!guideActive) return manualToggle;
+    var ph = _guidePhaseMap[guidePhase];
+    var phaseWants = ph && ph.sections && ph.sections.indexOf(sectionId) >= 0;
+    return phaseWants || !!guidePeeked[sectionId];
+  }
+
+  // Wrapper for section toggle clicks in guide mode
+  function guideSectionToggle(sectionId, currentVal, setter) {
+    var newVal = !currentVal;
+    setter(newVal);
+    if (guideActive && newVal) {
+      setGuidePeeked(function(prev) { var copy = Object.assign({}, prev); copy[sectionId] = true; return copy; });
+    }
+    if (guideActive && !newVal) {
+      setGuidePeeked(function(prev) { var copy = Object.assign({}, prev); delete copy[sectionId]; return copy; });
+    }
+  }
+
+  // Guide helper: is this field focused by the current phase?
+  function guideFieldFocused(fieldName) {
+    if (!guideActive) return false;
+    var ph = _guidePhaseMap[guidePhase];
+    return ph && ph.focusFields && ph.focusFields.indexOf(fieldName) >= 0;
+  }
+
+  // S49: Auto-advance guide on extraction events
+  _stUE(function() {
+    if (!guideActive || step !== 0) return;
+    if (guidePhase === 'extracting' && !extracting && extractResult) {
+      var hasShapes = extractResult.lotEdges && extractResult.lotEdges.length >= 4 && extractResult.lotArea;
+      if (hasShapes) {
+        guideAdvance('shape_select');
+      } else {
+        guideAdvance('trace_or_manual');
+      }
+    }
+    if (guidePhase === 'extracting' && !extracting && extractError) {
+      guideAdvance('trace_or_manual');
+    }
+    if (guidePhase === 'shape_select' && !extractResult && !compareMode && p.lotVertices) {
+      guideAdvance('verify_extracted');
+    }
+    if (guidePhase === 'trace_or_manual' && !traceMode && p.lotVertices) {
+      guideAdvance('verify_extracted');
+    }
+  }, [guideActive, guidePhase, extracting, extractResult, extractError, compareMode, traceMode, p.lotVertices, step]);
 
 
   // S46: Compute candidate lot shapes from extraction result
