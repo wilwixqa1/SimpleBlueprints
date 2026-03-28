@@ -1,7 +1,7 @@
 """
-SimpleBlueprints — Sheet A-5: Material List
+SimpleBlueprints â Sheet A-5: Material List
 Professional itemized material table with cost estimate
-S23: Zone-aware materials — ports calcAllZones logic from engine.js
+S23: Zone-aware materials â ports calcAllZones logic from engine.js
 """
 
 import math
@@ -285,7 +285,7 @@ def draw_materials_sheet(fig, params, calc):
     ax.axis('off')
     ax.set_facecolor('white')
 
-    # Title — uses total area (zone-aware)
+    # Title â uses total area (zone-aware)
     ax.text(50, 67, 'MATERIAL LIST & COST ESTIMATE', ha='center', fontsize=14,
             fontweight='bold', fontfamily='monospace', color=BRAND["dark"])
     ax.text(50, 65.2, f'{format_feet_inches(W)} \u00d7 {format_feet_inches(D)} DECK  \u00b7  {display_area} SF',
@@ -298,7 +298,7 @@ def draw_materials_sheet(fig, params, calc):
     for label, x in cols:
         ax.text(x, hY, label, fontsize=6, fontweight='bold', fontfamily='monospace', color='white', va='center')
 
-    # Determine row height — shrink if many items to fit on page
+    # Determine row height â shrink if many items to fit on page
     total_rows = len(items)
     available_height = 63 - 8  # from hY down to summary area
     row_h = min(2.2, available_height / max(total_rows + 1, 1))
@@ -309,7 +309,7 @@ def draw_materials_sheet(fig, params, calc):
     y = hY - 2.5
     last_cat = ""
     for i, item in enumerate(items):
-        if y < 8:
+        if y < 10:
             break
 
         bg = '#fafaf8' if i % 2 == 0 else 'white'
@@ -332,8 +332,8 @@ def draw_materials_sheet(fig, params, calc):
         ax.plot([3, 97], [y - row_h / 2 - 0.3, y - row_h / 2 - 0.3], color='#eee', lw=0.3)
         y -= row_h
 
-    # Bottom summary box — uses combined totals
-    bY = max(y - 1, 3)
+    # Bottom summary box â uses combined totals
+    bY = max(y - 1, 10)
     ax.plot([3, 97], [bY + 1.5, bY + 1.5], color=BRAND["dark"], lw=1)
 
     summary_items = [
