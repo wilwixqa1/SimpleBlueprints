@@ -838,13 +838,16 @@ const App = function SimpleBlueprints() {
                       </div>
                     </div>}
                   </div>
-                  <div style={{ flex: "1 1 45%", maxHeight: "70vh", overflowY: "auto" }}>
+                  <div style={{ flex: "1 1 45%", display: "flex", flexDirection: "column" }}>
                     <div style={{ fontSize: 8, fontWeight: 700, color: br.mu, fontFamily: mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 4 }}>Proposed Shapes</div>
-                    <CompareShapes candidates={window._shapeCompareData ? window._shapeCompareData.candidates : []} previewIdx={previewIdx} />
+                    <div style={{ maxHeight: "60vh", overflowY: "auto", flex: 1 }}>
+                      <CompareShapes candidates={window._shapeCompareData ? window._shapeCompareData.candidates : []} previewIdx={previewIdx} />
+                    </div>
                     {previewIdx != null && <button onClick={() => { if (window._selectShape) window._selectShape(previewIdx); }} style={{
                       width: "100%", padding: "12px", background: "#2e7d32", color: "#fff", border: "none",
                       borderRadius: 8, cursor: "pointer", fontSize: 12, fontFamily: mono, fontWeight: 700,
-                      marginTop: 10, display: "flex", alignItems: "center", justifyContent: "center", gap: 6
+                      marginTop: 10, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                      position: "sticky", bottom: 0
                     }}>{"\u2705"} Confirm Option {previewIdx + 1}</button>}
                   </div>
                 </div>
