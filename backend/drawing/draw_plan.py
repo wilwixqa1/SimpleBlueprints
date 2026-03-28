@@ -413,6 +413,7 @@ def draw_plan_and_framing(fig, params, calc):
                     fontsize=4, fontweight='bold', color=BRAND["red"], zorder=6)
 
 
+
             # === BUILDER DIMENSION CALLOUTS (S17) ===
             beam_setback = 1.5  # beam is 1.5ft from front edge
             pp = calc["post_positions"]
