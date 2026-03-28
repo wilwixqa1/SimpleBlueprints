@@ -1110,7 +1110,3 @@ def draw_elevations_sheet(fig, params, calc):
     ax_west.text(-margin_wx + 0.5, max(max_h_w + 0.3, H + 11.3), 'SCALE: 1/4" = 1\'-0"',
                  fontsize=4, fontfamily='monospace', color=BRAND["mute"])
 
-    # Sheet label
-    fig.text(0.5, 0.02,
-             f'SHEET A-2  |  EXTERIOR ELEVATIONS  |  {format_feet_inches(W)} x {format_feet_inches(D)}  |  simpleblueprints.xyz',
-             ha='center', fontsize=6, fontfamily='monospace', color=BRAND["mute"])
