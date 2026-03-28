@@ -1,4 +1,4 @@
-# SimpleBlueprints - Session 50 Context File
+# SimpleBlueprints - Session 51 Context File
 **Date:** March 2026
 **Repo:** `github.com/Wilwixqa1/simpleblueprints`
 **Live site:** `simpleblueprints-production.up.railway.app`
@@ -458,8 +458,13 @@ Right-side vertical strip on every sheet (Rutstein style). Strip starts at x=0.8
 ---
 
 ## ============================================================
-## KNOWN PDF RENDERING ISSUES (post-S48)
+## KNOWN PDF RENDERING ISSUES (post-S50)
 ## ============================================================
+
+### Fixed in S50:
+- Materials list removed from permit plan set (separate PDF)
+- Site plan renumbered from A-6 to A-5
+- PPRBD Deck Attachment Sheet auto-appended for COS jurisdiction
 
 ### Fixed in S47-S48:
 - All unicode corruption stripped (1.46MB garbage removed)
@@ -483,11 +488,118 @@ Right-side vertical strip on every sheet (Rutstein style). Strip starts at x=0.8
 - Elevations: generic house rendering (plain box, no windows/doors/siding)
 - Site plan: missing vicinity map, legal description, zoning info (lower priority)
 
+### UX Issues (reported S50 by Billy):
+- **"Trace manually" link is in wrong location.** Currently shows pre-compare-mode ("None of these match? Trace manually") before the user has seen any shapes. Once they enter compare mode, the trace option disappears. Fix: move "Trace manually" to the bottom of the proposed shapes list inside compare mode. Remove the pre-compare trace link. See S51 roadmap item #2.
+
+---
+
+## ============================================================
+## JURISDICTION SHEET SYSTEM (S50)
+## ============================================================
+
+### Architecture
+When the user's city/zip matches a known jurisdiction, we auto-include that jurisdiction's required attachment sheets in the permit PDF. Currently only PPRBD (Pikes Peak Regional Building Dept) is supported.
+
+### Files
+- `backend/drawing/jurisdiction_sheet.py` - Detection, checklist computation, overlay generation, PDF merge
+- `backend/drawing/jurisdiction/cos_deck_attachment.pdf` - Official PPRBD Deck Attachment Sheet
+
+### Detection Logic
+`is_colorado_springs(project_info)` checks:
+- City name against PPRBD_CITIES list (colorado springs, fountain, manitou springs, monument, palmer lake, woodland park, etc.)
+- Zip code against PPRBD_ZIPS set (80901-80951 + 80817, 80829, 80819, 80863, etc.)
+- Excludes: unincorporated Teller County (Divide 80814, Cripple Creek 80813), Ramah, Calhan
+
+### Checklist Flow
+1. Frontend detects PPRBD jurisdiction via `_isPPRBD` helper in StepContent
+2. Step 4 shows YES/NO checklist with three states: YES, NO, unanswered (null)
+3. Auto-computable items (under18, over8ft, freestanding, excavation) filled from deck config
+4. Unknowable items (cover, electrical, hottub, cantilever) start blank
+5. User answers or skips via "Skip & Generate" modal
+6. `p.jurisdictionChecklist` object sent in generate payload
+7. Backend `compute_checklist()` merges auto-values with user overrides
+8. `build_overlay_pdf()` creates transparent reportlab overlay with X marks + address
+9. `append_cos_attachment()` merges overlay onto official PDF, appends to permit set
+
+### Adding New Jurisdictions
+1. Obtain the official jurisdiction PDF
+2. Store in `backend/drawing/jurisdiction/`
+3. Use pdfplumber to map checkbox positions
+4. Add detection logic (city names + zip codes)
+5. Add frontend checklist items specific to that jurisdiction
+6. Wire into main.py similar to COS pattern
+
+---
+
+## ============================================================
+## PDF OUTPUT STRUCTURE (updated S50)
+## ============================================================
+
+### Permit Plan Set (auto-opens in new tab)
+| Sheet | Name | Source |
+|-------|------|--------|
+| Cover | COVER SHEET | draw_cover.py |
+| A-1 | DECK PLAN & FRAMING | draw_plan.py |
+| A-2 | ELEVATIONS | draw_elevations.py |
+| A-3 | GENERAL NOTES | draw_notes.py |
+| A-4 | STRUCTURAL DETAILS | draw_details.py |
+| A-5 | SITE PLAN | draw_site_plan.py |
+| (last) | PPRBD DECK ATTACHMENT | jurisdiction_sheet.py (COS only) |
+
+### Materials & Cost Estimate (separate download button)
+| Sheet | Name | Source |
+|-------|------|--------|
+| (single page) | MATERIALS & COST ESTIMATE | draw_materials.py |
+
+### Sheet Numbering History
+- Pre-S50: A-5 was Material List, A-6 was Site Plan
+- S50: Materials moved to separate PDF, Site Plan renumbered to A-5
+- PPRBD attachment is unnumbered (appended after A-5 via pypdf merge)
+
 ---
 
 ## ============================================================
 ## SESSION HISTORY
 ## ============================================================
+
+### SESSION 50 (5 pushes, 4 files modified)
+**Theme:** Billy's Feedback - Jurisdiction Sheets + PDF Split
+
+Implemented PPRBD (Pikes Peak Regional Building Dept) Deck Attachment Sheet auto-inclusion for Colorado Springs / El Paso County properties. Split PDF output into permit plan set + separate materials document.
+
+**Push 1: Backend merge logic**
+- Stored PPRBD Deck Attachment Sheet PDF in `backend/drawing/jurisdiction/`
+- New `jurisdiction_sheet.py`: detect PPRBD jurisdiction by city/zip, compute checklist from deck params, build reportlab overlay with checkmarks and address, merge onto official PDF via pypdf
+- Wired into main.py post-PdfPages
+
+**Push 2: Step 4 checklist UI**
+- YES/NO checklist in Step 4 between project info and feedback sections
+- Auto-filled from deck config, user can toggle
+
+**Push 3: Expand PPRBD jurisdiction detection**
+- Covers all El Paso County + Woodland Park (Teller County)
+- Correctly excludes unincorporated Teller County (Divide, Cripple Creek)
+- Shared `_isPPRBD` helper in StepContent
+
+**Push 4: Three-state checklist + skip gate**
+- Items: YES, NO, or unanswered (null). Cover/electrical/hottub/cantilever start blank
+- Under18/over8ft/freestanding/excavation auto-filled from config
+- Orange highlight on unanswered items, counter shows remaining
+- Generate button warns about incomplete checklist, "Skip & Generate" to proceed
+- Backend leaves blank checkboxes for unanswered items on PDF
+
+**Push 5: Split permit plans + materials into separate PDFs**
+- Permit PDF: Cover + A-1 (Deck Plan) + A-2 (Elevations) + A-3 (General Notes) + A-4 (Structural Details) + A-5 (Site Plan, renumbered from A-6) + PPRBD attachment if applicable
+- Materials PDF: Separate single-page "Materials & Cost Estimate"
+- API returns both `download_url` and `materials_url`
+- Permit auto-opens; materials available as download button
+- Download endpoint accepts `?type=materials` for descriptive filename
+
+**Key S50 Lessons:**
+1. **Jurisdiction-aware features add real value.** Billy confirmed PPRBD requires this exact sheet. Auto-filling it from existing data saves the user manual work.
+2. **Three-state is better than default-NO.** Defaulting unknowable items to NO is risky. Blank + prompt is safer.
+3. **Split PDFs keep the plan set professional.** Permit reviewers don't want to see materials lists. Separate files serve different audiences.
+4. **reportlab must be in requirements.txt.** Missing dependency crashed production (hotfixed same session).
 
 ### SESSION 49 (6 pushes, 2 files modified)
 **Theme:** AI Guided Wizard - Full Implementation
@@ -520,19 +632,21 @@ Built a complete AI-guided wizard system spanning all 5 wizard steps with 25 tot
 
 | File | Size | Purpose | Last Modified |
 |------|------|---------|---------------|
-| `backend/app/main.py` | ~35KB | FastAPI, PDF gen, auth, AI extraction (enhanced prompt S48) | S48 |
+| `backend/app/main.py` | ~35KB | FastAPI, PDF gen (split permit+materials S50), auth, AI extraction | **S50** |
 | `backend/drawing/draw_plan.py` | ~27KB | Plan + framing (right=0.84, north arrow upper-left) | S47 |
 | `backend/drawing/draw_elevations.py` | ~45KB | Elevations (right=0.84) | S47 |
 | `backend/drawing/draw_notes.py` | ~12KB | General Notes (axes [0,0,0.84,1]) | S47 |
 | `backend/drawing/draw_details.py` | ~12KB | Structural details (right=0.84) | S47 |
-| `backend/drawing/draw_materials.py` | ~15KB | Material list (axes width 0.78) | S47 |
+| `backend/drawing/draw_materials.py` | ~15KB | Material list (now separate PDF, S50) | S47 |
 | `backend/drawing/draw_site_plan.py` | ~32KB | Site plan + polygon-aware house placement (leftEdgeAtY) | S48 |
 | `backend/drawing/draw_cover.py` | ~9KB | Cover sheet | S47 |
 | `backend/drawing/title_block.py` | ~6KB | Right-side vertical strip (x=0.855) | S45 |
 | `backend/drawing/calc_engine.py` | ~9KB | Backend structural calc | S47 |
+| `backend/drawing/jurisdiction_sheet.py` | ~6KB | PPRBD jurisdiction detection, checklist overlay, PDF merge | **S50** |
+| `backend/drawing/jurisdiction/cos_deck_attachment.pdf` | ~500KB | Official PPRBD Deck Attachment Sheet | **S50** |
 | `backend/static/index.html` | ~3KB | HTML shell, script tags | S47 |
-| `backend/static/js/steps.js` | ~186KB | Steps 0-4, shape picker, SurveyPreview, CompareShapes, trace flow, extraction pipeline, **AI Guide system (S49)** | **S49** |
-| `backend/static/js/app.js` | ~46KB | App shell, state, wizard nav (reordered S48), polygon helpers, compareMode, previewP, **setStep prop (S49)** | **S49** |
+| `backend/static/js/steps.js` | ~199KB | Steps 0-4, shape picker, trace flow, extraction, AI Guide, **PPRBD checklist (S50)** | **S50** |
+| `backend/static/js/app.js` | ~46KB | App shell, state, wizard nav, polygon helpers, **materialsUrl state (S50)** | **S50** |
 | `backend/static/js/traceView.js` | ~22KB | Trace overlay: zoom/pan, vertex placement, PDF page selector | S43 |
 | `backend/static/js/sitePlanView.js` | ~31KB | Site plan SVG preview + polygon-aware house placement (leftEdgeAtY) | S48 |
 | `backend/static/js/elevationView.js` | ~27KB | Elevation views | S39 |
@@ -560,16 +674,16 @@ Built a complete AI-guided wizard system spanning all 5 wizard steps with 25 tot
 ## PRIORITIZED ROADMAP
 ## ============================================================
 
-### S50: Guide Polish + Extraction Confidence
+### S51: Guide Polish + Compare Mode Trace Fix
 1. **Guide polish from S49 testing** - Fix any remaining UX gaps, improve section transitions, refine dynamic messages
-2. **Orange highlight on estimated fields** - If extraction returned values with low/medium confidence, show orange border on those sliders so users know to verify. Requires passing confidence object through state.
-3. **Extraction position accuracy testing** - Test with Ilaria and Loucks surveys to validate house position estimation
+2. **Move "Trace manually" into compare mode** - Currently the "None of these match? Trace manually" link appears BEFORE the user enters compare mode, which is backwards. They can't know if shapes match until they've seen the compare view. Move the trace escape hatch to the bottom of the proposed shapes list inside compare mode. Remove the pre-compare trace link.
+3. **Orange highlight on estimated fields** - If extraction returned values with low/medium confidence, show orange border on those sliders so users know to verify
 4. **Skip-ahead detection** - If user manually fills fields ahead of guide phase, offer to skip
 
-### S51: A-1 Framing Plan Label Audit
+### S52: A-1 Framing Plan Label Audit
 5. **Reference comparison with Ilaria, Loucks, Welborn** (see KNOWN PDF ISSUES section)
 
-### S52: Enhanced Extraction
+### S53: Enhanced Extraction
 6. **AI shape descriptor** to rank candidates (best match first)
 7. **Use deck plan pages** for more accurate house dimension estimation
 
@@ -582,16 +696,31 @@ Built a complete AI-guided wizard system spanning all 5 wizard steps with 25 tot
 11. Architectural SVG conventions
 12. cairosvg migration
 
-### Tier 4: AI-Powered UX (post-launch)
+### Tier 4: Materials List Monetization Strategy
+**Context:** The materials list was split into a separate PDF in S50. Currently included free with every generation. The data is also visible in the UI (Step 3 items, Step 4 total), so a simple PDF paywall is easily circumvented.
+
+**Approaches that DON'T work:**
+- Charging $5 for the materials PDF alone (user can screenshot the UI)
+- Gating the materials data in the UI (degrades the free experience, reduces conversion)
+
+**Approaches worth exploring:**
+- **Bundle into base price.** "Permit-ready blueprints + materials shopping list for $X" justifies a higher base price ($79-99 vs $49-59). The materials list is perceived value, not a separate line item.
+- **Premium materials intelligence (future upsell).** Features that go beyond what the UI shows and are genuinely hard to replicate: optimized lumber cut lists that minimize waste, purchase lists grouped by store/aisle, supplier pricing integration (Home Depot/Lowes API), quantity calculators with waste factor, delivery cost estimates. These justify a separate charge ($15-25 addon) because the value is computational, not just formatting.
+- **Contractor-tier subscription.** Contractors generating plans for multiple clients would pay monthly for bulk generation + enhanced materials features. This is post-launch.
+
+**Current decision (S50):** Materials PDF included free, separate download. Architecture supports gating later. Revisit monetization when approaching paid launch.
+
+### Tier 5: AI-Powered UX (post-launch)
 13. **AI hybrid for guide** - Anthropic API calls for complex questions ("what are my setbacks?")
 14. **Parcel API** - Address lookup to auto-populate lot shape without survey
 15. AI chatbot for deck configuration
 16. Natural language input
 
-### Tier 5: Deferred
+### Tier 6: Deferred
 17. Phase 3 parcel API
 18. Curved edge support
 19. 6+ sided lot solver
 20. User project persistence
 21. Guide state persistence (localStorage)
 22. Guide analytics / completion tracking
+23. Additional jurisdiction support (Denver, other CO counties, then national)
