@@ -1,5 +1,5 @@
 """
-SimpleBlueprints — Shared Title Block
+SimpleBlueprints - Shared Title Block
 Renders a professional title block with project info on each sheet.
 S44: Added sheet count (X of Y) to bottom bar.
 """
