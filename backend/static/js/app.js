@@ -5,51 +5,6 @@ const { useState, useMemo, useEffect, useRef } = React;
 
 const DEF_CORNERS = { BL: { type: "square", size: 0 }, BR: { type: "square", size: 0 }, FL: { type: "square", size: 0 }, FR: { type: "square", size: 0 } };
 
-// S47: Survey preview component (pdf.js for PDFs, img for images)
-function SurveyPreview({ b64, fileType }) {
-  const [src, setSrc] = useState(null);
-  useEffect(function() {
-    if (!b64) { setSrc(null); return; }
-    if (fileType !== "pdf") {
-      var mime = b64.substring(0, 4) === "/9j/" ? "jpeg" : "png";
-      setSrc("data:image/" + mime + ";base64," + b64);
-      return;
-    }
-    function doRender() {
-      try {
-        var raw = atob(b64);
-        var arr = new Uint8Array(raw.length);
-        for (var i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
-        window.pdfjsLib.getDocument({ data: arr }).promise.then(function(pdf) {
-          return pdf.getPage(1);
-        }).then(function(page) {
-          var vp = page.getViewport({ scale: 1.5 });
-          var canvas = document.createElement("canvas");
-          canvas.width = vp.width; canvas.height = vp.height;
-          var ctx = canvas.getContext("2d");
-          return page.render({ canvasContext: ctx, viewport: vp }).promise.then(function() {
-            setSrc(canvas.toDataURL("image/png"));
-          });
-        }).catch(function(err) { console.error("Survey PDF render error:", err); });
-      } catch (err) { console.error("Survey PDF decode error:", err); }
-    }
-    if (window.pdfjsLib) { doRender(); }
-    else {
-      var sc = document.createElement("script");
-      sc.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
-      sc.onload = function() {
-        window.pdfjsLib.GlobalWorkerOptions.workerSrc =
-          "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
-        doRender();
-      };
-      sc.onerror = function() { console.error("Failed to load pdf.js"); };
-      document.head.appendChild(sc);
-    }
-  }, [b64, fileType]);
-  if (!src) return null;
-  return React.createElement("img", { src: src, style: { width: "100%", maxHeight: "50vh", objectFit: "contain", borderRadius: 4, border: "1px solid #ddd8cc" } });
-}
-
 // S36: Polygon lot helpers (rectangle fallback)
 window.computeRectVertices = function(p) {
   var w = p.lotWidth || 80, d = p.lotDepth || 120;
@@ -822,11 +777,6 @@ const App = function SimpleBlueprints() {
             </div>
 
             <div style={{ background: step === 3 ? br.cr : (view === "3d" ? "transparent" : br.cr), border: step === 3 || view !== "3d" ? `1px solid ${br.bd}` : "none", borderRadius: 6, padding: step === 3 ? 8 : (view === "3d" ? 0 : 12), minHeight: 320 }}>
-              {/* S47: Show survey in preview when shape picker active (pdf.js for PDFs) */}
-              {step === 3 && !traceMode && sitePlanB64 && <div style={{ padding: 8, background: br.cr, border: "1px solid " + br.bd, borderRadius: 6, marginBottom: 8 }}>
-                <div style={{ fontSize: 9, fontWeight: 700, color: br.mu, fontFamily: mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 6 }}>Your Survey</div>
-                <SurveyPreview b64={sitePlanB64} fileType={sitePlanFile && sitePlanFile.name.toLowerCase().endsWith(".pdf") ? "pdf" : "image"} />
-              </div>}
               {step === 3 && !traceMode && SitePlanView && <SitePlanView p={p} c={c} u={u} />}
               {step === 3 && traceMode && TraceView && <TraceView
                 surveyB64={sitePlanB64}

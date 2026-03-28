@@ -7,6 +7,51 @@
 const { useState: _stUS, useEffect: _stUE, useMemo: _stUM } = React;
 const { br: _br, mono: _mono, sans: _sans } = window.SB;
 
+// S47: Survey preview component (pdf.js for PDFs, img for images)
+function SurveyPreview({ b64, fileType }) {
+  var _s = _stUS(null), src = _s[0], setSrc = _s[1];
+  _stUE(function() {
+    if (!b64) { setSrc(null); return; }
+    if (fileType !== "pdf") {
+      var mime = b64.substring(0, 4) === "/9j/" ? "jpeg" : "png";
+      setSrc("data:image/" + mime + ";base64," + b64);
+      return;
+    }
+    function doRender() {
+      try {
+        var raw = atob(b64);
+        var arr = new Uint8Array(raw.length);
+        for (var i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+        window.pdfjsLib.getDocument({ data: arr }).promise.then(function(pdf) {
+          return pdf.getPage(1);
+        }).then(function(page) {
+          var vp = page.getViewport({ scale: 1.5 });
+          var canvas = document.createElement("canvas");
+          canvas.width = vp.width; canvas.height = vp.height;
+          var ctx = canvas.getContext("2d");
+          return page.render({ canvasContext: ctx, viewport: vp }).promise.then(function() {
+            setSrc(canvas.toDataURL("image/png"));
+          });
+        }).catch(function(err) { console.error("Survey PDF render error:", err); });
+      } catch (err) { console.error("Survey PDF decode error:", err); }
+    }
+    if (window.pdfjsLib) { doRender(); }
+    else {
+      var sc = document.createElement("script");
+      sc.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+      sc.onload = function() {
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+          "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+        doRender();
+      };
+      sc.onerror = function() { console.error("Failed to load pdf.js"); };
+      document.head.appendChild(sc);
+    }
+  }, [b64, fileType]);
+  if (!src) return null;
+  return React.createElement("img", { src: src, style: { width: "100%", objectFit: "contain", borderRadius: 4, border: "1px solid #ddd8cc" } });
+}
+
 // Feet-inches formatter (20.5   20'-6")
 function fmtFtIn(v) {
   var ft = Math.floor(v);
@@ -1384,6 +1429,12 @@ function StepContent(props) {
         <div style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, marginBottom: 10, lineHeight: 1.6 }}>
           We found {shapeCandidates.length} possible shapes matching the survey dimensions ({extractResult.lotArea ? extractResult.lotArea.toLocaleString() : "?"} SF). Tap the one that looks like your lot.
         </div>
+        <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+          {sitePlanB64 && <div style={{ flex: "0 0 40%", position: "sticky", top: 8 }}>
+            <div style={{ fontSize: 8, fontWeight: 700, color: _br.mu, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 4 }}>Your Survey</div>
+            <SurveyPreview b64={sitePlanB64} fileType={sitePlanFile && sitePlanFile.name.toLowerCase().endsWith(".pdf") ? "pdf" : "image"} />
+          </div>}
+          <div style={{ flex: 1 }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: 8 }}>
           {shapeCandidates.map(function(cand, ci) {
             var cv = cand.vertices;
@@ -1449,6 +1500,8 @@ function StepContent(props) {
               </div>
             </div>;
           })}
+        </div>
+          </div>
         </div>
         <div style={{ marginTop: 10, textAlign: "center" }}>
           <span style={{ fontSize: 9, color: _br.mu, fontFamily: _mono }}>None of these match? </span>
