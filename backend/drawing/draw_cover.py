@@ -1,5 +1,5 @@
 """
-SimpleBlueprints â Sheet A-0: Cover Sheet
+SimpleBlueprints  -  Sheet A-0: Cover Sheet
 Professional cover page with 3D rendering and project information
 """
 
