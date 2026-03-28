@@ -1,5 +1,5 @@
 """
-SimpleBlueprints — Sheet A-0: Cover Sheet
+SimpleBlueprints â Sheet A-0: Cover Sheet
 Professional cover page with 3D rendering and project information
 """
 
@@ -115,8 +115,8 @@ def draw_cover_sheet(fig, params, calc, project_info=None, cover_image_b64=None)
     ax.text(7, info_y - 2.2, "PROJECT INFORMATION", fontsize=7, fontweight='bold',
             fontfamily='monospace', color='white')
 
-    owner = pi.get("owner", "\u2014")
-    address = pi.get("address", "\u2014")
+    owner = pi.get("owner", "-")
+    address = pi.get("address", "-")
     city = pi.get("city", "")
     state = pi.get("state", "")
     zip_code = pi.get("zip", "")
@@ -128,10 +128,10 @@ def draw_cover_sheet(fig, params, calc, project_info=None, cover_image_b64=None)
         city_line += f" {zip_code}" if city_line else zip_code
 
     details = [
-        ("OWNER", owner.upper() if owner != "\u2014" else "\u2014"),
-        ("ADDRESS", address.upper() if address != "\u2014" else "\u2014"),
-        ("CITY / STATE / ZIP", city_line.upper() if city_line else "\u2014"),
-        ("LOT / PARCEL", lot.upper() if lot else "\u2014"),
+        ("OWNER", owner.upper() if owner != "-" else "-"),
+        ("ADDRESS", address.upper() if address != "-" else "-"),
+        ("CITY / STATE / ZIP", city_line.upper() if city_line else "-"),
+        ("LOT / PARCEL", lot.upper() if lot else "-"),
         ("CONTRACTOR", contractor.upper()),
         ("DATE", today.upper()),
     ]
@@ -159,7 +159,7 @@ def draw_cover_sheet(fig, params, calc, project_info=None, cover_image_b64=None)
     stair_desc = "None"
     if params.get("hasStairs") and calc.get("stairs"):
         st = calc["stairs"]
-        stair_desc = f'{st.get("location","front").upper()} \u2014 {st["width"]}\' WIDE, {st["num_stringers"]} STRINGERS'
+        stair_desc = f'{st.get("location","front").upper()} - {st["width"]}\' WIDE, {st["num_stringers"]} STRINGERS'
 
     # S22: Compute zone-aware totals
     zones = params.get('zones', [])
