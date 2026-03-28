@@ -605,12 +605,6 @@ def draw_plan_and_framing(fig, params, calc):
                          angle=params.get("northAngle", 0) or 0)
         draw_scale_bar(ax, bbox["x"], -house_depth - margin_y * 0.25)
 
-    # Sheet label
-    fig.text(0.5, 0.02,
-             f'SHEET A-1  |  DECK PLAN & FRAMING  |  {format_feet_inches(W)} x {format_feet_inches(D)}  |  simpleblueprints.xyz',
-             ha='center', fontsize=6, fontfamily='monospace', color=BRAND["mute"])
-
-
 # ============================================================
 # TEST: Generate 3 configs
 # ============================================================
