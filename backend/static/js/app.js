@@ -643,6 +643,7 @@ const App = function SimpleBlueprints() {
   const [sitePlanFile, setSitePlanFile] = useState(null);
   const [sitePlanB64, setSitePlanB64] = useState(null);
   const [traceMode, setTraceMode] = useState(false);
+  const [compareMode, setCompareMode] = useState(false);
   const [traceState, setTraceState] = useState({
     calPoints: [], calDist: "", ppf: null,
     vertices: [], edgeMeta: [], edgeLengths: [],
@@ -713,6 +714,7 @@ const App = function SimpleBlueprints() {
   const SitePlanView = window.SitePlanView;
   const TraceView = window.TraceView;
   const SurveyPreview = window.SurveyPreview;
+  const CompareShapes = window.CompareShapes;
 
   // HOME
   if (page === "home") return <HomePage setPage={setPage} />;
@@ -758,6 +760,7 @@ const App = function SimpleBlueprints() {
               setCorner={setCorner} getCorners={getCorners} pForZones={pForZones}
               traceMode={traceMode} setTraceMode={setTraceMode}
               traceState={traceState} setTraceState={setTraceState}
+              compareMode={compareMode} setCompareMode={setCompareMode}
               sitePlanB64={sitePlanB64} />
 
             <div style={{ display: "flex", justifyContent: "space-between", marginTop: 20 }}>
@@ -778,12 +781,24 @@ const App = function SimpleBlueprints() {
             </div>
 
             <div style={{ background: step === 3 ? br.cr : (view === "3d" ? "transparent" : br.cr), border: step === 3 || view !== "3d" ? `1px solid ${br.bd}` : "none", borderRadius: 6, padding: step === 3 ? 8 : (view === "3d" ? 0 : 12), minHeight: 320 }}>
-              {/* S47: Survey preview in right panel with page navigation */}
-              {step === 3 && !traceMode && sitePlanB64 && SurveyPreview && <div style={{ padding: 8, background: br.cr, border: "1px solid " + br.bd, borderRadius: 6, marginBottom: 8 }}>
-                <div style={{ fontSize: 9, fontWeight: 700, color: br.mu, fontFamily: mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 6 }}>Your Survey</div>
-                <SurveyPreview b64={sitePlanB64} fileType={sitePlanFile && sitePlanFile.name.toLowerCase().endsWith(".pdf") ? "pdf" : "image"} />
+              {/* S47: Compare mode - survey + shapes side by side */}
+              {step === 3 && compareMode && sitePlanB64 && SurveyPreview && <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: br.dk, fontFamily: mono }}>Compare survey to proposed shapes</span>
+                  <button onClick={() => setCompareMode(false)} style={{ fontSize: 9, fontFamily: mono, color: br.mu, background: "none", border: "1px solid " + br.bd, borderRadius: 4, padding: "4px 10px", cursor: "pointer" }}>Back</button>
+                </div>
+                <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                  <div style={{ flex: "1 1 55%", position: "sticky", top: 8 }}>
+                    <div style={{ fontSize: 8, fontWeight: 700, color: br.mu, fontFamily: mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 4 }}>Your Survey</div>
+                    <SurveyPreview b64={sitePlanB64} fileType={sitePlanFile && sitePlanFile.name.toLowerCase().endsWith(".pdf") ? "pdf" : "image"} />
+                  </div>
+                  <div style={{ flex: "1 1 45%", maxHeight: "70vh", overflowY: "auto" }}>
+                    <div style={{ fontSize: 8, fontWeight: 700, color: br.mu, fontFamily: mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 4 }}>Proposed Shapes</div>
+                    <CompareShapes />
+                  </div>
+                </div>
               </div>}
-              {step === 3 && !traceMode && SitePlanView && <SitePlanView p={p} c={c} u={u} />}
+              {step === 3 && !traceMode && !compareMode && SitePlanView && <SitePlanView p={p} c={c} u={u} />}
               {step === 3 && traceMode && TraceView && <TraceView
                 surveyB64={sitePlanB64}
                 surveyFileType={sitePlanFile && sitePlanFile.name.toLowerCase().endsWith(".pdf") ? "pdf" : "image"}

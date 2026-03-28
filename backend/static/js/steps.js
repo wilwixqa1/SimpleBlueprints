@@ -66,6 +66,58 @@ function SurveyPreview({ b64, fileType }) {
 }
 window.SurveyPreview = SurveyPreview;
 
+// S47: Shape cards for compare view (reads data from window._shapeCompareData)
+function CompareShapes() {
+  var data = window._shapeCompareData;
+  if (!data || !data.candidates || data.candidates.length === 0) return React.createElement("div", { style: { fontSize: 10, color: _br.mu, fontFamily: _mono } }, "No shapes available");
+  var shapeCandidates = data.candidates;
+  var edgeColors = ["#e53935", "#2563eb", "#8B7355", "#7c3aed", "#0d9488"];
+  return React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr", gap: 8 } },
+    shapeCandidates.map(function(cand, ci) {
+      var cv = cand.vertices;
+      var cmaxX = 0, cmaxY = 0;
+      cv.forEach(function(v) { if (v[0] > cmaxX) cmaxX = v[0]; if (v[1] > cmaxY) cmaxY = v[1]; });
+      var cpad = Math.max(cmaxX, cmaxY) * 0.12;
+      var cvbW = cmaxX + cpad * 2, cvbH = cmaxY + cpad * 2;
+      var cpts = cv.map(function(v) { return (v[0] + cpad).toFixed(1) + "," + (cvbH - v[1] - cpad).toFixed(1); }).join(" ");
+      var csw = Math.max(1.5, cvbW / 200);
+      return React.createElement("div", {
+        key: ci,
+        onClick: function() { if (window._selectShape) window._selectShape(ci); },
+        style: { cursor: "pointer", padding: 10, background: "#fff", borderRadius: 8, border: "2px solid " + _br.bd, transition: "all 0.15s" },
+        onMouseOver: function(e) { e.currentTarget.style.borderColor = _br.gn; e.currentTarget.style.boxShadow = "0 2px 8px rgba(61,90,46,0.15)"; },
+        onMouseOut: function(e) { e.currentTarget.style.borderColor = _br.bd; e.currentTarget.style.boxShadow = "none"; }
+      },
+        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10 } },
+          React.createElement("svg", { viewBox: "0 0 " + cvbW.toFixed(0) + " " + cvbH.toFixed(0), style: { width: 80, height: 80, flexShrink: 0 }, preserveAspectRatio: "xMidYMid meet" },
+            React.createElement("polygon", { points: cpts, fill: "rgba(61,90,46,0.08)", stroke: "#3d5a2e", strokeWidth: csw, strokeLinejoin: "round" }),
+            cv.map(function(v, vi) {
+              var v2 = cv[(vi + 1) % cv.length];
+              var mx = (v[0] + v2[0]) / 2 + cpad;
+              var my = cvbH - ((v[1] + v2[1]) / 2) - cpad;
+              var col = edgeColors[vi % edgeColors.length];
+              return React.createElement("circle", { key: vi, cx: mx.toFixed(1), cy: my.toFixed(1), r: 3, fill: col });
+            })
+          ),
+          React.createElement("div", { style: { flex: 1 } },
+            React.createElement("div", { style: { fontSize: 12, fontWeight: 700, fontFamily: _mono, color: _br.tx, marginBottom: 4 } }, "Option " + (ci + 1) + "  " + cand.area.toLocaleString() + " SF"),
+            cand.edges.map(function(e, ei) {
+              var col = edgeColors[ei % edgeColors.length];
+              var isStr = e.type === "street";
+              return React.createElement("div", { key: ei, style: { display: "flex", alignItems: "center", gap: 4, padding: "1px 0" } },
+                React.createElement("span", { style: { width: 8, height: 8, borderRadius: "50%", background: col, flexShrink: 0 } }),
+                React.createElement("span", { style: { fontSize: 11, fontFamily: _mono, fontWeight: 700, color: _br.tx } }, e.length + "'"),
+                React.createElement("span", { style: { fontSize: 9, fontFamily: _mono, color: isStr ? "#e53935" : _br.mu, fontWeight: isStr ? 600 : 400 } }, isStr ? (e.label || "street") : (e.neighborLabel || e.setbackType || ""))
+              );
+            })
+          )
+        )
+      );
+    })
+  );
+}
+window.CompareShapes = CompareShapes;
+
 // Feet-inches formatter (20.5   20'-6")
 function fmtFtIn(v) {
   var ft = Math.floor(v);
@@ -140,7 +192,8 @@ function StepContent(props) {
     isProduction, feedbackDone, setFeedbackDone, feedback, setFeedback, submitFeedback,
     genStatus, genError, generateBlueprint, user, API,
     zoneMode, setZoneMode, addZone, addCutout, removeZone, updateZone, setCorner, getCorners, pForZones, zc,
-    traceMode, setTraceMode, traceState, setTraceState, sitePlanB64 } = props;
+    traceMode, setTraceMode, traceState, setTraceState, sitePlanB64,
+    compareMode, setCompareMode } = props;
 
   const [showDisclaimer, setShowDisclaimer] = _stUS(false);
   const [disclaimerAcked, setDisclaimerAcked] = _stUS(false);
@@ -165,6 +218,44 @@ function StepContent(props) {
     if (!window.generateCandidateShapes) return [];
     return window.generateCandidateShapes(extractResult.lotEdges, extractResult.lotArea);
   }, [extractResult]);
+
+  // S47: Register shape data for compare view
+  _stUE(function() {
+    if (shapeCandidates.length > 0 && extractResult) {
+      window._shapeCompareData = { candidates: shapeCandidates, extractResult: extractResult };
+      window._selectShape = function(ci) {
+        var cand = shapeCandidates[ci];
+        if (!cand) return;
+        var cv = cand.vertices;
+        var cmaxX = 0, cmaxY = 0;
+        cv.forEach(function(v) { if (v[0] > cmaxX) cmaxX = v[0]; if (v[1] > cmaxY) cmaxY = v[1]; });
+        u("lotWidth", Math.max(30, Math.round(cmaxX)));
+        u("lotDepth", Math.max(50, Math.round(cmaxY)));
+        u("lotVertices", cv);
+        u("lotEdges", cand.edges.map(function(e) {
+          var eis = e.type === "street";
+          return { type: e.type || "property", label: eis ? (e.label || "") : "", length: e.length || 1, setbackType: e.setbackType || "side", neighborLabel: eis ? "" : (e.neighborLabel || "") };
+        }));
+        u("lotArea", cand.area);
+        var d = extractResult;
+        if (d.setbackFront) u("setbackFront", d.setbackFront);
+        if (d.setbackRear) u("setbackRear", d.setbackRear);
+        if (d.setbackSide) u("setbackSide", d.setbackSide);
+        if (d.street) setI("address", d.street);
+        if (d.city) setI("city", d.city);
+        if (d.state) setI("state", d.state);
+        if (d.zip) setI("zip", d.zip);
+        if (d.parcelId) setI("lot", d.parcelId);
+        if (d.streetName) u("streetName", d.streetName);
+        if (d.northAngle != null) u("northAngle", d.northAngle);
+        setExtractResult(null);
+        if (setCompareMode) setCompareMode(false);
+      };
+    } else {
+      window._shapeCompareData = null;
+      window._selectShape = null;
+    }
+  }, [shapeCandidates, extractResult]);
 
 // Active zone data
   var activeZoneObj = p.activeZone > 0 ? p.zones.find(function(z) { return z.id === p.activeZone; }) : null;
@@ -1434,16 +1525,22 @@ function StepContent(props) {
         {extractError && <div style={{ fontSize: 10, color: "#dc2626", fontFamily: _mono, marginTop: 6 }}>{"\u26A0\uFE0F"} {extractError}</div>}
       </div>}
 
-            {/* S46: Shape Picker - select from solver-generated candidates */}
-      {extractResult && !traceMode && shapeCandidates.length > 0 && <div style={{ padding: 14, background: "#f0fdf4", borderRadius: 8, border: "1px solid #bbf7d0", marginBottom: 14 }}>
+            {/* S47: Shape Picker - compare view or inline grid */}
+      {extractResult && !traceMode && !compareMode && shapeCandidates.length > 0 && <div style={{ padding: 14, background: "#f0fdf4", borderRadius: 8, border: "1px solid #bbf7d0", marginBottom: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
           <span style={{ fontSize: 9, fontWeight: 700, color: "#2e7d32", fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>Select Your Lot Shape</span>
           <button onClick={function() { setExtractResult(null); }} style={{ fontSize: 8, fontFamily: _mono, color: _br.mu, background: "none", border: "1px solid " + _br.bd, borderRadius: 4, padding: "3px 8px", cursor: "pointer" }}>Dismiss</button>
         </div>
         <div style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, marginBottom: 10, lineHeight: 1.6 }}>
-          We found {shapeCandidates.length} possible shapes matching the survey dimensions ({extractResult.lotArea ? extractResult.lotArea.toLocaleString() : "?"} SF). Tap the one that looks like your lot.
+          We found {shapeCandidates.length} possible shapes matching the survey dimensions ({extractResult.lotArea ? extractResult.lotArea.toLocaleString() : "?"} SF).
+          {sitePlanB64 ? " Compare them to your survey to find the best match." : " Tap the one that looks like your lot."}
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: 8 }}>
+        {sitePlanB64 && setCompareMode && <button onClick={function() { setCompareMode(true); }} style={{
+          width: "100%", padding: "14px", background: "#2e7d32", color: "#fff", border: "none",
+          borderRadius: 8, cursor: "pointer", fontSize: 12, fontFamily: _mono, fontWeight: 700,
+          marginBottom: 10, display: "flex", alignItems: "center", justifyContent: "center", gap: 8
+        }}>{"\uD83D\uDDFA\uFE0F"} Compare to Survey</button>}
+        {!sitePlanB64 && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: 8 }}>
           {shapeCandidates.map(function(cand, ci) {
             var cv = cand.vertices;
             var cmaxX = 0, cmaxY = 0;
@@ -1453,29 +1550,8 @@ function StepContent(props) {
             var cpts = cv.map(function(v) { return (v[0] + cpad).toFixed(1) + "," + (cvbH - v[1] - cpad).toFixed(1); }).join(" ");
             var csw = Math.max(1.5, cvbW / 200);
             var edgeColors = ["#e53935", "#2563eb", "#8B7355", "#7c3aed", "#0d9488"];
-            return <div key={ci} onClick={function() {
-              var bboxW = Math.round(cmaxX), bboxD = Math.round(cmaxY);
-              u("lotWidth", Math.max(30, bboxW));
-              u("lotDepth", Math.max(50, bboxD));
-              u("lotVertices", cv);
-              u("lotEdges", cand.edges.map(function(e) {
-                var eis = e.type === "street";
-                return { type: e.type || "property", label: eis ? (e.label || "") : "", length: e.length || 1, setbackType: e.setbackType || "side", neighborLabel: eis ? "" : (e.neighborLabel || "") };
-              }));
-              u("lotArea", cand.area);
-              var d = extractResult;
-              if (d.setbackFront) u("setbackFront", d.setbackFront);
-              if (d.setbackRear) u("setbackRear", d.setbackRear);
-              if (d.setbackSide) u("setbackSide", d.setbackSide);
-              if (d.street) setI("address", d.street);
-              if (d.city) setI("city", d.city);
-              if (d.state) setI("state", d.state);
-              if (d.zip) setI("zip", d.zip);
-              if (d.parcelId) setI("lot", d.parcelId);
-              if (d.streetName) u("streetName", d.streetName);
-              if (d.northAngle != null) u("northAngle", d.northAngle);
-              setExtractResult(null);
-            }} style={{ cursor: "pointer", padding: 10, background: "#fff", borderRadius: 8, border: "2px solid " + _br.bd, transition: "all 0.15s" }}
+            return <div key={ci} onClick={function() { if (window._selectShape) window._selectShape(ci); }}
+            style={{ cursor: "pointer", padding: 10, background: "#fff", borderRadius: 8, border: "2px solid " + _br.bd, transition: "all 0.15s" }}
             onMouseOver={function(e) { e.currentTarget.style.borderColor = _br.gn; e.currentTarget.style.boxShadow = "0 2px 8px rgba(61,90,46,0.15)"; }}
             onMouseOut={function(e) { e.currentTarget.style.borderColor = _br.bd; e.currentTarget.style.boxShadow = "none"; }}>
               <div style={{ textAlign: "center", marginBottom: 6 }}>
@@ -1508,7 +1584,7 @@ function StepContent(props) {
               </div>
             </div>;
           })}
-        </div>
+        </div>}
         <div style={{ marginTop: 10, textAlign: "center" }}>
           <span style={{ fontSize: 9, color: _br.mu, fontFamily: _mono }}>None of these match? </span>
           <button onClick={function() {
