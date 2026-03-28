@@ -709,7 +709,7 @@ const App = function SimpleBlueprints() {
     } catch (e) { console.warn("Feedback error:", e); setFeedbackDone(true); }
   };
 
-  const steps = [{ t: "Size & Shape", i: "\uD83D\uDCD0" }, { t: "Structure", i: "\uD83C\uDFD7\uFE0F" }, { t: "Finishes", i: "\uD83E\uDEB5" }, { t: "Site Plan", i: "\uD83D\uDDFA\uFE0F" }, { t: "Review", i: "\uD83D\uDCCB" }];
+  const steps = [{ t: "Site Plan", i: "\uD83D\uDDFA\uFE0F" }, { t: "Size & Shape", i: "\uD83D\uDCD0" }, { t: "Structure", i: "\uD83C\uDFD7\uFE0F" }, { t: "Finishes", i: "\uD83E\uDEB5" }, { t: "Review", i: "\uD83D\uDCCB" }];
 
   const PlanView = window.PlanView;
   const ElevationView = window.ElevationView;
@@ -829,15 +829,15 @@ const App = function SimpleBlueprints() {
         <div style={{ flex: "1 1 500px", minWidth: 280 }}>
           <div style={{ background: "#fff", borderRadius: 10, padding: 18, border: `1px solid ${br.bd}`, boxShadow: "0 1px 8px rgba(0,0,0,0.04)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-              <h3 style={{ margin: 0, fontSize: 12, fontWeight: 700, color: br.dk, fontFamily: mono, letterSpacing: "1px", textTransform: "uppercase" }}>{step === 3 ? "Site Plan Preview" : "Preview"}</h3>
-              {step !== 3 && <div style={{ display: "flex", gap: 1 }}>
+              <h3 style={{ margin: 0, fontSize: 12, fontWeight: 700, color: br.dk, fontFamily: mono, letterSpacing: "1px", textTransform: "uppercase" }}>{step === 0 ? "Site Plan Preview" : "Preview"}</h3>
+              {step !== 0 && <div style={{ display: "flex", gap: 1 }}>
                 {views.map(([id, label], i) => <button key={id} onClick={() => setView(id)} style={{ padding: "5px 12px", fontSize: 10, cursor: "pointer", fontFamily: mono, border: view === id ? `1px solid ${br.gn}` : `1px solid ${br.bd}`, background: view === id ? br.gn : "transparent", color: view === id ? "#fff" : br.mu, borderRadius: i === 0 ? "4px 0 0 4px" : i === views.length - 1 ? "0 4px 4px 0" : 0, fontWeight: view === id ? 700 : 400 }}>{label}</button>)}
               </div>}
             </div>
 
-            <div style={{ background: step === 3 ? br.cr : (view === "3d" ? "transparent" : br.cr), border: step === 3 || view !== "3d" ? `1px solid ${br.bd}` : "none", borderRadius: 6, padding: step === 3 ? 8 : (view === "3d" ? 0 : 12), minHeight: 320 }}>
+            <div style={{ background: step === 0 ? br.cr : (view === "3d" ? "transparent" : br.cr), border: step === 0 || view !== "3d" ? `1px solid ${br.bd}` : "none", borderRadius: 6, padding: step === 0 ? 8 : (view === "3d" ? 0 : 12), minHeight: 320 }}>
               {/* S48: Compare mode - survey + shapes + preview */}
-              {step === 3 && compareMode && sitePlanB64 && SurveyPreview && <div>
+              {step === 0 && compareMode && sitePlanB64 && SurveyPreview && <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                   <span style={{ fontSize: 10, fontWeight: 700, color: br.dk, fontFamily: mono }}>Compare survey to proposed shapes</span>
                   <button onClick={() => setCompareMode(false)} style={{ fontSize: 9, fontFamily: mono, color: br.mu, background: "none", border: "1px solid " + br.bd, borderRadius: 4, padding: "4px 10px", cursor: "pointer" }}>Back</button>
@@ -868,13 +868,13 @@ const App = function SimpleBlueprints() {
                   </div>
                 </div>
               </div>}
-              {step === 3 && !traceMode && !compareMode && SitePlanView && <SitePlanView p={p} c={c} u={u} />}
-              {step === 3 && traceMode && TraceView && <TraceView
+              {step === 0 && !traceMode && !compareMode && SitePlanView && <SitePlanView p={p} c={c} u={u} />}
+              {step === 0 && traceMode && TraceView && <TraceView
                 surveyB64={sitePlanB64}
                 surveyFileType={sitePlanFile && sitePlanFile.name.toLowerCase().endsWith(".pdf") ? "pdf" : "image"}
                 ts={traceState} setTs={setTraceState}
               />}
-              {step !== 3 && view === "plan" && <>
+              {step !== 0 && view === "plan" && <>
                 <div style={{ display: "flex", gap: 4, marginBottom: 8, flexWrap: "wrap" }}>
                   {[["plan", "Deck Plan"], ["framing", "Framing"]].map(([id, label]) => <button key={id} onClick={() => setPlanMode(id)} style={{ padding: "4px 10px", fontSize: 9, fontFamily: mono, cursor: "pointer", border: planMode === id ? `1px solid ${br.gn}` : `1px solid ${br.bd}`, background: planMode === id ? br.gn : "transparent", color: planMode === id ? "#fff" : br.mu, borderRadius: 4, fontWeight: planMode === id ? 700 : 400 }}>{label}</button>)}
                   <div style={{ flex: 1 }} />
@@ -891,8 +891,8 @@ const App = function SimpleBlueprints() {
                   {zoneMode === "chamfer" && <>Click <span style={{ color: "#7c3aed", fontWeight: 700 }}>{"\u25E3"}</span> on corners to toggle 45{"\u00B0"} chamfers</>}
                 </div>}
               </>}
-              {step !== 3 && view === "elevation" && <ElevationView c={c} p={p} />}
-              {step !== 3 && view === "3d" && <Deck3D c={c} p={p} />}
+              {step !== 0 && view === "elevation" && <ElevationView c={c} p={p} />}
+              {step !== 0 && view === "3d" && <Deck3D c={c} p={p} />}
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, marginTop: 12 }}>

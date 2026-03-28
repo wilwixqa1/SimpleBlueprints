@@ -1,8 +1,8 @@
 // ============================================================
-// WIZARD STEPS   Step 0 (Size), Step 1 (Structure), Step 2 (Finishes),
-//                Step 3 (Site Plan), Step 4 (Review)
+// WIZARD STEPS   Step 0 (Site Plan), Step 1 (Size), Step 2 (Structure),
+//                Step 3 (Finishes), Step 4 (Review)
 // Multi-zone support added S19, Site Plan step added S27
-// S28: Unified Step 3 flow (sliders first, collapsible upload)
+// S28: Unified Step 0 flow (Site Plan first, sliders + collapsible upload)
 // ============================================================
 const { useState: _stUS, useEffect: _stUE, useMemo: _stUM } = React;
 const { br: _br, mono: _mono, sans: _sans } = window.SB;
@@ -360,7 +360,7 @@ function StepContent(props) {
   var activeLabel = activeZoneObj ? (activeZoneObj.label || "Zone " + activeZoneObj.id) : "Main Deck";
   var isCutout = activeZoneObj && activeZoneObj.type === "cutout";
 
-  if (step === 0) return <>
+  if (step === 1) return <>
 // {/*   Zone selector bar   */}
     {p.zones.length > 0 && <div style={{ marginBottom: 16, padding: 10, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}` }}>
       <div style={{ fontSize: 9, fontWeight: 700, color: _br.mu, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 6 }}>Zones</div>
@@ -528,8 +528,8 @@ function StepContent(props) {
     </>}
   </>;
 
-// Step 3: Site Plan (S28   unified flow, no mode cards)
-  if (step === 3) {
+// Step 0: Site Plan (S28   unified flow, no mode cards)
+  if (step === 0) {
     // === SETBACK WARNINGS (computed from current params) ===
     var spWarnings = [];
     var deckCenterX = p.houseOffsetSide + p.houseWidth / 2 + (p.deckOffset || 0);
@@ -1821,7 +1821,7 @@ function StepContent(props) {
       {spWarnings.length > 0 && <div style={{ padding: 12, background: "#fff8e1", borderRadius: 8, border: "1px solid #ffe082", marginBottom: 14 }}>
         <div style={{ fontSize: 9, fontWeight: 700, color: "#f57f17", fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 6 }}>{"\u26A0\uFE0F"} Setback Warnings</div>
         {spWarnings.map(function(w, i) { return <div key={i} style={{ fontSize: 10, color: "#e65100", fontFamily: _mono, lineHeight: 1.6, marginBottom: 2 }}>{"\u2022"} {w}</div>; })}
-        <div style={{ fontSize: 8, color: "#f57f17", fontFamily: _mono, marginTop: 6, fontStyle: "italic" }}>Adjust your deck size in Step 1 or setbacks above to resolve.</div>
+        <div style={{ fontSize: 8, color: "#f57f17", fontFamily: _mono, marginTop: 6, fontStyle: "italic" }}>Adjust your deck size in Step 2 or setbacks above to resolve.</div>
       </div>}
 
       {/* === LOT COVERAGE (always visible) === */}
@@ -1838,8 +1838,8 @@ function StepContent(props) {
     </>;
   }
 
-// Steps 1, 2 unchanged; Step 4 (Review) below
-  if (step === 1) return <>
+// Steps 2, 3 unchanged; Step 4 (Review) below
+  if (step === 2) return <>
     <Chips label="Joist spacing" field="joistSpacing" opts={[[12, '12" O.C.'], [16, '16" O.C.'], [24, '24" O.C.']]} u={u} p={p} />
     <Chips label="Snow load" field="snowLoad" opts={[["none", "None"], ["light", "Light"], ["moderate", "Moderate"], ["heavy", "Heavy"]]} u={u} p={p} />
     <Chips label="Footing depth (frost line)" field="frostZone" opts={[["warm", '12"'], ["moderate", '24"'], ["cold", '36"'], ["severe", '48"']]} u={u} p={p} />
@@ -1947,7 +1947,7 @@ function StepContent(props) {
     </div>
   </>;
 
-  if (step === 2) return <>
+  if (step === 3) return <>
     <Chips label="Decking" field="deckingType" opts={[["composite", "Composite (Trex)"], ["pt_lumber", "Pressure Treated"]]} u={u} p={p} />
     <Chips label="Railing" field="railType" opts={[["fortress", "Fortress Iron"], ["wood", "Wood"]]} u={u} p={p} />
     <div style={{ marginTop: 16, padding: 14, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}` }}>
