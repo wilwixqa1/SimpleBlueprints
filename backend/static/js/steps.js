@@ -363,20 +363,99 @@ var GUIDE_PHASES_STEP1 = [
 GUIDE_PHASES_STEP1.forEach(function(ph) { _guidePhaseMap[ph.id] = ph; });
 var _guideStep1Order = GUIDE_PHASES_STEP1.map(function(ph) { return ph.id; });
 
+// S49: Step 2 guide phases (Structure - mostly auto-calculated)
+var GUIDE_PHASES_STEP2 = [
+  {
+    id: 's2_environment',
+    message: "Tell us about your local conditions.",
+    tip: "These affect footing depth and structural sizing. Your building department can confirm.",
+    sections: [],
+    actions: [
+      { label: 'Continue', next: 's2_review', style: 'primary' }
+    ]
+  },
+  {
+    id: 's2_review',
+    message: "Structural specs have been auto-calculated.",
+    tip: "These are based on IRC tables for your deck size. Override any value by clicking AUTO to switch to MANUAL.",
+    sections: [],
+    actions: [
+      { label: 'Looks good', next: 's2_complete', style: 'primary' }
+    ]
+  },
+  {
+    id: 's2_complete',
+    message: "Structure is set!",
+    tip: "Next up: choose your finish materials and see cost estimates.",
+    sections: [],
+    actions: [
+      { label: 'Continue to Finishes \u2192', action: 'advance_step', style: 'primary' }
+    ]
+  }
+];
+GUIDE_PHASES_STEP2.forEach(function(ph) { _guidePhaseMap[ph.id] = ph; });
+var _guideStep2Order = GUIDE_PHASES_STEP2.map(function(ph) { return ph.id; });
+
+// S49: Step 3 guide phases (Finishes)
+var GUIDE_PHASES_STEP3 = [
+  {
+    id: 's3_materials',
+    message: "Choose your finish materials.",
+    tip: "Composite costs more upfront but needs less maintenance. Pressure treated is budget-friendly.",
+    sections: [],
+    actions: [
+      { label: 'Continue', next: 's3_complete', style: 'primary' }
+    ]
+  },
+  {
+    id: 's3_complete',
+    message: "Materials selected! Cost estimate: $" + "COST",
+    tip: "Review the cost breakdown below, then continue to generate your blueprints.",
+    sections: [],
+    actions: [
+      { label: 'Continue to Review \u2192', action: 'advance_step', style: 'primary' }
+    ]
+  }
+];
+GUIDE_PHASES_STEP3.forEach(function(ph) { _guidePhaseMap[ph.id] = ph; });
+var _guideStep3Order = GUIDE_PHASES_STEP3.map(function(ph) { return ph.id; });
+
+// S49: Step 4 guide phases (Review)
+var GUIDE_PHASES_STEP4 = [
+  {
+    id: 's4_info',
+    message: "Fill in your project information.",
+    tip: "This prints on the title block of your blueprints. The permit office needs your name and address.",
+    sections: [],
+    actions: [
+      { label: 'Continue', next: 's4_generate', style: 'primary' }
+    ]
+  },
+  {
+    id: 's4_generate',
+    message: "Ready to generate your permit-ready blueprints!",
+    tip: "Click the button below to create your PDF blueprint package.",
+    sections: [],
+    actions: []
+  }
+];
+GUIDE_PHASES_STEP4.forEach(function(ph) { _guidePhaseMap[ph.id] = ph; });
+var _guideStep4Order = GUIDE_PHASES_STEP4.map(function(ph) { return ph.id; });
+
 // GuidePanel: embedded guide at top of wizard step
 function GuidePanel({ phase, onAction, onBack, history, onToggleOff, message, tip }) {
   var ph = _guidePhaseMap[phase];
   if (!ph) return null;
 
-  // Progress: check both step arrays
-  var idx = _guidePhaseOrder.indexOf(phase);
-  var total = _guidePhaseOrder.length;
-  if (idx < 0) {
-    idx = _guideStep1Order.indexOf(phase);
-    total = _guideStep1Order.length;
+  // Progress: check all step arrays
+  var _allOrders = [_guidePhaseOrder, _guideStep1Order, _guideStep2Order, _guideStep3Order, _guideStep4Order];
+  var idx = -1, total = 1;
+  for (var oi = 0; oi < _allOrders.length; oi++) {
+    var found = _allOrders[oi].indexOf(phase);
+    if (found >= 0) { idx = found; total = _allOrders[oi].length; break; }
   }
   var pct = total > 0 ? Math.round(((idx + 1) / total) * 100) : 0;
-  if (phase === 'complete' || phase === 's1_complete') pct = 100;
+  if (phase.indexOf('_complete') >= 0) pct = 100;
   if (pct < 5) pct = 5;
 
   // Use dynamic message/tip if provided, otherwise phase defaults
@@ -715,10 +794,20 @@ function StepContent(props) {
       }
     }
     if (step === 2 && guidePhase.indexOf('s2_') !== 0 && guidePhase !== 's1_complete') {
-      // Entering Step 2: auto-complete for now (future session)
       setGuideHistory([]);
       setGuidePeeked({});
-      setGuideActive(false); // fall back to manual for steps 2+
+      setGuidePhase('s2_environment');
+    }
+    if (step === 3 && guidePhase.indexOf('s3_') !== 0 && guidePhase !== 's2_complete') {
+      setGuideHistory([]);
+      setGuidePeeked({});
+      setGuidePhase('s3_materials');
+    }
+    if (step === 4 && guidePhase.indexOf('s4_') !== 0 && guidePhase !== 's3_complete') {
+      setGuideHistory([]);
+      setGuidePeeked({});
+      var hasInfo = info.address && info.city && info.state;
+      setGuidePhase(hasInfo ? 's4_generate' : 's4_info');
     }
   }, [step]);
 
@@ -1534,13 +1623,30 @@ function StepContent(props) {
       {step === 0 && guideActive === null && <GuideChoiceScreen onChoose={guideChoose} />}
 
       {/* S49: Guide panel (when active) */}
-      {step === 0 && guideActive === true && !traceMode && <GuidePanel
-        phase={guidePhase}
-        onAction={guideHandleAction}
-        onBack={guideBack}
-        history={guideHistory}
-        onToggleOff={function() { setGuideActive(false); }}
-      />}
+      {step === 0 && guideActive === true && !traceMode && (() => {
+        var s0Msg = null, s0Tip = null;
+        if (guidePhase === 'upload_survey') {
+          if (sitePlanFile && !extracting && !extractResult) {
+            s0Msg = "Survey uploaded! Now click 'Set Up Lot from Survey' below to extract your dimensions.";
+            s0Tip = null;
+          }
+        }
+        if (guidePhase === 'shape_select') {
+          if (compareMode) {
+            s0Msg = "Find the page showing your lot boundary, then tap the shape that matches.";
+            s0Tip = "Use the page arrows on the left to navigate your survey. Select a shape on the right, then click Confirm.";
+          }
+        }
+        return <GuidePanel
+          phase={guidePhase}
+          onAction={guideHandleAction}
+          onBack={guideBack}
+          history={guideHistory}
+          onToggleOff={function() { setGuideActive(false); }}
+          message={s0Msg}
+          tip={s0Tip}
+        />;
+      })()}
 
       {/* S49: Intro text (manual mode or after choosing) */}
       {(guideActive === false) && <div style={{ fontSize: 11, color: _br.tx, fontFamily: _sans, lineHeight: 1.7, marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -2394,6 +2500,14 @@ function StepContent(props) {
 
 // Steps 2, 3 unchanged; Step 4 (Review) below
   if (step === 2) return <>
+    {/* S49: Guide panel for Step 2 */}
+    {guideActive === true && <GuidePanel
+      phase={guidePhase}
+      onAction={guideHandleAction}
+      onBack={guideBack}
+      history={guideHistory}
+      onToggleOff={function() { setGuideActive(false); }}
+    />}
     <Chips label="Joist spacing" field="joistSpacing" opts={[[12, '12" O.C.'], [16, '16" O.C.'], [24, '24" O.C.']]} u={u} p={p} />
     <Chips label="Snow load" field="snowLoad" opts={[["none", "None"], ["light", "Light"], ["moderate", "Moderate"], ["heavy", "Heavy"]]} u={u} p={p} />
     <Chips label="Footing depth (frost line)" field="frostZone" opts={[["warm", '12"'], ["moderate", '24"'], ["cold", '36"'], ["severe", '48"']]} u={u} p={p} />
@@ -2502,6 +2616,22 @@ function StepContent(props) {
   </>;
 
   if (step === 3) return <>
+    {/* S49: Guide panel for Step 3 */}
+    {guideActive === true && (() => {
+      var s3Msg = null;
+      if (guidePhase === 's3_complete') {
+        var totalCost = zc ? m.total + zc.extraTotal : m.total;
+        s3Msg = "Materials selected! Estimated cost: $" + totalCost.toFixed(0);
+      }
+      return <GuidePanel
+        phase={guidePhase}
+        onAction={guideHandleAction}
+        onBack={guideBack}
+        history={guideHistory}
+        onToggleOff={function() { setGuideActive(false); }}
+        message={s3Msg}
+      />;
+    })()}
     <Chips label="Decking" field="deckingType" opts={[["composite", "Composite (Trex)"], ["pt_lumber", "Pressure Treated"]]} u={u} p={p} />
     <Chips label="Railing" field="railType" opts={[["fortress", "Fortress Iron"], ["wood", "Wood"]]} u={u} p={p} />
     <div style={{ marginTop: 16, padding: 14, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}` }}>
@@ -2515,6 +2645,30 @@ function StepContent(props) {
 
 // Step 4: Review (was Step 3 before S27)
   if (step === 4) return <>
+    {/* S49: Guide panel for Step 4 */}
+    {guideActive === true && (() => {
+      var s4Msg = null, s4Tip = null;
+      if (guidePhase === 's4_info') {
+        var filled = info.address && info.city && info.state;
+        if (filled) {
+          s4Msg = "Project info was filled from your survey. Verify it looks correct.";
+          s4Tip = "Add your name and contractor info if needed.";
+        }
+      }
+      if (guidePhase === 's4_generate') {
+        s4Msg = "Ready to generate your permit-ready blueprints!";
+        s4Tip = "Click 'Generate Blueprint PDF' below. Your 4-sheet package will be ready in about 30 seconds.";
+      }
+      return <GuidePanel
+        phase={guidePhase}
+        onAction={guideHandleAction}
+        onBack={guideBack}
+        history={guideHistory}
+        onToggleOff={function() { setGuideActive(false); }}
+        message={s4Msg}
+        tip={s4Tip}
+      />;
+    })()}
     <div style={{ marginBottom: 14 }}>
       <div style={{ fontSize: 10, fontWeight: 700, color: _br.gn, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 8 }}>Blueprint Preview</div>
       <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 }}>
