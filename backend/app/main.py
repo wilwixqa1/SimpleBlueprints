@@ -33,6 +33,7 @@ from drawing.title_block import draw_title_block
 from drawing.draw_cover import draw_cover_sheet
 from drawing.draw_notes import draw_notes_sheet
 from drawing.draw_site_plan import draw_site_plan
+from drawing.jurisdiction_sheet import is_colorado_springs, append_cos_attachment
 
 from app.database import (
     init_tables, upsert_user, get_user_by_id, update_email_opt_in,
@@ -119,6 +120,7 @@ class DeckParams(BaseModel):
     slopePercent: float = 0
     slopeDirection: str = "front-to-back"
     zones: list = []
+    jurisdictionChecklist: Optional[dict] = None
 
 
 # ============================================================
@@ -215,6 +217,13 @@ def generate_blueprint_pdf(params: dict) -> tuple[str, dict]:
 
     # S43: PDF survey merge removed. Survey is used for trace/extraction only,
     # not appended to the blueprint. The generated A-6 site plan is sufficient.
+
+    # S50: Append jurisdiction-specific sheets (Colorado Springs PPRBD)
+    if is_colorado_springs(pi):
+        try:
+            append_cos_attachment(output_path, params, calc, pi)
+        except Exception as e:
+            print(f"COS attachment sheet error: {e}")
 
     return file_id, calc
 
