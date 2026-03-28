@@ -1389,10 +1389,11 @@ function StepContent(props) {
             var cv = cand.vertices;
             var cmaxX = 0, cmaxY = 0;
             cv.forEach(function(v) { if (v[0] > cmaxX) cmaxX = v[0]; if (v[1] > cmaxY) cmaxY = v[1]; });
-            var cpad = Math.max(cmaxX, cmaxY) * 0.15;
+            var cpad = Math.max(cmaxX, cmaxY) * 0.12;
             var cvbW = cmaxX + cpad * 2, cvbH = cmaxY + cpad * 2;
             var cpts = cv.map(function(v) { return (v[0] + cpad).toFixed(1) + "," + (cvbH - v[1] - cpad).toFixed(1); }).join(" ");
-            var csw = Math.max(1, cvbW / 150);
+            var csw = Math.max(1.5, cvbW / 200);
+            var edgeColors = ["#e53935", "#2563eb", "#8B7355", "#7c3aed", "#0d9488"];
             return <div key={ci} onClick={function() {
               var bboxW = Math.round(cmaxX), bboxD = Math.round(cmaxY);
               u("lotWidth", Math.max(30, bboxW));
@@ -1415,25 +1416,36 @@ function StepContent(props) {
               if (d.streetName) u("streetName", d.streetName);
               if (d.northAngle != null) u("northAngle", d.northAngle);
               setExtractResult(null);
-            }} style={{ cursor: "pointer", padding: 8, background: "#fff", borderRadius: 8, border: "2px solid " + _br.bd, textAlign: "center", transition: "all 0.15s" }}>
-              <svg viewBox={"0 0 " + cvbW.toFixed(0) + " " + cvbH.toFixed(0)} style={{ width: "100%", height: 80 }} preserveAspectRatio="xMidYMid meet">
-                <polygon points={cpts} fill="rgba(61,90,46,0.12)" stroke="#3d5a2e" strokeWidth={csw} strokeLinejoin="round" />
+            }} style={{ cursor: "pointer", padding: 10, background: "#fff", borderRadius: 8, border: "2px solid " + _br.bd, transition: "all 0.15s" }}
+            onMouseOver={function(e) { e.currentTarget.style.borderColor = _br.gn; e.currentTarget.style.boxShadow = "0 2px 8px rgba(61,90,46,0.15)"; }}
+            onMouseOut={function(e) { e.currentTarget.style.borderColor = _br.bd; e.currentTarget.style.boxShadow = "none"; }}>
+              <div style={{ textAlign: "center", marginBottom: 6 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, fontFamily: _mono, color: _br.tx }}>Option {ci + 1}</span>
+                <span style={{ fontSize: 11, fontFamily: _mono, color: _br.mu, marginLeft: 6 }}>{cand.area.toLocaleString()} SF</span>
+              </div>
+              <svg viewBox={"0 0 " + cvbW.toFixed(0) + " " + cvbH.toFixed(0)} style={{ width: "100%", height: 110 }} preserveAspectRatio="xMidYMid meet">
+                <polygon points={cpts} fill="rgba(61,90,46,0.08)" stroke="#3d5a2e" strokeWidth={csw} strokeLinejoin="round" />
                 {cv.map(function(v, vi) {
                   var v2 = cv[(vi + 1) % cv.length];
-                  var emx = (v[0] + v2[0]) / 2 + cpad;
-                  var emy = cvbH - ((v[1] + v2[1]) / 2) - cpad;
-                  var elen = cand.edges[vi] ? cand.edges[vi].length : 0;
-                  var elbl = elen >= 10 ? Math.round(elen) + "'" : elen.toFixed(1) + "'";
-                  var eisStr = cand.edges[vi] && cand.edges[vi].type === "street";
-                  var efs = Math.max(cvbW / 18, 6);
-                  return <text key={vi} x={emx.toFixed(1)} y={emy.toFixed(1)} textAnchor="middle" dominantBaseline="central" style={{ fontSize: efs, fill: eisStr ? "#e53935" : "#555", fontFamily: _mono, fontWeight: eisStr ? 700 : 600 }}>{elbl}</text>;
+                  var mx = (v[0] + v2[0]) / 2 + cpad;
+                  var my = cvbH - ((v[1] + v2[1]) / 2) - cpad;
+                  var col = edgeColors[vi % edgeColors.length];
+                  var r = Math.max(3, cvbW / 70);
+                  return <circle key={vi} cx={mx.toFixed(1)} cy={my.toFixed(1)} r={r} fill={col} />;
                 })}
               </svg>
-              <div style={{ fontSize: 9, fontFamily: _mono, color: _br.tx, fontWeight: 700 }}>
-                {cand.area.toLocaleString()} SF
-              </div>
-              <div style={{ fontSize: 7, fontFamily: _mono, color: _br.mu }}>
-                Option {ci + 1}
+              <div style={{ marginTop: 6, borderTop: "1px solid " + _br.bd, paddingTop: 6 }}>
+                {cand.edges.map(function(e, ei) {
+                  var col = edgeColors[ei % edgeColors.length];
+                  var isStr = e.type === "street";
+                  return <div key={ei} style={{ display: "flex", alignItems: "center", gap: 5, padding: "2px 0" }}>
+                    <span style={{ width: 10, height: 10, borderRadius: "50%", background: col, flexShrink: 0 }} />
+                    <span style={{ fontSize: 12, fontFamily: _mono, fontWeight: 700, color: _br.tx }}>{e.length}'</span>
+                    <span style={{ fontSize: 10, fontFamily: _mono, color: isStr ? "#e53935" : _br.mu, fontWeight: isStr ? 600 : 400 }}>
+                      {isStr ? (e.label || "street") : (e.neighborLabel || e.setbackType || "")}
+                    </span>
+                  </div>;
+                })}
               </div>
             </div>;
           })}
