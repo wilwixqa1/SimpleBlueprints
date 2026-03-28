@@ -371,6 +371,7 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
   var rearWarn = rearGap < sbR;
   var leftWarn = leftGap < sbS;
   var rightWarn = rightGap < sbS;
+  var _isLarge = Math.max(viewW, viewD) > 240;
 
   // === SCALE BAR ===
   var sbFt = viewW > 150 ? 50 : viewW > 60 ? 20 : 10;
@@ -492,7 +493,7 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
     React.createElement("rect", { x: sx(hx), y: sy(hy + hd), width: sw(hw), height: sh(hd), fill: "#e8e6e0", stroke: "#666", strokeWidth: 1.2, onMouseDown: function(e) { onHousePointerDown(e); }, onTouchStart: function(e) { onHousePointerDown(e); }, style: { cursor: isDragging ? "grabbing" : "grab" } }),
     React.createElement("rect", { x: sx(hx), y: sy(hy + hd), width: sw(hw), height: sh(hd), fill: "url(#spHatch)", pointerEvents: "none" }),
     sh(hd) > 20 ? React.createElement("text", { x: sx(hx + hw / 2), y: sy(hy + hd / 2) + 3, textAnchor: "middle", style: { fontSize: 8, fill: "#666", fontFamily: mono, fontWeight: 600 } }, "EXISTING HOUSE") : null,
-    sh(hd) > 30 ? React.createElement("text", { x: sx(hx + hw / 2), y: sy(hy + hd / 2) + 13, textAnchor: "middle", style: { fontSize: 7, fill: "#888", fontFamily: mono } }, hw + "' x " + hd + "'") : null,
+    !_isLarge && sh(hd) > 30 ? React.createElement("text", { x: sx(hx + hw / 2), y: sy(hy + hd / 2) + 13, textAnchor: "middle", style: { fontSize: 7, fill: "#888", fontFamily: mono } }, hw + "' x " + hd + "'") : null,
 
     React.createElement("g", null, siteEls),
 
@@ -500,9 +501,9 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
 
     React.createElement("g", null, stairEls),
 
-    rearGap > 0 ? React.createElement(DimLine, { x1: sx(bbLx + bbW / 2), y1: sy(bbLy + bbD), x2: sx(bbLx + bbW / 2), y2: sy(lotD), label: rearGap.toFixed(1) + "'", color: rearWarn ? "#e53935" : "#1565c0" }) : null,
-    leftGap > 0 && sw(leftGap) > 12 ? React.createElement(DimLine, { x1: sx(0), y1: sy(bbLy + bbD / 2), x2: sx(bbLx), y2: sy(bbLy + bbD / 2), label: leftGap.toFixed(1) + "'", color: leftWarn ? "#e53935" : "#1565c0", side: "above" }) : null,
-    rightGap > 0 && sw(rightGap) > 12 ? React.createElement(DimLine, { x1: sx(bbLx + bbW), y1: sy(bbLy + bbD / 2), x2: sx(lotW), y2: sy(bbLy + bbD / 2), label: rightGap.toFixed(1) + "'", color: rightWarn ? "#e53935" : "#1565c0", side: "above" }) : null,
+    !_isLarge && rearGap > 0 ? React.createElement(DimLine, { x1: sx(bbLx + bbW / 2), y1: sy(bbLy + bbD), x2: sx(bbLx + bbW / 2), y2: sy(lotD), label: rearGap.toFixed(1) + "'", color: rearWarn ? "#e53935" : "#1565c0" }) : null,
+    !_isLarge && leftGap > 0 && sw(leftGap) > 12 ? React.createElement(DimLine, { x1: sx(0), y1: sy(bbLy + bbD / 2), x2: sx(bbLx), y2: sy(bbLy + bbD / 2), label: leftGap.toFixed(1) + "'", color: leftWarn ? "#e53935" : "#1565c0", side: "above" }) : null,
+    !_isLarge && rightGap > 0 && sw(rightGap) > 12 ? React.createElement(DimLine, { x1: sx(bbLx + bbW), y1: sy(bbLy + bbD / 2), x2: sx(lotW), y2: sy(bbLy + bbD / 2), label: rightGap.toFixed(1) + "'", color: rightWarn ? "#e53935" : "#1565c0", side: "above" }) : null,
 
     React.createElement("g", null, setbackLabels),
 
