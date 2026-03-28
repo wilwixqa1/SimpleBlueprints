@@ -1,5 +1,5 @@
 // ============================================================
-// MAIN APP ÃÂ¢ÃÂÃÂ Wizard Shell, State, Nav, Preview Panel
+// MAIN APP ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ Wizard Shell, State, Nav, Preview Panel
 // ============================================================
 const { useState, useMemo, useEffect, useRef } = React;
 
@@ -194,6 +194,194 @@ window.computePolygonVerts = function(edges, targetArea) {
   return rawVerts;
 };
 
+
+// S46: Multi-candidate polygon shape solver
+// Given edge lengths + target area, generates all valid polygon shapes
+// for the user to pick from. Self-intersection and area filters narrow
+// candidates to 1-6 realistic options.
+window.generateCandidateShapes = function(edges, targetArea) {
+  if (!edges || edges.length < 3 || !targetArea || targetArea <= 0) return [];
+  var n = edges.length;
+  var areaTol = 0.10;
+
+  function shoelaceArea(verts) {
+    var a = 0, m = verts.length;
+    for (var i = 0; i < m; i++) {
+      var j = (i + 1) % m;
+      a += verts[i][0] * verts[j][1] - verts[j][0] * verts[i][1];
+    }
+    return Math.abs(a / 2);
+  }
+
+  function circleIntersect(x1, y1, r1, x2, y2, r2) {
+    var dx = x2 - x1, dy = y2 - y1;
+    var d = Math.sqrt(dx * dx + dy * dy);
+    if (d > r1 + r2 + 0.01 || d < Math.abs(r1 - r2) - 0.01 || d < 0.001) return [];
+    var a = (r1 * r1 - r2 * r2 + d * d) / (2 * d);
+    var hSq = r1 * r1 - a * a;
+    if (hSq < 0) hSq = 0;
+    var h = Math.sqrt(hSq);
+    var mx = x1 + a * dx / d, my = y1 + a * dy / d;
+    var px = -dy * h / d, py = dx * h / d;
+    if (h < 0.01) return [[mx, my]];
+    return [[mx + px, my + py], [mx - px, my - py]];
+  }
+
+  function segsIntersect(p1, p2, p3, p4) {
+    var d1x = p2[0] - p1[0], d1y = p2[1] - p1[1];
+    var d2x = p4[0] - p3[0], d2y = p4[1] - p3[1];
+    var cross = d1x * d2y - d1y * d2x;
+    if (Math.abs(cross) < 1e-10) return false;
+    var t = ((p3[0] - p1[0]) * d2y - (p3[1] - p1[1]) * d2x) / cross;
+    var u = ((p3[0] - p1[0]) * d1y - (p3[1] - p1[1]) * d1x) / cross;
+    return t > 0.001 && t < 0.999 && u > 0.001 && u < 0.999;
+  }
+
+  function isSelfIntersecting(verts) {
+    var m = verts.length;
+    for (var i = 0; i < m; i++) {
+      for (var j = i + 2; j < m; j++) {
+        if (i === 0 && j === m - 1) continue;
+        if (segsIntersect(verts[i], verts[(i+1)%m], verts[j], verts[(j+1)%m])) return true;
+      }
+    }
+    return false;
+  }
+
+  function normalizeVerts(verts) {
+    var minX = Infinity, minY = Infinity;
+    for (var i = 0; i < verts.length; i++) {
+      if (verts[i][0] < minX) minX = verts[i][0];
+      if (verts[i][1] < minY) minY = verts[i][1];
+    }
+    return verts.map(function(v) {
+      return [+(v[0] - minX).toFixed(2), +(v[1] - minY).toFixed(2)];
+    });
+  }
+
+  function shapesMatch(v1, v2) {
+    if (v1.length !== v2.length) return false;
+    var tol = 3.0;
+    for (var i = 0; i < v1.length; i++) {
+      var dx = v1[i][0] - v2[i][0], dy = v1[i][1] - v2[i][1];
+      if (Math.sqrt(dx * dx + dy * dy) > tol) return false;
+    }
+    return true;
+  }
+
+  function permutations(arr) {
+    if (arr.length <= 1) return [arr.slice()];
+    var result = [];
+    for (var i = 0; i < arr.length; i++) {
+      var rest = arr.slice(0, i).concat(arr.slice(i + 1));
+      var perms = permutations(rest);
+      for (var j = 0; j < perms.length; j++) {
+        result.push([arr[i]].concat(perms[j]));
+      }
+    }
+    return result;
+  }
+
+  function tryAdd(candidates, verts, edgesOrdered, tArea) {
+    var area = shoelaceArea(verts);
+    var areaErr = Math.abs(area - tArea) / tArea;
+    if (areaErr >= areaTol) return;
+    if (isSelfIntersecting(verts)) return;
+    var maxY = 0;
+    for (var i = 0; i < verts.length; i++) { if (verts[i][1] > maxY) maxY = verts[i][1]; }
+    if (maxY < 1) return;
+    var nv = normalizeVerts(verts);
+    for (var ci = 0; ci < candidates.length; ci++) {
+      if (shapesMatch(candidates[ci].vertices, nv)) return;
+    }
+    candidates.push({
+      vertices: nv,
+      edges: edgesOrdered,
+      area: Math.round(area),
+      areaError: areaErr
+    });
+  }
+
+  // Find street edge
+  var streetIdx = 0;
+  for (var i = 0; i < n; i++) {
+    if (edges[i].type === "street") { streetIdx = i; break; }
+  }
+  var streetEdge = edges[streetIdx];
+  var streetLen = streetEdge.length;
+  var otherEdges = [];
+  for (var i = 0; i < n; i++) {
+    if (i !== streetIdx) otherEdges.push(edges[i]);
+  }
+
+  if (n !== 4) return []; // Only 4-sided lots for now
+
+  var allPerms = permutations(otherEdges);
+  var candidates = [];
+
+  for (var pi = 0; pi < allPerms.length; pi++) {
+    var s1 = allPerms[pi][0].length;
+    var s2 = allPerms[pi][1].length;
+    var s3 = allPerms[pi][2].length;
+    var edgesOrdered = [streetEdge].concat(allPerms[pi]);
+    var samples = 500;
+    var prev = [{}, {}];
+
+    for (var si = 1; si < samples; si++) {
+      var alpha = (si / samples) * Math.PI;
+      var cx = streetLen + s1 * Math.cos(alpha);
+      var cy = s1 * Math.sin(alpha);
+      var dPoints = circleIntersect(cx, cy, s2, 0, 0, s3);
+
+      for (var di = 0; di < dPoints.length; di++) {
+        var verts = [[0, 0], [streetLen, 0], [cx, cy], [dPoints[di][0], dPoints[di][1]]];
+        var area = shoelaceArea(verts);
+        var areaErr = Math.abs(area - targetArea) / targetArea;
+
+        // Direct hit (handles exact matches like rectangles)
+        if (areaErr < 0.005) {
+          tryAdd(candidates, verts, edgesOrdered, targetArea);
+        }
+
+        // Zero-crossing detection (area sweeps through target)
+        if (prev[di].area !== undefined) {
+          if ((prev[di].area - targetArea) * (area - targetArea) < 0) {
+            var lo = prev[di].alpha, hi = alpha;
+            var loArea = prev[di].area;
+            for (var bs = 0; bs < 40; bs++) {
+              var mid = (lo + hi) / 2;
+              var mcx = streetLen + s1 * Math.cos(mid);
+              var mcy = s1 * Math.sin(mid);
+              var mdPs = circleIntersect(mcx, mcy, s2, 0, 0, s3);
+              if (mdPs.length <= di) { hi = mid; continue; }
+              var mverts = [[0, 0], [streetLen, 0], [mcx, mcy], [mdPs[di][0], mdPs[di][1]]];
+              var marea = shoelaceArea(mverts);
+              if ((loArea - targetArea) * (marea - targetArea) < 0) {
+                hi = mid;
+              } else {
+                lo = mid;
+                loArea = marea;
+              }
+            }
+            var fAlpha = (lo + hi) / 2;
+            var fcx = streetLen + s1 * Math.cos(fAlpha);
+            var fcy = s1 * Math.sin(fAlpha);
+            var fdPs = circleIntersect(fcx, fcy, s2, 0, 0, s3);
+            if (fdPs.length > di) {
+              var fverts = [[0, 0], [streetLen, 0], [fcx, fcy], [fdPs[di][0], fdPs[di][1]]];
+              tryAdd(candidates, fverts, edgesOrdered, targetArea);
+            }
+          }
+        }
+        prev[di] = { area: area, alpha: alpha };
+      }
+    }
+  }
+
+  candidates.sort(function(a, b) { return a.areaError - b.areaError; });
+  return candidates.slice(0, 6);
+};
+
 const App = function SimpleBlueprints() {
   const { br, mono, sans } = window.SB;
   const [page, setPage] = useState("home");
@@ -207,9 +395,9 @@ const App = function SimpleBlueprints() {
     streetName: "",
     // Polygon lot (S36)
     lotVertices: null, lotEdges: null, lotArea: null,
-    // Zone system ÃÂ¢ÃÂÃÂ S19
+    // Zone system ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ S19
     zones: [], activeZone: 0, nextZoneId: 1, mainCorners: { BL: { type: "square", size: 0 }, BR: { type: "square", size: 0 }, FL: { type: "square", size: 0 }, FR: { type: "square", size: 0 } },
-    // Site plan ÃÂ¢ÃÂÃÂ S27 (defaults seeded from existing flat params)
+    // Site plan ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ S27 (defaults seeded from existing flat params)
     sitePlan: {
       lotShape: "rectangle", lotWidth: 80, lotDepth: 120,
       streetSide: "south", streetName: "",
@@ -278,7 +466,7 @@ const App = function SimpleBlueprints() {
     return next;
   });
 
-  // ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Zone management functions ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
+  // ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ Zone management functions ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ
   const addZone = (parentId, edge) => setP(prev => {
     var parentP = Object.assign({}, prev, { deckWidth: prev.width, deckDepth: prev.depth });
     var defaults = window.addZoneDefaults(parentId, edge, "add", parentP);
@@ -360,7 +548,7 @@ const App = function SimpleBlueprints() {
     return (z && z.corners) || DEF_CORNERS;
   };
 
-  // ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Provide deckWidth/deckDepth aliases for zoneUtils ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
+  // ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ Provide deckWidth/deckDepth aliases for zoneUtils ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ
   // zoneUtils reads p.deckWidth/p.deckDepth, but our flat params use width/depth
   const pForZones = useMemo(() => Object.assign({}, p, { deckWidth: p.width, deckDepth: p.depth, deckHeight: p.height }), [p]);
 
@@ -535,7 +723,7 @@ const App = function SimpleBlueprints() {
                   addZone={addZone} addCutout={addCutout}
                   getCorners={getCorners} setCorner={setCorner} />
                 {planMode === "plan" && <div style={{ textAlign: "center", fontSize: 9, color: br.mu, fontFamily: mono, marginTop: 4, opacity: 0.7 }}>
-                  {zoneMode === "select" && <>Drag the <span style={{ color: "#3d5a2e", fontWeight: 700 }}>green</span> handle to slide the deck ÃÂÃÂ· Click <span style={{ color: "#c62828", fontWeight: 700 }}>stairs</span> to select, drag to move, grab <span style={{ color: "#3d5a2e", fontWeight: 700 }}>{"\u21BB"}</span> to rotate</>}
+                  {zoneMode === "select" && <>Drag the <span style={{ color: "#3d5a2e", fontWeight: 700 }}>green</span> handle to slide the deck ÃÂÃÂÃÂÃÂ· Click <span style={{ color: "#c62828", fontWeight: 700 }}>stairs</span> to select, drag to move, grab <span style={{ color: "#3d5a2e", fontWeight: 700 }}>{"\u21BB"}</span> to rotate</>}
                   {zoneMode === "add" && <>Click <span style={{ color: "#16a34a", fontWeight: 700 }}>+</span> on any edge to add a deck zone</>}
                   {zoneMode === "cut" && <>Click <span style={{ color: "#dc2626", fontWeight: 700 }}>{"\u2702"}</span> on corners for house wraps, center for openings</>}
                   {zoneMode === "chamfer" && <>Click <span style={{ color: "#7c3aed", fontWeight: 700 }}>{"\u25E3"}</span> on corners to toggle 45{"\u00B0"} chamfers</>}
