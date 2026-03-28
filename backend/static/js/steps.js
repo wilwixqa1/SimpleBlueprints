@@ -566,7 +566,18 @@ function StepContent(props) {
     }
   }
 
-  // Guide helper: is a section relevant to current phase?
+  // Guide helper: should this section's header + body render at all?
+  // In guided mode, hides sections not relevant to current phase (unless user peeked)
+  function guideSectionShown(sectionId) {
+    if (guideActive === null) return false; // choice screen: hide all
+    if (guideActive === false) return true; // manual mode: show all
+    // guided mode: show if phase wants it or user peeked
+    var ph = _guidePhaseMap[guidePhase];
+    var phaseWants = ph && ph.sections && ph.sections.indexOf(sectionId) >= 0;
+    return phaseWants || !!guidePeeked[sectionId];
+  }
+
+  // Guide helper: is a section's body expanded?
   function guideSectionVisible(sectionId, manualToggle) {
     if (!guideActive) return manualToggle;
     var ph = _guidePhaseMap[guidePhase];
@@ -1422,7 +1433,7 @@ function StepContent(props) {
       </div>}
 
       {/* === LOT & HOUSE SLIDERS (collapsible, S31) === */}
-      <button onClick={function() { guideSectionToggle('lotHouse', showLotHouse, setShowLotHouse); }} style={{
+      {guideSectionShown('lotHouse') && <><button onClick={function() { guideSectionToggle('lotHouse', showLotHouse, setShowLotHouse); }} style={{
         width: "100%", padding: "10px 14px", marginBottom: guideSectionVisible('lotHouse', showLotHouse) ? 0 : 14,
         background: _br.wr,
         border: "1px solid " + _br.bd,
@@ -1454,9 +1465,10 @@ function StepContent(props) {
         <Slider label="Side setback" value={p.setbackSide} min={0} max={30} field="setbackSide" u={u} p={p} focused={guideFieldFocused('setbackSide')} />
         <Slider label="Rear setback" value={p.setbackRear} min={0} max={50} field="setbackRear" u={u} p={p} focused={guideFieldFocused('setbackRear')} />
       </div>}
+      </>}
 
       {/* === ADJUST LOT SHAPE (S37) === */}
-      {(() => {
+      {guideSectionShown('lotShape') && (() => {
         var currentEdges = p.lotEdges || window.computeRectEdges(p);
         var isCustom = !!p.lotEdges;
 
@@ -1612,7 +1624,7 @@ function StepContent(props) {
 
 
       {/* === SITE ELEMENTS (S31) === */}
-      {(() => {
+      {guideSectionShown('siteElements') && (() => {
         var siteElDefs = {
           driveway: { w: 12, d: 20, label: "DRIVEWAY", icon: "\uD83D\uDE97", name: "Driveway" },
           garage: { w: 12, d: 22, label: "GARAGE", icon: "\uD83D\uDE99", name: "Garage" },
@@ -1881,7 +1893,7 @@ function StepContent(props) {
       </div>}
 
       {/* === UPLOAD SURVEY (collapsible) === */}
-      <button onClick={function() { guideSectionToggle('upload', showUpload, setShowUpload); }} style={{
+      {guideSectionShown('upload') && <><button onClick={function() { guideSectionToggle('upload', showUpload, setShowUpload); }} style={{
         width: "100%", padding: "10px 14px", marginBottom: guideSectionVisible('upload', showUpload || !!sitePlanFile) ? 0 : 14,
         background: sitePlanFile ? "#edf5e8" : "none",
         border: "1px solid " + (sitePlanFile ? _br.gn : _br.bd),
@@ -1921,6 +1933,7 @@ function StepContent(props) {
           )}
         </div>
       </div>}
+      </>}
 
       {/* S46: Set Up Lot from Survey - extraction first, shape picker or trace */}
       {sitePlanFile && !traceMode && !extracting && !extractResult && <div style={{ marginBottom: 14 }}>
