@@ -387,41 +387,31 @@ def draw_plan_and_framing(fig, params, calc):
                                 bbox=dict(boxstyle='square,pad=0.1', fc='#fff8f0',
                                           ec='#c4960a', lw=0.3, alpha=0.9))
 
-            # S22/S45: Hardware labels - position relative to bbox right edge
-            # S45: Increased vertical spacing between lines (was 0.8, now 1.0)
-            label_x = bbox["x"] + bbox["w"] + margin_x_right * 0.3
-            label_top = beam_y + 0.8
-            label_step = 1.0  # S45: increased from ~0.8 for readability
+            # S45: Hardware labels - inside deck, right-aligned near beam
+            _hw_x = W - 0.5
+            _hw_kw = dict(fontsize=3.5, fontfamily='monospace', color=BRAND["dark"], ha='right',
+                          bbox=dict(boxstyle='square,pad=0.1', fc='white', ec='none', alpha=0.85))
+            ax.text(_hw_x, beam_y + 1.0,
+                    f'{calc["post_size"]} PT POSTS W/ SIMPSON ABU POST BASE & CAP ({calc["num_posts"]} PLCS)',
+                    **_hw_kw)
+            ax.text(_hw_x, beam_y + 0.3,
+                    f'{calc["footing_diam"]}" DIA. CONCRETE PIERS x {calc["footing_depth"]}" DEEP ({calc["num_footings"]} PLCS)',
+                    **_hw_kw)
 
-            ax.text(label_x, label_top,
-                    f'{calc["post_size"]} PT POSTS W/ SIMPSON',
-                    fontsize=4, color=BRAND["dark"])
-            ax.text(label_x, label_top - label_step,
-                    "ABU POST BASE & POST CAP",
-                    fontsize=4, color=BRAND["dark"])
-            ax.text(label_x, label_top - label_step * 2,
-                    f'({calc["num_posts"]}) PLCS',
-                    fontsize=4, color=BRAND["dark"])
-            ax.text(label_x, label_top - label_step * 3.5,
-                    f'{calc["footing_diam"]}" DIA. CONCRETE PIERS',
-                    fontsize=4, color=BRAND["dark"])
-            ax.text(label_x, label_top - label_step * 4.5,
-                    f'x {calc["footing_depth"]}" DEEP, ({calc["num_footings"]}) PLCS',
-                    fontsize=4, color=BRAND["dark"])
+            # S45: Loads box - inside deck, bottom-left corner
+            _lb_x = 0.3
+            _lb_y = 0.3
+            ax.add_patch(patches.Rectangle((_lb_x, _lb_y), 4.5, 2.8,
+                         fc='#fafaf8', ec=BRAND["dark"], lw=0.5, zorder=5))
+            ax.text(_lb_x + 0.2, _lb_y + 2.3, 'DECK LOADS:', fontsize=4.5,
+                    fontweight='bold', color=BRAND["dark"], zorder=6)
+            ax.text(_lb_x + 0.2, _lb_y + 1.6, f'L.L. = {calc["LL"]} PSF',
+                    fontsize=4, color=BRAND["dark"], zorder=6)
+            ax.text(_lb_x + 0.2, _lb_y + 1.0, f'D.L. = {calc["DL"]} PSF',
+                    fontsize=4, color=BRAND["dark"], zorder=6)
+            ax.text(_lb_x + 0.2, _lb_y + 0.4, f'T.L. = {calc["TL"]} PSF',
+                    fontsize=4, fontweight='bold', color=BRAND["red"], zorder=6)
 
-            # Loads box - S45: offset down slightly to avoid overlap with hardware labels
-            lbx = label_x
-            lby = max(0.5, label_top - label_step * 4.5 - 4.5)
-            ax.add_patch(patches.Rectangle((lbx, lby), 6, 3.5,
-                         fc='#fafaf8', ec=BRAND["dark"], lw=0.5))
-            ax.text(lbx + 0.3, lby + 2.9, 'DECK LOADS:', fontsize=5,
-                    fontweight='bold', color=BRAND["dark"])
-            ax.text(lbx + 0.3, lby + 2.1, f'L.L. = {calc["LL"]} PSF',
-                    fontsize=4.5, color=BRAND["dark"])
-            ax.text(lbx + 0.3, lby + 1.4, f'D.L. = {calc["DL"]} PSF',
-                    fontsize=4.5, color=BRAND["dark"])
-            ax.text(lbx + 0.3, lby + 0.7, f'T.L. = {calc["TL"]} PSF',
-                    fontsize=4.5, fontweight='bold', color=BRAND["red"])
 
             # === BUILDER DIMENSION CALLOUTS (S17) ===
             beam_setback = 1.5  # beam is 1.5ft from front edge
