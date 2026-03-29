@@ -514,6 +514,32 @@ def get_tracking_stats(days: int = 30) -> dict:
         cur = conn.cursor(cursor_factory=RealDictCursor)
         cutoff = f"NOW() - INTERVAL '{days} days'"
 
+        # Bot detection pattern (single source of truth)
+        # Covers: known bots, scrapers, security scanners, HTTP libraries,
+        # ancient browsers (IE/Trident, Chrome <20), headless defaults, bare UAs
+        BOT_PATTERN = (
+            "%%(bot|crawl|spider|slurp|bingpreview|facebookexternalhit"
+            "|semrush|ahref|bytespider|gptbot|claudebot|petalbot|yandex"
+            "|baidu|duckduckbot|ia_archiver|mj12bot|dotbot|rogerbot"
+            "|dataforseo|blexbot|seznambot|megaindex"
+            "|go-http-client|python-requests|curl/|wget/|scrapy"
+            "|headless|phantom|puppeteer"
+            "|palo alto|nessus|qualys|nikto|nmap|zgrab|masscan"
+            "|req/|httpx/|axios/|node-fetch|undici|okhttp|java/"
+            "|dalvik/|nexus 5 build|mra58n"
+            "|trident/|msie |edge/1[0-8]\\."
+            ")%%"
+        )
+        # For very short or bare UAs and ancient Chrome
+        BOT_EXTRA_SQL = (
+            " OR LENGTH(TRIM(user_agent)) < 15"
+            " OR user_agent = 'Mozilla/5.0'"
+            " OR LOWER(user_agent) ~ 'chrome/[1-9][^0-9]'"
+            " OR LOWER(user_agent) ~ 'chrome/1[0-9][^0-9]'"
+        )
+        IS_BOT_SQL = f"(LOWER(user_agent) SIMILAR TO '{BOT_PATTERN}'{BOT_EXTRA_SQL})"
+        NOT_BOT_SQL = f"(NOT {IS_BOT_SQL})"
+
         # --- FUNNEL COUNTS ---
         funnel_types = [
             "session_start", "auth_login", "survey_upload",
@@ -792,43 +818,39 @@ def get_stats() -> dict:
         pv_unique_today = cur.fetchone()["c"]
 
         # Traffic breakdown: bot vs human, daily uniques, top paths
-        cur.execute("""
+        cur.execute(f"""
             SELECT
                 COUNT(*) as total,
-                COUNT(*) FILTER (WHERE
-                    LOWER(user_agent) SIMILAR TO '%%(bot|crawl|spider|slurp|bingpreview|facebookexternalhit|semrush|ahref|bytespider|gptbot|claudebot|petalbot|yandex|baidu|duckduckbot|ia_archiver|mj12bot|dotbot|rogerbot|dataforseo|blexbot|seznambot|megaindex|go-http-client|python-requests|curl|wget|scrapy|headless|phantom|puppeteer)%%'
-                ) as bots,
+                COUNT(*) FILTER (WHERE {IS_BOT_SQL}) as bots,
                 COUNT(DISTINCT ip_hash) as unique_ips,
-                COUNT(DISTINCT ip_hash) FILTER (WHERE
-                    LOWER(user_agent) NOT SIMILAR TO '%%(bot|crawl|spider|slurp|bingpreview|facebookexternalhit|semrush|ahref|bytespider|gptbot|claudebot|petalbot|yandex|baidu|duckduckbot|ia_archiver|mj12bot|dotbot|rogerbot|dataforseo|blexbot|seznambot|megaindex|go-http-client|python-requests|curl|wget|scrapy|headless|phantom|puppeteer)%%'
-                ) as unique_human_ips
+                COUNT(DISTINCT ip_hash) FILTER (WHERE {NOT_BOT_SQL}) as unique_human_ips
             FROM page_views
         """)
         traffic = dict(cur.fetchone())
 
         # Daily unique IPs (last 30 days), human only
-        cur.execute("""
+        cur.execute(f"""
             SELECT TO_CHAR(TO_TIMESTAMP(timestamp), 'YYYY-MM-DD') as day,
                    COUNT(*) as views,
                    COUNT(DISTINCT ip_hash) as unique_ips
             FROM page_views
             WHERE timestamp > %s
-                AND LOWER(user_agent) NOT SIMILAR TO '%%(bot|crawl|spider|slurp|bingpreview|facebookexternalhit|semrush|ahref|bytespider|gptbot|claudebot|petalbot|yandex|baidu|duckduckbot|ia_archiver|mj12bot|dotbot|rogerbot|dataforseo|blexbot|seznambot|megaindex|go-http-client|python-requests|curl|wget|scrapy|headless|phantom|puppeteer)%%'
+                AND {NOT_BOT_SQL}
             GROUP BY day ORDER BY day
         """, (month_ago,))
         daily_traffic = [dict(r) for r in cur.fetchall()]
 
         # Top paths (human only, all time)
-        cur.execute("""
+        cur.execute(f"""
             SELECT path, COUNT(*) as views, COUNT(DISTINCT ip_hash) as unique_ips
             FROM page_views
-            WHERE LOWER(user_agent) NOT SIMILAR TO '%%(bot|crawl|spider|slurp|bingpreview|facebookexternalhit|semrush|ahref|bytespider|gptbot|claudebot|petalbot|yandex|baidu|duckduckbot|ia_archiver|mj12bot|dotbot|rogerbot|dataforseo|blexbot|seznambot|megaindex|go-http-client|python-requests|curl|wget|scrapy|headless|phantom|puppeteer)%%'
+            WHERE {NOT_BOT_SQL}
             GROUP BY path ORDER BY views DESC LIMIT 10
         """)
         top_paths = [dict(r) for r in cur.fetchall()]
 
         # Top bot user agents (for awareness)
-        cur.execute("""
+        cur.execute(f"""
             SELECT
                 CASE
                     WHEN LOWER(user_agent) LIKE '%%googlebot%%' THEN 'Googlebot'
@@ -845,17 +867,23 @@ def get_stats() -> dict:
                     WHEN LOWER(user_agent) LIKE '%%dataforseo%%' THEN 'DataForSEO'
                     WHEN LOWER(user_agent) LIKE '%%python-requests%%' THEN 'python-requests'
                     WHEN LOWER(user_agent) LIKE '%%go-http-client%%' THEN 'Go-http-client'
+                    WHEN LOWER(user_agent) LIKE '%%palo alto%%' THEN 'Palo Alto Scanner'
+                    WHEN LOWER(user_agent) LIKE '%%req/%%' OR LOWER(user_agent) LIKE '%%httpx/%%' THEN 'HTTP library'
+                    WHEN LOWER(user_agent) LIKE '%%dalvik/%%' THEN 'Dalvik'
+                    WHEN LOWER(user_agent) LIKE '%%trident/%%' OR LOWER(user_agent) LIKE '%%msie %%' THEN 'Ancient IE'
+                    WHEN LOWER(user_agent) ~ 'chrome/[1-9][^0-9]' OR LOWER(user_agent) ~ 'chrome/1[0-9][^0-9]' THEN 'Ancient Chrome'
+                    WHEN LENGTH(TRIM(user_agent)) < 15 OR user_agent = 'Mozilla/5.0' THEN 'Bare/empty UA'
                     ELSE 'Other bot'
                 END as bot_name,
                 COUNT(*) as hits
             FROM page_views
-            WHERE LOWER(user_agent) SIMILAR TO '%%(bot|crawl|spider|slurp|bingpreview|facebookexternalhit|semrush|ahref|bytespider|gptbot|claudebot|petalbot|yandex|baidu|duckduckbot|ia_archiver|mj12bot|dotbot|rogerbot|dataforseo|blexbot|seznambot|megaindex|go-http-client|python-requests|curl|wget|scrapy|headless|phantom|puppeteer)%%'
-            GROUP BY bot_name ORDER BY hits DESC LIMIT 10
+            WHERE {IS_BOT_SQL}
+            GROUP BY bot_name ORDER BY hits DESC LIMIT 15
         """)
         top_bots = [dict(r) for r in cur.fetchall()]
 
         # Top "human" user agents (to spot stealth bots)
-        cur.execute("""
+        cur.execute(f"""
             SELECT
                 CASE
                     WHEN LENGTH(user_agent) < 30 THEN user_agent
@@ -864,13 +892,13 @@ def get_stats() -> dict:
                 COUNT(*) as hits,
                 COUNT(DISTINCT ip_hash) as unique_ips
             FROM page_views
-            WHERE LOWER(user_agent) NOT SIMILAR TO '%%(bot|crawl|spider|slurp|bingpreview|facebookexternalhit|semrush|ahref|bytespider|gptbot|claudebot|petalbot|yandex|baidu|duckduckbot|ia_archiver|mj12bot|dotbot|rogerbot|dataforseo|blexbot|seznambot|megaindex|go-http-client|python-requests|curl|wget|scrapy|headless|phantom|puppeteer)%%'
+            WHERE {NOT_BOT_SQL}
             GROUP BY ua_short ORDER BY hits DESC LIMIT 15
         """)
         top_human_uas = [dict(r) for r in cur.fetchall()]
 
         # IP visit frequency: how many IPs visited 1x, 2-5x, 6-20x, 20+
-        cur.execute("""
+        cur.execute(f"""
             SELECT
                 CASE
                     WHEN visit_count = 1 THEN '1 visit'
@@ -883,7 +911,7 @@ def get_stats() -> dict:
             FROM (
                 SELECT ip_hash, COUNT(*) as visit_count
                 FROM page_views
-                WHERE LOWER(user_agent) NOT SIMILAR TO '%%(bot|crawl|spider|slurp|bingpreview|facebookexternalhit|semrush|ahref|bytespider|gptbot|claudebot|petalbot|yandex|baidu|duckduckbot|ia_archiver|mj12bot|dotbot|rogerbot|dataforseo|blexbot|seznambot|megaindex|go-http-client|python-requests|curl|wget|scrapy|headless|phantom|puppeteer)%%'
+                WHERE {NOT_BOT_SQL}
                 GROUP BY ip_hash
             ) sub
             GROUP BY bucket
