@@ -457,6 +457,17 @@ const App = function SimpleBlueprints() {
   const { br, mono, sans } = window.SB;
   const [page, setPage] = useState("home");
   const [step, setStep] = useState(0);
+  // S55: Track step changes with timing
+  const _stepEnteredAt = React.useRef(Date.now());
+  const _prevStep = React.useRef(0);
+  React.useEffect(function() {
+    if (step !== _prevStep.current) {
+      var dur = Date.now() - _stepEnteredAt.current;
+      if (window._trackEvent) window._trackEvent('step_change', { from_step: _prevStep.current, to_step: step, duration_on_prev_step_ms: dur });
+      _prevStep.current = step;
+      _stepEnteredAt.current = Date.now();
+    }
+  }, [step]);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [view, setView] = useState("plan");
   const [planMode, setPlanMode] = useState("plan");
@@ -672,12 +683,22 @@ const App = function SimpleBlueprints() {
   useEffect(() => {
     fetch(`${API}/auth/me`, { credentials: "include" })
       .then(r => r.json())
-      .then(d => { if (d.authenticated) setUser(d.user); setAuthLoading(false); })
+      .then(d => {
+        if (d.authenticated) {
+          setUser(d.user);
+          // S55: Link anonymous tracking to authenticated user
+          if (window._linkTrackingToUser) window._linkTrackingToUser();
+          if (window._trackEvent) window._trackEvent('auth_login', { email: d.user.email });
+        }
+        setAuthLoading(false);
+      })
       .catch(() => setAuthLoading(false));
   }, []);
 
   const generateBlueprint = async () => {
     setGenStatus("generating"); setGenError(""); setMaterialsUrl(null);
+    if (window._trackEvent) window._trackEvent('pdf_generate_start', {});
+    var _genStart = Date.now();
     try {
       const coverImage = await window.capture3D(p, c);
       const res = await fetch(`${API}/api/generate-test`, {
@@ -693,12 +714,14 @@ const App = function SimpleBlueprints() {
         const _a = document.createElement("a"); _a.href = `${API}${data.download_url}?type=permit`; _a.target = "_blank"; document.body.appendChild(_a); _a.click(); document.body.removeChild(_a);
         if (data.materials_url) { setMaterialsUrl(`${API}${data.materials_url}?type=materials`); }
         setGenStatus("done");
+        if (window._trackEvent) window._trackEvent('pdf_generate_complete', { duration_ms: Date.now() - _genStart });
       } else {
         throw new Error("No download URL returned");
       }
     } catch (e) {
       setGenError(e.message);
       setGenStatus("error");
+      if (window._trackEvent) window._trackEvent('pdf_generate_error', { error: e.message });
     }
   };
 
