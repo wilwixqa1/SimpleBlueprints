@@ -552,17 +552,16 @@ async def extract_survey(request: Request):
 
 SHAPE_RANK_PROMPT = """You are analyzing a property survey to determine the correct lot shape and orientation.
 
-CANDIDATE SHAPES (vertex coordinates, clockwise from street-side SW corner):
-{shapes_text}
+Above you see the SURVEY SITE PLAN page, followed by {shapes_text}. Each candidate has the same edge lengths but arranged differently, producing different outlines.
 
 TASKS:
-1. SHAPE MATCHING: Look at the lot boundary drawn on this survey page. Which candidate shape best matches the drawn boundary? Consider the proportions, angles, and overall outline. Give the 0-based index of the best match.
+1. SHAPE MATCHING: Compare the OUTLINE of each numbered candidate shape image to the lot boundary drawn on the survey. Which candidate looks most like the actual lot boundary? Give the 0-based index.
 
-2. CONFIDENCE: How confident are you? "high" if one shape clearly matches, "medium" if 2-3 are close, "low" if hard to tell.
+2. CONFIDENCE: "high" if one clearly matches, "medium" if 2-3 are close, "low" if hard to tell.
 
-3. NORTH DIRECTION: Look for a north arrow or compass rose on this survey. Which direction does the north arrow point on the drawing? Use cardinal values: 0=up, 45=upper-right, 90=right, 135=lower-right, 180=down, 225=lower-left, 270=left, 315=upper-left.
+3. NORTH DIRECTION: Look for a north arrow or compass rose on the survey. Which direction does it point? 0=up, 45=upper-right, 90=right, 135=lower-right, 180=down, 225=lower-left, 270=left, 315=upper-left.
 
-4. STREET SIDE: Which side of the DRAWING is the street on? One of: "bottom", "top", "left", "right". This tells us how the survey is oriented visually.
+4. STREET SIDE: Which side of the DRAWING is the street on? "bottom", "top", "left", "right".
 
 Return ONLY a JSON object:
 {
@@ -570,13 +569,46 @@ Return ONLY a JSON object:
   "confidence": "high",
   "northAngle": 0,
   "streetSide": "bottom",
-  "reason": "brief explanation of why this shape matches"
+  "reason": "brief explanation"
 }
 
 Return ONLY valid JSON, no markdown, no backticks."""
 
 
-def get_site_plan_page(pdf_b64):
+def render_candidate_images(candidates):
+    """Render each candidate shape as a small PNG image for visual comparison."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    images = []
+    for i, c in enumerate(candidates):
+        verts = c.get("vertices", [])
+        if not verts or len(verts) < 3:
+            continue
+        fig, ax = plt.subplots(1, 1, figsize=(2, 2), dpi=72)
+        xs = [v[0] for v in verts] + [verts[0][0]]
+        ys = [v[1] for v in verts] + [verts[0][1]]
+        ax.fill(xs, ys, alpha=0.15, color="#3d5a2e")
+        ax.plot(xs, ys, color="#3d5a2e", linewidth=2)
+        # Label edges with lengths
+        edges = c.get("edges", [])
+        for ei, e in enumerate(edges):
+            v1 = verts[ei]
+            v2 = verts[(ei + 1) % len(verts)]
+            mx, my = (v1[0] + v2[0]) / 2, (v1[1] + v2[1]) / 2
+            label = f"{e['length']}'"
+            ax.text(mx, my, label, fontsize=6, ha="center", va="center",
+                    bbox=dict(boxstyle="round,pad=0.15", facecolor="white", edgecolor="none", alpha=0.8))
+        ax.set_aspect("equal")
+        ax.set_title(f"Shape {i}", fontsize=8, fontweight="bold")
+        ax.axis("off")
+        fig.tight_layout(pad=0.3)
+        buf = io.BytesIO()
+        fig.savefig(buf, format="png", bbox_inches="tight", dpi=72)
+        plt.close(fig)
+        buf.seek(0)
+        images.append(base64.b64encode(buf.read()).decode("utf-8"))
+    return images
     """Extract just the site plan page from a PDF as a single-page PDF."""
     import fitz, io
     try:
@@ -624,15 +656,9 @@ async def rank_shapes(request: Request):
         if not survey_b64 or not candidates:
             return {"ok": False, "error": "Missing survey data or candidates"}
 
-        # Build shapes description for prompt
-        shapes_lines = []
-        for i, c in enumerate(candidates):
-            verts = c.get("vertices", [])
-            area = c.get("area", 0)
-            edges = c.get("edges", [])
-            edge_desc = ", ".join([f"{e['length']}' ({e.get('label') or e.get('neighborLabel') or e['type']})" for e in edges])
-            shapes_lines.append(f"Shape {i}: area={area} SF, edges=[{edge_desc}]")
-        shapes_text = "\n".join(shapes_lines)
+        # S52: Render candidate shapes as images for visual comparison
+        shape_images = render_candidate_images(candidates)
+        print(f"Rendered {len(shape_images)} shape images for ranking")
 
         # Get just the site plan page
         if file_type == "pdf":
@@ -642,13 +668,20 @@ async def rank_shapes(request: Request):
             media_type = "image/png" if survey_b64[:4] == "iVBO" else "image/jpeg"
             doc_block = {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": survey_b64}}
 
-        prompt = SHAPE_RANK_PROMPT.replace("{shapes_text}", shapes_text)
+        # Build content blocks: survey page + shape images + prompt
+        content_blocks = [doc_block]
+        for si, img_b64 in enumerate(shape_images):
+            content_blocks.append({"type": "text", "text": f"CANDIDATE SHAPE {si}:"})
+            content_blocks.append({"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": img_b64}})
+
+        prompt = SHAPE_RANK_PROMPT.replace("{shapes_text}", f"{len(shape_images)} candidate shapes shown as images above")
+        content_blocks.append({"type": "text", "text": prompt})
 
         payload = {
             "model": "claude-opus-4-6",
             "max_tokens": 1024,
             "temperature": 0,
-            "messages": [{"role": "user", "content": [doc_block, {"type": "text", "text": prompt}]}]
+            "messages": [{"role": "user", "content": content_blocks}]
         }
 
         import urllib.request, urllib.error
