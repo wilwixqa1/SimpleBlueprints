@@ -71,19 +71,40 @@ function SurveyPreview({ b64, fileType }) {
 }
 window.SurveyPreview = SurveyPreview;
 
+// S53: Rotate lot vertices to match survey orientation for display
+// Shapes are generated with street at bottom. This rotates around centroid.
+function _rotateVertsForDisplay(verts, streetSide) {
+  if (!streetSide || streetSide === "bottom") return verts;
+  var cx = 0, cy = 0;
+  for (var i = 0; i < verts.length; i++) { cx += verts[i][0]; cy += verts[i][1]; }
+  cx /= verts.length; cy /= verts.length;
+  // CCW pi/2 moves bottom to right, CW -pi/2 moves bottom to left, pi moves bottom to top
+  var angles = { top: Math.PI, right: Math.PI / 2, left: -Math.PI / 2 };
+  var theta = angles[streetSide] || 0;
+  if (theta === 0) return verts;
+  var cosT = Math.cos(theta), sinT = Math.sin(theta);
+  return verts.map(function(v) {
+    var dx = v[0] - cx, dy = v[1] - cy;
+    return [cx + dx * cosT - dy * sinT, cy + dx * sinT + dy * cosT];
+  });
+}
+window._rotateVertsForDisplay = _rotateVertsForDisplay;
+
 // S48: Shape cards for compare view with preview selection
-function CompareShapes({ candidates, previewIdx }) {
+function CompareShapes({ candidates, previewIdx, streetSide }) {
   if (!candidates || candidates.length === 0) return React.createElement("div", { style: { fontSize: 10, color: _br.mu, fontFamily: _mono } }, "No shapes available");
   var edgeColors = ["#e53935", "#2563eb", "#8B7355", "#7c3aed", "#0d9488"];
   return React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 8 } },
     candidates.map(function(cand, ci) {
       var isSelected = previewIdx === ci;
-      var cv = cand.vertices;
-      var cmaxX = 0, cmaxY = 0;
-      cv.forEach(function(v) { if (v[0] > cmaxX) cmaxX = v[0]; if (v[1] > cmaxY) cmaxY = v[1]; });
-      var cpad = Math.max(cmaxX, cmaxY) * 0.12;
-      var cvbW = cmaxX + cpad * 2, cvbH = cmaxY + cpad * 2;
-      var cpts = cv.map(function(v) { return (v[0] + cpad).toFixed(1) + "," + (cvbH - v[1] - cpad).toFixed(1); }).join(" ");
+      var cv = _rotateVertsForDisplay(cand.vertices, streetSide);
+      // Compute bounding box from rotated vertices
+      var cminX = Infinity, cminY = Infinity, cmaxX = -Infinity, cmaxY = -Infinity;
+      cv.forEach(function(v) { if (v[0] < cminX) cminX = v[0]; if (v[1] < cminY) cminY = v[1]; if (v[0] > cmaxX) cmaxX = v[0]; if (v[1] > cmaxY) cmaxY = v[1]; });
+      var cw = cmaxX - cminX, ch = cmaxY - cminY;
+      var cpad = Math.max(cw, ch) * 0.12;
+      var cvbW = cw + cpad * 2, cvbH = ch + cpad * 2;
+      var cpts = cv.map(function(v) { return (v[0] - cminX + cpad).toFixed(1) + "," + (cvbH - (v[1] - cminY) - cpad).toFixed(1); }).join(" ");
       var csw = Math.max(1.5, cvbW / 200);
       return React.createElement("div", {
         key: ci,
@@ -98,8 +119,8 @@ function CompareShapes({ candidates, previewIdx }) {
             React.createElement("polygon", { points: cpts, fill: isSelected ? "rgba(46,125,50,0.12)" : "rgba(61,90,46,0.08)", stroke: isSelected ? "#2e7d32" : "#3d5a2e", strokeWidth: csw, strokeLinejoin: "round" }),
             cv.map(function(v, vi) {
               var v2 = cv[(vi + 1) % cv.length];
-              var mx = (v[0] + v2[0]) / 2 + cpad;
-              var my = cvbH - ((v[1] + v2[1]) / 2) - cpad;
+              var mx = (v[0] + v2[0]) / 2 - cminX + cpad;
+              var my = cvbH - ((v[1] + v2[1]) / 2 - cminY) - cpad;
               var col = edgeColors[vi % edgeColors.length];
               return React.createElement("circle", { key: vi, cx: mx.toFixed(1), cy: my.toFixed(1), r: 3, fill: col });
             })
@@ -994,7 +1015,7 @@ function StepContent(props) {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
-          body: JSON.stringify({ surveyData: sitePlanB64, candidates: candidateData, fileType: fileType })
+          body: JSON.stringify({ surveyData: sitePlanB64, candidates: candidateData, fileType: fileType, streetSide: extractResult && extractResult.streetSide || "bottom" })
         });
         var data = await res.json();
         console.log("Stage 2 response ok:", data.ok);
