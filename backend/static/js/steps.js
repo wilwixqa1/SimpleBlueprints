@@ -666,7 +666,11 @@ function StepContent(props) {
     setGuideHistory(function(prev) {
       var copy = prev.slice();
       var last = copy.pop();
-      if (last) setGuidePhase(last);
+      // S52: Skip transient phases that are not meaningful to return to
+      while (last === 'extracting' && copy.length > 0) {
+        last = copy.pop();
+      }
+      if (last && last !== 'extracting') setGuidePhase(last);
       return copy;
     });
   }
