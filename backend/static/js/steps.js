@@ -1412,7 +1412,7 @@ function StepContent(props) {
         <div style={{ padding: 14, background: "#e8f5e9", borderRadius: 8, border: "1px solid #c8e6c9", marginBottom: 14 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
             <span style={{ fontSize: 10, fontWeight: 700, color: "#2e7d32", fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>{"\uD83D\uDCCD"} Tracing Lot Boundary</span>
-            <button onClick={function() { setTraceMode(false); }} style={{ padding: "4px 12px", fontSize: 9, fontFamily: _mono, cursor: "pointer", border: "1px solid #fca5a5", borderRadius: 4, background: "#fef2f2", color: "#dc2626" }}>Cancel</button>
+            <button onClick={function() { setTraceMode(false); if (sitePlanB64 && shapeCandidates.length > 0 && extractResult && setCompareMode) setCompareMode(true); }} style={{ padding: "4px 12px", fontSize: 9, fontFamily: _mono, cursor: "pointer", border: "1px solid #fca5a5", borderRadius: 4, background: "#fef2f2", color: "#dc2626" }}>Cancel</button>
           </div>
 
           {/* S43: Extraction status */}
@@ -1631,7 +1631,7 @@ function StepContent(props) {
         </div>
 
         <div style={{ display: "flex", justifyContent: "space-between" }}>
-          <button onClick={function() { setTraceMode(false); }} style={{ padding: "9px 18px", border: "1px solid " + _br.bd, borderRadius: 6, background: "transparent", color: _br.mu, cursor: "pointer", fontFamily: _mono, fontSize: 11, fontWeight: 600 }}>{"\u2190"} Back to Site Plan</button>
+          <button onClick={function() { setTraceMode(false); if (sitePlanB64 && shapeCandidates.length > 0 && extractResult && setCompareMode) setCompareMode(true); }} style={{ padding: "9px 18px", border: "1px solid " + _br.bd, borderRadius: 6, background: "transparent", color: _br.mu, cursor: "pointer", fontFamily: _mono, fontSize: 11, fontWeight: 600 }}>{"\u2190"} Back to Site Plan</button>
         </div>
       </>;
     }

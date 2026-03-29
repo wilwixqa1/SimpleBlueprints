@@ -881,11 +881,13 @@ const App = function SimpleBlueprints() {
                 </div>
               </div>}
               {step === 0 && !traceMode && !compareMode && SitePlanView && <SitePlanView p={p} c={c} u={u} />}
-              {step === 0 && traceMode && TraceView && <TraceView
+              {step === 0 && traceMode && TraceView && <div>
+                <div style={{ fontSize: 10, color: "#1e40af", fontFamily: mono, marginBottom: 10, lineHeight: 1.6, padding: "8px 12px", background: "#eff6ff", borderRadius: 6, border: "1px solid #bfdbfe" }}>{"\uD83D\uDCA1"} Use the <strong>page buttons</strong> to find your lot boundary. Then <strong>click each corner</strong> of your property, starting anywhere. Scroll to zoom in for precision.</div>
+                <TraceView
                 surveyB64={sitePlanB64}
                 surveyFileType={sitePlanFile && sitePlanFile.name.toLowerCase().endsWith(".pdf") ? "pdf" : "image"}
                 ts={traceState} setTs={setTraceState}
-              />}
+              /></div>}
               {step !== 0 && view === "plan" && <>
                 <div style={{ display: "flex", gap: 4, marginBottom: 8, flexWrap: "wrap" }}>
                   {[["plan", "Deck Plan"], ["framing", "Framing"]].map(([id, label]) => <button key={id} onClick={() => setPlanMode(id)} style={{ padding: "4px 10px", fontSize: 9, fontFamily: mono, cursor: "pointer", border: planMode === id ? `1px solid ${br.gn}` : `1px solid ${br.bd}`, background: planMode === id ? br.gn : "transparent", color: planMode === id ? "#fff" : br.mu, borderRadius: 4, fontWeight: planMode === id ? 700 : 400 }}>{label}</button>)}
