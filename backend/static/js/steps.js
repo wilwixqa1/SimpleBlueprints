@@ -849,6 +849,8 @@ function StepContent(props) {
     var userMsg = { role: "user", text: msg };
     setChatMessages(function(prev) { return prev.concat([userMsg]); });
     setChatLoading(true);
+    // S55: Track AI helper message
+    if (window._trackEvent) window._trackEvent('ai_helper_message', { message_length: msg.length, step: step, guide_phase: guidePhase });
 
     var extSummary = "";
     if (extractResult) {
@@ -872,7 +874,7 @@ function StepContent(props) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ message: msg, step: step, params: p, history: apiHistory, extractionSummary: extSummary, guidePhase: guidePhase })
+      body: JSON.stringify({ message: msg, step: step, params: p, history: apiHistory, extractionSummary: extSummary, guidePhase: guidePhase, sessionId: window._sbSessionId || "", anonymousId: window._sbAnonymousId || "" })
     }).then(function(res) {
       if (!res.ok) throw new Error("Server error: " + res.status);
       var reader = res.body.getReader();
@@ -986,6 +988,9 @@ function StepContent(props) {
   function guideAdvance(nextPhase) {
     setGuideHistory(function(prev) { return prev.concat([guidePhase]); });
     setGuidePhase(nextPhase);
+    // S55: Expose guide phase for tracking and track phase change
+    window._currentGuidePhase = nextPhase;
+    if (window._trackEvent) window._trackEvent('guide_phase_change', { from_phase: guidePhase, to_phase: nextPhase });
     // Auto-expand the section for the new phase
     var ph = _guidePhaseMap[nextPhase];
     if (ph && ph.sections) {
@@ -1063,6 +1068,8 @@ function StepContent(props) {
   }
 
   function guideChoose(mode) {
+    // S55: Track guide choice
+    if (window._trackEvent) window._trackEvent('guide_choice', { choice: mode });
     if (mode === 'guided') {
       setGuideActive(true);
       setGuidePhase('has_survey');
@@ -1186,6 +1193,8 @@ function StepContent(props) {
       window._selectShape = function(ci) {
         var cand = shapeCandidates[ci];
         if (!cand) return;
+        // S55: Track shape confirmed
+        if (window._trackEvent) window._trackEvent('shape_confirmed', { shape_index: ci, source: 'manual', candidate_count: shapeCandidates.length });
         var cv = cand.vertices;
         var cmaxX = 0, cmaxY = 0;
         cv.forEach(function(v) { if (v[0] > cmaxX) cmaxX = v[0]; if (v[1] > cmaxY) cmaxY = v[1]; });
@@ -1333,6 +1342,8 @@ function StepContent(props) {
           console.log("Stage 2 success:", JSON.stringify(data.data));
           setRankingResult(data.data);
           window._rankingResult = data.data;
+          // S55: Track shape ranking complete
+          if (window._trackEvent) window._trackEvent('shape_ranking_complete', { best_index: data.data.bestShapeIndex, confidence: data.data.confidence || '', streetSide: data.data.streetSide || '' });
           // S54: Adjust northAngle for canonical lot orientation (street-at-bottom)
           // Opus returns north relative to survey drawing; our rendering rotates the lot
           // based on streetSide, so north arrow must rotate by the same amount.
@@ -2568,6 +2579,8 @@ function StepContent(props) {
             var file = e.target.files[0]; if (!file) return;
             setSitePlanFile(file);
             setSitePlanMode("upload");
+            // S55: Track survey upload
+            if (window._trackEvent) window._trackEvent('survey_upload', { file_type: file.name.split('.').pop(), file_size: file.size });
             var reader = new FileReader();
             reader.onload = function() { setSitePlanB64(reader.result.split(",")[1]); };
             reader.readAsDataURL(file);
@@ -2613,6 +2626,8 @@ function StepContent(props) {
               var data = await res.json();
               if (data.ok) {
                 setExtractResult(data.data);
+                // S55: Track extraction success
+                if (window._trackEvent) window._trackEvent('extraction_complete', { success: true, edge_count: (data.data.lotEdges||[]).length, area: data.data.lotArea||0, confidence: data.data.confidence||'' });
                 // S52: Store site plan page index for SurveyPreview
                 if (data.sitePageIndex != null) window._sitePageIndex = data.sitePageIndex;
                 var hasShapes = data.data.lotEdges && data.data.lotEdges.length >= 4 && data.data.lotArea;
@@ -2628,6 +2643,8 @@ function StepContent(props) {
                 }
               } else {
                 setExtractError(data.error || "Extraction failed");
+                // S55: Track extraction failure
+                if (window._trackEvent) window._trackEvent('extraction_error', { error: data.error || 'Extraction failed' });
                 setTraceState({
                   calPoints: [], calDist: "", ppf: null,
                   vertices: [], edgeMeta: [], edgeLengths: [],
@@ -2639,6 +2656,8 @@ function StepContent(props) {
               }
             } catch(e) {
               setExtractError(e.message);
+              // S55: Track extraction exception
+              if (window._trackEvent) window._trackEvent('extraction_error', { error: e.message });
               setTraceState({
                 calPoints: [], calDist: "", ppf: null,
                 vertices: [], edgeMeta: [], edgeLengths: [],
