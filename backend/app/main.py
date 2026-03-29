@@ -302,7 +302,7 @@ Required fields (use null if not found or not readable):
 - zip: ZIP or postal code (string)
 - parcelId: lot number from the plat (e.g. "LOT 36", "LOT 46"). Use the lot number, not the parcel ID number or account number. Look for "LOT XX" labels on the site plan.
 - streetName: name of the street the property faces (string)
-- northAngle: orientation of the north arrow in degrees clockwise from straight up (number, 0-359). Look for a north arrow or compass rose on the survey. If the arrow points straight up, northAngle is 0. If it points to the upper-right, estimate the clockwise angle. Use null if no north arrow is visible.
+- northAngle: orientation of north on this survey. Instead of estimating exact degrees, choose the closest cardinal direction that north points toward on the drawing: 0 = up, 45 = upper-right, 90 = right, 135 = lower-right, 180 = down, 225 = lower-left, 270 = left, 315 = upper-left. Look for a north arrow or compass rose. Use null if no north arrow is visible.
 - houseXPercent: house center X position as percentage of lot bounding box width (number, 0-100). See HOUSE POSITION ESTIMATION below.
 - houseYPercent: house center Y position as percentage from street to rear (number, 0-100). See HOUSE POSITION ESTIMATION below.
 
@@ -329,6 +329,12 @@ For irregular lots with more than 4 sides (e.g. pie-shaped, cul-de-sac), include
 For curved property lines (arcs), use the arc length as the length value. If only arc notation is given (e.g. "L=49.11, R=1005'"), use the L value as the length. Keep type as "property" for curved boundaries.
 
 If the lot is clearly rectangular (all angles are 90 degrees and opposite sides are equal), set lotEdges to null and just use lotWidth/lotDepth.
+
+QUALITATIVE SHAPE ANALYSIS (helps reduce candidate shapes):
+Also include these fields to help identify the correct lot shape:
+- cornerAngles: array of approximate interior angles at each vertex IN THE SAME ORDER as lotEdges (degrees, number). Start at the corner between the street edge and the first clockwise edge. For a perfect rectangle, all angles are 90. For pie-shaped or irregular lots, corners may be 80, 95, 110, etc. Estimate from the drawing. Use null if you cannot determine angles.
+- lotShapeDescription: brief text description of the lot shape, e.g. "roughly rectangular", "narrow pie-shaped lot wider at street", "trapezoid narrowing toward rear", "L-shaped with jog on east side" (string)
+- isConvex: true if all corners point outward (no indentations), false if one or more corners point inward creating a concave shape (boolean). Most residential lots are convex.
 
 Also include a "confidence" object with the same keys (including "lotEdges" and "lotArea"), each "high", "medium", or "low".
 
@@ -415,8 +421,8 @@ async def extract_survey(request: Request):
 
         payload = {
             "model": "claude-opus-4-6",
-            "max_tokens": 1024,
-            "temperature": 0,
+            "max_tokens": 4096,
+            "thinking": {"type": "adaptive"},
             "messages": [{
                 "role": "user",
                 "content": [doc_block, {"type": "text", "text": SURVEY_EXTRACT_PROMPT}]
@@ -435,9 +441,14 @@ async def extract_survey(request: Request):
             }
         )
 
-        with urllib.request.urlopen(req, timeout=60) as resp:
+        with urllib.request.urlopen(req, timeout=120) as resp:
             result = json.loads(resp.read().decode("utf-8"))
-            text = result["content"][0]["text"]
+            # S52: Find the text block (skip thinking blocks)
+            text = ""
+            for block in result.get("content", []):
+                if block.get("type") == "text":
+                    text = block.get("text", "")
+                    break
             text = text.strip()
             if not text.startswith("{"):
                 start = text.find("{")
