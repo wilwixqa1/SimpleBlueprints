@@ -669,6 +669,10 @@ function GuidePanel({ phase, onAction, onBack, history, onToggleOff, message, ti
               else if (act.siteElementUpdate) chipText = "Updated " + (act.siteElementUpdate.type || "element");
               else if (act.siteElementAdd) chipText = "Added " + (act.siteElementAdd.type || "element");
               else if (act.siteElementRemove) chipText = "Removed element";
+              else if (act.zoneAdd) chipText = "Added zone (" + (act.zoneAdd.edge || "left") + ")";
+              else if (act.cutoutAdd) chipText = "Added cutout (" + (act.cutoutAdd.edge || "front") + ")";
+              else if (act.chamferSet) chipText = (act.chamferSet.enabled ? "Chamfer " : "Removed chamfer ") + (act.chamferSet.corner || "");
+              else if (act.zoneRemove) chipText = "Removed zone";
               else return null;
               return <span key={ai} style={{
                 fontSize: 9, fontFamily: _mono, color: _br.gn, fontWeight: 700,
@@ -922,6 +926,35 @@ function StepContent(props) {
         var rmIdx = act.siteElementRemove.index;
         var els3 = (p.siteElements || []).slice();
         if (rmIdx >= 0 && rmIdx < els3.length) { els3.splice(rmIdx, 1); u("siteElements", els3); }
+      }
+      // S56: Zone add action - creates L-shaped, wraparound, extensions
+      if (act.zoneAdd) {
+        var za = act.zoneAdd;
+        var newZoneId = p.nextZoneId;
+        addZone(za.parentId || 0, za.edge || "left");
+        setTimeout(function() {
+          if (za.width) updateZone(newZoneId, "w", za.width);
+          if (za.depth) updateZone(newZoneId, "d", za.depth);
+        }, 100);
+      }
+      // S56: Cutout add action - creates notches in deck
+      if (act.cutoutAdd) {
+        var ca = act.cutoutAdd;
+        var cutId = p.nextZoneId;
+        addCutout(ca.parentId || 0, ca.edge || "front");
+        setTimeout(function() {
+          if (ca.width) updateZone(cutId, "w", ca.width);
+          if (ca.depth) updateZone(cutId, "d", ca.depth);
+        }, 100);
+      }
+      // S56: Chamfer set action - angled corners
+      if (act.chamferSet) {
+        var cs = act.chamferSet;
+        setCorner(cs.zoneId != null ? cs.zoneId : 0, cs.corner, cs.enabled ? "chamfer" : "square", cs.size || 3);
+      }
+      // S56: Zone remove action
+      if (act.zoneRemove) {
+        removeZone(act.zoneRemove.zoneId || act.zoneRemove);
       }
     });
   }

@@ -779,6 +779,10 @@ AI_HELPER_PARAMS = {
             "hasStairs": {"desc": "Whether the deck has stairs", "type": "boolean"},
             "stairLocation": {"desc": "Which side stairs exit from", "type": "choice", "options": ["front", "left", "right"]},
             "stairWidth": {"desc": "Stair width in feet", "min": 3, "max": 8, "type": "number"},
+            "stairTemplate": {"desc": "Stair layout template", "type": "choice", "options": ["straight", "lLeft", "lRight", "switchback", "wrapAround", "wideLanding"]},
+            "hasLanding": {"desc": "Whether stairs have a landing pad at the bottom", "type": "boolean"},
+            "numStringers": {"desc": "Number of stair stringers (structural supports)", "min": 2, "max": 5, "type": "number"},
+            "stairOffset": {"desc": "Stair offset from center of the deck edge (negative=left, positive=right)", "type": "number"},
             "deckOffset": {"desc": "Horizontal offset of deck center from house center (negative=left, positive=right)", "type": "number"},
             "attachment": {"desc": "How deck attaches to house", "type": "choice", "options": ["ledger", "freestanding"]},
         }
@@ -924,11 +928,13 @@ When user says "stairs parallel to the deck/house" they likely mean stairLocatio
 When user says "stairs overlap" or "run alongside" the deck, they mean the stair run is parallel to the deck face, which is stairLocation="left" or "right", or stairTemplate="switchback".
 
 HOW COMPLEX TASKS WORK:
-- To make an L-shaped deck: Navigate to the preview panel, switch to "+" mode, click the edge where you want the extension. This creates a new zone. Then adjust width/depth in the zone controls.
+- To make an L-shaped deck: Use a zoneAdd action to add a zone on the desired edge. Example: {{"zoneAdd":{{"edge":"left","width":10,"depth":8}}}} adds a 10x8 extension on the left side.
+- To make a wraparound deck: Add zones on multiple edges. Example: add one zone on the left and another on the right to wrap around the house.
 - To change stair shape/template: Set the stairTemplate param directly (e.g. stairTemplate="switchback"). Also set hasStairs=true if not already. Then optionally navigate to "stairTemplate" to show the user their options.
-- To add angled corners (chamfers): Navigate to "chamfer". Toggle the corners you want angled, then adjust the chamfer size with the slider.
-- To cut a notch in the deck: In the preview panel, switch to scissors mode, click the edge where you want the cutout. Then adjust cutout size.
-- To reposition the deck: Navigate to "advanced" to expand it, then adjust deck offset slider. Or drag the deck in the preview panel.
+- To add angled corners (chamfers): Use a chamferSet action. Corners are BL (back-left), BR (back-right), FL (front-left), FR (front-right). Example: {{"chamferSet":{{"corner":"FR","enabled":true,"size":4}}}} adds a 4-foot 45-degree chamfer on the front-right corner.
+- To cut a notch in the deck: Use a cutoutAdd action. Example: {{"cutoutAdd":{{"edge":"front","width":4,"depth":4}}}} cuts a 4x4 notch from the front edge.
+- To remove a zone or cutout: Use {{"zoneRemove":{{"zoneId":1}}}} with the zone's ID number.
+- To reposition the deck: Set deckOffset param directly (negative=left, positive=right). Or navigate to "advanced" to show the slider.
 - To toggle landing pad on/off: Set hasLanding directly (true/false). This is a simple toggle, no need to navigate.""",
         2: """PREVIEW PANEL: Shows the Deck Plan with structural members (joists, beams, posts) overlaid.
 
@@ -986,6 +992,22 @@ ACTIONS:[{{"navigate":"stairTemplate"}}]
 Example with site element update:
 Done! I've shrunk the garage from 24' to 20' wide. You can fine-tune it in the Site Elements section.
 ACTIONS:[{{"siteElementUpdate":{{"index":0,"w":20}}}}]
+
+Example adding a zone (L-shaped deck):
+I've added a 10' by 8' extension on the left side of your deck to create that L-shape. Check the preview!
+ACTIONS:[{{"zoneAdd":{{"edge":"left","width":10,"depth":8}}}},{{"classify":"configuration_help"}}]
+
+Example adding a chamfer:
+Done! I've added a 4-foot 45-degree chamfer on the front-right corner.
+ACTIONS:[{{"chamferSet":{{"corner":"FR","enabled":true,"size":4}}}},{{"classify":"configuration_help"}}]
+
+Example adding a cutout:
+I've cut a 4' by 4' notch from the front edge. This is useful if you need clearance around a post or tree.
+ACTIONS:[{{"cutoutAdd":{{"edge":"front","width":4,"depth":4}}}},{{"classify":"configuration_help"}}]
+
+Example with stair template:
+I've set up L-shaped stairs turning left from the front of the deck. They'll go straight out, then turn left on a landing.
+ACTIONS:[{{"param":"hasStairs","value":true}},{{"param":"stairLocation","value":"front"}},{{"param":"stairTemplate","value":"lLeft"}},{{"classify":"configuration_help"}}]
 
 Example without actions:
 A setback is the minimum distance your deck must be from the property line. Your building department sets these requirements, and they vary by jurisdiction.
@@ -1172,17 +1194,24 @@ async def ai_helper(request: Request):
             system_prompt += """
 
 REFERENCE IMAGE ANALYSIS:
-The user has shared a reference photo. Analyze it carefully and map what you see to settable parameters. Look for:
-- Deck shape/layout: rectangular, L-shaped, multi-level, wraparound
-- Approximate proportions: estimate width vs depth ratio
-- Stair configuration: straight, L-turn, switchback, wrap, location (front/left/right)
-- Railing style: metal/iron (use fortress) or wood
+The user has shared a reference photo. Analyze it carefully and map what you see to settable parameters and actions. Look for:
+- Deck shape/layout: rectangular (just set width/depth), L-shaped (use zoneAdd on one edge), wraparound (use zoneAdd on two edges, e.g. left and right)
+- Approximate proportions: estimate width vs depth ratio for main deck and any extensions
+- Stair configuration: straight, L-turn (stairTemplate="lLeft" or "lRight"), switchback/U-turn (stairTemplate="switchback"), wrap (stairTemplate="wrapAround"), wide landing (stairTemplate="wideLanding"). Also set stairLocation ("front", "left", "right") based on where stairs exit.
+- Railing style: metal/iron (use railType="fortress") or wood (railType="wood")
 - Decking material: composite (uniform color, no grain) or pressure-treated wood (visible grain, knots)
 - Attachment: ledger (flush against house) or freestanding (gap/posts near house)
-- Corner modifications: chamfered/angled corners, and which ones
+- Corner modifications: angled/chamfered corners use chamferSet action. Corners are BL (back-left), BR (back-right), FL (front-left), FR (front-right). Estimate size in feet.
+- Cutouts/notches: use cutoutAdd action if the deck has sections removed (around trees, posts, etc.)
 - Height: estimate from stair count (each step is ~7.5 inches)
 
-Set as many parameters as you can confidently identify. Be honest about what you cannot determine from the photo. If the photo shows features not yet supported (pergola, built-in seating, planters, multi-level, hot tub, curved edges), acknowledge them and explain they are not yet available.
+ACTION MAPPING for complex shapes:
+- L-shaped deck: Set main deck width/depth, then use zoneAdd on the side edge for the extension.
+- Wraparound deck: Set main deck width/depth (the section along the house), then zoneAdd on "left" and/or "right" edges.
+- Angled corners: Use chamferSet for each visible angled corner.
+- Notched deck: Use cutoutAdd for each visible notch/cutout.
+
+Set as many parameters as you can confidently identify. Be honest about what you cannot determine from the photo. If the photo shows features not yet supported (pergola, built-in seating, planters, multi-level/split-level, hot tub, curved edges), acknowledge them and explain they are not yet available.
 
 Describe what you see FIRST in your response text (so the description stays in chat history for future turns), then set the params via ACTIONS."""
 
