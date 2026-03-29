@@ -775,6 +775,13 @@ const App = function SimpleBlueprints() {
     return Object.assign({}, p, overrides);
   }, [previewIdx, p]);
 
+  // S53: Compute effective orientation for shape display
+  var _streetSide = (window._rankingResult && window._rankingResult.streetSide) || (window._shapeCompareData && window._shapeCompareData.extractResult ? window._shapeCompareData.extractResult.streetSide : null);
+  // Auto-mirror for streetSide="top" (180 rotation + SVG Y-flip = net X-flip)
+  var _autoMirror = _streetSide === "top";
+  // XOR: shapeMirrored toggles the auto-mirror on/off
+  var _effectiveMirrored = shapeMirrored !== _autoMirror;
+
   // HOME
   if (page === "home") return <HomePage setPage={setPage} />;
 
@@ -850,7 +857,7 @@ const App = function SimpleBlueprints() {
                   var bestCand = cands[bestIdx];
                   if (!bestCand) return null;
                   var streetSide = (window._rankingResult && window._rankingResult.streetSide) || (window._shapeCompareData.extractResult ? window._shapeCompareData.extractResult.streetSide : null);
-                  var rv = window._rotateVertsForDisplay ? window._rotateVertsForDisplay(bestCand.vertices, streetSide, shapeMirrored) : bestCand.vertices;
+                  var rv = window._rotateVertsForDisplay ? window._rotateVertsForDisplay(bestCand.vertices, streetSide, _effectiveMirrored) : bestCand.vertices;
                   var mnX = Infinity, mnY = Infinity, mxX = -Infinity, mxY = -Infinity;
                   rv.forEach(v => { if (v[0] < mnX) mnX = v[0]; if (v[1] < mnY) mnY = v[1]; if (v[0] > mxX) mxX = v[0]; if (v[1] > mxY) mxY = v[1]; });
                   var sw = mxX - mnX, sh = mxY - mnY, sp = Math.max(sw, sh) * 0.12;
@@ -926,17 +933,11 @@ const App = function SimpleBlueprints() {
                     <span style={{ fontSize: 10, fontFamily: mono, color: "#92400e" }}>None of these look right?</span>
                     <button onClick={() => { setCompareMode(false); setTraceState({ calPoints: [], calDist: "", ppf: null, vertices: [], edgeMeta: [], edgeLengths: [], imgW: 0, imgH: 0, selectedEdge: null, selectedVertex: null, pdfPage: 1, pdfPageCount: 1 }); setTraceMode(true); }} style={{ fontSize: 10, fontFamily: mono, color: "#fff", background: "#ca8a04", border: "none", cursor: "pointer", fontWeight: 700, padding: "5px 14px", borderRadius: 5 }}>Trace Manually</button>
                   </div>
-                  <CompareShapes candidates={window._shapeCompareData ? window._shapeCompareData.candidates : []} previewIdx={previewIdx} streetSide={(window._rankingResult && window._rankingResult.streetSide) || (window._shapeCompareData && window._shapeCompareData.extractResult ? window._shapeCompareData.extractResult.streetSide : null)} mirrored={shapeMirrored} />
+                  <CompareShapes candidates={window._shapeCompareData ? window._shapeCompareData.candidates : []} previewIdx={previewIdx} streetSide={_streetSide} mirrored={_effectiveMirrored} />
                 </div> : <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
                   <div style={{ flex: "1 1 55%" }}>
                     <div style={{ fontSize: 8, fontWeight: 700, color: br.mu, fontFamily: mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 4 }}>Your Survey</div>
                     <SurveyPreview b64={sitePlanB64} fileType={sitePlanFile && sitePlanFile.name.toLowerCase().endsWith(".pdf") ? "pdf" : "image"} />
-                    {previewP && SitePlanView && <div style={{ marginTop: 10 }}>
-                      <div style={{ fontSize: 8, fontWeight: 700, color: br.mu, fontFamily: mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 4 }}>Site Plan Preview</div>
-                      <div style={{ border: "1px solid " + br.bd, borderRadius: 6, padding: 4, background: "#fff" }}>
-                        <SitePlanView p={previewP} c={c} u={() => {}} />
-                      </div>
-                    </div>}
                   </div>
                   <div style={{ flex: "1 1 45%", display: "flex", flexDirection: "column" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
@@ -948,7 +949,7 @@ const App = function SimpleBlueprints() {
                       <button onClick={() => { setCompareMode(false); setTraceState({ calPoints: [], calDist: "", ppf: null, vertices: [], edgeMeta: [], edgeLengths: [], imgW: 0, imgH: 0, selectedEdge: null, selectedVertex: null, pdfPage: 1, pdfPageCount: 1 }); setTraceMode(true); }} style={{ fontSize: 9, fontFamily: mono, color: "#fff", background: "#ca8a04", border: "none", cursor: "pointer", fontWeight: 700, padding: "4px 12px", borderRadius: 4 }}>Trace Manually</button>
                     </div>
                     <div style={{ maxHeight: "60vh", overflowY: "auto", flex: 1 }}>
-                      <CompareShapes candidates={window._shapeCompareData ? window._shapeCompareData.candidates : []} previewIdx={previewIdx} streetSide={(window._rankingResult && window._rankingResult.streetSide) || (window._shapeCompareData && window._shapeCompareData.extractResult ? window._shapeCompareData.extractResult.streetSide : null)} mirrored={shapeMirrored} />
+                      <CompareShapes candidates={window._shapeCompareData ? window._shapeCompareData.candidates : []} previewIdx={previewIdx} streetSide={_streetSide} mirrored={_effectiveMirrored} />
                     </div>
                     <button onClick={() => { if (window._selectShape) window._selectShape(previewIdx); }} style={{
                       width: "100%", padding: "12px", background: "#2e7d32", color: "#fff", border: "none",
