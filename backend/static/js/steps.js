@@ -840,6 +840,8 @@ function StepContent(props) {
   _stUE(function() {
     if (shapeCandidates.length > 0 && extractResult) {
       window._shapeCompareData = { candidates: shapeCandidates, extractResult: extractResult };
+      // S52: Reset function for "Start over" button in compare mode
+      window._resetExtraction = function() { setExtractResult(null); if (guideActive) { setGuidePhase('upload_survey'); setGuideHistory([]); } };
       // S52: Auto-enter compare mode when shapes found and survey exists
       if (sitePlanB64 && setCompareMode && !compareMode) {
         setCompareMode(true);
@@ -968,6 +970,7 @@ function StepContent(props) {
     } else {
       window._shapeCompareData = null;
       window._selectShape = null;
+      window._resetExtraction = null;
     }
   }, [shapeCandidates, extractResult]);
 
@@ -2366,7 +2369,7 @@ function StepContent(props) {
       </div>}
 
 
-      {extractResult && !traceMode && !compareMode && <div style={{ padding: 14, background: "#eff6ff", borderRadius: 8, border: "1px solid #93c5fd", marginBottom: 14 }}>
+      {extractResult && !traceMode && !compareMode && !(sitePlanB64 && shapeCandidates.length > 0) && <div style={{ padding: 14, background: "#eff6ff", borderRadius: 8, border: "1px solid #93c5fd", marginBottom: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
           <div style={{ fontSize: 9, fontWeight: 700, color: "#1d4ed8", fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>{"\u2728"} AI Extracted Dimensions</div>
           <button onClick={function() { setExtractResult(null); }} style={{ fontSize: 8, fontFamily: _mono, color: _br.mu, background: "none", border: "1px solid " + _br.bd, borderRadius: 4, padding: "3px 8px", cursor: "pointer" }}>Dismiss</button>

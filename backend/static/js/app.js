@@ -843,7 +843,7 @@ const App = function SimpleBlueprints() {
               {step === 0 && compareMode && sitePlanB64 && SurveyPreview && <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                   <span style={{ fontSize: 10, fontWeight: 700, color: br.dk, fontFamily: mono }}>Compare survey to proposed shapes</span>
-                  <button onClick={() => { if (previewIdx != null) { setPreviewIdx(null); window._previewShapeIndex = null; } else { setCompareMode(false); } }} style={{ fontSize: 9, fontFamily: mono, color: br.mu, background: "none", border: "1px solid " + br.bd, borderRadius: 4, padding: "4px 10px", cursor: "pointer" }}>{previewIdx != null ? "\u2190 All shapes" : "Back"}</button>
+                  <button onClick={() => { if (previewIdx != null) { setPreviewIdx(null); window._previewShapeIndex = null; } else { setCompareMode(false); if (window._resetExtraction) window._resetExtraction(); } }} style={{ fontSize: 9, fontFamily: mono, color: br.mu, background: "none", border: "1px solid " + br.bd, borderRadius: 4, padding: "4px 10px", cursor: "pointer" }}>{previewIdx != null ? "\u2190 All shapes" : "\u2190 Start over"}</button>
                 </div>
                 <div style={{ fontSize: 10, color: "#1e40af", fontFamily: mono, marginBottom: 10, lineHeight: 1.6, padding: "8px 12px", background: "#eff6ff", borderRadius: 6, border: "1px solid #bfdbfe" }}>{"\uD83D\uDCA1"} Use the <strong>page arrows</strong> to find your lot boundary. Then <strong>tap the shape</strong> that matches.</div>
 
