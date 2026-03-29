@@ -861,6 +861,12 @@ const App = function SimpleBlueprints() {
                     <div style={{ fontSize: 8, fontWeight: 700, color: br.mu, fontFamily: mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 4 }}>Proposed Shapes</div>
                     <div style={{ maxHeight: "60vh", overflowY: "auto", flex: 1 }}>
                       <CompareShapes candidates={window._shapeCompareData ? window._shapeCompareData.candidates : []} previewIdx={previewIdx} />
+                      <div style={{ marginTop: 10, textAlign: "center", padding: "8px 0" }}>
+                        <span style={{ fontSize: 9, color: br.mu, fontFamily: mono }}>None of these match? </span>
+                        <button onClick={() => { setCompareMode(false); setTraceState({ calPoints: [], calDist: "", ppf: null, vertices: [], edgeMeta: [], edgeLengths: [], imgW: 0, imgH: 0, selectedEdge: null, selectedVertex: null, pdfPage: 1, pdfPageCount: 1 }); setTraceMode(true); }} style={{ fontSize: 9, fontFamily: mono, color: "#2e7d32", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", fontWeight: 700 }}>
+                          Trace manually
+                        </button>
+                      </div>
                     </div>
                     {previewIdx != null && <button onClick={() => { if (window._selectShape) window._selectShape(previewIdx); }} style={{
                       width: "100%", padding: "12px", background: "#2e7d32", color: "#fff", border: "none",

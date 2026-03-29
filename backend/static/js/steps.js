@@ -2352,21 +2352,7 @@ function StepContent(props) {
             </div>;
           })}
         </div>}
-        <div style={{ marginTop: 10, textAlign: "center" }}>
-          <span style={{ fontSize: 9, color: _br.mu, fontFamily: _mono }}>None of these match? </span>
-          <button onClick={function() {
-            setTraceState({
-              calPoints: [], calDist: "", ppf: null,
-              vertices: [], edgeMeta: [], edgeLengths: [],
-              imgW: 0, imgH: 0,
-              selectedEdge: null, selectedVertex: null,
-              pdfPage: 1, pdfPageCount: 1
-            });
-            setTraceMode(true);
-          }} style={{ fontSize: 9, fontFamily: _mono, color: "#2e7d32", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", fontWeight: 700 }}>
-            Trace manually
-          </button>
-        </div>
+
       </div>}
 
 
