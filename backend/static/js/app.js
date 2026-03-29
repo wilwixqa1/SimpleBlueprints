@@ -861,11 +861,13 @@ const App = function SimpleBlueprints() {
                     <div style={{ fontSize: 8, fontWeight: 700, color: br.mu, fontFamily: mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 4 }}>Proposed Shapes</div>
                     <div style={{ maxHeight: "60vh", overflowY: "auto", flex: 1 }}>
                       <CompareShapes candidates={window._shapeCompareData ? window._shapeCompareData.candidates : []} previewIdx={previewIdx} />
-                      <div style={{ marginTop: 10, textAlign: "center", padding: "8px 0" }}>
-                        <span style={{ fontSize: 9, color: br.mu, fontFamily: mono }}>None of these match? </span>
-                        <button onClick={() => { setCompareMode(false); setTraceState({ calPoints: [], calDist: "", ppf: null, vertices: [], edgeMeta: [], edgeLengths: [], imgW: 0, imgH: 0, selectedEdge: null, selectedVertex: null, pdfPage: 1, pdfPageCount: 1 }); setTraceMode(true); }} style={{ fontSize: 9, fontFamily: mono, color: "#2e7d32", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", fontWeight: 700 }}>
-                          Trace manually
-                        </button>
+                      <div style={{ marginTop: 10, padding: 14, background: "#fefce8", border: "2px dashed #ca8a04", borderRadius: 8, textAlign: "center" }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: "#92400e", fontFamily: mono, marginBottom: 4 }}>{"\u270F\uFE0F"} My lot isn't here</div>
+                        <div style={{ fontSize: 9, color: "#a16207", fontFamily: mono, lineHeight: 1.5, marginBottom: 8 }}>Trace your lot boundary directly on the survey image</div>
+                        <button onClick={() => { setCompareMode(false); setTraceState({ calPoints: [], calDist: "", ppf: null, vertices: [], edgeMeta: [], edgeLengths: [], imgW: 0, imgH: 0, selectedEdge: null, selectedVertex: null, pdfPage: 1, pdfPageCount: 1 }); setTraceMode(true); }} style={{
+                          padding: "8px 20px", background: "#ca8a04", color: "#fff", border: "none",
+                          borderRadius: 6, cursor: "pointer", fontSize: 11, fontFamily: mono, fontWeight: 700
+                        }}>Trace Manually</button>
                       </div>
                     </div>
                     {previewIdx != null && <button onClick={() => { if (window._selectShape) window._selectShape(previewIdx); }} style={{

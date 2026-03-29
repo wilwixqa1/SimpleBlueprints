@@ -836,6 +836,12 @@ function StepContent(props) {
   _stUE(function() {
     if (shapeCandidates.length > 0 && extractResult) {
       window._shapeCompareData = { candidates: shapeCandidates, extractResult: extractResult };
+      // S52: Auto-enter compare mode when shapes found and survey exists
+      if (sitePlanB64 && setCompareMode && !compareMode) {
+        setCompareMode(true);
+        if (guideActive) guideAdvance('shape_select');
+        setTimeout(function() { window.scrollTo({ top: 0, behavior: "smooth" }); }, 50);
+      }
       window._selectShape = function(ci) {
         var cand = shapeCandidates[ci];
         if (!cand) return;
@@ -2292,8 +2298,8 @@ function StepContent(props) {
         {extractError && <div style={{ fontSize: 10, color: "#dc2626", fontFamily: _mono, marginTop: 6 }}>{"\u26A0\uFE0F"} {extractError}</div>}
       </div>}
 
-            {/* S47: Shape Picker - compare view or inline grid */}
-      {extractResult && !traceMode && !compareMode && shapeCandidates.length > 0 && <div style={{ padding: 14, background: "#f0fdf4", borderRadius: 8, border: "1px solid #bbf7d0", marginBottom: 14 }}>
+            {/* S47: Shape Picker - inline grid only (no survey image). S52: When survey exists, auto-enters compare mode */}
+      {extractResult && !traceMode && !compareMode && !sitePlanB64 && shapeCandidates.length > 0 && <div style={{ padding: 14, background: "#f0fdf4", borderRadius: 8, border: "1px solid #bbf7d0", marginBottom: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
           <span style={{ fontSize: 9, fontWeight: 700, color: "#2e7d32", fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>Select Your Lot Shape</span>
           <button onClick={function() { setExtractResult(null); }} style={{ fontSize: 8, fontFamily: _mono, color: _br.mu, background: "none", border: "1px solid " + _br.bd, borderRadius: 4, padding: "3px 8px", cursor: "pointer" }}>Dismiss</button>
