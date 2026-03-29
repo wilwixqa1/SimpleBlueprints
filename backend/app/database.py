@@ -1,13 +1,13 @@
 """
 SimpleBlueprints — Database
-PostgreSQL via psycopg2. Tables: users, generations.
+PostgreSQL via psycopg2. Tables: users, generations, page_views, events, ai_conversations.
 """
 
 import os
 import time
 import json
 import psycopg2
-from psycopg2.extras import RealDictCursor
+from psycopg2.extras import RealDictCursor, Json
 from contextlib import contextmanager
 
 DATABASE_URL = os.getenv("DATABASE_URL", "")
@@ -70,6 +70,53 @@ def init_tables():
                 user_agent TEXT
             )
         """)
+        # S55: Events table (lean analytics pipeline)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS events (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER,
+                anonymous_id TEXT,
+                session_id TEXT NOT NULL,
+                event_type TEXT NOT NULL,
+                event_data JSONB DEFAULT '{}',
+                step INTEGER,
+                guide_phase TEXT,
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_events_user ON events(user_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_events_anon ON events(anonymous_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_events_type ON events(event_type)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_events_session ON events(session_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_events_created ON events(created_at)")
+        # S55: AI Conversations table (full text for intelligence)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS ai_conversations (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER,
+                anonymous_id TEXT,
+                session_id TEXT NOT NULL,
+                step INTEGER,
+                guide_phase TEXT,
+                role TEXT NOT NULL,
+                message TEXT NOT NULL,
+                actions JSONB,
+                action_count INTEGER DEFAULT 0,
+                cost_cents REAL DEFAULT 0,
+                duration_ms INTEGER,
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_aiconv_session ON ai_conversations(session_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_aiconv_user ON ai_conversations(user_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_aiconv_created ON ai_conversations(created_at)")
+        # S55: Add stripe_customer_id to users if not exists
+        try:
+            cur.execute("""
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT
+            """)
+        except Exception:
+            pass
         cur.close()
 
 
@@ -173,6 +220,297 @@ def log_page_view(ip_hash: str, path: str, user_agent: str = ""):
             )
     except Exception as e:
         print(f"Page view log error: {e}")
+
+
+# ============================================================
+# EVENT TRACKING (S55)
+# ============================================================
+
+def log_event(event: dict):
+    """Insert a single tracking event. Fire-and-forget safe."""
+    try:
+        with get_db() as conn:
+            cur = conn.cursor()
+            cur.execute("""
+                INSERT INTO events (user_id, anonymous_id, session_id, event_type, event_data, step, guide_phase)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """, (
+                event.get("user_id"),
+                event.get("anonymous_id"),
+                event.get("session_id", ""),
+                event.get("event_type", "unknown"),
+                Json(event.get("event_data", {})),
+                event.get("step"),
+                event.get("guide_phase"),
+            ))
+    except Exception as e:
+        print(f"Event log error: {e}")
+
+
+def log_events_batch(events: list):
+    """Insert multiple tracking events in one transaction."""
+    if not events:
+        return
+    try:
+        with get_db() as conn:
+            cur = conn.cursor()
+            for event in events:
+                cur.execute("""
+                    INSERT INTO events (user_id, anonymous_id, session_id, event_type, event_data, step, guide_phase)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """, (
+                    event.get("user_id"),
+                    event.get("anonymous_id"),
+                    event.get("session_id", ""),
+                    event.get("event_type", "unknown"),
+                    Json(event.get("event_data", {})),
+                    event.get("step"),
+                    event.get("guide_phase"),
+                ))
+    except Exception as e:
+        print(f"Batch event log error: {e}")
+
+
+def link_anonymous_to_user(anonymous_id: str, user_id: int):
+    """On login, retroactively link anonymous events/conversations to the authenticated user."""
+    try:
+        with get_db() as conn:
+            cur = conn.cursor()
+            cur.execute("UPDATE events SET user_id = %s WHERE anonymous_id = %s AND user_id IS NULL", (user_id, anonymous_id))
+            cur.execute("UPDATE ai_conversations SET user_id = %s WHERE anonymous_id = %s AND user_id IS NULL", (user_id, anonymous_id))
+    except Exception as e:
+        print(f"Link anonymous error: {e}")
+
+
+# ============================================================
+# AI CONVERSATION LOGGING (S55)
+# ============================================================
+
+def log_ai_message(msg: dict):
+    """Log a single AI conversation message (user or assistant)."""
+    try:
+        with get_db() as conn:
+            cur = conn.cursor()
+            cur.execute("""
+                INSERT INTO ai_conversations
+                (user_id, anonymous_id, session_id, step, guide_phase, role, message, actions, action_count, cost_cents, duration_ms)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (
+                msg.get("user_id"),
+                msg.get("anonymous_id"),
+                msg.get("session_id", ""),
+                msg.get("step"),
+                msg.get("guide_phase"),
+                msg.get("role", "user"),
+                (msg.get("message", ""))[:5000],
+                Json(msg.get("actions")) if msg.get("actions") else None,
+                msg.get("action_count", 0),
+                msg.get("cost_cents", 0),
+                msg.get("duration_ms"),
+            ))
+    except Exception as e:
+        print(f"AI message log error: {e}")
+
+
+# ============================================================
+# TRACKING STATS (S55 Admin Dashboard)
+# ============================================================
+
+def get_tracking_stats(days: int = 30) -> dict:
+    """Get comprehensive tracking stats for the admin dashboard."""
+    with get_db() as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cutoff = f"NOW() - INTERVAL '{days} days'"
+
+        # --- FUNNEL COUNTS ---
+        funnel_types = [
+            "session_start", "auth_login", "survey_upload",
+            "extraction_complete", "shape_confirmed",
+            "step_change", "pdf_generate_complete",
+            "checkout_start", "checkout_complete"
+        ]
+        funnel = {}
+        for et in funnel_types:
+            cur.execute(f"""
+                SELECT COUNT(*) as total,
+                       COUNT(DISTINCT session_id) as sessions
+                FROM events WHERE event_type = %s AND created_at >= {cutoff}
+            """, (et,))
+            row = cur.fetchone()
+            funnel[et] = {"total": row["total"], "sessions": row["sessions"]}
+
+        # --- DAILY EVENT COUNTS (for chart) ---
+        cur.execute(f"""
+            SELECT DATE(created_at) as day, event_type, COUNT(*) as c
+            FROM events
+            WHERE created_at >= {cutoff}
+            GROUP BY day, event_type
+            ORDER BY day
+        """)
+        daily_raw = [dict(r) for r in cur.fetchall()]
+        # Reshape into {day: {type: count}}
+        daily = {}
+        for r in daily_raw:
+            d = str(r["day"])
+            if d not in daily:
+                daily[d] = {}
+            daily[d][r["event_type"]] = r["c"]
+
+        # --- EXTRACTION STATS ---
+        cur.execute(f"""
+            SELECT
+                COUNT(*) as total,
+                COUNT(*) FILTER (WHERE (event_data->>'success')::boolean = true) as successes,
+                AVG((event_data->>'duration_ms')::numeric) as avg_duration_ms,
+                AVG((event_data->>'confidence')::numeric) FILTER (WHERE event_data ? 'confidence') as avg_confidence
+            FROM events
+            WHERE event_type = 'extraction_complete' AND created_at >= {cutoff}
+        """)
+        extraction = dict(cur.fetchone())
+
+        # --- AUTO-CONFIRM / MIRROR STATS ---
+        cur.execute(f"""
+            SELECT
+                event_data->>'action' as action, COUNT(*) as c
+            FROM events
+            WHERE event_type = 'auto_confirm_action' AND created_at >= {cutoff}
+            GROUP BY action
+        """)
+        auto_confirm = {r["action"]: r["c"] for r in cur.fetchall()}
+
+        cur.execute(f"""
+            SELECT COUNT(*) as fires,
+                   COUNT(DISTINCT session_id) as sessions
+            FROM events
+            WHERE event_type = 'auto_mirror_fired' AND created_at >= {cutoff}
+        """)
+        auto_mirror = dict(cur.fetchone())
+
+        cur.execute(f"""
+            SELECT COUNT(*) as flips
+            FROM events
+            WHERE event_type = 'user_flip' AND created_at >= {cutoff}
+        """)
+        user_flips = cur.fetchone()["flips"]
+
+        # --- STEP TIMING ---
+        cur.execute(f"""
+            SELECT
+                (event_data->>'from_step')::int as from_step,
+                AVG((event_data->>'duration_on_prev_step_ms')::numeric) as avg_ms,
+                PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY (event_data->>'duration_on_prev_step_ms')::numeric) as median_ms,
+                COUNT(*) as transitions
+            FROM events
+            WHERE event_type = 'step_change' AND created_at >= {cutoff}
+                AND event_data ? 'duration_on_prev_step_ms'
+            GROUP BY from_step
+            ORDER BY from_step
+        """)
+        step_timing = [dict(r) for r in cur.fetchall()]
+
+        # --- AI HELPER STATS ---
+        cur.execute(f"""
+            SELECT
+                COUNT(*) as total_messages,
+                COUNT(DISTINCT session_id) as sessions_with_ai,
+                ROUND(COUNT(*)::numeric / GREATEST(COUNT(DISTINCT session_id), 1), 1) as avg_per_session,
+                SUM(cost_cents) as total_cost_cents,
+                ROUND(SUM(cost_cents)::numeric / GREATEST(COUNT(DISTINCT session_id), 1), 2) as avg_cost_per_session,
+                AVG(duration_ms) FILTER (WHERE role = 'assistant') as avg_response_ms,
+                SUM(action_count) FILTER (WHERE role = 'assistant') as total_actions,
+                COUNT(*) FILTER (WHERE role = 'assistant' AND action_count > 0) as responses_with_actions
+            FROM ai_conversations
+            WHERE created_at >= {cutoff}
+        """)
+        ai_stats = dict(cur.fetchone())
+
+        # --- AI: STUCK USERS (3+ messages same step without progressing) ---
+        cur.execute(f"""
+            SELECT session_id, step, COUNT(*) as msg_count,
+                   MIN(message) as first_msg
+            FROM ai_conversations
+            WHERE role = 'user' AND created_at >= {cutoff}
+            GROUP BY session_id, step
+            HAVING COUNT(*) >= 4
+            ORDER BY msg_count DESC
+            LIMIT 20
+        """)
+        stuck_sessions = [dict(r) for r in cur.fetchall()]
+
+        # --- AI: RECENT CONVERSATIONS (for review) ---
+        cur.execute(f"""
+            SELECT session_id, role, message, step, guide_phase, action_count,
+                   actions, created_at
+            FROM ai_conversations
+            WHERE created_at >= {cutoff}
+            ORDER BY created_at DESC
+            LIMIT 100
+        """)
+        recent_conversations = [dict(r) for r in cur.fetchall()]
+
+        # --- AI: UNIQUE USER MESSAGES (most common questions) ---
+        cur.execute(f"""
+            SELECT LOWER(TRIM(message)) as msg, COUNT(*) as c
+            FROM ai_conversations
+            WHERE role = 'user' AND created_at >= {cutoff}
+            GROUP BY msg
+            ORDER BY c DESC
+            LIMIT 30
+        """)
+        common_questions = [dict(r) for r in cur.fetchall()]
+
+        # --- ERROR EVENTS ---
+        cur.execute(f"""
+            SELECT event_type, event_data->>'error' as error, COUNT(*) as c
+            FROM events
+            WHERE event_type IN ('extraction_error', 'pdf_generate_error')
+                AND created_at >= {cutoff}
+            GROUP BY event_type, error
+            ORDER BY c DESC
+            LIMIT 20
+        """)
+        errors = [dict(r) for r in cur.fetchall()]
+
+        # --- SESSIONS OVERVIEW ---
+        cur.execute(f"""
+            SELECT COUNT(DISTINCT session_id) as total_sessions,
+                   COUNT(DISTINCT anonymous_id) FILTER (WHERE anonymous_id IS NOT NULL) as unique_visitors,
+                   COUNT(DISTINCT user_id) FILTER (WHERE user_id IS NOT NULL) as logged_in_users
+            FROM events
+            WHERE created_at >= {cutoff}
+        """)
+        sessions = dict(cur.fetchone())
+
+        # --- CHECKOUT STATS ---
+        cur.execute(f"""
+            SELECT
+                COUNT(*) FILTER (WHERE event_type = 'checkout_start') as starts,
+                COUNT(*) FILTER (WHERE event_type = 'checkout_complete') as completes,
+                COUNT(*) FILTER (WHERE event_type = 'checkout_abandon') as abandons
+            FROM events
+            WHERE event_type IN ('checkout_start', 'checkout_complete', 'checkout_abandon')
+                AND created_at >= {cutoff}
+        """)
+        checkout = dict(cur.fetchone())
+
+        return {
+            "period_days": days,
+            "sessions": sessions,
+            "funnel": funnel,
+            "daily": daily,
+            "extraction": extraction,
+            "auto_confirm": auto_confirm,
+            "auto_mirror": {**auto_mirror, "user_flips": user_flips},
+            "step_timing": step_timing,
+            "ai_helper": {
+                **ai_stats,
+                "stuck_sessions": stuck_sessions,
+                "common_questions": common_questions,
+                "recent_conversations": recent_conversations,
+            },
+            "checkout": checkout,
+            "errors": errors,
+        }
 
 
 # ============================================================
