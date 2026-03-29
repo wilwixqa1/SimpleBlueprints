@@ -9,6 +9,7 @@ import json
 import time
 import hashlib
 import base64
+import io
 from pathlib import Path
 from typing import Optional
 
