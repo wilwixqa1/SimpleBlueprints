@@ -414,7 +414,7 @@ async def extract_survey(request: Request):
             }
 
         payload = {
-            "model": "claude-sonnet-4-20250514",
+            "model": "claude-sonnet-4-6",
             "max_tokens": 1024,
             "temperature": 0,
             "messages": [{
@@ -430,7 +430,8 @@ async def extract_survey(request: Request):
             headers={
                 "Content-Type": "application/json",
                 "x-api-key": ANTHROPIC_API_KEY,
-                "anthropic-version": "2023-06-01"
+                "anthropic-version": "2023-06-01",
+                "anthropic-beta": "pdfs-2024-09-25"
             }
         )
 
