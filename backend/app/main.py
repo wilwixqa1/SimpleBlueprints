@@ -59,6 +59,7 @@ STRIPE_SECRET = os.getenv("STRIPE_SECRET_KEY", "")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
 SITE_URL = os.getenv("SITE_URL", "http://localhost:8000")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
 BLUEPRINT_PRICE = 2900
 
 PDF_DIR = Path("/tmp/blueprints")
@@ -1413,6 +1414,28 @@ async def submit_feedback(request: Request):
 # ============================================================
 # ADMIN
 # ============================================================
+
+def _check_admin(request: Request):
+    """Verify admin password from header. Raises 401 if wrong."""
+    if not ADMIN_PASSWORD:
+        return  # No password set = open access (dev mode)
+    pw = request.headers.get("X-Admin-Password", "")
+    if pw != ADMIN_PASSWORD:
+        raise HTTPException(status_code=401, detail="Invalid admin password")
+
+
+@app.post("/api/admin/login")
+async def admin_login(request: Request):
+    """Validate admin password."""
+    body = await request.json()
+    pw = body.get("password", "")
+    if not ADMIN_PASSWORD:
+        return {"ok": True}  # No password set = open
+    if pw == ADMIN_PASSWORD:
+        return {"ok": True}
+    raise HTTPException(status_code=401, detail="Invalid password")
+
+
 @app.get("/admin")
 async def admin():
     """Serve admin dashboard from static file (S55: moved out of inline HTML)."""
@@ -1422,16 +1445,19 @@ async def admin():
     return HTMLResponse(content="<h1>Admin dashboard not found</h1>", status_code=404)
 
 @app.get("/admin/api/stats")
-async def admin_stats():
+async def admin_stats(request: Request):
+    _check_admin(request)
     return get_stats()
 
 @app.get("/admin/api/tracking")
-async def admin_tracking(days: int = 30):
+async def admin_tracking(request: Request, days: int = 30):
     """S55: Tracking stats for new admin dashboard."""
+    _check_admin(request)
     return get_tracking_stats(min(days, 90))
 
 @app.get("/admin/api/users/csv")
-async def admin_csv():
+async def admin_csv(request: Request):
+    _check_admin(request)
     users = get_all_users()
     csv = "email,name,opted_in,created,last_login\n"
     for u in users:
