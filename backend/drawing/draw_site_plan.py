@@ -700,7 +700,7 @@ def draw_site_plan(fig, params, calc):
     _bg = patches.FancyBboxPatch(
         (_box_left, _box_bot), _box_right - _box_left, _total_h,
         boxstyle="round,pad=0.005", facecolor='white', edgecolor=BRAND["border"],
-        linewidth=0.8, transform=_tf, zorder=15, alpha=0.95)
+        linewidth=0.8, transform=_tf, zorder=0, alpha=1.0)
     _bg.set_clip_on(False)
     fig.add_artist(_bg)
 
