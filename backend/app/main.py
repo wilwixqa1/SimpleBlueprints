@@ -933,17 +933,27 @@ CURRENT VALUES:
 {extraction_note}{site_elements_note}
 {ui_map}
 
-RESPONSE FORMAT: Always respond with valid JSON only. No markdown, no backticks, no preamble.
-{{
-  "message": "Your conversational response to the user",
-  "actions": [
-    {{"param": "paramName", "value": newValue}},
-    {{"navigate": "sectionId"}},
-    {{"siteElementUpdate": {{"index": 0, "x": 10, "y": 20}}}},
-    {{"siteElementAdd": {{"type": "garage", "label": "GARAGE", "x": 10, "y": 50, "w": 20, "d": 20}}}},
-    {{"siteElementRemove": {{"index": 0}}}}
-  ]
-}}
+RESPONSE FORMAT:
+Write your response as plain text (this is what the user sees streaming in real-time).
+If you need to take actions, put them on the VERY LAST LINE starting with ACTIONS: followed by a JSON array.
+If no actions are needed, just write your plain text response with no ACTIONS line.
+
+Example with actions:
+I've set your deck to 20' wide by 14' deep. Check the preview to see how it looks!
+ACTIONS:[{{"param":"width","value":20}},{{"param":"depth","value":14}}]
+
+Example with navigate:
+You can change your stair style in the Stair Template section. I'll scroll you there now.
+ACTIONS:[{{"navigate":"stairTemplate"}}]
+
+Example with site element update:
+Done! I've shrunk the garage from 24' to 20' wide. You can fine-tune it in the Site Elements section.
+ACTIONS:[{{"siteElementUpdate":{{"index":0,"w":20}}}}]
+
+Example without actions:
+A setback is the minimum distance your deck must be from the property line. Your building department sets these requirements, and they vary by jurisdiction.
+
+IMPORTANT: Do NOT wrap your response in JSON or code fences. Write naturally as plain text. Only use the ACTIONS: line when you need to change values or navigate.
 
 RULES:
 - "actions" array is optional. Only include it when the user clearly wants to set/change a value or needs to see a specific section.
@@ -966,7 +976,7 @@ RULES:
 
 @app.post("/api/ai-helper")
 async def ai_helper(request: Request):
-    """AI-powered conversational guide assistant."""
+    """AI-powered conversational guide assistant with streaming."""
     user_id = get_current_user_id(request)
     if not user_id:
         raise HTTPException(status_code=401, detail="Login required")
@@ -986,67 +996,80 @@ async def ai_helper(request: Request):
 
         system_prompt = build_ai_helper_prompt(step, params, extraction_summary)
 
-        # Build conversation messages
         messages = []
-        # Include last 6 turns of history for context
         for h in history[-6:]:
             messages.append({"role": h["role"], "content": h["text"]})
         messages.append({"role": "user", "content": user_message})
 
         payload = {
             "model": "claude-sonnet-4-6",
-            "max_tokens": 500,
+            "max_tokens": 400,
             "temperature": 0.3,
             "system": system_prompt,
-            "messages": messages
+            "messages": messages,
+            "stream": True
         }
 
-        req = urllib.request.Request(
-            "https://api.anthropic.com/v1/messages",
-            data=json.dumps(payload).encode("utf-8"),
-            headers={
-                "Content-Type": "application/json",
-                "x-api-key": ANTHROPIC_API_KEY,
-                "anthropic-version": "2023-06-01"
-            }
-        )
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            result = json.loads(resp.read().decode("utf-8"))
-
-        text = ""
-        for block in result.get("content", []):
-            if block.get("type") == "text":
-                text += block["text"]
-
-        # Parse JSON response
-        text = text.strip()
-        # Strip markdown code fences if present
-        if text.startswith("```"):
-            text = text.split("\n", 1)[1] if "\n" in text else text[3:]
-        if text.endswith("```"):
-            text = text[:-3]
-        text = text.strip()
-
-        parsed = json.loads(text)
-        return {
-            "ok": True,
-            "message": parsed.get("message", ""),
-            "actions": parsed.get("actions", [])
-        }
-
-    except json.JSONDecodeError as je:
-        print(f"AI helper JSON parse error: {je}, raw: {text[:200] if 'text' in dir() else 'N/A'}")
-        # If we got text but it didn't parse as JSON, return the raw text as message
-        if 'text' in dir() and text:
-            return {"ok": True, "message": text, "actions": []}
-        return {"ok": False, "error": "Could not parse AI response"}
-    except urllib.error.HTTPError as he:
-        error_body = he.read().decode("utf-8", errors="replace")
-        print(f"AI helper HTTP error: {he.code} body: {error_body[:500]}")
-        return {"ok": False, "error": f"AI service error ({he.code})"}
     except Exception as e:
-        print(f"AI helper error: {e}")
         return {"ok": False, "error": str(e)}
+
+    async def generate():
+        import httpx
+        full_text = ""
+        try:
+            async with httpx.AsyncClient() as client:
+                async with client.stream(
+                    "POST",
+                    "https://api.anthropic.com/v1/messages",
+                    json=payload,
+                    headers={
+                        "Content-Type": "application/json",
+                        "x-api-key": ANTHROPIC_API_KEY,
+                        "anthropic-version": "2023-06-01"
+                    },
+                    timeout=30.0
+                ) as resp:
+                    buf = ""
+                    async for chunk in resp.aiter_text():
+                        buf += chunk
+                        while "\n" in buf:
+                            line, buf = buf.split("\n", 1)
+                            line = line.strip()
+                            if not line or not line.startswith("data: "):
+                                continue
+                            data_str = line[6:]
+                            if data_str == "[DONE]":
+                                continue
+                            try:
+                                evt = json.loads(data_str)
+                                if evt.get("type") == "content_block_delta":
+                                    delta = evt.get("delta", {})
+                                    if delta.get("type") == "text_delta":
+                                        token = delta.get("text", "")
+                                        full_text += token
+                                        yield f"data: {json.dumps({'t': token})}\n\n"
+                            except json.JSONDecodeError:
+                                pass
+        except Exception as e:
+            print(f"AI helper stream error: {e}")
+            yield f"data: {json.dumps({'t': f' (Error: {str(e)[:100]})'})}\n\n"
+
+        # Parse ACTIONS from the complete text
+        actions = []
+        message = full_text.strip()
+        lines = message.split("\n")
+        if lines and lines[-1].strip().startswith("ACTIONS:"):
+            actions_str = lines[-1].strip()[8:]
+            message = "\n".join(lines[:-1]).strip()
+            try:
+                actions = json.loads(actions_str)
+            except json.JSONDecodeError:
+                print(f"AI helper actions parse error: {actions_str[:200]}")
+
+        yield f"data: {json.dumps({'d': True, 'msg': message, 'actions': actions})}\n\n"
+
+    from starlette.responses import StreamingResponse
+    return StreamingResponse(generate(), media_type="text/event-stream")
 
 
 @app.post("/api/generate-test")

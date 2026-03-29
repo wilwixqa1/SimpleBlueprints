@@ -71,6 +71,45 @@ function SurveyPreview({ b64, fileType }) {
 }
 window.SurveyPreview = SurveyPreview;
 
+// S54: Simple markdown renderer for chat messages (bold, italic)
+function _renderChatText(text) {
+  if (!text) return null;
+  // Split by bold (**text**) and italic (*text*) markers
+  var parts = [];
+  var re = /(\*\*(.+?)\*\*|\*(.+?)\*)/g;
+  var lastIdx = 0;
+  var match;
+  while ((match = re.exec(text)) !== null) {
+    if (match.index > lastIdx) parts.push(text.slice(lastIdx, match.index));
+    if (match[2]) parts.push(React.createElement("strong", { key: "b" + match.index }, match[2]));
+    else if (match[3]) parts.push(React.createElement("em", { key: "i" + match.index }, match[3]));
+    lastIdx = re.lastIndex;
+  }
+  if (lastIdx < text.length) parts.push(text.slice(lastIdx));
+  return parts.length > 0 ? parts : text;
+}
+
+// S54: Phase-aware placeholder hints for chat input
+var _chatPlaceholders = {
+  has_survey: "e.g. Yes, I have a PDF survey",
+  upload_survey: "e.g. It's a plat map from the county",
+  verify_extracted: "e.g. The lot is actually 80 feet wide",
+  lot_dims: "e.g. My lot is 75 by 150",
+  house_position: "e.g. The house is 20 feet from the left line",
+  setbacks: "e.g. What are typical setbacks?",
+  site_elements_check: "e.g. I have a garage and a pool",
+  north_arrow: "e.g. North is to the upper right",
+  slope: "e.g. My yard slopes about 3% toward the back",
+  s1_deck_size: "e.g. I want my deck to be 20 by 14",
+  s1_attachment: "e.g. What's a ledger board?",
+  s1_stairs: "e.g. I need L-shaped stairs on the left",
+  s2_environment: "e.g. We get heavy snow here",
+  s2_review: "e.g. Can I use 4x4 posts instead?",
+  s3_materials: "e.g. How much more is composite?",
+  s4_info: "e.g. Do I need a contractor name?",
+  s4_generate: "e.g. Does this meet code?"
+};
+
 // S53: Rotate lot vertices to match survey orientation for display
 // Shapes are generated with street at bottom. This rotates around centroid.
 // hFlip mirrors left-right, vFlip mirrors top-bottom.
@@ -536,6 +575,9 @@ function GuidePanel({ phase, onAction, onBack, history, onToggleOff, message, ti
     {/* Tip */}
     {displayTip && <div style={{ fontSize: 11, color: _br.mu, fontFamily: _sans, lineHeight: 1.5, marginBottom: 12 }}>
       {displayTip}
+      {onSendMessage && (!chatMessages || chatMessages.length === 0) && <span style={{ display: "block", marginTop: 4, fontSize: 10, color: _br.gn, fontStyle: "italic" }}>
+        You can also type below to ask questions or describe what you want.
+      </span>}
     </div>}
 
     {/* S54: Chat conversation area */}
@@ -559,7 +601,7 @@ function GuidePanel({ phase, onAction, onBack, history, onToggleOff, message, ti
             border: isUser ? "none" : ("1px solid " + _br.bd),
             boxShadow: "0 1px 3px rgba(0,0,0,0.06)"
           }}>
-            {msg.text}
+            {isUser ? msg.text : _renderChatText(msg.text)}
           </div>
           {/* Action confirmations */}
           {msg.actions && msg.actions.length > 0 && <div style={{
@@ -585,22 +627,13 @@ function GuidePanel({ phase, onAction, onBack, history, onToggleOff, message, ti
           </div>}
         </div>;
       })}
-      {chatLoading && <div style={{
-        display: "flex", alignItems: "center", gap: 6, padding: "4px 0"
-      }}>
-        <div style={{
-          width: 6, height: 6, borderRadius: "50%", background: _br.gn,
-          animation: "pulse 1s ease-in-out infinite"
-        }} />
-        <span style={{ fontSize: 11, color: _br.mu, fontFamily: _sans, fontStyle: "italic" }}>Thinking...</span>
-      </div>}
     </div>}
 
     {/* S54: Chat text input */}
     {onSendMessage && <div style={{ marginBottom: 10 }}>
       <form onSubmit={handleChatSubmit} style={{ display: "flex", gap: 6 }}>
         <input ref={chatInputRef} type="text"
-          placeholder="Type here..."
+          placeholder={_chatPlaceholders[phase] || "Ask a question or describe what you want..."}
           disabled={chatLoading}
           onKeyDown={function(e) { if (e.key === "Enter" && !e.shiftKey) handleChatSubmit(e); }}
           style={{
@@ -768,16 +801,53 @@ function StepContent(props) {
   // null = choice screen not yet shown, true = guided, false = manual
   const [guideActive, setGuideActive] = _stUS(null);
 
-  // S54: AI Helper chat state
-  const [chatMessages, setChatMessages] = _stUS([]);
+  // S54: AI Helper chat state - persists across step changes via window
+  if (!window._chatMessages) window._chatMessages = [];
+  const [chatMessages, setChatMessages] = _stUS(window._chatMessages);
   const [chatLoading, setChatLoading] = _stUS(false);
+  // Sync to window on every change
+  _stUE(function() { window._chatMessages = chatMessages; }, [chatMessages]);
+
+  // S54: Apply actions helper (shared between streaming and non-streaming)
+  function _applyActions(actions) {
+    if (!actions || actions.length === 0) return;
+    actions.forEach(function(act) {
+      if (act.param && act.value !== undefined) u(act.param, act.value);
+      if (act.navigate) _navigateToSection(act.navigate);
+      if (act.siteElementUpdate) {
+        var upd = act.siteElementUpdate;
+        var els = (p.siteElements || []).slice();
+        if (upd.index >= 0 && upd.index < els.length) {
+          var el = Object.assign({}, els[upd.index]);
+          if (upd.x !== undefined) el.x = upd.x;
+          if (upd.y !== undefined) el.y = upd.y;
+          if (upd.w !== undefined) el.w = upd.w;
+          if (upd.d !== undefined) el.d = upd.d;
+          if (upd.type !== undefined) el.type = upd.type;
+          if (upd.label !== undefined) el.label = upd.label;
+          els[upd.index] = el;
+          u("siteElements", els);
+        }
+      }
+      if (act.siteElementAdd) {
+        var newEl = act.siteElementAdd;
+        var els2 = (p.siteElements || []).slice();
+        els2.push({ type: newEl.type || "shed", label: newEl.label || "", x: newEl.x || 0, y: newEl.y || 0, w: newEl.w || 10, d: newEl.d || 10 });
+        u("siteElements", els2);
+      }
+      if (act.siteElementRemove) {
+        var rmIdx = act.siteElementRemove.index;
+        var els3 = (p.siteElements || []).slice();
+        if (rmIdx >= 0 && rmIdx < els3.length) { els3.splice(rmIdx, 1); u("siteElements", els3); }
+      }
+    });
+  }
 
   function sendChatMessage(msg) {
     var userMsg = { role: "user", text: msg };
     setChatMessages(function(prev) { return prev.concat([userMsg]); });
     setChatLoading(true);
 
-    // Build extraction summary if available
     var extSummary = "";
     if (extractResult) {
       var er = extractResult;
@@ -790,79 +860,83 @@ function StepContent(props) {
       extSummary = parts.join(". ");
     }
 
-    // Collect current history for API
     var apiHistory = chatMessages.map(function(m) { return { role: m.role, text: m.text }; });
+
+    // Add placeholder assistant message for streaming
+    var streamIdx;
+    setChatMessages(function(prev) { streamIdx = prev.length; return prev.concat([{ role: "assistant", text: "", actions: [] }]); });
 
     fetch(API + "/api/ai-helper", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({
-        message: msg,
-        step: step,
-        params: p,
-        history: apiHistory,
-        extractionSummary: extSummary
-      })
-    }).then(function(res) { return res.json(); }).then(function(data) {
-      setChatLoading(false);
-      if (data.ok) {
-        var assistantMsg = { role: "assistant", text: data.message, actions: data.actions || [] };
-        setChatMessages(function(prev) { return prev.concat([assistantMsg]); });
-        // Apply any actions
-        if (data.actions && data.actions.length > 0) {
-          data.actions.forEach(function(act) {
-            if (act.param && act.value !== undefined) {
-              u(act.param, act.value);
-            }
-            if (act.navigate) {
-              _navigateToSection(act.navigate);
-            }
-            // S54: Site element actions
-            if (act.siteElementUpdate) {
-              var upd = act.siteElementUpdate;
-              var els = (p.siteElements || []).slice();
-              if (upd.index >= 0 && upd.index < els.length) {
-                var el = Object.assign({}, els[upd.index]);
-                if (upd.x !== undefined) el.x = upd.x;
-                if (upd.y !== undefined) el.y = upd.y;
-                if (upd.w !== undefined) el.w = upd.w;
-                if (upd.d !== undefined) el.d = upd.d;
-                if (upd.type !== undefined) el.type = upd.type;
-                if (upd.label !== undefined) el.label = upd.label;
-                els[upd.index] = el;
-                u("siteElements", els);
+      body: JSON.stringify({ message: msg, step: step, params: p, history: apiHistory, extractionSummary: extSummary })
+    }).then(function(res) {
+      if (!res.ok) throw new Error("Server error: " + res.status);
+      var reader = res.body.getReader();
+      var decoder = new TextDecoder();
+      var buf = "";
+      var streamText = "";
+
+      function processStream() {
+        return reader.read().then(function(result) {
+          if (result.done) {
+            setChatLoading(false);
+            return;
+          }
+          buf += decoder.decode(result.value, { stream: true });
+          while (buf.indexOf("\n\n") >= 0) {
+            var idx = buf.indexOf("\n\n");
+            var line = buf.slice(0, idx).trim();
+            buf = buf.slice(idx + 2);
+            if (!line.startsWith("data: ")) continue;
+            try {
+              var evt = JSON.parse(line.slice(6));
+              if (evt.t) {
+                // Token delta - append to streaming message
+                streamText += evt.t;
+                var displayText = streamText;
+                // Strip ACTIONS line from display if partially visible
+                var actIdx = displayText.lastIndexOf("\nACTIONS:");
+                if (actIdx >= 0) displayText = displayText.slice(0, actIdx);
+                setChatMessages(function(prev) {
+                  var updated = prev.slice();
+                  var last = Object.assign({}, updated[updated.length - 1]);
+                  last.text = displayText;
+                  updated[updated.length - 1] = last;
+                  return updated;
+                });
               }
-            }
-            if (act.siteElementAdd) {
-              var newEl = act.siteElementAdd;
-              var els2 = (p.siteElements || []).slice();
-              els2.push({
-                type: newEl.type || "shed",
-                label: newEl.label || "",
-                x: newEl.x || 0,
-                y: newEl.y || 0,
-                w: newEl.w || 10,
-                d: newEl.d || 10
-              });
-              u("siteElements", els2);
-            }
-            if (act.siteElementRemove) {
-              var rmIdx = act.siteElementRemove.index;
-              var els3 = (p.siteElements || []).slice();
-              if (rmIdx >= 0 && rmIdx < els3.length) {
-                els3.splice(rmIdx, 1);
-                u("siteElements", els3);
+              if (evt.d) {
+                // Done - set final message and apply actions
+                setChatMessages(function(prev) {
+                  var updated = prev.slice();
+                  var last = Object.assign({}, updated[updated.length - 1]);
+                  last.text = evt.msg || streamText;
+                  last.actions = evt.actions || [];
+                  updated[updated.length - 1] = last;
+                  return updated;
+                });
+                _applyActions(evt.actions);
+                setChatLoading(false);
               }
-            }
-          });
-        }
-      } else {
-        setChatMessages(function(prev) { return prev.concat([{ role: "assistant", text: data.error || "Something went wrong. Try again." }]); });
+            } catch(e) { /* skip malformed SSE */ }
+          }
+          return processStream();
+        });
       }
+      return processStream();
     }).catch(function(err) {
       setChatLoading(false);
-      setChatMessages(function(prev) { return prev.concat([{ role: "assistant", text: "Connection error. Please try again." }]); });
+      setChatMessages(function(prev) {
+        var updated = prev.slice();
+        if (updated.length > 0 && updated[updated.length - 1].role === "assistant" && !updated[updated.length - 1].text) {
+          updated[updated.length - 1] = { role: "assistant", text: "Connection error. Please try again." };
+        } else {
+          updated = updated.concat([{ role: "assistant", text: "Connection error. Please try again." }]);
+        }
+        return updated;
+      });
     });
   }
 
