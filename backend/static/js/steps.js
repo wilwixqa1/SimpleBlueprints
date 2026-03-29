@@ -104,6 +104,7 @@ window._rotateVertsForDisplay = _rotateVertsForDisplay;
 // S48: Shape cards for compare view with preview selection
 function CompareShapes({ candidates, previewIdx, streetSide, mirrored }) {
   if (!candidates || candidates.length === 0) return React.createElement("div", { style: { fontSize: 10, color: _br.mu, fontFamily: _mono } }, "No shapes available");
+  console.log("CompareShapes render: streetSide=" + streetSide + " mirrored=" + mirrored);
   var edgeColors = ["#e53935", "#2563eb", "#8B7355", "#7c3aed", "#0d9488"];
   return React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 8 } },
     candidates.map(function(cand, ci) {
