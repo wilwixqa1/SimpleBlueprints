@@ -843,7 +843,7 @@ const App = function SimpleBlueprints() {
               {step === 0 && compareMode && sitePlanB64 && SurveyPreview && <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                   <span style={{ fontSize: 10, fontWeight: 700, color: br.dk, fontFamily: mono }}>Compare survey to proposed shapes</span>
-                  <button onClick={() => setCompareMode(false)} style={{ fontSize: 9, fontFamily: mono, color: br.mu, background: "none", border: "1px solid " + br.bd, borderRadius: 4, padding: "4px 10px", cursor: "pointer" }}>Back</button>
+                  <button onClick={() => { if (previewIdx != null) { setPreviewIdx(null); window._previewShapeIndex = null; } else { setCompareMode(false); } }} style={{ fontSize: 9, fontFamily: mono, color: br.mu, background: "none", border: "1px solid " + br.bd, borderRadius: 4, padding: "4px 10px", cursor: "pointer" }}>{previewIdx != null ? "\u2190 All shapes" : "Back"}</button>
                 </div>
                 <div style={{ fontSize: 10, color: "#1e40af", fontFamily: mono, marginBottom: 10, lineHeight: 1.6, padding: "8px 12px", background: "#eff6ff", borderRadius: 6, border: "1px solid #bfdbfe" }}>{"\uD83D\uDCA1"} Use the <strong>page arrows</strong> to find your lot boundary. Then <strong>tap the shape</strong> that matches.</div>
 
@@ -855,7 +855,10 @@ const App = function SimpleBlueprints() {
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                     <div style={{ fontSize: 8, fontWeight: 700, color: br.mu, fontFamily: mono, letterSpacing: "1px", textTransform: "uppercase" }}>Proposed Shapes</div>
-                    <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 10px", background: "#fefce8", borderRadius: 5, border: "1px solid #fde68a" }}><span style={{ fontSize: 9, fontFamily: mono, color: "#92400e" }}>Not a match?</span><button onClick={() => { setCompareMode(false); setTraceState({ calPoints: [], calDist: "", ppf: null, vertices: [], edgeMeta: [], edgeLengths: [], imgW: 0, imgH: 0, selectedEdge: null, selectedVertex: null, pdfPage: 1, pdfPageCount: 1 }); setTraceMode(true); }} style={{ fontSize: 9, fontFamily: mono, color: "#ca8a04", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", fontWeight: 700, padding: 0 }}>Trace manually</button></div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "8px 14px", background: "#fefce8", borderRadius: 6, border: "1px solid #fde68a", marginBottom: 10 }}>
+                    <span style={{ fontSize: 10, fontFamily: mono, color: "#92400e" }}>None of these look right?</span>
+                    <button onClick={() => { setCompareMode(false); setTraceState({ calPoints: [], calDist: "", ppf: null, vertices: [], edgeMeta: [], edgeLengths: [], imgW: 0, imgH: 0, selectedEdge: null, selectedVertex: null, pdfPage: 1, pdfPageCount: 1 }); setTraceMode(true); }} style={{ fontSize: 10, fontFamily: mono, color: "#fff", background: "#ca8a04", border: "none", cursor: "pointer", fontWeight: 700, padding: "5px 14px", borderRadius: 5 }}>Trace Manually</button>
                   </div>
                   <CompareShapes candidates={window._shapeCompareData ? window._shapeCompareData.candidates : []} previewIdx={previewIdx} />
                 </div> : <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
