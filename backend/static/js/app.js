@@ -886,7 +886,7 @@ const App = function SimpleBlueprints() {
                       borderRadius: 8, cursor: "pointer", fontSize: 12, fontFamily: mono, fontWeight: 700,
                       marginTop: 10, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
                       position: "sticky", bottom: 0
-                    }}>{"\u2705"} Confirm Option {previewIdx + 1}</button>
+                    }}>{window._rankingResult && window._rankingResult.bestShapeIndex === previewIdx ? "\uD83E\uDD16 AI Recommends - " : "\u2705 "}Confirm Option {previewIdx + 1}</button>
                   </div>
                 </div>}
               </div>}

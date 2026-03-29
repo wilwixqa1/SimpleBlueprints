@@ -623,6 +623,8 @@ function StepContent(props) {
   const [missingFieldsAcked, setMissingFieldsAcked] = _stUS(false);
   const [showPprbdModal, setShowPprbdModal] = _stUS(false);
   const [pprbdChecklistAcked, setPprbdChecklistAcked] = _stUS(false);
+  const [rankingInProgress, setRankingInProgress] = _stUS(false);
+  const [rankingResult, setRankingResult] = _stUS(null);
   const [showSiteElements, setShowSiteElements] = _stUS(false);
   const [showLotShape, setShowLotShape] = _stUS(false);
   const [selectedElId, setSelectedElId] = _stUS(null);
@@ -973,6 +975,38 @@ function StepContent(props) {
       window._resetExtraction = null;
     }
   }, [shapeCandidates, extractResult]);
+
+  // S52: Stage 2 - Background Opus shape ranking
+  _stUE(function() {
+    if (!compareMode || shapeCandidates.length === 0 || !sitePlanB64 || rankingInProgress || rankingResult) return;
+    setRankingInProgress(true);
+    window._rankingInProgress = true;
+    var fileType = sitePlanFile && sitePlanFile.name.toLowerCase().endsWith(".pdf") ? "pdf" : "image";
+    var candidateData = shapeCandidates.map(function(c) {
+      return { vertices: c.vertices, area: c.area, edges: c.edges };
+    });
+    (async function() {
+      try {
+        var res = await fetch(API + "/api/rank-shapes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ surveyData: sitePlanB64, candidates: candidateData, fileType: fileType })
+        });
+        var data = await res.json();
+        if (data.ok && data.data) {
+          setRankingResult(data.data);
+          window._rankingResult = data.data;
+          var idx = data.data.bestShapeIndex;
+          if (idx != null && idx >= 0 && idx < shapeCandidates.length && window._onPreviewShape) {
+            window._onPreviewShape(idx);
+          }
+        }
+      } catch(e) { console.log("Shape ranking error:", e); }
+      setRankingInProgress(false);
+      window._rankingInProgress = false;
+    })();
+  }, [compareMode, shapeCandidates, sitePlanB64, rankingInProgress, rankingResult]);
 
 // Active zone data
   var activeZoneObj = p.activeZone > 0 ? p.zones.find(function(z) { return z.id === p.activeZone; }) : null;
