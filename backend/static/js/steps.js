@@ -91,18 +91,20 @@ function _renderChatText(text) {
 
 // S54: Phase-aware placeholder hints for chat input
 var _chatPlaceholders = {
-  has_survey: "e.g. Yes, I have a PDF survey",
-  upload_survey: "e.g. It's a plat map from the county",
+  has_survey: "",
+  upload_survey: "",
+  extracting: "",
+  shape_select: "",
   verify_extracted: "e.g. The lot is actually 80 feet wide",
   lot_dims: "e.g. My lot is 75 by 150",
   house_position: "e.g. The house is 20 feet from the left line",
   setbacks: "e.g. What are typical setbacks?",
-  site_elements_check: "e.g. I have a garage and a pool",
+  site_elements_check: "e.g. I also have a pool out back",
   north_arrow: "e.g. North is to the upper right",
   slope: "e.g. My yard slopes about 3% toward the back",
   s1_deck_size: "e.g. I want my deck to be 20 by 14",
   s1_attachment: "e.g. What's a ledger board?",
-  s1_stairs: "e.g. I need L-shaped stairs on the left",
+  s1_stairs: "e.g. I need stairs on the left side",
   s2_environment: "e.g. We get heavy snow here",
   s2_review: "e.g. Can I use 4x4 posts instead?",
   s3_materials: "e.g. How much more is composite?",
@@ -349,7 +351,7 @@ var GUIDE_PHASES_STEP0 = [
     sections: ['siteElements'],
     actions: [
       { label: 'Add elements', action: 'expand_site_elements', style: 'secondary' },
-      { label: 'Skip', next: 'north_arrow', style: 'primary' }
+      { label: 'Continue', next: 'north_arrow', style: 'primary' }
     ]
   },
   {
@@ -870,7 +872,7 @@ function StepContent(props) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ message: msg, step: step, params: p, history: apiHistory, extractionSummary: extSummary })
+      body: JSON.stringify({ message: msg, step: step, params: p, history: apiHistory, extractionSummary: extSummary, guidePhase: guidePhase })
     }).then(function(res) {
       if (!res.ok) throw new Error("Server error: " + res.status);
       var reader = res.body.getReader();
@@ -1030,19 +1032,18 @@ function StepContent(props) {
       setShowLotHouse(true);
       setGuidePeeked(function(prev) { var copy = Object.assign({}, prev); copy.lotHouse = true; return copy; });
       setTimeout(function() {
-        var el = document.querySelector('[data-guide-section="lotHouse"]');
+        var el = document.querySelector('[data-section="lotHouse"]');
         if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 100);
+      }, 150);
       return;
     }
     if (act.action === 'expand_site_elements') {
       setShowSiteElements(true);
       setGuidePeeked(function(prev) { var copy = Object.assign({}, prev); copy.siteElements = true; return copy; });
-      // Scroll to site elements section
       setTimeout(function() {
-        var el = document.querySelector('[data-guide-section="siteElements"]');
+        var el = document.querySelector('[data-section="siteElements"]');
         if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }, 100);
+      }, 150);
       return;
     }
     if (act.action === 'start_trace') {
@@ -2053,6 +2054,14 @@ function StepContent(props) {
           if (compareMode) {
             s0Msg = "Find the page showing your lot boundary, then tap the shape that matches.";
             s0Tip = "Use the page arrows on the left to navigate your survey. Select a shape on the right, then click Confirm.";
+          }
+        }
+        if (guidePhase === 'site_elements_check') {
+          var _existingEls = (p.siteElements || []);
+          if (_existingEls.length > 0) {
+            var _elNames = _existingEls.map(function(e) { return e.label || e.type; }).join(", ");
+            s0Msg = "We found: " + _elNames + ". Anything else on your lot?";
+            s0Tip = "If everything looks right, continue to the next step.";
           }
         }
         return <GuidePanel

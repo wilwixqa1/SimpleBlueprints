@@ -803,7 +803,7 @@ AI_HELPER_PARAMS = {
     }
 }
 
-def build_ai_helper_prompt(step, params, extraction_summary):
+def build_ai_helper_prompt(step, params, extraction_summary, guide_phase=""):
     step_info = AI_HELPER_PARAMS.get(step, AI_HELPER_PARAMS[0])
     param_desc = ""
     current_vals = ""
@@ -874,7 +874,9 @@ Coordinate system: (0,0) is the bottom-left corner at the street. X increases le
 
     # S54: UI map for navigate actions - describes what sections exist and how they work
     ui_maps = {
-        0: """UI SECTIONS (scrollable/expandable):
+        0: """PREVIEW PANEL: Shows the Site Plan - lot boundary, house footprint, proposed deck outline, site elements (garage, shed, etc.), setback lines, north arrow. Everything is visible here.
+
+UI SECTIONS (scrollable/expandable):
 - "upload": Survey upload area. User can upload a PDF or photo of their property survey.
 - "lotHouse": Lot Dimensions & House Position. Contains sliders for lot width, lot depth, house width, house depth, house offset from left property line, and distance from street. Collapsible section.
 - "siteElements": Site Elements. Add structures like sheds, pools, driveways, garages, fences, trees. Each has type, position, and size. Collapsible section.
@@ -885,33 +887,58 @@ HOW COMPLEX TASKS WORK:
 - To change lot shape: User uploads a survey (the AI extracts it), OR uses the shape picker in compare mode, OR traces manually on the survey image. Navigate to "upload" section.
 - To add site elements: Navigate to "siteElements", click to expand, then use the "Add Element" button. Each element has type dropdown, position, and size controls.
 - To set north arrow: Navigate to "northArrow". They can drag the compass, click a cardinal direction button, or use the degree slider.""",
-        1: """UI SECTIONS (scrollable/expandable):
+        1: """PREVIEW PANEL: Shows the Deck Plan - just the deck layout, house wall, and stairs. Does NOT show the full lot, garage, shed, or other site elements. Those only appear on the Site Plan in Step 0 and in the final PDF.
+
+UI SECTIONS (scrollable/expandable):
 - "deckSize": Width, Depth, and Height sliders for the main deck (or active zone).
 - "zones": Zone selector bar. Shows Main Deck and any added zones. User clicks to switch between zones. To ADD a zone: look at the preview panel on the right, switch to "+" mode using the toolbar above the preview, then click a deck edge. To add a CUTOUT, use the scissors mode.
 - "chamfer": Corner Modifiers. Toggle 45-degree chamfers on any of the 4 corners (Back Left, Back Right, Front Left, Front Right). Each has a size slider.
 - "attachment": Attachment method - Ledger Board (bolted to house) or Freestanding (own posts near house wall).
-- "stairs": Stairs section. First choose Yes/No, then location (Front/Left/Right), width, number of stringers, and landing pad.
+- "stairs": Stairs section. First choose Yes/No, then location (Front/Left/Right), width, number of stringers, and landing pad (Yes/No toggle).
 - "stairTemplate": Stair Template picker. Six visual options: Straight, L-Left, L-Right, U-Turn (switchback), Wrap (3-run), Platform (wide landing). Each shows a small icon.
 - "advanced": Positioning section (collapsible). Contains deck offset from center, stair offset, and for complex stair templates: run split percentage, landing depth, gap between runs.
 
+STAIR SPATIAL GUIDE (use this to translate user descriptions):
+The deck attaches to the house wall. "Front" of the deck = the edge facing AWAY from the house (into the yard).
+- stairLocation="front": Stairs exit from the front edge, going AWAY from house into the yard. Perpendicular to the house wall.
+- stairLocation="left": Stairs exit from the left side edge, going sideways. Parallel to the house wall.
+- stairLocation="right": Stairs exit from the right side edge, going sideways. Parallel to the house wall.
+- stairTemplate="straight": Single run of stairs going straight out.
+- stairTemplate="lLeft": Two runs with a landing. First run goes out, turns left for second run. Good when user says "L-shaped" or "turn left."
+- stairTemplate="lRight": Two runs with a landing, turning right.
+- stairTemplate="switchback" (U-Turn): Goes out, turns 180 on a landing, comes back parallel. Both runs are side by side. Good when user says "U-turn," "switchback," "come back," or "parallel runs."
+- stairTemplate="wrapAround" (Wrap): Three runs wrapping around. Most compact for high decks.
+- stairTemplate="wideLanding" (Platform): Two runs separated by a wide landing. Good for ADA or when user says "platform" or "wide landing."
+- hasLanding: Adds a landing pad at the bottom of the stairs (Yes/No toggle). This is a simple boolean, set it directly.
+
+When user says "stairs parallel to the deck/house" they likely mean stairLocation="left" or "right" (stairs run along the house wall).
+When user says "stairs overlap" or "run alongside" the deck, they mean the stair run is parallel to the deck face, which is stairLocation="left" or "right", or stairTemplate="switchback".
+
 HOW COMPLEX TASKS WORK:
 - To make an L-shaped deck: Navigate to the preview panel, switch to "+" mode, click the edge where you want the extension. This creates a new zone. Then adjust width/depth in the zone controls.
-- To change stair shape: Navigate to "stairTemplate". The 6 template buttons show visual icons. Click the one you want. For L-Left or L-Right stairs, additional controls appear in the "advanced" section for run split and landing depth.
+- To change stair shape/template: Set the stairTemplate param directly (e.g. stairTemplate="switchback"). Also set hasStairs=true if not already. Then optionally navigate to "stairTemplate" to show the user their options.
 - To add angled corners (chamfers): Navigate to "chamfer". Toggle the corners you want angled, then adjust the chamfer size with the slider.
 - To cut a notch in the deck: In the preview panel, switch to scissors mode, click the edge where you want the cutout. Then adjust cutout size.
-- To reposition the deck: Navigate to "advanced" to expand it, then adjust deck offset slider. Or drag the deck in the preview panel.""",
-        2: """UI SECTIONS:
+- To reposition the deck: Navigate to "advanced" to expand it, then adjust deck offset slider. Or drag the deck in the preview panel.
+- To toggle landing pad on/off: Set hasLanding directly (true/false). This is a simple toggle, no need to navigate.""",
+        2: """PREVIEW PANEL: Shows the Deck Plan with structural members (joists, beams, posts) overlaid.
+
+UI SECTIONS:
 - "structure": All structural settings. Joist spacing (12" or 16"), snow load (None/Light/Moderate/Heavy), footing depth based on frost zone. Most values are auto-calculated from IRC tables based on deck size.
 
 HOW IT WORKS:
 - Values are auto-calculated. The user can override by looking at the controls. Most homeowners should leave these at defaults unless their building department specifies different requirements.""",
-        3: """UI SECTIONS:
+        3: """PREVIEW PANEL: Shows the Deck Plan.
+
+UI SECTIONS:
 - "materials": Decking material selector (Composite/Pressure Treated) and Railing style (Fortress Iron/Wood).
 - "costBreakdown": Cost breakdown table showing itemized costs by category.
 
 HOW IT WORKS:
 - Pick decking and railing materials. Cost updates automatically. The breakdown shows Foundation, Posts, Beam, Framing, Hardware, Decking, Railing costs.""",
-        4: """UI SECTIONS:
+        4: """PREVIEW PANEL: Shows a mini blueprint preview with thumbnail of each sheet.
+
+UI SECTIONS:
 - "projectInfo": Project information form. Name, address, city, state, zip, contractor info. This prints on the title block.
 - "generate": Generate Blueprint button. Creates a PDF permit plan set (Cover, Plan, Elevations, Notes, Details, Site Plan).
 
@@ -922,6 +949,7 @@ HOW IT WORKS:
     ui_map = ui_maps.get(step, "")
 
     return f"""You are the AI guide for SimpleBlueprints, a tool that helps homeowners create permit-ready deck blueprints. You are currently helping on Step {step}: {step_info['step_name']} - {step_info['step_description']}
+{f"Current guide phase: {guide_phase}" if guide_phase else ""}
 
 Your personality: Warm, knowledgeable, concise. You are a friendly building expert helping a non-technical homeowner. Use plain English. Avoid jargon unless asked. Keep responses to 1-3 sentences unless the user asks for detail.
 
@@ -962,10 +990,12 @@ RULES:
 - If the user describes what they want in natural language, translate to parameter values and set them.
 - If the user says something ambiguous, ask a clarifying question (no actions).
 - When you set values, confirm what you set in your message.
+- ACT FIRST: When the user asks for something that maps to a settable parameter (landing pad, stair template, deck width, attachment type, etc.), SET IT DIRECTLY with a param action. Do not just navigate to the section and tell them to click. Only use navigate for tasks that genuinely require visual interaction (adding zones via the preview panel, choosing chamfer corners). If you set a value AND want to show them the section, do both: set the param and navigate.
+- PHASE AWARENESS: The current guide phase tells you what the user is working on right now. When the user says something ambiguous like "can you do this for me?" or "yes" or "set it up", interpret it in the context of the current guide phase, NOT previous conversation topics. For example, if the phase is "north_arrow" and they say "do this for me", they mean "set the north direction", not something from an earlier conversation about the garage.
+- PREVIEW AWARENESS: Each step shows a different preview panel (described in PREVIEW PANEL above). If the user asks "why doesn't X show here?" or refers to something not visible, explain what the current preview shows and where they can see the thing they're looking for.
 - Use {{"navigate": "sectionId"}} to scroll the user to the relevant section and highlight it. Use this when the user needs to SEE controls to complete a task (like choosing a stair template visually, or toggling chamfer corners). Combine navigate with your instructional message.
 - SITE ELEMENTS: Use siteElementUpdate to modify an existing element's properties (only include the properties you want to change). Use siteElementAdd to add a new element. Use siteElementRemove to remove one. When the user asks about a site element (position, size, etc.), reference the current site elements data to answer accurately.
-- For complex visual tasks (adding zones, changing stair templates, adding chamfers), use navigate to show the section and INSTRUCT the user on what to click. Don't try to do it programmatically for visual tasks.
-- For simple value changes (dimensions, Yes/No toggles, choosing from a list), set the value directly with a param action. No need to navigate.
+- For complex visual tasks (adding zones, choosing chamfer corners), use navigate to show the section and INSTRUCT the user on what to click.
 - For deck height, help users think about it: "How high is your back door above the ground?" Common heights: 2-4 feet for most homes, 6-10 feet for walkout basements.
 - A setback is the minimum distance a structure must be from a property line. Permit offices enforce these.
 - A ledger board is a board bolted directly to the house framing. Freestanding means the deck has its own support posts near the house instead.
@@ -990,11 +1020,12 @@ async def ai_helper(request: Request):
         params = body.get("params", {})
         history = body.get("history", [])
         extraction_summary = body.get("extractionSummary", "")
+        guide_phase = body.get("guidePhase", "")
 
         if not user_message:
             return {"ok": False, "error": "No message provided"}
 
-        system_prompt = build_ai_helper_prompt(step, params, extraction_summary)
+        system_prompt = build_ai_helper_prompt(step, params, extraction_summary, guide_phase)
 
         messages = []
         for h in history[-6:]:
