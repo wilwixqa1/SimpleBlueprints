@@ -73,31 +73,42 @@ window.SurveyPreview = SurveyPreview;
 
 // S53: Rotate lot vertices to match survey orientation for display
 // Shapes are generated with street at bottom. This rotates around centroid.
-function _rotateVertsForDisplay(verts, streetSide) {
-  if (!streetSide || streetSide === "bottom") return verts;
-  var cx = 0, cy = 0;
-  for (var i = 0; i < verts.length; i++) { cx += verts[i][0]; cy += verts[i][1]; }
-  cx /= verts.length; cy /= verts.length;
-  // CCW pi/2 moves bottom to right, CW -pi/2 moves bottom to left, pi moves bottom to top
-  var angles = { top: Math.PI, right: Math.PI / 2, left: -Math.PI / 2 };
-  var theta = angles[streetSide] || 0;
-  if (theta === 0) return verts;
-  var cosT = Math.cos(theta), sinT = Math.sin(theta);
-  return verts.map(function(v) {
-    var dx = v[0] - cx, dy = v[1] - cy;
-    return [cx + dx * cosT - dy * sinT, cy + dx * sinT + dy * cosT];
-  });
+// Optional mirror flips left-right after rotation to fix chirality mismatch.
+function _rotateVertsForDisplay(verts, streetSide, mirrored) {
+  var result = verts;
+  if (streetSide && streetSide !== "bottom") {
+    var cx = 0, cy = 0;
+    for (var i = 0; i < result.length; i++) { cx += result[i][0]; cy += result[i][1]; }
+    cx /= result.length; cy /= result.length;
+    // CCW pi/2 moves bottom to right, CW -pi/2 moves bottom to left, pi moves bottom to top
+    var angles = { top: Math.PI, right: Math.PI / 2, left: -Math.PI / 2 };
+    var theta = angles[streetSide] || 0;
+    if (theta !== 0) {
+      var cosT = Math.cos(theta), sinT = Math.sin(theta);
+      result = result.map(function(v) {
+        var dx = v[0] - cx, dy = v[1] - cy;
+        return [cx + dx * cosT - dy * sinT, cy + dx * sinT + dy * cosT];
+      });
+    }
+  }
+  if (mirrored) {
+    var mcx = 0;
+    for (var j = 0; j < result.length; j++) { mcx += result[j][0]; }
+    mcx /= result.length;
+    result = result.map(function(v) { return [2 * mcx - v[0], v[1]]; });
+  }
+  return result;
 }
 window._rotateVertsForDisplay = _rotateVertsForDisplay;
 
 // S48: Shape cards for compare view with preview selection
-function CompareShapes({ candidates, previewIdx, streetSide }) {
+function CompareShapes({ candidates, previewIdx, streetSide, mirrored }) {
   if (!candidates || candidates.length === 0) return React.createElement("div", { style: { fontSize: 10, color: _br.mu, fontFamily: _mono } }, "No shapes available");
   var edgeColors = ["#e53935", "#2563eb", "#8B7355", "#7c3aed", "#0d9488"];
   return React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 8 } },
     candidates.map(function(cand, ci) {
       var isSelected = previewIdx === ci;
-      var cv = _rotateVertsForDisplay(cand.vertices, streetSide);
+      var cv = _rotateVertsForDisplay(cand.vertices, streetSide, mirrored);
       // Compute bounding box from rotated vertices
       var cminX = Infinity, cminY = Infinity, cmaxX = -Infinity, cmaxY = -Infinity;
       cv.forEach(function(v) { if (v[0] < cminX) cminX = v[0]; if (v[1] < cminY) cminY = v[1]; if (v[0] > cmaxX) cmaxX = v[0]; if (v[1] > cmaxY) cmaxY = v[1]; });
