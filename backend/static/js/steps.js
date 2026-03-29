@@ -1036,6 +1036,8 @@ function StepContent(props) {
           console.log("Stage 2 success:", JSON.stringify(data.data));
           setRankingResult(data.data);
           window._rankingResult = data.data;
+          // S54: Push Opus northAngle into p so PDF north arrow is accurate
+          if (data.data.northAngle != null) u("northAngle", data.data.northAngle);
           var idx = data.data.bestShapeIndex;
           if (idx != null && idx >= 0 && idx < shapeCandidates.length && window._onPreviewShape) {
             window._onPreviewShape(idx);
