@@ -530,6 +530,144 @@ async def extract_survey(request: Request):
         return {"ok": False, "error": str(e)}
 
 
+SHAPE_RANK_PROMPT = """You are analyzing a property survey to determine the correct lot shape and orientation.
+
+CANDIDATE SHAPES (vertex coordinates, clockwise from street-side SW corner):
+{shapes_text}
+
+TASKS:
+1. SHAPE MATCHING: Look at the lot boundary drawn on this survey page. Which candidate shape best matches the drawn boundary? Consider the proportions, angles, and overall outline. Give the 0-based index of the best match.
+
+2. CONFIDENCE: How confident are you? "high" if one shape clearly matches, "medium" if 2-3 are close, "low" if hard to tell.
+
+3. NORTH DIRECTION: Look for a north arrow or compass rose on this survey. Which direction does the north arrow point on the drawing? Use cardinal values: 0=up, 45=upper-right, 90=right, 135=lower-right, 180=down, 225=lower-left, 270=left, 315=upper-left.
+
+4. STREET SIDE: Which side of the DRAWING is the street on? One of: "bottom", "top", "left", "right". This tells us how the survey is oriented visually.
+
+Return ONLY a JSON object:
+{
+  "bestShapeIndex": 0,
+  "confidence": "high",
+  "northAngle": 0,
+  "streetSide": "bottom",
+  "reason": "brief explanation of why this shape matches"
+}
+
+Return ONLY valid JSON, no markdown, no backticks."""
+
+
+def get_site_plan_page(pdf_b64):
+    """Extract just the site plan page from a PDF as a single-page PDF."""
+    import fitz, io
+    try:
+        pdf_bytes = base64.b64decode(pdf_b64)
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    except Exception:
+        return pdf_b64
+
+    # Find the page most likely to be the site plan
+    best_page = 0
+    best_score = -1
+    site_kw = ["SITE PLAN", "PROPERTY LINE", "SETBACK", "GRAPHIC SCALE"]
+    skip_kw = ["ELEVATION", "DECK PLAN", "FRAMING", "COVER SHEET"]
+
+    for i in range(len(doc)):
+        t = doc[i].get_text().upper()
+        score = sum(2 for k in site_kw if k in t) - sum(1 for k in skip_kw if k in t)
+        if score > best_score:
+            best_score = score
+            best_page = i
+
+    out = fitz.open()
+    out.insert_pdf(doc, from_page=best_page, to_page=best_page)
+    buf = io.BytesIO()
+    out.save(buf)
+    print(f"Site plan page: {best_page} (score {best_score})")
+    return base64.b64encode(buf.getvalue()).decode("utf-8")
+
+
+@app.post("/api/rank-shapes")
+async def rank_shapes(request: Request):
+    """S52 Stage 2: Opus-powered shape ranking and orientation detection."""
+    user_id = get_current_user_id(request)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Login required")
+    if not ANTHROPIC_API_KEY:
+        raise HTTPException(status_code=500, detail="AI not configured")
+
+    try:
+        body = await request.json()
+        survey_b64 = body.get("surveyData", "")
+        candidates = body.get("candidates", [])
+        file_type = body.get("fileType", "image")
+
+        if not survey_b64 or not candidates:
+            return {"ok": False, "error": "Missing survey data or candidates"}
+
+        # Build shapes description for prompt
+        shapes_lines = []
+        for i, c in enumerate(candidates):
+            verts = c.get("vertices", [])
+            area = c.get("area", 0)
+            edges = c.get("edges", [])
+            edge_desc = ", ".join([f"{e['length']}' ({e.get('label') or e.get('neighborLabel') or e['type']})" for e in edges])
+            shapes_lines.append(f"Shape {i}: area={area} SF, edges=[{edge_desc}]")
+        shapes_text = "\n".join(shapes_lines)
+
+        # Get just the site plan page
+        if file_type == "pdf":
+            site_b64 = get_site_plan_page(survey_b64)
+            doc_block = {"type": "document", "source": {"type": "base64", "media_type": "application/pdf", "data": site_b64}}
+        else:
+            media_type = "image/png" if survey_b64[:4] == "iVBO" else "image/jpeg"
+            doc_block = {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": survey_b64}}
+
+        prompt = SHAPE_RANK_PROMPT.replace("{shapes_text}", shapes_text)
+
+        payload = {
+            "model": "claude-opus-4-6",
+            "max_tokens": 8192,
+            "thinking": {"type": "adaptive"},
+            "messages": [{"role": "user", "content": [doc_block, {"type": "text", "text": prompt}]}]
+        }
+
+        import urllib.request, urllib.error
+        req = urllib.request.Request(
+            "https://api.anthropic.com/v1/messages",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "x-api-key": ANTHROPIC_API_KEY,
+                "anthropic-version": "2023-06-01",
+                "anthropic-beta": "pdfs-2024-09-25"
+            }
+        )
+
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            result = json.loads(resp.read().decode("utf-8"))
+            text = ""
+            for block in result.get("content", []):
+                if block.get("type") == "text":
+                    text = block.get("text", "")
+                    break
+            text = text.strip()
+            if not text.startswith("{"):
+                s = text.find("{")
+                e = text.rfind("}") + 1
+                if s >= 0 and e > s: text = text[s:e]
+            ranking = json.loads(text)
+            print(f"Shape ranking: best={ranking.get('bestShapeIndex')}, conf={ranking.get('confidence')}, north={ranking.get('northAngle')}, street={ranking.get('streetSide')}")
+            return {"ok": True, "data": ranking}
+
+    except urllib.error.HTTPError as he:
+        error_body = he.read().decode("utf-8", errors="replace") if he.fp else ""
+        print("Shape ranking HTTP error: " + str(he.code) + " body: " + error_body[:500])
+        return {"ok": False, "error": "HTTP Error " + str(he.code) + ": " + error_body[:200]}
+    except Exception as e:
+        print("Shape ranking error: " + str(e))
+        return {"ok": False, "error": str(e)}
+
+
 @app.post("/api/generate-test")
 async def generate_test(request: Request):
     user_id = get_current_user_id(request)
