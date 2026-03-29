@@ -566,15 +566,12 @@ TASKS:
 
 4. STREET SIDE: Which side of the DRAWING is the street on? "bottom", "top", "left", "right".
 
-5. MIRRORED: Does the best matching candidate shape need to be flipped horizontally (left-right mirror) to match the survey? The overall outline shape may be correct but the left and right sides may be swapped. Compare the edge labels and positions carefully. true if a horizontal flip is needed, false if not.
-
 Return ONLY a JSON object:
 {
   "bestShapeIndex": 0,
   "confidence": "high",
   "northAngle": 0,
   "streetSide": "bottom",
-  "mirrored": false,
   "reason": "brief explanation"
 }
 
@@ -744,7 +741,7 @@ async def rank_shapes(request: Request):
                 e = text.rfind("}") + 1
                 if s >= 0 and e > s: text = text[s:e]
             ranking = json.loads(text)
-            print(f"Shape ranking: best={ranking.get('bestShapeIndex')}, conf={ranking.get('confidence')}, north={ranking.get('northAngle')}, street={ranking.get('streetSide')}, mirrored={ranking.get('mirrored')}")
+            print(f"Shape ranking: best={ranking.get('bestShapeIndex')}, conf={ranking.get('confidence')}, north={ranking.get('northAngle')}, street={ranking.get('streetSide')}")
             return {"ok": True, "data": ranking}
 
     except urllib.error.HTTPError as he:
