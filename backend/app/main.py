@@ -818,6 +818,31 @@ def build_ai_helper_prompt(step, params, extraction_summary):
         if val is not None:
             current_vals += f"- {k}: {val}\n"
 
+    # S54: Cross-step params - always available regardless of current step
+    # The site plan preview shows the deck, so the AI needs to know about it everywhere
+    cross_step_params = {
+        "width": {"desc": "Deck width in feet (along the house wall)", "min": 8, "max": 50, "type": "number"},
+        "depth": {"desc": "Deck depth in feet (how far it extends into yard)", "min": 6, "max": 24, "type": "number"},
+        "height": {"desc": "Deck height in feet above ground", "min": 1, "max": 14, "type": "number"},
+        "hasStairs": {"desc": "Whether the deck has stairs", "type": "boolean"},
+        "stairLocation": {"desc": "Which side stairs exit from", "type": "choice", "options": ["front", "left", "right"]},
+        "attachment": {"desc": "How deck attaches to house", "type": "choice", "options": ["ledger", "freestanding"]},
+        "deckOffset": {"desc": "Horizontal offset of deck center from house center", "type": "number"},
+    }
+    cross_desc = ""
+    cross_vals = ""
+    for k, v in cross_step_params.items():
+        if k not in step_info["params"]:  # avoid duplicates
+            cross_desc += f"- {k}: {v['desc']}"
+            if v.get("type") == "choice":
+                cross_desc += f" (options: {v['options']})"
+            elif v.get("min") is not None:
+                cross_desc += f" (range: {v['min']}-{v['max']})"
+            cross_desc += "\n"
+            val = params.get(k)
+            if val is not None:
+                cross_vals += f"- {k}: {val}\n"
+
     extraction_note = ""
     if extraction_summary:
         extraction_note = f"\nExtraction results from their survey upload:\n{extraction_summary}\n"
@@ -902,7 +927,7 @@ Your personality: Warm, knowledgeable, concise. You are a friendly building expe
 
 SETTABLE PARAMETERS for this step:
 {param_desc if param_desc else "(No settable parameters on this step)"}
-
+{"CROSS-STEP PARAMETERS (always available - the site plan preview shows the deck on every step):" + chr(10) + cross_desc + chr(10) + "Current deck values:" + chr(10) + (cross_vals if cross_vals else "(defaults)") if cross_desc else ""}
 CURRENT VALUES:
 {current_vals if current_vals else "(defaults)"}
 {extraction_note}{site_elements_note}
@@ -934,7 +959,8 @@ RULES:
 - For deck height, help users think about it: "How high is your back door above the ground?" Common heights: 2-4 feet for most homes, 6-10 feet for walkout basements.
 - A setback is the minimum distance a structure must be from a property line. Permit offices enforce these.
 - A ledger board is a board bolted directly to the house framing. Freestanding means the deck has its own support posts near the house instead.
-- Never mention "sections" or "sectionId" or UI implementation details. Just describe what the user should look for and do."""
+- Never mention "sections" or "sectionId" or UI implementation details. Just describe what the user should look for and do.
+- CROSS-STEP FIXES: If the user reports a problem visible in the site plan preview (like deck overlapping with a garage), fix it immediately using cross-step parameters. Don't tell the user to fix it in a later step. The preview updates live, so they'll see the fix right away."""
 
 
 @app.post("/api/ai-helper")
