@@ -997,6 +997,7 @@ function StepContent(props) {
           body: JSON.stringify({ surveyData: sitePlanB64, candidates: candidateData, fileType: fileType })
         });
         var data = await res.json();
+        console.log("Stage 2 response ok:", data.ok);
         if (data.ok && data.data) {
           console.log("Stage 2 success:", JSON.stringify(data.data));
           setRankingResult(data.data);
@@ -1005,8 +1006,14 @@ function StepContent(props) {
           if (idx != null && idx >= 0 && idx < shapeCandidates.length && window._onPreviewShape) {
             window._onPreviewShape(idx);
           }
+        } else {
+          console.error("Stage 2 failed:", data.error || "unknown error");
+          setRankingResult({ failed: true, error: data.error });
         }
-      } catch(e) { console.error("Shape ranking error:", e); }
+      } catch(e) {
+        console.error("Shape ranking error:", e);
+        setRankingResult({ failed: true, error: e.message });
+      }
       setRankingInProgress(false);
       window._rankingInProgress = false;
       console.log("Shape ranking complete. Result:", window._rankingResult || "none");
