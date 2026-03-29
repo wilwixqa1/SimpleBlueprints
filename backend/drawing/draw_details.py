@@ -19,7 +19,7 @@ from .draw_plan import BRAND, draw_dimension_h, draw_dimension_v, format_feet_in
 def draw_ledger_detail(ax, params, calc):
     """Ledger-to-house connection cross section"""
     ax.set_xlim(-3, 16)
-    ax.set_ylim(-4, 12)
+    ax.set_ylim(-4, 13)  # S57: increased from 12 to prevent title clipping
     ax.set_aspect('equal')
     ax.axis('off')
     ax.set_facecolor('white')
@@ -131,10 +131,10 @@ def draw_footing_detail(ax, params, calc):
                  post_visual_w, 6, fc=BRAND["post"], ec=BRAND["dark"], lw=1))
     ax.text(10, 4.5, f'{calc["post_size"]} PT POST', fontsize=5, fontweight='bold', color=BRAND["dark"])
 
-    # Rebar
-    ax.plot([4, 4], [-pier_visual_depth + 0.5, 0], color=BRAND["red"], lw=0.8)
-    ax.plot([6, 6], [-pier_visual_depth + 0.5, 0], color=BRAND["red"], lw=0.8)
-    ax.text(10, -2, '#4 REBAR', fontsize=4, color=BRAND["red"])
+    # Rebar (subtle, not the visual focus)
+    ax.plot([4, 4], [-pier_visual_depth + 0.5, 0], color='#b04040', lw=0.5, ls='--')
+    ax.plot([6, 6], [-pier_visual_depth + 0.5, 0], color='#b04040', lw=0.5, ls='--')
+    ax.text(10, -2, '#4 REBAR', fontsize=4, color='#b04040')
 
     # Frost line
     frost_visual = min(pier_visual_depth * 0.3, 2)

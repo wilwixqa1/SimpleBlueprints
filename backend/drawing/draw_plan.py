@@ -245,7 +245,7 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
     # S22: Adaptive margins - wider multi-zone decks need proportionally more room
     margin_x_left = max(bbox["w"] * 0.20, 5)
     margin_x_right = max(bbox["w"] * 0.10, 3)  # tighter for title block strip
-    margin_y = max(bbox["d"] * 0.30, 4)
+    margin_y = max(bbox["d"] * 0.35, 6)  # S57: increased from 0.30/4 to avoid title overlap
     house_depth = min(D * 0.5, 8)
 
     for ax, title, is_framing in [(ax1, "MAIN LEVEL DECK PLAN", False), (ax2, "DECK FRAMING", True)]:
@@ -255,8 +255,8 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
         ax.axis('off')
         ax.set_facecolor('white')
 
-        # S22: Title positioned relative to bbox top, not hardcoded D
-        title_y = bbox["y"] + bbox["d"] + margin_y - 1
+        # S57: Title positioned with more clearance above deck top
+        title_y = bbox["y"] + bbox["d"] + margin_y - 0.5
         ax.text(bbox["x"], title_y, title, fontsize=10, fontweight='bold',
                 fontfamily='monospace', color=BRAND["dark"])
         _scale_txt = 'SCALE: 1/4" = 1' + "'" + '-0"'

@@ -484,7 +484,7 @@ def _draw_hardware_callout(ax, x, y, label, leader_dx=2.5, leader_dy=-0.8, fonts
 # S24: Zone-aware - left/right zones extend visible width
 # S35: Underground footings, hardware callouts, scale bar
 # ============================================================
-def draw_south_elevation(ax, params, calc, compact=False):
+def draw_south_elevation(ax, params, calc, compact=False, spec=None):
     W = calc["width"]
     D = calc["depth"]
     H = calc["height"]
@@ -637,13 +637,14 @@ def draw_south_elevation(ax, params, calc, compact=False):
     lbl_x = deck_x + total_w + 1.5
     lbl_kw = dict(fontsize=fs_lbl, fontfamily='monospace', color=BRAND["dark"])
 
-    ax.text(lbl_x, rail_top - 0.3, f'{calc["rail_height"]}" GUARD RAIL', **lbl_kw)
-    ax.text(lbl_x, deck_top - beam_h / 2 - 0.2, f'{calc["beam_size"].upper()}', **lbl_kw)
-    ax.text(lbl_x, deck_top - beam_h / 2 - 0.8,
-            'FLUSH BEAM' if beam_type == 'flush' else 'DROPPED BEAM', **lbl_kw)
-    ax.text(lbl_x, H * 0.4, f'{calc["post_size"]} PT POSTS', **lbl_kw)
-    ax.text(lbl_x, H * 0.4 - 0.6, f'({calc["num_posts"]}) PLCS', **lbl_kw)
-    ax.text(lbl_x, -0.5, f'{calc["footing_diam"]}" DIA. PIERS', **lbl_kw)
+    ax.text(lbl_x, rail_top - 0.3,
+            spec["labels"]["guardrail"] if spec else f'{calc["rail_height"]}" GUARD RAIL', **lbl_kw)
+    _beam_lbl = spec["labels"]["beam"] if spec else f'{calc["beam_size"].upper()} {"DROPPED" if beam_type != "flush" else "FLUSH"} BEAM'
+    ax.text(lbl_x, deck_top - beam_h / 2 - 0.5, _beam_lbl, **lbl_kw)
+    _post_lbl = spec["labels"]["posts_and_hardware"] if spec else f'{calc["post_size"]} PT POSTS\n({calc["num_posts"]}) PLCS'
+    ax.text(lbl_x, H * 0.4, _post_lbl, **lbl_kw)
+    ax.text(lbl_x, -0.5,
+            spec["labels"]["footings"] if spec else f'{calc["footing_diam"]}" DIA. PIERS', **lbl_kw)
 
     # === DIMENSIONS (span bounding box) ===
     draw_dimension_v(ax, deck_x - 1, ground_y, deck_top,
@@ -662,7 +663,7 @@ def draw_south_elevation(ax, params, calc, compact=False):
 # S24: Zone-aware - left/right zones extend visible width (mirrored)
 # S35: Variable post heights, underground footings, hardware callouts
 # ============================================================
-def draw_north_elevation(ax, params, calc, compact=False):
+def draw_north_elevation(ax, params, calc, compact=False, spec=None):
     W = calc["width"]
     D = calc["depth"]
     H = calc["height"]
@@ -782,7 +783,8 @@ def draw_north_elevation(ax, params, calc, compact=False):
 
     if attachment == "ledger":
         ax.text(lbl_x, deck_top - 0.4, 'LEDGER TO HOUSE', **lbl_kw)
-    ax.text(lbl_x, rail_top - 0.3, f'{calc["rail_height"]}" RAIL (FAR SIDE)', **lbl_kw)
+    ax.text(lbl_x, rail_top - 0.3,
+            (spec["labels"]["guardrail"] + ' (FAR SIDE)') if spec else f'{calc["rail_height"]}" RAIL (FAR SIDE)', **lbl_kw)
 
     # === DIMENSIONS (span bounding box) ===
     draw_dimension_v(ax, deck_x - 1, ground_y, deck_top,
@@ -800,7 +802,7 @@ def draw_north_elevation(ax, params, calc, compact=False):
 # SIDE ELEVATION (East or West) - zone-0 only
 # S35: Variable post heights, underground footings, hardware callouts
 # ============================================================
-def draw_side_elevation(ax, params, calc, direction="east", compact=False):
+def draw_side_elevation(ax, params, calc, direction="east", compact=False, spec=None):
     W = calc["width"]
     D = calc["depth"]
     H = calc["height"]
@@ -907,9 +909,12 @@ def draw_side_elevation(ax, params, calc, direction="east", compact=False):
 
         lbl_x = deck_end_x - 1.5
         lbl_kw = dict(fontsize=fs_lbl, fontfamily='monospace', color=BRAND["dark"], ha='right')
-        ax.text(lbl_x, rail_top - 0.3, f'{calc["rail_height"]}" RAIL', **lbl_kw)
-        ax.text(lbl_x, deck_top - beam_h / 2, f'{calc["beam_size"].upper()}', **lbl_kw)
-        ax.text(lbl_x, H * 0.4, f'{calc["post_size"]} POST', **lbl_kw)
+        ax.text(lbl_x, rail_top - 0.3,
+                spec["labels"]["guardrail"] if spec else f'{calc["rail_height"]}" RAIL', **lbl_kw)
+        ax.text(lbl_x, deck_top - beam_h / 2,
+                spec["labels"]["beam"] if spec else f'{calc["beam_size"].upper()}', **lbl_kw)
+        ax.text(lbl_x, H * 0.4,
+                f'{calc["post_size"]} POST', **lbl_kw)
 
         draw_dimension_v(ax, deck_end_x - 0.5, ground_y, deck_top,
                          format_feet_inches(H), offset=-5, color=BRAND["blue"], fontsize=fs_dim)
@@ -1042,6 +1047,9 @@ def draw_side_elevation(ax, params, calc, direction="east", compact=False):
 # S35: Scale bars integrated into each elevation
 # ============================================================
 def draw_elevations_sheet(fig, params, calc, spec=None):
+    if spec is None:
+        from .permit_spec import build_permit_spec
+        spec = build_permit_spec(params, calc)
     axes = fig.subplots(2, 2)
     fig.subplots_adjust(left=0.04, right=0.84, top=0.92, bottom=0.06, hspace=0.22, wspace=0.12)
 
@@ -1061,7 +1069,7 @@ def draw_elevations_sheet(fig, params, calc, spec=None):
     # ---- SOUTH ELEVATION (top-left) ----
     ax_south.set_facecolor('white')
     ax_south.axis('off')
-    max_h_s = draw_south_elevation(ax_south, params, calc, compact=True)
+    max_h_s = draw_south_elevation(ax_south, params, calc, compact=True, spec=spec)
     margin_sx = max(total_w * 0.15, 4)
     ax_south.set_xlim(-margin_sx, total_w + margin_sx + 2)
     ax_south.set_ylim(-4.5, max(max_h_s + 3, H + 14))
@@ -1074,7 +1082,7 @@ def draw_elevations_sheet(fig, params, calc, spec=None):
     # ---- NORTH ELEVATION (top-right) ----
     ax_north.set_facecolor('white')
     ax_north.axis('off')
-    max_h_n = draw_north_elevation(ax_north, params, calc, compact=True)
+    max_h_n = draw_north_elevation(ax_north, params, calc, compact=True, spec=spec)
     margin_nx = max(total_w * 0.15, 4)
     ax_north.set_xlim(-margin_nx, total_w + margin_nx + 2)
     ax_north.set_ylim(-4.5, max(max_h_n + 3, H + 14))
@@ -1087,7 +1095,7 @@ def draw_elevations_sheet(fig, params, calc, spec=None):
     # ---- EAST ELEVATION (bottom-left) ----
     ax_east.set_facecolor('white')
     ax_east.axis('off')
-    max_h_e = draw_side_elevation(ax_east, params, calc, direction="east", compact=True)
+    max_h_e = draw_side_elevation(ax_east, params, calc, direction="east", compact=True, spec=spec)
     margin_ex = max(D * 0.3, 3)
     ax_east.set_xlim(-margin_ex, D + 22)
     ax_east.set_ylim(-4.5, max(max_h_e + 3, H + 14))
@@ -1100,7 +1108,7 @@ def draw_elevations_sheet(fig, params, calc, spec=None):
     # ---- WEST ELEVATION (bottom-right) ----
     ax_west.set_facecolor('white')
     ax_west.axis('off')
-    max_h_w = draw_side_elevation(ax_west, params, calc, direction="west", compact=True)
+    max_h_w = draw_side_elevation(ax_west, params, calc, direction="west", compact=True, spec=spec)
     margin_wx = max(D * 0.3, 3)
     ax_west.set_xlim(-margin_wx, D + 22)
     ax_west.set_ylim(-4.5, max(max_h_w + 3, H + 14))
