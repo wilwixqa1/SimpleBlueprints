@@ -874,7 +874,10 @@ const App = function SimpleBlueprints() {
                   </div>
                   <div style={{ flex: "1 1 45%", display: "flex", flexDirection: "column" }}>
                     <div style={{ fontSize: 8, fontWeight: 700, color: br.mu, fontFamily: mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 4 }}>Proposed Shapes</div>
-                    <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 10px", background: "#fefce8", borderRadius: 5, border: "1px solid #fde68a", marginBottom: 8 }}><span style={{ fontSize: 9, fontFamily: mono, color: "#92400e" }}>Not a match?</span><button onClick={() => { setCompareMode(false); setTraceState({ calPoints: [], calDist: "", ppf: null, vertices: [], edgeMeta: [], edgeLengths: [], imgW: 0, imgH: 0, selectedEdge: null, selectedVertex: null, pdfPage: 1, pdfPageCount: 1 }); setTraceMode(true); }} style={{ fontSize: 9, fontFamily: mono, color: "#ca8a04", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", fontWeight: 700, padding: 0 }}>Trace manually</button></div>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "6px 10px", background: "#fefce8", borderRadius: 6, border: "1px solid #fde68a", marginBottom: 8 }}>
+                      <span style={{ fontSize: 9, fontFamily: mono, color: "#92400e" }}>None of these look right?</span>
+                      <button onClick={() => { setCompareMode(false); setTraceState({ calPoints: [], calDist: "", ppf: null, vertices: [], edgeMeta: [], edgeLengths: [], imgW: 0, imgH: 0, selectedEdge: null, selectedVertex: null, pdfPage: 1, pdfPageCount: 1 }); setTraceMode(true); }} style={{ fontSize: 9, fontFamily: mono, color: "#fff", background: "#ca8a04", border: "none", cursor: "pointer", fontWeight: 700, padding: "4px 12px", borderRadius: 4 }}>Trace Manually</button>
+                    </div>
                     <div style={{ maxHeight: "60vh", overflowY: "auto", flex: 1 }}>
                       <CompareShapes candidates={window._shapeCompareData ? window._shapeCompareData.candidates : []} previewIdx={previewIdx} />
                     </div>
