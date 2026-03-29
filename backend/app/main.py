@@ -464,6 +464,23 @@ async def extract_survey(request: Request):
         if file_type == "pdf":
             # S52: Filter to useful pages only, extract text locally
             filtered_b64, pre_text, kept = filter_pdf_pages(survey_b64)
+            # Find which original page is the site plan (for frontend page nav)
+            site_page_idx = 0
+            try:
+                import fitz as _fitz
+                _doc = _fitz.open(stream=base64.b64decode(survey_b64), filetype="pdf")
+                _best_score = -1
+                _site_kw = ["SITE PLAN", "PROPERTY LINE", "SETBACK", "GRAPHIC SCALE"]
+                _skip_kw = ["ELEVATION", "COVER SHEET"]
+                for _i in range(len(_doc)):
+                    _t = _doc[_i].get_text().upper()
+                    _sc = sum(2 for k in _site_kw if k in _t) - sum(1 for k in _skip_kw if k in _t)
+                    if _sc > _best_score:
+                        _best_score = _sc
+                        site_page_idx = _i
+                print(f"Site plan page detected: {site_page_idx}")
+            except Exception as _e:
+                print(f"Site page detection error: {_e}")
             doc_block = {
                 "type": "document",
                 "source": {"type": "base64", "media_type": "application/pdf", "data": filtered_b64}
@@ -517,7 +534,10 @@ async def extract_survey(request: Request):
                 if start >= 0 and end > start:
                     text = text[start:end]
             extracted = json.loads(text)
-            return {"ok": True, "data": extracted}
+            resp_data = {"ok": True, "data": extracted}
+            if file_type == "pdf":
+                resp_data["sitePageIndex"] = site_page_idx
+            return resp_data
 
     except json.JSONDecodeError as e:
         return {"ok": False, "error": "Failed to parse AI response: " + str(e)}

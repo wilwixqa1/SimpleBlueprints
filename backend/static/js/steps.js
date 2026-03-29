@@ -10,7 +10,9 @@ const { br: _br, mono: _mono, sans: _sans } = window.SB;
 // S47: Survey preview component with page navigation (pdf.js for PDFs, img for images)
 function SurveyPreview({ b64, fileType }) {
   var _s = _stUS(null), src = _s[0], setSrc = _s[1];
-  var _p = _stUS(1), page = _p[0], setPage = _p[1];
+  // S52: Start on site plan page if detected
+  var initPage = (window._sitePageIndex || 0) + 1;  // 0-indexed -> 1-indexed
+  var _p = _stUS(initPage), page = _p[0], setPage = _p[1];
   var _pc = _stUS(1), pageCount = _pc[0], setPageCount = _pc[1];
   function renderPage(pg) {
     if (!b64 || fileType !== "pdf") return;
@@ -981,6 +983,7 @@ function StepContent(props) {
     if (!compareMode || shapeCandidates.length === 0 || !sitePlanB64 || rankingInProgress || rankingResult) return;
     setRankingInProgress(true);
     window._rankingInProgress = true;
+    console.log("Stage 2: Sending " + shapeCandidates.length + " candidates to Opus for ranking...");
     var fileType = sitePlanFile && sitePlanFile.name.toLowerCase().endsWith(".pdf") ? "pdf" : "image";
     var candidateData = shapeCandidates.map(function(c) {
       return { vertices: c.vertices, area: c.area, edges: c.edges };
@@ -995,6 +998,7 @@ function StepContent(props) {
         });
         var data = await res.json();
         if (data.ok && data.data) {
+          console.log("Stage 2 success:", JSON.stringify(data.data));
           setRankingResult(data.data);
           window._rankingResult = data.data;
           var idx = data.data.bestShapeIndex;
@@ -1002,9 +1006,10 @@ function StepContent(props) {
             window._onPreviewShape(idx);
           }
         }
-      } catch(e) { console.log("Shape ranking error:", e); }
+      } catch(e) { console.error("Shape ranking error:", e); }
       setRankingInProgress(false);
       window._rankingInProgress = false;
+      console.log("Shape ranking complete. Result:", window._rankingResult || "none");
     })();
   }, [compareMode, shapeCandidates, sitePlanB64, rankingInProgress, rankingResult]);
 
@@ -2244,6 +2249,8 @@ function StepContent(props) {
               var data = await res.json();
               if (data.ok) {
                 setExtractResult(data.data);
+                // S52: Store site plan page index for SurveyPreview
+                if (data.sitePageIndex != null) window._sitePageIndex = data.sitePageIndex;
                 var hasShapes = data.data.lotEdges && data.data.lotEdges.length >= 4 && data.data.lotArea;
                 if (!hasShapes) {
                   setTraceState({
