@@ -329,7 +329,7 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
         if attachment == "ledger":
             ax.plot([0, W], [0, 0], color=BRAND["ledger_green"], lw=3.5)
             ax.text(W / 2, -0.6,
-                    f'{calc["ledger_size"]} PT LEDGER W/ (2) 5" LEDGER LOCKS @ {16}" O.C.',
+                    spec["labels"]["ledger"],
                     ha='center', fontsize=4, fontweight='bold', color=BRAND["ledger_green"])
 
         # Framing-specific elements
@@ -353,15 +353,15 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
                                 color=BRAND["dark"], lw=0.6, ls='--', dashes=(1.5, 1.5))
                 # S22: Position blocking label relative to bbox right edge
                 ax.text(W / 2, block_y + 0.5,
-                        f'{calc["joist_size"]} SOLID BLOCKING AT MID-SPAN',
+                        spec["labels"]["blocking"],
                         ha='center', fontsize=3.5, fontfamily='monospace', color=BRAND["dark"],
                         bbox=dict(boxstyle='square,pad=0.15', fc='white', ec='none', alpha=0.85))
 
             # Joist label
             ax.text(W / 2, D / 2 - 1.5,
-                    f'P.T. {calc["joist_size"]} @ {calc["joist_spacing"]}" O.C.',
+                    spec["labels"]["joist"],
                     ha='center', fontsize=6, fontfamily='monospace', color='#666')
-            ax.text(W / 2, D / 2 - 2.8, 'DECK JOISTS',
+            ax.text(W / 2, D / 2 - 2.8, spec["labels"]["joist_deck"],
                     ha='center', fontsize=5, fontfamily='monospace', color='#888')
 
             # Beam
@@ -392,16 +392,30 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
                                 bbox=dict(boxstyle='square,pad=0.1', fc='#fff8f0',
                                           ec='#c4960a', lw=0.3, alpha=0.9))
 
-            # S57: Hardware labels from permit spec - right-aligned near beam
-            _hw_x = W - 0.5
-            _hw_kw = dict(fontsize=3.5, fontfamily='monospace', color=BRAND["dark"], ha='right',
+            # S57: Hardware labels distributed near their elements (Rutstein style)
+            _hw_kw = dict(fontsize=3.5, fontfamily='monospace', color=BRAND["dark"],
                           bbox=dict(boxstyle='square,pad=0.1', fc='white', ec='none', alpha=0.85))
-            _hw_y = beam_y + 2.2
-            ax.text(_hw_x, _hw_y, spec["labels"]["posts_and_hardware"], **_hw_kw)
-            ax.text(_hw_x, _hw_y - 0.6, spec["labels"]["footings"], **_hw_kw)
-            ax.text(_hw_x, _hw_y - 1.2, spec["labels"]["joist_hanger"], **_hw_kw)
+
+            # Post/footing label: near leftmost post, above beam
+            _first_px = calc["post_positions"][0]
+            ax.text(_first_px, beam_y + 1.5, spec["labels"]["posts_and_hardware"],
+                    ha='left', fontsize=3.3, fontfamily='monospace', color=BRAND["dark"],
+                    bbox=dict(boxstyle='square,pad=0.1', fc='white', ec='none', alpha=0.85))
+            ax.text(_first_px, beam_y + 0.9, spec["labels"]["footings"],
+                    ha='left', fontsize=3.3, fontfamily='monospace', color=BRAND["dark"],
+                    bbox=dict(boxstyle='square,pad=0.1', fc='white', ec='none', alpha=0.85))
+
+            # Hurricane tie label: centered below beam label
             if calc.get("beam_type", "dropped") == "dropped":
-                ax.text(_hw_x, _hw_y - 1.8, spec["labels"]["hurricane_tie"], **_hw_kw)
+                ax.text(W / 2, beam_y - 1.5, spec["labels"]["hurricane_tie"],
+                        ha='center', fontsize=3.3, fontfamily='monospace', color=BRAND["dark"],
+                        bbox=dict(boxstyle='square,pad=0.1', fc='white', ec='none', alpha=0.85))
+
+            # Joist hanger label: near ledger (where hangers connect)
+            if attachment == "ledger":
+                ax.text(W - 0.5, 0.8, spec["labels"]["joist_hanger"],
+                        ha='right', fontsize=3.3, fontfamily='monospace', color=BRAND["dark"],
+                        bbox=dict(boxstyle='square,pad=0.1', fc='white', ec='none', alpha=0.85))
 
             # S57: Loads box - inside deck, bottom-left corner
             _lb_x = 0.3
@@ -464,9 +478,9 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
                         color='#999', fontweight='bold')
         else:
             # Plan view labels (zone 0 center)
-            ax.text(W / 2, D / 2 + 0.8, '1 x 6 COMPOSITE DECKING',
+            ax.text(W / 2, D / 2 + 0.8, spec["labels"]["decking"],
                     ha='center', fontsize=5.5, fontfamily='monospace', color='#666')
-            ax.text(W / 2, D / 2 - 0.8, f'{calc["rail_height"]}" GUARD RAIL SYSTEM',
+            ax.text(W / 2, D / 2 - 0.8, spec["labels"]["guardrail"],
                     ha='center', fontsize=5, fontfamily='monospace', color='#666')
 
         # Railing (S21: zone-aware exposed edges)
