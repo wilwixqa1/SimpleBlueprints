@@ -1,21 +1,55 @@
 """
 SimpleBlueprints — Database
-PostgreSQL via psycopg2. Tables: users, generations, page_views, events, ai_conversations.
+PostgreSQL via psycopg2. Tables: users, generations, page_views, events, ai_conversations, ai_insights.
+Connection pooling via ThreadedConnectionPool (S55).
 """
 
 import os
 import time
 import json
 import psycopg2
+import psycopg2.pool
 from psycopg2.extras import RealDictCursor, Json
 from contextlib import contextmanager
 
 DATABASE_URL = os.getenv("DATABASE_URL", "")
+SB_PHASE = os.getenv("SB_PHASE", "testing")  # testing | beta | production
+
+# ============================================================
+# CONNECTION POOL (S55)
+# ============================================================
+# minconn=2: keep 2 connections warm at all times
+# maxconn=15: cap at 15 to stay within Railway Postgres limits (typically 20-100)
+_pool = None
+
+def _get_pool():
+    global _pool
+    if _pool is None and DATABASE_URL:
+        try:
+            _pool = psycopg2.pool.ThreadedConnectionPool(
+                minconn=2, maxconn=15, dsn=DATABASE_URL
+            )
+        except Exception as e:
+            print(f"Connection pool init error: {e}")
+    return _pool
 
 
 @contextmanager
 def get_db():
-    conn = psycopg2.connect(DATABASE_URL)
+    pool = _get_pool()
+    if pool is None:
+        # Fallback: direct connection if pool fails
+        conn = psycopg2.connect(DATABASE_URL)
+        try:
+            yield conn
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+        return
+    conn = pool.getconn()
     try:
         yield conn
         conn.commit()
@@ -23,7 +57,7 @@ def get_db():
         conn.rollback()
         raise
     finally:
-        conn.close()
+        pool.putconn(conn)
 
 
 def init_tables():
@@ -138,6 +172,18 @@ def init_tables():
             """)
         except Exception:
             pass
+        # S55: Phase tagging - add phase column to all data tables, backfill as 'testing'
+        for tbl in ['events', 'ai_conversations', 'generations', 'ai_insights']:
+            try:
+                cur.execute(f"ALTER TABLE {tbl} ADD COLUMN IF NOT EXISTS phase TEXT DEFAULT 'testing'")
+            except Exception:
+                pass
+        # Backfill any NULL phase values
+        for tbl in ['events', 'ai_conversations', 'generations', 'ai_insights']:
+            try:
+                cur.execute(f"UPDATE {tbl} SET phase = 'testing' WHERE phase IS NULL")
+            except Exception:
+                pass
         cur.close()
 
 
@@ -200,8 +246,8 @@ def log_generation(user_id: int, params: dict, calc: dict, file_id: str) -> int:
             INSERT INTO generations
             (user_id, timestamp, deck_width, deck_depth, deck_height, deck_area,
              attachment, has_stairs, stair_location, decking_type, rail_type,
-             params_json, file_id, emailed)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, FALSE)
+             params_json, file_id, emailed, phase)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, FALSE, %s)
             RETURNING id
         """, (
             user_id,
@@ -217,6 +263,7 @@ def log_generation(user_id: int, params: dict, calc: dict, file_id: str) -> int:
             params.get("railType"),
             json.dumps(params)[:5000],
             file_id,
+            SB_PHASE,
         ))
         return cur.fetchone()[0]
 
@@ -253,8 +300,8 @@ def log_event(event: dict):
         with get_db() as conn:
             cur = conn.cursor()
             cur.execute("""
-                INSERT INTO events (user_id, anonymous_id, session_id, event_type, event_data, step, guide_phase)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO events (user_id, anonymous_id, session_id, event_type, event_data, step, guide_phase, phase)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             """, (
                 event.get("user_id"),
                 event.get("anonymous_id"),
@@ -263,6 +310,7 @@ def log_event(event: dict):
                 Json(event.get("event_data", {})),
                 event.get("step"),
                 event.get("guide_phase"),
+                SB_PHASE,
             ))
     except Exception as e:
         print(f"Event log error: {e}")
@@ -277,8 +325,8 @@ def log_events_batch(events: list):
             cur = conn.cursor()
             for event in events:
                 cur.execute("""
-                    INSERT INTO events (user_id, anonymous_id, session_id, event_type, event_data, step, guide_phase)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    INSERT INTO events (user_id, anonymous_id, session_id, event_type, event_data, step, guide_phase, phase)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 """, (
                     event.get("user_id"),
                     event.get("anonymous_id"),
@@ -287,6 +335,7 @@ def log_events_batch(events: list):
                     Json(event.get("event_data", {})),
                     event.get("step"),
                     event.get("guide_phase"),
+                    SB_PHASE,
                 ))
     except Exception as e:
         print(f"Batch event log error: {e}")
@@ -314,8 +363,8 @@ def log_ai_message(msg: dict):
             cur = conn.cursor()
             cur.execute("""
                 INSERT INTO ai_conversations
-                (user_id, anonymous_id, session_id, step, guide_phase, role, message, actions, action_count, cost_cents, duration_ms, classify)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                (user_id, anonymous_id, session_id, step, guide_phase, role, message, actions, action_count, cost_cents, duration_ms, classify, phase)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (
                 msg.get("user_id"),
                 msg.get("anonymous_id"),
@@ -329,6 +378,7 @@ def log_ai_message(msg: dict):
                 msg.get("cost_cents", 0),
                 msg.get("duration_ms"),
                 msg.get("classify", ""),
+                SB_PHASE,
             ))
     except Exception as e:
         print(f"AI message log error: {e}")
@@ -426,8 +476,8 @@ def save_insight(insight: dict):
             cur.execute("""
                 INSERT INTO ai_insights
                 (conversation_count, event_summary, feature_requests, pain_points,
-                 product_issues, usage_patterns, recommendations, raw_analysis, trigger_type)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                 product_issues, usage_patterns, recommendations, raw_analysis, trigger_type, phase)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (
                 insight.get("conversation_count", 0),
                 Json(insight.get("event_summary", {})),
@@ -438,6 +488,7 @@ def save_insight(insight: dict):
                 Json(insight.get("recommendations", [])),
                 insight.get("raw_analysis", ""),
                 insight.get("trigger_type", "auto"),
+                SB_PHASE,
             ))
     except Exception as e:
         print(f"Save insight error: {e}")
