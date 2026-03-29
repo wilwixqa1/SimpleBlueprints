@@ -9,6 +9,17 @@
 :root{--bg:#0d1117;--bg2:#161b22;--bg3:#21262d;--border:#30363d;--text:#c9d1d9;--text2:#8b949e;--text3:#484f58;--blue:#58a6ff;--green:#3fb950;--red:#f85149;--orange:#d29922;--purple:#bc8cff}
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:var(--bg);color:var(--text);font-family:'DM Sans',system-ui,sans-serif;min-height:100vh}
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center}
+.login-box{background:var(--bg2);border:1px solid var(--border);padding:40px 36px;border-radius:12px;width:340px}
+.login-box h1{font-size:18px;color:var(--blue);margin-bottom:4px}
+.login-box .sub{margin-bottom:20px}
+.login-box input{width:100%;border:1px solid var(--border);background:var(--bg);color:var(--text);padding:10px 14px;border-radius:6px;font-family:'DM Mono',monospace;font-size:13px;margin-bottom:12px;outline:none}
+.login-box input:focus{border-color:var(--blue)}
+.login-box button{width:100%;background:#238636;border:none;color:#fff;padding:10px;border-radius:6px;font-family:'DM Mono',monospace;font-size:13px;font-weight:600;cursor:pointer}
+.login-box button:hover{background:#2ea043}
+.login-error{color:var(--red);font-size:11px;font-family:'DM Mono',monospace;margin-bottom:10px;display:none}
+.dash{display:none}
+.dash.active{display:block}
 .wrap{max-width:1200px;margin:0 auto;padding:28px 24px}
 .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px}
 h1{font-size:22px;color:var(--blue);margin-bottom:4px}
@@ -84,13 +95,49 @@ tr:hover td{background:rgba(88,166,255,.03)}
 </style>
 </head>
 <body>
+
+<!-- Login -->
+<div class="login-wrap" id="login-screen">
+  <div class="login-box">
+    <h1>SimpleBlueprints Admin</h1>
+    <div class="sub">Enter admin password to access the dashboard.</div>
+    <div class="login-error" id="login-error">Invalid password. Try again.</div>
+    <input type="password" id="admin-pw" placeholder="Password" onkeydown="if(event.key==='Enter')doLogin()"/>
+    <button onclick="doLogin()">Sign In</button>
+  </div>
+</div>
+
+<!-- Dashboard -->
+<div class="dash" id="dashboard">
 <div class="wrap" id="app">
   <div style="text-align:center;padding:60px;color:var(--text3);font-family:'DM Mono',monospace">Loading dashboard...</div>
+</div>
 </div>
 
 <script>
 var D = null, S = null; // D = legacy stats, S = tracking stats
 var activeDays = 30;
+var adminPw = '';
+
+function doLogin() {
+  var pw = document.getElementById('admin-pw').value;
+  fetch('/api/admin/login', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({password: pw})
+  }).then(function(res) {
+    if (!res.ok) throw new Error('bad');
+    adminPw = pw;
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('dashboard').classList.add('active');
+    load();
+  }).catch(function() {
+    var err = document.getElementById('login-error');
+    err.style.display = 'block';
+    document.getElementById('admin-pw').value = '';
+    document.getElementById('admin-pw').focus();
+  });
+}
 
 function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 function ts(e) {
@@ -110,9 +157,10 @@ function fmtMs(ms) {
 
 async function load() {
   try {
+    var hdrs = {'X-Admin-Password': adminPw};
     var [r1, r2] = await Promise.all([
-      fetch('/admin/api/stats'),
-      fetch('/admin/api/tracking?days=' + activeDays)
+      fetch('/admin/api/stats', {headers: hdrs}),
+      fetch('/admin/api/tracking?days=' + activeDays, {headers: hdrs})
     ]);
     D = await r1.json();
     S = await r2.json();
@@ -135,6 +183,16 @@ function toggleSection(name) {
   var chev = document.getElementById('chev-' + name);
   body.classList.toggle('open');
   chev.classList.toggle('open');
+}
+
+function exportCSV() {
+  fetch('/admin/api/users/csv', {headers: {'X-Admin-Password': adminPw}})
+    .then(function(res) { if (!res.ok) throw new Error('Failed'); return res.blob(); })
+    .then(function(blob) {
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a'); a.href = url; a.download = 'simpleblueprints-users.csv'; a.click();
+      URL.revokeObjectURL(url);
+    }).catch(function(e) { alert('Export failed: ' + e.message); });
 }
 
 function renderBarChart(data, color) {
@@ -168,7 +226,7 @@ function render() {
   var html = '';
 
   // Header
-  html += '<div class="header"><div><h1>SimpleBlueprints Dashboard</h1><div class="sub">Analytics, Funnel, AI Intelligence</div></div><div style="display:flex;gap:8px"><a href="/admin/api/users/csv" class="btn" download>Export CSV</a><button class="btn" onclick="load()">Refresh</button></div></div>';
+  html += '<div class="header"><div><h1>SimpleBlueprints Dashboard</h1><div class="sub">Analytics, Funnel, AI Intelligence</div></div><div style="display:flex;gap:8px"><button class="btn" onclick="exportCSV()">Export CSV</button><button class="btn" onclick="load()">Refresh</button></div></div>';
 
   // Date range
   html += '<div class="date-bar"><label>Period:</label>';
