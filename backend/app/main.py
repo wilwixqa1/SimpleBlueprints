@@ -43,7 +43,9 @@ from app.database import (
     init_tables, upsert_user, get_user_by_id, update_email_opt_in,
     get_all_users, log_generation as db_log_generation, log_page_view as db_log_page_view,
     get_stats, log_event, log_events_batch, log_ai_message,
-    link_anonymous_to_user, get_tracking_stats
+    link_anonymous_to_user, get_tracking_stats,
+    should_generate_insight, get_conversations_for_insight,
+    get_event_summary_for_insight, save_insight
 )
 from app.auth import (
     get_login_url, exchange_code, sign_session,
@@ -984,6 +986,13 @@ A setback is the minimum distance your deck must be from the property line. Your
 
 IMPORTANT: Do NOT wrap your response in JSON or code fences. Write naturally as plain text. Only use the ACTIONS: line when you need to change values or navigate.
 
+CLASSIFY: ALWAYS include a "classify" action in your ACTIONS line to tag the user's message intent. Categories: general_question, feature_request, bug_report, confusion, frustration, positive_feedback, configuration_help. If there are no other actions, still include ACTIONS with just the classify. Examples:
+User asks how setbacks work -> ACTIONS:[{{"classify":"general_question"}}]
+User says "I wish I could add a hot tub" -> ACTIONS:[{{"classify":"feature_request"}}]
+User says "the deck is overlapping my house and won't stop" -> ACTIONS:[{{"classify":"bug_report"}}]
+User says "this is so easy, love it" -> ACTIONS:[{{"classify":"positive_feedback"}}]
+User sets their deck width -> ACTIONS:[{{"param":"width","value":20}},{{"classify":"configuration_help"}}]
+
 RULES:
 - "actions" array is optional. Only include it when the user clearly wants to set/change a value or needs to see a specific section.
 - Values must respect the min/max ranges and valid options listed above.
@@ -1003,6 +1012,111 @@ RULES:
 - Never mention "sections" or "sectionId" or UI implementation details. Just describe what the user should look for and do.
 - CROSS-STEP FIXES: If the user reports a problem visible in the site plan preview (like deck overlapping with a garage), fix it immediately using cross-step parameters. Don't tell the user to fix it in a later step. The preview updates live, so they'll see the fix right away.
 - TEACH THE TOOL: When you make a change for the user, briefly mention how they can do it themselves. For example: "I've shrunk the garage to 20' wide. If you want to fine-tune it, you can adjust the size in the Site Elements section below." This builds confidence and helps them learn the tool. Keep it to one short sentence, not a tutorial."""
+
+
+# ============================================================
+# AI INSIGHT GENERATION (S55 - Auto-batch with Opus)
+# ============================================================
+
+async def _generate_insight_async():
+    """Background task: analyze recent conversations + events with Opus."""
+    import httpx
+    try:
+        conversations = get_conversations_for_insight()
+        if not conversations:
+            return
+        event_summary = get_event_summary_for_insight()
+
+        # Group conversations by session
+        sessions = {}
+        for c in conversations:
+            sid = c["session_id"]
+            if sid not in sessions:
+                sessions[sid] = []
+            sessions[sid].append(c)
+
+        # Build conversation summaries (truncate to fit context)
+        conv_text = ""
+        for sid, msgs in list(sessions.items())[:30]:
+            conv_text += f"\n--- Session {sid[:12]} ---\n"
+            for m in msgs:
+                role = "USER" if m["role"] == "user" else "AI"
+                classify = f" [{m.get('classify','')}]" if m.get("classify") else ""
+                conv_text += f"{role}{classify}: {(m['message'] or '')[:300]}\n"
+
+        prompt = f"""You are a product analyst for SimpleBlueprints, a web app that generates permit-ready deck blueprint PDFs.
+
+Analyze these recent AI helper conversations and usage data. Extract actionable product insights.
+
+CONVERSATIONS ({len(conversations)} messages across {len(sessions)} sessions):
+{conv_text[:12000]}
+
+EVENT STATS (since last analysis):
+{json.dumps(event_summary, indent=2, default=str)[:3000]}
+
+Respond with ONLY valid JSON (no markdown, no code fences) in this exact structure:
+{{
+  "feature_requests": ["list of features users asked for that don't exist yet"],
+  "pain_points": ["specific frustrations or confusion patterns observed"],
+  "product_issues": ["bugs, UX problems, or things that aren't working as expected"],
+  "usage_patterns": ["interesting patterns in how people use the product"],
+  "recommendations": ["your top 3-5 actionable recommendations for the product team"]
+}}
+
+Be specific and cite actual user messages where relevant. Each item should be a concrete, actionable string, not vague. If a category has no items, use an empty array."""
+
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                "https://api.anthropic.com/v1/messages",
+                json={
+                    "model": "claude-opus-4-20250514",
+                    "max_tokens": 2000,
+                    "temperature": 0,
+                    "messages": [{"role": "user", "content": prompt}],
+                },
+                headers={
+                    "Content-Type": "application/json",
+                    "x-api-key": ANTHROPIC_API_KEY,
+                    "anthropic-version": "2023-06-01"
+                },
+                timeout=60.0
+            )
+            if resp.status_code != 200:
+                print(f"Insight generation API error: {resp.status_code} {resp.text[:200]}")
+                return
+
+            data = resp.json()
+            raw_text = data["content"][0]["text"].strip()
+
+            # Parse JSON (strip code fences if present)
+            clean = raw_text
+            if clean.startswith("```"):
+                clean = clean.split("\n", 1)[1] if "\n" in clean else clean[3:]
+            if clean.endswith("```"):
+                clean = clean[:-3]
+            clean = clean.strip()
+
+            try:
+                analysis = json.loads(clean)
+            except json.JSONDecodeError:
+                print(f"Insight JSON parse error: {clean[:500]}")
+                analysis = {}
+
+            save_insight({
+                "conversation_count": len(conversations),
+                "event_summary": event_summary,
+                "feature_requests": analysis.get("feature_requests", []),
+                "pain_points": analysis.get("pain_points", []),
+                "product_issues": analysis.get("product_issues", []),
+                "usage_patterns": analysis.get("usage_patterns", []),
+                "recommendations": analysis.get("recommendations", []),
+                "raw_analysis": raw_text,
+                "trigger_type": "auto_50" if len(conversations) >= 50 else "auto_weekly",
+            })
+            print(f"Insight generated: {len(conversations)} convos analyzed, {len(analysis.get('recommendations', []))} recommendations")
+
+    except Exception as e:
+        print(f"Insight generation error: {e}")
 
 
 @app.post("/api/ai-helper")
@@ -1111,7 +1225,16 @@ async def ai_helper(request: Request):
             except json.JSONDecodeError:
                 print(f"AI helper actions parse error: {actions_str[:200]}")
 
-        yield f"data: {json.dumps({'d': True, 'msg': message, 'actions': actions})}\n\n"
+        # S55: Extract classify tag from actions (don't send to frontend)
+        classify_tag = ""
+        frontend_actions = []
+        for a in actions:
+            if isinstance(a, dict) and "classify" in a:
+                classify_tag = a["classify"]
+            else:
+                frontend_actions.append(a)
+
+        yield f"data: {json.dumps({'d': True, 'msg': message, 'actions': frontend_actions})}\n\n"
 
         # S55: Log assistant response to ai_conversations
         try:
@@ -1123,12 +1246,21 @@ async def ai_helper(request: Request):
                 "guide_phase": guide_phase,
                 "role": "assistant",
                 "message": message,
-                "actions": actions if actions else None,
-                "action_count": len(actions),
+                "actions": frontend_actions if frontend_actions else None,
+                "action_count": len(frontend_actions),
                 "cost_cents": 1.0,
+                "classify": classify_tag,
             })
         except Exception as log_err:
             print(f"AI conv log error: {log_err}")
+
+        # S55: Check if we should auto-generate an insight report
+        try:
+            if should_generate_insight():
+                import asyncio
+                asyncio.get_event_loop().create_task(_generate_insight_async())
+        except Exception as insight_err:
+            print(f"Insight trigger check error: {insight_err}")
 
     from starlette.responses import StreamingResponse
     return StreamingResponse(generate(), media_type="text/event-stream")
