@@ -1041,7 +1041,7 @@ def draw_side_elevation(ax, params, calc, direction="east", compact=False):
 # S24: Uses total_w for S/N axis limits when zones exist
 # S35: Scale bars integrated into each elevation
 # ============================================================
-def draw_elevations_sheet(fig, params, calc):
+def draw_elevations_sheet(fig, params, calc, spec=None):
     axes = fig.subplots(2, 2)
     fig.subplots_adjust(left=0.04, right=0.84, top=0.92, bottom=0.06, hspace=0.22, wspace=0.12)
 

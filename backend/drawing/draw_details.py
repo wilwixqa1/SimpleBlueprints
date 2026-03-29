@@ -272,7 +272,7 @@ def draw_post_beam_detail(ax, params, calc):
 # ============================================================
 # SHEET: COMBINED DETAILS
 # ============================================================
-def draw_details_sheet(fig, params, calc):
+def draw_details_sheet(fig, params, calc, spec=None):
     """Draw all 4 detail views on one sheet"""
 
     axes = fig.subplots(2, 2)

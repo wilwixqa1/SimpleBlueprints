@@ -3,28 +3,39 @@ draw_notes.py - General Notes & Code Compliance Sheet
 Auto-populates IRC references based on deck parameters.
 """
 
-def draw_notes_sheet(fig, params, calc):
-    """Draw a General Notes page with IRC code references, auto-populated from params."""
+def draw_notes_sheet(fig, params, calc, spec=None):
+    """Draw a General Notes page with IRC code references, auto-populated from spec."""
 
-    W = params.get("width", 20)
-    D = params.get("depth", 12)
-    H = params.get("height", 4)
-    attachment = params.get("attachment", "ledger")
-    beam_type = params.get("beamType", "dropped")
-    has_stairs = params.get("hasStairs", False)
-    has_zones = len(params.get("zones", [])) > 0
-    decking_type = params.get("deckingType", "composite")
-    joist_spacing = params.get("joistSpacing", 16)
-    frost_zone = params.get("frostZone", "cold")
-    snow_load = params.get("snowLoad", "moderate")
-    post_size = calc.get("postSize", "6x6")
-    joist_size = calc.get("joistSize", "2x10")
-    beam_size = calc.get("beamSize", "2-ply 2x10")
-    footing_diam = calc.get("fDiam", 24)
-    footing_depth = calc.get("fDepth", 42)
-    joist_span = D - 1.5  # approximate joist span in feet
-    needs_blocking = joist_span > 7
-    rail_height = 42 if H > 8 else 36  # IRC R507.7.3
+    # If spec not provided, fall back to raw calc (backwards compat)
+    if spec is None:
+        from .permit_spec import build_permit_spec
+        spec = build_permit_spec(params, calc)
+
+    W = spec["width"]
+    D = spec["depth"]
+    H = spec["height"]
+    attachment = spec["attachment"]
+    beam_type = spec["beam_type"]
+    has_stairs = spec["stairs"] is not None
+    has_zones = spec["has_zones"]
+    decking_type = spec["decking"]["type"]
+    joist_spacing = spec["joists"]["spacing"]
+    frost_zone = spec["frost_zone"]
+    snow_load = spec["loads"]["snow_load"]
+
+    # All values from spec (single source of truth)
+    post_size = spec["posts"]["size"]
+    joist_size = spec["joists"]["size"]
+    beam_size = spec["beam"]["size"]
+    footing_diam = spec["footings"]["diameter"]
+    footing_depth = spec["footings"]["depth"]
+    joist_span = spec["joists"]["span"]
+    needs_blocking = spec["joists"]["mid_span_blocking"]
+    rail_height = spec["guardrail"]["height"]
+    post_base = spec["hardware"]["post_base"]
+    joist_hanger = spec["hardware"]["joist_hanger"]
+    hurricane_tie = spec["hardware"]["hurricane_tie"]
+    lateral_load = spec["hardware"]["lateral_load"]
 
     ax = fig.add_axes([0, 0, 0.84, 1])
     ax.set_xlim(0, 14)
@@ -135,7 +146,7 @@ def draw_notes_sheet(fig, params, calc):
         ("Footing concrete: 3,000 PSI min. compressive strength (f'c). "
          "Footings shall extend min. 6\" above grade.",
          "IRC R507.3.1"),
-        ("Posts shall bear on approved adjustable post bases (e.g., Simpson ABU/ABA series). "
+        ("Posts shall bear on Simpson '" + post_base["model"] + "' adjustable post bases. "
          "Posts shall not bear directly on concrete.",
          "IRC R507.8"),
         ("Post size: " + post_size + " minimum. Posts shall be plumb and braced during construction.",
@@ -149,7 +160,8 @@ def draw_notes_sheet(fig, params, calc):
     zone_prefix = "Main deck joists" if has_zones else "Joists"
     framing_notes = [
         (zone_prefix + ": " + joist_size + " at " + str(joist_spacing) + "\" O.C. "
-         "Joists shall be crowned up and secured at both ends with approved hangers or bearing.",
+         "Joists shall be crowned up and secured at both ends with Simpson '"
+         + joist_hanger["model"] + "' joist hangers.",
          "IRC R507.5, Table R507.5"),
     ]
     if needs_blocking:
@@ -159,7 +171,7 @@ def draw_notes_sheet(fig, params, calc):
              "IRC R507.5")
         )
     framing_notes.append(
-        ("Beam: " + beam_size + ". " +
+        ("Beam: " + beam_size + " PT. " +
          ("Beam bears on top of posts (drop beam). " if beam_type == "dropped" else
           "Beam is flush-mounted with approved connectors. ") +
          "Beam splices shall occur directly over posts only.",
@@ -167,8 +179,9 @@ def draw_notes_sheet(fig, params, calc):
     )
     if beam_type == "dropped":
         framing_notes.append(
-            ("Hurricane ties (e.g., Simpson H2.5A) required at every joist-to-beam connection "
-             "for drop beam. Install solid roll blocking above beam to prevent joist rollover.",
+            ("Simpson '" + hurricane_tie["model"] + "' hurricane ties required at every "
+             "joist-to-beam connection for drop beam. Install solid roll blocking above "
+             "beam to prevent joist rollover.",
              "IRC R507.5")
         )
     framing_notes.append(
@@ -199,7 +212,7 @@ def draw_notes_sheet(fig, params, calc):
             ("Flashing: Self-adhering or metal flashing required over ledger board, extending up "
              "wall behind siding/cladding. Must prevent water infiltration at wall connection.",
              "IRC R507.2.1"),
-            ("Lateral load connectors: Install min. (2) approved connectors (e.g., Simpson DTT2Z) "
+            ("Lateral load connectors: Install min. (2) Simpson '" + lateral_load["model"] + "' connectors "
              "tying deck to house floor framing. Space within 24\" of each end of ledger.",
              "IRC R507.2.5"),
             ("Remove siding/cladding at ledger location. Ledger shall bear directly against house "

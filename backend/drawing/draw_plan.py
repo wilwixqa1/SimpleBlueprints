@@ -218,8 +218,13 @@ def draw_zone_framing(ax, zone, rect, calc):
 # ============================================================
 # SHEET 1: DECK PLAN + FRAMING (side by side)
 # ============================================================
-def draw_plan_and_framing(fig, params, calc):
+def draw_plan_and_framing(fig, params, calc, spec=None):
     """Draw plan view (left) and framing plan (right)"""
+
+    # Build spec if not provided (backwards compat)
+    if spec is None:
+        from .permit_spec import build_permit_spec
+        spec = build_permit_spec(params, calc)
 
     W = calc["width"]
     D = calc["depth"]
@@ -364,7 +369,7 @@ def draw_plan_and_framing(fig, params, calc):
             ax.plot([1, W - 1], [beam_y - 0.12, beam_y - 0.12], color=BRAND["beam"], lw=0.5)
             ax.plot([1, W - 1], [beam_y + 0.12, beam_y + 0.12], color=BRAND["beam"], lw=0.5)
             ax.text(W / 2, beam_y - 0.8,
-                    f'{calc["beam_size"].upper()} BEAM',
+                    spec["labels"]["beam"],
                     ha='center', fontsize=4, fontweight='bold', color='#8B6914')
 
             # Posts + piers
@@ -387,30 +392,35 @@ def draw_plan_and_framing(fig, params, calc):
                                 bbox=dict(boxstyle='square,pad=0.1', fc='#fff8f0',
                                           ec='#c4960a', lw=0.3, alpha=0.9))
 
-            # S45: Hardware labels - inside deck, right-aligned near beam
+            # S57: Hardware labels from permit spec - right-aligned near beam
             _hw_x = W - 0.5
             _hw_kw = dict(fontsize=3.5, fontfamily='monospace', color=BRAND["dark"], ha='right',
                           bbox=dict(boxstyle='square,pad=0.1', fc='white', ec='none', alpha=0.85))
-            ax.text(_hw_x, beam_y + 1.0,
-                    f'{calc["post_size"]} PT POSTS W/ SIMPSON ABU POST BASE & CAP ({calc["num_posts"]} PLCS)',
-                    **_hw_kw)
-            ax.text(_hw_x, beam_y + 0.3,
-                    f'{calc["footing_diam"]}" DIA. CONCRETE PIERS x {calc["footing_depth"]}" DEEP ({calc["num_footings"]} PLCS)',
-                    **_hw_kw)
+            _hw_y = beam_y + 2.2
+            ax.text(_hw_x, _hw_y, spec["labels"]["posts_and_hardware"], **_hw_kw)
+            ax.text(_hw_x, _hw_y - 0.6, spec["labels"]["footings"], **_hw_kw)
+            ax.text(_hw_x, _hw_y - 1.2, spec["labels"]["joist_hanger"], **_hw_kw)
+            if calc.get("beam_type", "dropped") == "dropped":
+                ax.text(_hw_x, _hw_y - 1.8, spec["labels"]["hurricane_tie"], **_hw_kw)
 
-            # S45: Loads box - inside deck, bottom-left corner
+            # S57: Loads box - inside deck, bottom-left corner
             _lb_x = 0.3
             _lb_y = 0.3
-            ax.add_patch(patches.Rectangle((_lb_x, _lb_y), 4.5, 2.8,
+            _lb_h = 3.4 if spec["labels"].get("loads_ledger") else 2.8
+            ax.add_patch(patches.Rectangle((_lb_x, _lb_y), 4.5, _lb_h,
                          fc='#fafaf8', ec=BRAND["dark"], lw=0.5, zorder=5))
-            ax.text(_lb_x + 0.2, _lb_y + 2.3, 'DECK LOADS:', fontsize=4.5,
+            _ly = _lb_y + _lb_h - 0.5
+            ax.text(_lb_x + 0.2, _ly, 'DECK LOADS:', fontsize=4.5,
                     fontweight='bold', color=BRAND["dark"], zorder=6)
-            ax.text(_lb_x + 0.2, _lb_y + 1.6, f'L.L. = {calc["LL"]} PSF',
+            ax.text(_lb_x + 0.2, _ly - 0.6, spec["labels"]["loads_LL"],
                     fontsize=4, color=BRAND["dark"], zorder=6)
-            ax.text(_lb_x + 0.2, _lb_y + 1.0, f'D.L. = {calc["DL"]} PSF',
+            ax.text(_lb_x + 0.2, _ly - 1.2, spec["labels"]["loads_DL"],
                     fontsize=4, color=BRAND["dark"], zorder=6)
-            ax.text(_lb_x + 0.2, _lb_y + 0.4, f'T.L. = {calc["TL"]} PSF',
+            ax.text(_lb_x + 0.2, _ly - 1.8, spec["labels"]["loads_TL"],
                     fontsize=4, fontweight='bold', color=BRAND["red"], zorder=6)
+            if spec["labels"].get("loads_ledger"):
+                ax.text(_lb_x + 0.2, _ly - 2.4, spec["labels"]["loads_ledger"],
+                        fontsize=4, color=BRAND["dark"], zorder=6)
 
 
 

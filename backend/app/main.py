@@ -29,6 +29,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
 from drawing.calc_engine import calculate_structure
+from drawing.permit_spec import build_permit_spec
 from drawing.draw_plan import draw_plan_and_framing, format_feet_inches
 from drawing.draw_elevations import draw_elevations_sheet
 from drawing.draw_details import draw_details_sheet
@@ -173,6 +174,9 @@ def generate_blueprint_pdf(params: dict) -> tuple[str, str, dict]:
     params["stairOffset"] = params.get("stairOffset", 0)
 
     calc = calculate_structure(params)
+    spec = build_permit_spec(params, calc)
+    if spec["validation_errors"]:
+        print(f"Permit spec validation warnings: {spec['validation_errors']}")
     pi = params.get("projectInfo", {}) or {}
     cover_img = params.get("coverImage", None)
     sp_mode = params.get("sitePlanMode", "generate")
@@ -199,7 +203,7 @@ def generate_blueprint_pdf(params: dict) -> tuple[str, str, dict]:
 
         for sheet_num, sheet_name, draw_fn in permit_sheets:
             fig = plt.figure(figsize=(14, 8.5)); fig.set_facecolor('white')
-            draw_fn(fig, params, calc)
+            draw_fn(fig, params, calc, spec)
             draw_title_block(fig, sheet_num, sheet_name, calc, pi)
             pdf.savefig(fig, dpi=200); plt.close(fig)
 
