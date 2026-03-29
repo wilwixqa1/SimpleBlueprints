@@ -42,7 +42,8 @@ from drawing.jurisdiction_sheet import is_colorado_springs, append_cos_attachmen
 from app.database import (
     init_tables, upsert_user, get_user_by_id, update_email_opt_in,
     get_all_users, log_generation as db_log_generation, log_page_view as db_log_page_view,
-    get_stats
+    get_stats, log_event, log_events_batch, log_ai_message,
+    link_anonymous_to_user, get_tracking_stats
 )
 from app.auth import (
     get_login_url, exchange_code, sign_session,
@@ -1025,6 +1026,19 @@ async def ai_helper(request: Request):
         if not user_message:
             return {"ok": False, "error": "No message provided"}
 
+        # S55: Log user message to ai_conversations
+        session_id = body.get("sessionId", "")
+        anonymous_id = body.get("anonymousId", "")
+        log_ai_message({
+            "user_id": user_id,
+            "anonymous_id": anonymous_id,
+            "session_id": session_id,
+            "step": step,
+            "guide_phase": guide_phase,
+            "role": "user",
+            "message": user_message,
+        })
+
         system_prompt = build_ai_helper_prompt(step, params, extraction_summary, guide_phase)
 
         messages = []
@@ -1099,6 +1113,23 @@ async def ai_helper(request: Request):
 
         yield f"data: {json.dumps({'d': True, 'msg': message, 'actions': actions})}\n\n"
 
+        # S55: Log assistant response to ai_conversations
+        try:
+            log_ai_message({
+                "user_id": user_id,
+                "anonymous_id": anonymous_id,
+                "session_id": session_id,
+                "step": step,
+                "guide_phase": guide_phase,
+                "role": "assistant",
+                "message": message,
+                "actions": actions if actions else None,
+                "action_count": len(actions),
+                "cost_cents": 1.0,
+            })
+        except Exception as log_err:
+            print(f"AI conv log error: {log_err}")
+
     from starlette.responses import StreamingResponse
     return StreamingResponse(generate(), media_type="text/event-stream")
 
@@ -1158,6 +1189,63 @@ async def check_payment(session_id: str):
 
 
 # ============================================================
+# EVENT TRACKING (S55)
+# ============================================================
+
+@app.post("/api/track")
+async def track_event(request: Request):
+    """Fire-and-forget single event tracking."""
+    try:
+        body = await request.json()
+        user_id = get_current_user_id(request)
+        event = {
+            "user_id": user_id,
+            "anonymous_id": body.get("anonymous_id"),
+            "session_id": body.get("session_id", ""),
+            "event_type": body.get("event_type", "unknown"),
+            "event_data": body.get("event_data", {}),
+            "step": body.get("step"),
+            "guide_phase": body.get("guide_phase"),
+        }
+        log_event(event)
+        return {"ok": True}
+    except Exception as e:
+        print(f"Track error: {e}")
+        return {"ok": False}
+
+
+@app.post("/api/track-batch")
+async def track_events_batch(request: Request):
+    """Batch event tracking (queue flush)."""
+    try:
+        body = await request.json()
+        user_id = get_current_user_id(request)
+        events = body.get("events", [])
+        for evt in events:
+            evt["user_id"] = user_id
+        log_events_batch(events)
+        return {"ok": True, "count": len(events)}
+    except Exception as e:
+        print(f"Batch track error: {e}")
+        return {"ok": False}
+
+
+@app.post("/api/track-link")
+async def track_link_anonymous(request: Request):
+    """Link anonymous_id to user_id on login."""
+    try:
+        body = await request.json()
+        user_id = get_current_user_id(request)
+        anon_id = body.get("anonymous_id")
+        if user_id and anon_id:
+            link_anonymous_to_user(anon_id, user_id)
+        return {"ok": True}
+    except Exception as e:
+        print(f"Link error: {e}")
+        return {"ok": False}
+
+
+# ============================================================
 # FEEDBACK
 # ============================================================
 @app.post("/api/feedback")
@@ -1195,11 +1283,20 @@ async def submit_feedback(request: Request):
 # ============================================================
 @app.get("/admin")
 async def admin():
-    return HTMLResponse(content=ADMIN_HTML)
+    """Serve admin dashboard from static file (S55: moved out of inline HTML)."""
+    admin_path = Path(__file__).parent.parent / "static" / "admin.html"
+    if admin_path.exists():
+        return FileResponse(str(admin_path), media_type="text/html")
+    return HTMLResponse(content="<h1>Admin dashboard not found</h1>", status_code=404)
 
 @app.get("/admin/api/stats")
 async def admin_stats():
     return get_stats()
+
+@app.get("/admin/api/tracking")
+async def admin_tracking(days: int = 30):
+    """S55: Tracking stats for new admin dashboard."""
+    return get_tracking_stats(min(days, 90))
 
 @app.get("/admin/api/users/csv")
 async def admin_csv():
@@ -1208,29 +1305,6 @@ async def admin_csv():
     for u in users:
         csv += f'{u["email"]},{u.get("name","")},{u["email_opt_in"]},{u["created_at"]},{u["last_login"]}\n'
     return Response(content=csv, media_type="text/csv", headers={"Content-Disposition":"attachment; filename=simpleblueprints-users.csv"})
-
-ADMIN_HTML = """<!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>SimpleBlueprints Admin</title>
-<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;700;900&display=swap" rel="stylesheet">
-<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',system-ui,sans-serif;background:#0d1117;color:#c9d1d9;min-height:100vh}.wrap{max-width:1100px;margin:0 auto;padding:32px 20px}h1{font-size:22px;color:#58a6ff;margin-bottom:4px}.sub{font-size:12px;color:#484f58;font-family:'DM Mono',monospace;margin-bottom:20px}.tabs{display:flex;gap:4px;margin-bottom:20px}.tab{padding:8px 18px;background:#161b22;border:1px solid #30363d;border-radius:6px;color:#8b949e;font-size:12px;font-family:'DM Mono',monospace;cursor:pointer}.tab.active{background:#238636;border-color:#238636;color:#fff}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:28px}.card{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:18px}.card .label{font-size:10px;color:#484f58;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}.card .val{font-size:32px;font-weight:900;color:#e6edf3}.card .detail{font-size:11px;color:#484f58;font-family:'DM Mono',monospace;margin-top:4px}table{width:100%;border-collapse:collapse;background:#161b22;border:1px solid #30363d;border-radius:8px;overflow:hidden}th{text-align:left;padding:10px 14px;font-size:10px;color:#484f58;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:1px;background:#0d1117;border-bottom:1px solid #30363d}td{padding:8px 14px;font-size:12px;font-family:'DM Mono',monospace;border-bottom:1px solid #21262d}tr:last-child td{border-bottom:none}.chart{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:18px;height:200px;display:flex;align-items:flex-end;gap:3px}.chart-bar{background:#238636;border-radius:2px 2px 0 0;min-width:8px;flex:1;position:relative}.chart-bar:hover{background:#3fb950}.chart-bar .tip{display:none;position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:#30363d;color:#e6edf3;padding:4px 8px;border-radius:4px;font-size:10px;font-family:'DM Mono',monospace;white-space:nowrap;margin-bottom:4px}.chart-bar:hover .tip{display:block}.btn{background:#21262d;border:1px solid #30363d;color:#8b949e;padding:6px 16px;border-radius:6px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;text-decoration:none}.btn:hover{background:#30363d;color:#e6edf3}.green{color:#3fb950}.red{color:#f85149}.bar-wrap{display:flex;align-items:center;gap:8px;margin-bottom:6px}.bar-label{font-size:11px;font-family:'DM Mono',monospace;color:#8b949e;min-width:100px}.bar{height:18px;background:#238636;border-radius:3px;min-width:2px}.bar-val{font-size:11px;font-family:'DM Mono',monospace;color:#484f58}</style>
-</head><body><div class="wrap" id="app"><div style="text-align:center;padding:40px;color:#484f58;font-family:'DM Mono',monospace">Loading...</div></div>
-<script>
-let tab='overview',D=null;
-async function load(){try{const r=await fetch('/admin/api/stats');D=await r.json();render()}catch(e){document.getElementById('app').innerHTML='Error: '+e.message}}
-function ts(e){const d=(Date.now()/1000-e);if(d<60)return Math.floor(d)+'s ago';if(d<3600)return Math.floor(d/60)+'m ago';if(d<86400)return Math.floor(d/3600)+'h ago';return Math.floor(d/86400)+'d ago'}
-function setTab(t){tab=t;render()}
-function render(){if(!D)return;const g=D.generations,u=D.users,pv=D.page_views,p=D.popular,mx=Math.max(...D.daily.map(x=>x.count),1);
-# let h='<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px"><div><h1>SimpleBlueprints Dashboard</h1><div class="sub">Analytics   Users   Generations</div></div><button class="btn" onclick="load()">  Refresh</button></div>';
-h+='<div class="tabs"><div class="tab '+(tab==='overview'?'active':'')+'" onclick="setTab(\'overview\')">Overview</div><div class="tab '+(tab==='users'?'active':'')+'" onclick="setTab(\'users\')">Users ('+u.total+')</div><div class="tab '+(tab==='generations'?'active':'')+'" onclick="setTab(\'generations\')">Generations</div></div>';
-# if(tab==='overview'){h+='<div class="grid"><div class="card"><div class="label">PDFs Generated</div><div class="val">'+g.total+'</div><div class="detail">'+g.today+' today   '+g.this_week+' this week</div></div><div class="card"><div class="label">Registered Users</div><div class="val">'+u.total+'</div><div class="detail">'+u.today+' today   '+u.this_week+' this week</div></div><div class="card"><div class="label">Email Opt-ins</div><div class="val">'+u.opted_in+'</div><div class="detail">of '+u.total+' total</div></div><div class="card"><div class="label">Page Views</div><div class="val">'+pv.total+'</div><div class="detail">'+pv.today+' today   '+pv.unique_today+' unique</div></div></div>';
-h+='<div style="margin-bottom:28px"><h2 style="font-size:14px;color:#8b949e;font-family:DM Mono,monospace;margin-bottom:12px">DAILY GENERATIONS</h2><div class="chart">'+D.daily.map(x=>'<div class="chart-bar" style="height:'+Math.max(x.count/mx*100,4)+'%"><div class="tip">'+x.date+': '+x.count+'</div></div>').join('')+(D.daily.length===0?'<div style="color:#484f58;margin:auto;font-size:12px;font-family:DM Mono,monospace">No data yet</div>':'')+'</div></div>';
-# h+='<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr))"><div><h2 style="font-size:14px;color:#8b949e;font-family:DM Mono,monospace;margin-bottom:12px">POPULAR SIZES</h2><div class="card">'+p.sizes.map(x=>'<div class="bar-wrap"><div class="bar-label">'+x.size+'</div><div class="bar" style="width:'+Math.max(x.count/Math.max(g.total,1)*100,5)+'%"></div><div class="bar-val">'+x.count+'</div></div>').join('')+'</div></div><div><h2 style="font-size:14px;color:#8b949e;font-family:DM Mono,monospace;margin-bottom:12px">PREFERENCES</h2><div class="card">'+p.attachment.map(x=>'<div class="bar-wrap"><div class="bar-label">'+(x.type||' ')+'</div><div class="bar" style="width:'+Math.max(x.count/Math.max(g.total,1)*100,5)+'%"></div><div class="bar-val">'+x.count+'</div></div>').join('')+p.decking.map(x=>'<div class="bar-wrap"><div class="bar-label">'+(x.type||' ')+'</div><div class="bar" style="width:'+Math.max(x.count/Math.max(g.total,1)*100,5)+'%"></div><div class="bar-val">'+x.count+'</div></div>').join('')+'</div></div></div>'}
-# if(tab==='users'){h+='<div style="margin-bottom:16px"><a href="/admin/api/users/csv" class="btn" download>  Export CSV</a></div><table><tr><th>Email</th><th>Name</th><th>Opted In</th><th>Generations</th><th>Signed Up</th><th>Last Login</th></tr>'+D.user_list.map(u=>'<tr><td>'+u.email+'</td><td>'+(u.name||' ')+'</td><td>'+(u.opted_in?'<span class="green">Yes</span>':'<span class="red">No</span>')+'</td><td>'+u.generations+'</td><td>'+ts(u.created)+'</td><td>'+ts(u.last_login)+'</td></tr>').join('')+(D.user_list.length===0?'<tr><td colspan="6" style="text-align:center;color:#484f58">No users yet</td></tr>':'')+'</table>'}
-# if(tab==='generations'){h+='<table><tr><th>When</th><th>User</th><th>Size</th><th>Height</th><th>Area</th><th>Attach</th><th>Decking</th><th>Stairs</th></tr>'+D.recent.map(r=>'<tr><td>'+ts(r.time)+'</td><td>'+r.email+'</td><td>'+r.size+'</td><td>'+r.height+'</td><td>'+r.area+' SF</td><td>'+r.attachment+'</td><td>'+r.decking+'</td><td>'+(r.stairs?'<span class="green">'+r.stair_loc+'</span>':' ')+'</td></tr>').join('')+(D.recent.length===0?'<tr><td colspan="8" style="text-align:center;color:#484f58">No data yet</td></tr>':'')+'</table>'}
-document.getElementById('app').innerHTML=h}
-load();setInterval(load,30000);
-</script></body></html>"""
 
 
 # ============================================================
