@@ -8,6 +8,7 @@ import uuid
 import json
 import time
 import hashlib
+import base64
 from pathlib import Path
 from typing import Optional
 
@@ -279,8 +280,60 @@ async def calculate(params: DeckParams):
     return calculate_structure(params.dict())
 
 # ============================================================
-# AI SURVEY EXTRACTION (S29)
+# AI SURVEY EXTRACTION (S29, S52 two-stage)
 # ============================================================
+
+def filter_pdf_pages(pdf_b64):
+    """S52: Extract text from all pages, return only useful pages as PDF + pre-extracted text.
+    Keeps: site plan, title/info, deck plan, survey, plat pages.
+    Skips: cover sheets (just a rendering), elevation drawings."""
+    import fitz, io
+    try:
+        pdf_bytes = base64.b64decode(pdf_b64)
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    except Exception:
+        return pdf_b64, "", []  # fallback: send full PDF
+
+    page_texts = []
+    keep_pages = []
+    skip_keywords = {"ELEVATION", "EXTERIOR ELEVATION"}
+    keep_keywords = {"SITE PLAN", "SURVEY", "PLAT", "AREA TABULATION", "SETBACK",
+                     "PROPERTY LINE", "DECK PLAN", "DECK FRAMING", "LOT AREA",
+                     "VICINITY", "SCOPE OF WORK", "LEGAL DESCRIPTION", "PROJECT DATA",
+                     "PARCEL", "ZONING"}
+
+    all_extracted_text = []
+    for i in range(len(doc)):
+        text = doc[i].get_text().upper()
+        page_texts.append(text)
+        all_extracted_text.append(f"--- PAGE {i+1} ---\n{doc[i].get_text()[:2000]}")
+
+        # Check if page has useful content
+        has_keep = any(kw in text for kw in keep_keywords)
+        is_only_elevation = any(kw in text for kw in skip_keywords) and not has_keep
+        is_cover = "COVER SHEET" in text and not has_keep
+
+        if has_keep and not is_only_elevation:
+            keep_pages.append(i)
+        elif not is_cover and not is_only_elevation:
+            # Unknown page type - keep it to be safe
+            keep_pages.append(i)
+
+    if not keep_pages or len(keep_pages) == len(doc):
+        # No filtering possible
+        return pdf_b64, "\n".join(all_extracted_text), list(range(len(doc)))
+
+    # Build filtered PDF
+    out = fitz.open()
+    for i in keep_pages:
+        out.insert_pdf(doc, from_page=i, to_page=i)
+
+    buf = io.BytesIO()
+    out.save(buf)
+    filtered_b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+
+    print(f"PDF filter: {len(doc)} pages -> {len(keep_pages)} pages (kept: {keep_pages})")
+    return filtered_b64, "\n".join(all_extracted_text), keep_pages
 SURVEY_EXTRACT_PROMPT = """Analyze this property survey or plat map and extract dimensions. Focus on the SITE PLAN sheet. Look for property line dimensions, setback lines, and area tabulations. Ignore cover sheets, elevation drawings, framing plans, and structural details.
 
 Return ONLY a JSON object with no markdown, no backticks, no other text.
@@ -407,10 +460,13 @@ async def extract_survey(request: Request):
             raise HTTPException(status_code=400, detail="No survey data provided")
 
         # Build message content based on file type
+        pre_text = ""
         if file_type == "pdf":
+            # S52: Filter to useful pages only, extract text locally
+            filtered_b64, pre_text, kept = filter_pdf_pages(survey_b64)
             doc_block = {
                 "type": "document",
-                "source": {"type": "base64", "media_type": "application/pdf", "data": survey_b64}
+                "source": {"type": "base64", "media_type": "application/pdf", "data": filtered_b64}
             }
         else:
             media_type = "image/png" if survey_b64[:4] == "iVBO" else "image/jpeg"
@@ -419,13 +475,18 @@ async def extract_survey(request: Request):
                 "source": {"type": "base64", "media_type": media_type, "data": survey_b64}
             }
 
+        # S52: Prepend pre-extracted text context to prompt
+        prompt_text = SURVEY_EXTRACT_PROMPT
+        if pre_text:
+            prompt_text = "PRE-EXTRACTED TEXT FROM ALL PAGES (use for address, area tabulations, parcel info):\n" + pre_text[:3000] + "\n\n" + prompt_text
+
         payload = {
-            "model": "claude-opus-4-6",
+            "model": "claude-sonnet-4-6",
             "max_tokens": 4096,
-            "thinking": {"type": "adaptive"},
+            "temperature": 0,
             "messages": [{
                 "role": "user",
-                "content": [doc_block, {"type": "text", "text": SURVEY_EXTRACT_PROMPT}]
+                "content": [doc_block, {"type": "text", "text": prompt_text}]
             }]
         }
 
@@ -441,7 +502,7 @@ async def extract_survey(request: Request):
             }
         )
 
-        with urllib.request.urlopen(req, timeout=120) as resp:
+        with urllib.request.urlopen(req, timeout=60) as resp:
             result = json.loads(resp.read().decode("utf-8"))
             # S52: Find the text block (skip thinking blocks)
             text = ""
