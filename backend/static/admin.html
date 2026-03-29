@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>SimpleBlueprints Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;700;900&display=swap" rel="stylesheet"/>
+<style>
+:root{--bg:#0d1117;--bg2:#161b22;--bg3:#21262d;--border:#30363d;--text:#c9d1d9;--text2:#8b949e;--text3:#484f58;--blue:#58a6ff;--green:#3fb950;--red:#f85149;--orange:#d29922;--purple:#bc8cff}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:'DM Sans',system-ui,sans-serif;min-height:100vh}
+.wrap{max-width:1200px;margin:0 auto;padding:28px 24px}
+.header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px}
+h1{font-size:22px;color:var(--blue);margin-bottom:4px}
+.sub{font-size:12px;color:var(--text3);font-family:'DM Mono',monospace}
+.btn{background:var(--bg3);border:1px solid var(--border);color:var(--text2);padding:6px 16px;border-radius:6px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;text-decoration:none}
+.btn:hover{background:var(--border);color:var(--text)}
+
+.date-bar{display:flex;align-items:center;gap:8px;margin-bottom:24px;flex-wrap:wrap}
+.date-bar label{font-size:11px;font-weight:500;color:var(--text3);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.5px}
+.qbtn{background:var(--bg2);border:1px solid var(--border);color:var(--text2);padding:5px 12px;border-radius:6px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer}
+.qbtn:hover{border-color:var(--text2)}
+.qbtn.active{background:#238636;border-color:#238636;color:#fff}
+
+.section-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--text3);font-family:'DM Mono',monospace;margin:28px 0 14px;padding-top:16px;border-top:1px solid var(--border)}
+.section-label:first-of-type{border-top:none;margin-top:0}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:20px}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:18px}
+.card .label{font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+.card .val{font-size:28px;font-weight:900;color:#e6edf3}
+.card .val.green{color:var(--green)}
+.card .val.orange{color:var(--orange)}
+.card .val.red{color:var(--red)}
+.card .val.blue{color:var(--blue)}
+.card .val.purple{color:var(--purple)}
+.card .detail{font-size:11px;color:var(--text3);font-family:'DM Mono',monospace;margin-top:4px}
+.card-title{font-size:14px;font-weight:700;color:var(--text);margin-bottom:14px}
+
+table{width:100%;border-collapse:collapse;background:var(--bg2);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+th{text-align:left;padding:10px 14px;font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:1px;background:var(--bg);border-bottom:1px solid var(--border)}
+td{padding:8px 14px;font-size:12px;font-family:'DM Mono',monospace;border-bottom:1px solid #21262d;color:var(--text)}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(88,166,255,.03)}
+
+.chart{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:18px;height:180px;display:flex;align-items:flex-end;gap:3px}
+.chart-bar{border-radius:2px 2px 0 0;min-width:6px;flex:1;position:relative;cursor:default}
+.chart-bar:hover{opacity:.8}
+.chart-bar .tip{display:none;position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:var(--border);color:#e6edf3;padding:4px 8px;border-radius:4px;font-size:10px;font-family:'DM Mono',monospace;white-space:nowrap;margin-bottom:4px;z-index:2}
+.chart-bar:hover .tip{display:block}
+
+.funnel{display:flex;gap:2px;align-items:stretch;margin-bottom:20px}
+.funnel-step{flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:12px 8px;text-align:center;position:relative}
+.funnel-step .f-name{font-size:10px;font-family:'DM Mono',monospace;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.funnel-step .f-val{font-size:20px;font-weight:900;color:#e6edf3}
+.funnel-step .f-pct{font-size:10px;font-family:'DM Mono',monospace;color:var(--green);margin-top:3px}
+.funnel-step .f-pct.low{color:var(--red)}
+.funnel-arrow{display:flex;align-items:center;color:var(--text3);font-size:14px;padding:0 2px}
+
+.tag{display:inline-block;font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;font-family:'DM Mono',monospace}
+.tag-user{background:#1f3a1f;color:var(--green)}
+.tag-ai{background:#1f2a3f;color:var(--blue)}
+.tag-stuck{background:#3f1f1f;color:var(--red)}
+.tag-feature{background:#2f2a1f;color:var(--orange)}
+
+.msg-bubble{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px 14px;margin-bottom:8px;font-size:12px;font-family:'DM Mono',monospace;line-height:1.5}
+
+.toggle-head{display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none}
+.toggle-head .chevron{font-size:10px;color:var(--text3);transition:transform .2s}
+.toggle-head .chevron.open{transform:rotate(90deg)}
+.collapsible{overflow:hidden;max-height:0;transition:max-height .3s ease-out}
+.collapsible.open{max-height:5000px;transition:max-height .5s ease-in}
+
+.empty{text-align:center;padding:32px;color:var(--text3);font-size:12px;font-family:'DM Mono',monospace}
+
+@media(max-width:768px){
+  .grid{grid-template-columns:repeat(2,1fr)}
+  .grid-2{grid-template-columns:1fr}
+  .funnel{flex-direction:column}
+  .funnel-arrow{transform:rotate(90deg);justify-content:center}
+  .wrap{padding:16px 12px}
+}
+</style>
+</head>
+<body>
+<div class="wrap" id="app">
+  <div style="text-align:center;padding:60px;color:var(--text3);font-family:'DM Mono',monospace">Loading dashboard...</div>
+</div>
+
+<script>
+var D = null, S = null; // D = legacy stats, S = tracking stats
+var activeDays = 30;
+
+function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function ts(e) {
+  var d = (Date.now()/1000 - e);
+  if (d < 60) return Math.floor(d) + 's ago';
+  if (d < 3600) return Math.floor(d/60) + 'm ago';
+  if (d < 86400) return Math.floor(d/3600) + 'h ago';
+  return Math.floor(d/86400) + 'd ago';
+}
+function pct(n, total) { return total > 0 ? Math.round(n / total * 100) : 0; }
+function fmtMs(ms) {
+  if (!ms || ms <= 0) return '--';
+  if (ms < 1000) return Math.round(ms) + 'ms';
+  if (ms < 60000) return (ms/1000).toFixed(1) + 's';
+  return (ms/60000).toFixed(1) + 'm';
+}
+
+async function load() {
+  try {
+    var [r1, r2] = await Promise.all([
+      fetch('/admin/api/stats'),
+      fetch('/admin/api/tracking?days=' + activeDays)
+    ]);
+    D = await r1.json();
+    S = await r2.json();
+    render();
+  } catch(e) {
+    document.getElementById('app').innerHTML = '<div class="empty">Error: ' + e.message + '</div>';
+  }
+}
+
+function setDays(d) {
+  activeDays = d;
+  document.querySelectorAll('.qbtn').forEach(function(b) { b.classList.remove('active'); });
+  var el = document.getElementById('qb-' + d);
+  if (el) el.classList.add('active');
+  load();
+}
+
+function toggleSection(name) {
+  var body = document.getElementById('body-' + name);
+  var chev = document.getElementById('chev-' + name);
+  body.classList.toggle('open');
+  chev.classList.toggle('open');
+}
+
+function renderBarChart(data, color) {
+  if (!data || data.length === 0) return '<div class="empty" style="width:100%">No data yet</div>';
+  var max = Math.max.apply(null, data.map(function(d){return d.value})) || 1;
+  return data.map(function(d) {
+    var h = Math.max(4, (d.value / max) * 140);
+    var c = d.color || color || 'var(--green)';
+    return '<div class="chart-bar" style="height:'+h+'px;background:'+c+'"><div class="tip">'+esc(d.label)+': '+(d.display||d.value)+'</div></div>';
+  }).join('');
+}
+
+function render() {
+  if (!D || !S) return;
+  var g = D.generations, u = D.users, pv = D.page_views, p = D.popular;
+  var f = S.funnel || {}, ai = S.ai_helper || {}, ext = S.extraction || {};
+  var sess = S.sessions || {}, chk = S.checkout || {};
+
+  // Funnel values
+  var fSteps = [
+    {name:'Visit', val: sess.total_sessions || pv.total || 0},
+    {name:'Login', val: (f.auth_login||{}).sessions || u.total || 0},
+    {name:'Upload', val: (f.survey_upload||{}).sessions || 0},
+    {name:'Extract', val: (f.extraction_complete||{}).sessions || 0},
+    {name:'Shape', val: (f.shape_confirmed||{}).sessions || 0},
+    {name:'Generate', val: (f.pdf_generate_complete||{}).sessions || g.total || 0},
+    {name:'Checkout', val: chk.starts || 0},
+    {name:'Paid', val: chk.completes || 0}
+  ];
+
+  var html = '';
+
+  // Header
+  html += '<div class="header"><div><h1>SimpleBlueprints Dashboard</h1><div class="sub">Analytics, Funnel, AI Intelligence</div></div><div style="display:flex;gap:8px"><a href="/admin/api/users/csv" class="btn" download>Export CSV</a><button class="btn" onclick="load()">Refresh</button></div></div>';
+
+  // Date range
+  html += '<div class="date-bar"><label>Period:</label>';
+  [7,30,60,90].forEach(function(d) {
+    html += '<button class="qbtn' + (activeDays===d?' active':'') + '" id="qb-'+d+'" onclick="setDays('+d+')">'+d+'d</button>';
+  });
+  html += '</div>';
+
+  // ============ SECTION 1: REVENUE PIPELINE ============
+  html += '<div class="section-label">Revenue Pipeline</div>';
+
+  // Funnel
+  html += '<div class="funnel">';
+  fSteps.forEach(function(s, i) {
+    if (i > 0) {
+      var prev = fSteps[i-1].val;
+      var dropPct = prev > 0 ? pct(s.val, prev) : 0;
+      html += '<div class="funnel-arrow">&rarr;</div>';
+    }
+    html += '<div class="funnel-step"><div class="f-name">'+s.name+'</div><div class="f-val">'+s.val+'</div>';
+    if (i > 0) {
+      var p2 = fSteps[i-1].val > 0 ? pct(s.val, fSteps[i-1].val) : 0;
+      html += '<div class="f-pct'+(p2 < 30?' low':'')+'">'+p2+'%</div>';
+    }
+    html += '</div>';
+  });
+  html += '</div>';
+
+  // Summary cards
+  html += '<div class="grid">';
+  html += '<div class="card"><div class="label">PDFs Generated</div><div class="val">'+g.total+'</div><div class="detail">'+g.today+' today, '+g.this_week+' this week</div></div>';
+  html += '<div class="card"><div class="label">Registered Users</div><div class="val">'+u.total+'</div><div class="detail">'+u.today+' today, '+u.this_week+' this week</div></div>';
+  html += '<div class="card"><div class="label">Email Opt-ins</div><div class="val green">'+u.opted_in+'</div><div class="detail">of '+u.total+' total</div></div>';
+  html += '<div class="card"><div class="label">Page Views</div><div class="val">'+pv.total+'</div><div class="detail">'+pv.today+' today, '+pv.unique_today+' unique</div></div>';
+  html += '<div class="card"><div class="label">Checkout Starts</div><div class="val blue">'+(chk.starts||0)+'</div><div class="detail">'+(chk.abandons||0)+' abandoned</div></div>';
+  html += '<div class="card"><div class="label">Purchases</div><div class="val green">'+(chk.completes||0)+'</div><div class="detail">'+((chk.starts||0)>0?pct(chk.completes||0,chk.starts)+'% conversion':'no checkouts yet')+'</div></div>';
+  html += '</div>';
+
+  // Daily chart
+  var mx = Math.max.apply(null, D.daily.map(function(x){return x.count}).concat([1]));
+  html += '<div class="card"><div class="card-title">Daily Generations ('+activeDays+'d)</div><div class="chart">';
+  if (D.daily.length === 0) {
+    html += '<div class="empty" style="width:100%">No data yet</div>';
+  } else {
+    html += D.daily.map(function(x) {
+      return '<div class="chart-bar" style="height:'+Math.max(x.count/mx*100,4)+'%;background:var(--green)"><div class="tip">'+x.date+': '+x.count+'</div></div>';
+    }).join('');
+  }
+  html += '</div></div>';
+
+  // ============ SECTION 2: PRODUCT FUNNEL ============
+  html += '<div class="section-label">Product Quality</div>';
+
+  html += '<div class="grid">';
+  var extTotal = ext.total || 0;
+  var extSuccess = ext.successes || 0;
+  var extRate = extTotal > 0 ? pct(extSuccess, extTotal) : 0;
+  html += '<div class="card"><div class="label">Extraction Success</div><div class="val'+(extRate>=80?' green':extRate>=50?' orange':' red')+'">'+extRate+'%</div><div class="detail">'+extSuccess+'/'+extTotal+' total</div></div>';
+  html += '<div class="card"><div class="label">Avg Extract Time</div><div class="val">'+fmtMs(ext.avg_duration_ms)+'</div></div>';
+
+  var ac = S.auto_confirm || {};
+  var acAccept = ac.accept || 0;
+  var acDismiss = ac.dismiss || 0;
+  var acTotal = acAccept + acDismiss;
+  html += '<div class="card"><div class="label">Auto-confirm Accept</div><div class="val green">'+(acTotal>0?pct(acAccept,acTotal)+'%':'--')+'</div><div class="detail">'+acAccept+' accept, '+acDismiss+' dismiss</div></div>';
+
+  var am = S.auto_mirror || {};
+  html += '<div class="card"><div class="label">Auto-mirror Fires</div><div class="val">'+(am.fires||0)+'</div><div class="detail">'+(am.user_flips||0)+' user flips after</div></div>';
+  html += '</div>';
+
+  // Step timing
+  var timing = S.step_timing || [];
+  if (timing.length > 0) {
+    html += '<div class="card"><div class="card-title">Median Time per Step</div><table><tr><th>Step</th><th>Median</th><th>Avg</th><th>Transitions</th></tr>';
+    var stepNames = ['0: Site Plan','1: Deck Design','2: Structure','3: Materials','4: Generate'];
+    timing.forEach(function(t) {
+      var name = stepNames[t.from_step] || 'Step '+t.from_step;
+      html += '<tr><td>'+name+'</td><td>'+fmtMs(t.median_ms)+'</td><td>'+fmtMs(t.avg_ms)+'</td><td>'+t.transitions+'</td></tr>';
+    });
+    html += '</table></div>';
+  }
+
+  // Errors
+  var errors = S.errors || [];
+  if (errors.length > 0) {
+    html += '<div class="card"><div class="card-title">Errors ('+activeDays+'d)</div><table><tr><th>Type</th><th>Error</th><th>Count</th></tr>';
+    errors.forEach(function(e) {
+      html += '<tr><td><span class="tag tag-stuck">'+esc(e.event_type)+'</span></td><td>'+esc((e.error||'').substring(0,80))+'</td><td>'+e.c+'</td></tr>';
+    });
+    html += '</table></div>';
+  }
+
+  // ============ SECTION 3: AI HELPER INTELLIGENCE ============
+  html += '<div class="section-label">AI Helper Intelligence</div>';
+
+  html += '<div class="grid">';
+  html += '<div class="card"><div class="label">Total AI Messages</div><div class="val purple">'+(ai.total_messages||0)+'</div><div class="detail">'+(ai.sessions_with_ai||0)+' sessions used AI</div></div>';
+  html += '<div class="card"><div class="label">Avg Messages/Session</div><div class="val">'+(ai.avg_per_session||0)+'</div></div>';
+  html += '<div class="card"><div class="label">Total AI Cost</div><div class="val orange">$'+((ai.total_cost_cents||0)/100).toFixed(2)+'</div><div class="detail">$'+((ai.avg_cost_per_session||0)/100).toFixed(2)+' avg/session</div></div>';
+  html += '<div class="card"><div class="label">Actions Applied</div><div class="val green">'+(ai.total_actions||0)+'</div><div class="detail">'+(ai.responses_with_actions||0)+' responses had actions</div></div>';
+  html += '<div class="card"><div class="label">Avg Response Time</div><div class="val">'+fmtMs(ai.avg_response_ms)+'</div></div>';
+  html += '</div>';
+
+  // Stuck sessions
+  var stuck = ai.stuck_sessions || [];
+  if (stuck.length > 0) {
+    html += '<div class="card"><div class="card-title">Stuck Users (4+ messages on same step)</div><table><tr><th>Session</th><th>Step</th><th>Messages</th><th>First Message</th></tr>';
+    stuck.forEach(function(s) {
+      var stepName = stepNames[s.step] || 'Step '+s.step;
+      html += '<tr><td>'+esc((s.session_id||'').substring(0,12))+'...</td><td>'+stepName+'</td><td><span class="tag tag-stuck">'+s.msg_count+'</span></td><td>'+esc((s.first_msg||'').substring(0,60))+'</td></tr>';
+    });
+    html += '</table></div>';
+  }
+
+  // Common questions
+  var questions = ai.common_questions || [];
+  if (questions.length > 0) {
+    html += '<div class="card"><div class="card-title">Most Common Questions</div><table><tr><th>Message</th><th>Count</th></tr>';
+    questions.slice(0,15).forEach(function(q) {
+      html += '<tr><td>'+esc((q.msg||'').substring(0,80))+'</td><td>'+q.c+'</td></tr>';
+    });
+    html += '</table></div>';
+  }
+
+  // Recent conversations (collapsed)
+  var convos = ai.recent_conversations || [];
+  if (convos.length > 0) {
+    html += '<div style="margin-bottom:20px"><div class="toggle-head" onclick="toggleSection(\'convos\')"><div class="section-label" style="border:none;margin:0;padding:0;cursor:pointer">Recent AI Conversations ('+convos.length+')</div><span class="chevron" id="chev-convos">&#9654;</span></div>';
+    html += '<div class="collapsible" id="body-convos"><div class="card" style="margin-top:12px;max-height:500px;overflow-y:auto">';
+    convos.forEach(function(c) {
+      var isUser = c.role === 'user';
+      var tag = isUser ? '<span class="tag tag-user">user</span>' : '<span class="tag tag-ai">ai</span>';
+      var stepLabel = c.step !== null ? ' step:'+c.step : '';
+      var phase = c.guide_phase ? ' phase:'+c.guide_phase : '';
+      var actions = (c.action_count||0) > 0 ? ' <span class="tag tag-feature">'+c.action_count+' actions</span>' : '';
+      var time = c.created_at ? new Date(c.created_at).toLocaleString() : '';
+      html += '<div class="msg-bubble">'+tag+actions+' <span style="font-size:10px;color:var(--text3)">'+time+stepLabel+phase+'</span><br/>'+esc((c.message||'').substring(0,200))+'</div>';
+    });
+    html += '</div></div></div>';
+  }
+
+  // ============ SECTION 4: POPULAR CONFIGS ============
+  html += '<div class="section-label">Popular Configurations</div>';
+  html += '<div class="grid-2">';
+  // Sizes
+  html += '<div class="card"><div class="card-title">Popular Deck Sizes</div>';
+  if (p.sizes.length > 0) {
+    var maxSz = Math.max.apply(null, p.sizes.map(function(x){return x.count}));
+    p.sizes.forEach(function(x) {
+      var w = Math.max(x.count/maxSz*100,5);
+      html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span style="font-size:11px;font-family:DM Mono,monospace;color:var(--text2);min-width:70px">'+x.size+'</span><div style="height:16px;background:var(--green);border-radius:3px;width:'+w+'%"></div><span style="font-size:11px;font-family:DM Mono,monospace;color:var(--text3)">'+x.count+'</span></div>';
+    });
+  } else { html += '<div class="empty">No data yet</div>'; }
+  html += '</div>';
+
+  // Preferences
+  html += '<div class="card"><div class="card-title">Preferences</div>';
+  var allPrefs = p.attachment.concat(p.decking);
+  if (allPrefs.length > 0) {
+    var maxP = Math.max.apply(null, allPrefs.map(function(x){return x.count}));
+    allPrefs.forEach(function(x) {
+      var w = Math.max(x.count/maxP*100,5);
+      html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span style="font-size:11px;font-family:DM Mono,monospace;color:var(--text2);min-width:100px">'+(x.type||x.size||'unknown')+'</span><div style="height:16px;background:var(--blue);border-radius:3px;width:'+w+'%"></div><span style="font-size:11px;font-family:DM Mono,monospace;color:var(--text3)">'+x.count+'</span></div>';
+    });
+  } else { html += '<div class="empty">No data yet</div>'; }
+  html += '</div></div>';
+
+  // ============ SECTION 5: USERS & TOOLS (collapsed) ============
+  html += '<div class="section-label" style="cursor:pointer" onclick="toggleSection(\'users\')"><span class="chevron" id="chev-users" style="font-size:10px;margin-right:6px">&#9654;</span>Users &amp; Admin Tools</div>';
+  html += '<div class="collapsible" id="body-users">';
+
+  // Users table
+  html += '<div class="card"><div class="card-title">Registered Users ('+D.user_list.length+')</div>';
+  if (D.user_list.length > 0) {
+    html += '<div style="overflow-x:auto;max-height:400px;overflow-y:auto"><table><tr><th>Email</th><th>Name</th><th>Opted In</th><th>Generations</th><th>Signed Up</th><th>Last Login</th></tr>';
+    D.user_list.forEach(function(u) {
+      html += '<tr><td>'+esc(u.email)+'</td><td>'+esc(u.name||'--')+'</td><td>'+(u.opted_in?'<span style="color:var(--green)">Yes</span>':'<span style="color:var(--red)">No</span>')+'</td><td>'+u.generations+'</td><td>'+ts(u.created)+'</td><td>'+ts(u.last_login)+'</td></tr>';
+    });
+    html += '</table></div>';
+  } else { html += '<div class="empty">No users yet</div>'; }
+  html += '</div>';
+
+  // Recent generations
+  html += '<div class="card"><div class="card-title">Recent Generations</div>';
+  if (D.recent.length > 0) {
+    html += '<div style="overflow-x:auto;max-height:300px;overflow-y:auto"><table><tr><th>When</th><th>User</th><th>Size</th><th>Height</th><th>Area</th><th>Attach</th><th>Decking</th><th>Stairs</th></tr>';
+    D.recent.forEach(function(r) {
+      html += '<tr><td>'+ts(r.time)+'</td><td>'+esc(r.email)+'</td><td>'+r.size+'</td><td>'+r.height+'</td><td>'+r.area+' SF</td><td>'+r.attachment+'</td><td>'+r.decking+'</td><td>'+(r.stairs?'<span style="color:var(--green)">'+r.stair_loc+'</span>':'--')+'</td></tr>';
+    });
+    html += '</table></div>';
+  } else { html += '<div class="empty">No generations yet</div>'; }
+  html += '</div>';
+
+  html += '</div>'; // end collapsible
+
+  document.getElementById('app').innerHTML = html;
+}
+
+load();
+setInterval(load, 30000);
+</script>
+</body>
+</html>
