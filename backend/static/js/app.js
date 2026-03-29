@@ -859,6 +859,7 @@ const App = function SimpleBlueprints() {
                   </div>
                   <div style={{ flex: "1 1 45%", display: "flex", flexDirection: "column" }}>
                     <div style={{ fontSize: 8, fontWeight: 700, color: br.mu, fontFamily: mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 4 }}>Proposed Shapes</div>
+                    <div style={{ fontSize: 9, fontFamily: mono, color: br.mu, marginBottom: 6 }}>Not a match? <button onClick={() => { setCompareMode(false); setTraceState({ calPoints: [], calDist: "", ppf: null, vertices: [], edgeMeta: [], edgeLengths: [], imgW: 0, imgH: 0, selectedEdge: null, selectedVertex: null, pdfPage: 1, pdfPageCount: 1 }); setTraceMode(true); }} style={{ fontSize: 9, fontFamily: mono, color: "#ca8a04", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", fontWeight: 700, padding: 0 }}>Trace manually</button></div>
                     <div style={{ maxHeight: "60vh", overflowY: "auto", flex: 1 }}>
                       <CompareShapes candidates={window._shapeCompareData ? window._shapeCompareData.candidates : []} previewIdx={previewIdx} />
                       <div style={{ marginTop: 10, padding: 14, background: "#fefce8", border: "2px dashed #ca8a04", borderRadius: 8, textAlign: "center" }}>

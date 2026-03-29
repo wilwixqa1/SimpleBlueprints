@@ -2262,7 +2262,7 @@ function StepContent(props) {
       </div>}
 
       {/* === AI EXTRACTION (S29) === */}
-      {sitePlanFile && !extractResult && !traceMode && !extracting && <div style={{ marginBottom: 14 }}>
+      {sitePlanFile && !extractResult && !traceMode && !extracting && !guideActive && <div style={{ marginBottom: 14 }}>
         <button onClick={async function() {
           setExtracting(true); setExtractError(null);
           try {
@@ -2362,7 +2362,7 @@ function StepContent(props) {
       </div>}
 
 
-      {extractResult && !traceMode && <div style={{ padding: 14, background: "#eff6ff", borderRadius: 8, border: "1px solid #93c5fd", marginBottom: 14 }}>
+      {extractResult && !traceMode && !compareMode && <div style={{ padding: 14, background: "#eff6ff", borderRadius: 8, border: "1px solid #93c5fd", marginBottom: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
           <div style={{ fontSize: 9, fontWeight: 700, color: "#1d4ed8", fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>{"\u2728"} AI Extracted Dimensions</div>
           <button onClick={function() { setExtractResult(null); }} style={{ fontSize: 8, fontFamily: _mono, color: _br.mu, background: "none", border: "1px solid " + _br.bd, borderRadius: 4, padding: "3px 8px", cursor: "pointer" }}>Dismiss</button>
