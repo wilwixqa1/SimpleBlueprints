@@ -359,6 +359,7 @@ Required fields (use null if not found or not readable):
 - parcelId: lot number from the plat (e.g. "LOT 36", "LOT 46"). Use the lot number, not the parcel ID number or account number. Look for "LOT XX" labels on the site plan.
 - streetName: name of the street the property faces (string)
 - northAngle: orientation of north on this survey. Instead of estimating exact degrees, choose the closest cardinal direction that north points toward on the drawing: 0 = up, 45 = upper-right, 90 = right, 135 = lower-right, 180 = down, 225 = lower-left, 270 = left, 315 = upper-left. Look for a north arrow or compass rose. Use null if no north arrow is visible.
+- streetSide: which side of the DRAWING is the street on? Look for road names, sidewalk markings, curb lines, or driveway access to identify the street edge. One of: "bottom", "top", "left", "right". Most surveys show the street at the bottom, but not always.
 - houseXPercent: house center X position as percentage of lot bounding box width (number, 0-100). See HOUSE POSITION ESTIMATION below.
 - houseYPercent: house center Y position as percentage from street to rear (number, 0-100). See HOUSE POSITION ESTIMATION below.
 
@@ -554,7 +555,7 @@ async def extract_survey(request: Request):
 
 SHAPE_RANK_PROMPT = """You are analyzing a property survey to determine the correct lot shape and orientation.
 
-Above you see the SURVEY SITE PLAN page, followed by {shapes_text}. Each candidate has the same edge lengths but arranged differently, producing different outlines.
+Above you see the SURVEY SITE PLAN page, followed by {shapes_text}. Each candidate has the same edge lengths but arranged differently, producing different outlines. The candidate shapes have been rotated to match the survey's orientation, so you can compare them directly to the lot boundary on the survey without mentally rotating.
 
 TASKS:
 1. SHAPE MATCHING: Compare the OUTLINE of each numbered candidate shape image to the lot boundary drawn on the survey. Which candidate looks most like the actual lot boundary? Give the 0-based index.
@@ -577,16 +578,42 @@ Return ONLY a JSON object:
 Return ONLY valid JSON, no markdown, no backticks."""
 
 
-def render_candidate_images(candidates):
-    """Render each candidate shape as a small PNG image for visual comparison."""
+def render_candidate_images(candidates, street_side="bottom"):
+    """Render each candidate shape as a small PNG image for visual comparison.
+    Rotates shapes so the street edge matches the survey orientation."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+    import math
+
+    def rotate_verts(verts, street_side):
+        """Rotate vertices so street edge appears on the given side.
+        Shapes are generated with street at bottom. Rotate around centroid."""
+        if street_side == "bottom" or not street_side:
+            return verts
+        cx = sum(v[0] for v in verts) / len(verts)
+        cy = sum(v[1] for v in verts) / len(verts)
+        # Rotation angles: street starts at bottom, rotate to target side
+        # CCW pi/2 moves bottom edge to right side
+        # CW -pi/2 moves bottom edge to left side
+        # pi moves bottom edge to top
+        rotations = {"top": math.pi, "right": math.pi / 2, "left": -math.pi / 2}
+        theta = rotations.get(street_side, 0)
+        if theta == 0:
+            return verts
+        cos_t, sin_t = math.cos(theta), math.sin(theta)
+        rotated = []
+        for v in verts:
+            dx, dy = v[0] - cx, v[1] - cy
+            rotated.append([cx + dx * cos_t - dy * sin_t, cy + dx * sin_t + dy * cos_t])
+        return rotated
+
     images = []
     for i, c in enumerate(candidates):
         verts = c.get("vertices", [])
         if not verts or len(verts) < 3:
             continue
+        verts = rotate_verts(verts, street_side)
         fig, ax = plt.subplots(1, 1, figsize=(2, 2), dpi=72)
         xs = [v[0] for v in verts] + [verts[0][0]]
         ys = [v[1] for v in verts] + [verts[0][1]]
@@ -657,13 +684,14 @@ async def rank_shapes(request: Request):
         survey_b64 = body.get("surveyData", "")
         candidates = body.get("candidates", [])
         file_type = body.get("fileType", "image")
+        street_side = body.get("streetSide", "bottom")
 
         if not survey_b64 or not candidates:
             return {"ok": False, "error": "Missing survey data or candidates"}
 
-        # S52: Render candidate shapes as images for visual comparison
-        shape_images = render_candidate_images(candidates)
-        print(f"Rendered {len(shape_images)} shape images for ranking")
+        # S53: Render candidate shapes rotated to match survey orientation
+        shape_images = render_candidate_images(candidates, street_side)
+        print(f"Rendered {len(shape_images)} shape images for ranking (streetSide={street_side})")
 
         # Get just the site plan page
         if file_type == "pdf":
