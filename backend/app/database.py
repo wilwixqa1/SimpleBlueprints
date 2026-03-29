@@ -791,6 +791,69 @@ def get_stats() -> dict:
         cur.execute("SELECT COUNT(DISTINCT ip_hash) as c FROM page_views WHERE timestamp > %s", (day_ago,))
         pv_unique_today = cur.fetchone()["c"]
 
+        # Traffic breakdown: bot vs human, daily uniques, top paths
+        cur.execute("""
+            SELECT
+                COUNT(*) as total,
+                COUNT(*) FILTER (WHERE
+                    LOWER(user_agent) SIMILAR TO '%%(bot|crawl|spider|slurp|bingpreview|facebookexternalhit|semrush|ahref|bytespider|gptbot|claudebot|petalbot|yandex|baidu|duckduckbot|ia_archiver|mj12bot|dotbot|rogerbot|dataforseo|blexbot|seznambot|megaindex|go-http-client|python-requests|curl|wget|scrapy|headless|phantom|puppeteer)%%'
+                ) as bots,
+                COUNT(DISTINCT ip_hash) as unique_ips,
+                COUNT(DISTINCT ip_hash) FILTER (WHERE
+                    LOWER(user_agent) NOT SIMILAR TO '%%(bot|crawl|spider|slurp|bingpreview|facebookexternalhit|semrush|ahref|bytespider|gptbot|claudebot|petalbot|yandex|baidu|duckduckbot|ia_archiver|mj12bot|dotbot|rogerbot|dataforseo|blexbot|seznambot|megaindex|go-http-client|python-requests|curl|wget|scrapy|headless|phantom|puppeteer)%%'
+                ) as unique_human_ips
+            FROM page_views
+        """)
+        traffic = dict(cur.fetchone())
+
+        # Daily unique IPs (last 30 days), human only
+        cur.execute("""
+            SELECT TO_CHAR(TO_TIMESTAMP(timestamp), 'YYYY-MM-DD') as day,
+                   COUNT(*) as views,
+                   COUNT(DISTINCT ip_hash) as unique_ips
+            FROM page_views
+            WHERE timestamp > %s
+                AND LOWER(user_agent) NOT SIMILAR TO '%%(bot|crawl|spider|slurp|bingpreview|facebookexternalhit|semrush|ahref|bytespider|gptbot|claudebot|petalbot|yandex|baidu|duckduckbot|ia_archiver|mj12bot|dotbot|rogerbot|dataforseo|blexbot|seznambot|megaindex|go-http-client|python-requests|curl|wget|scrapy|headless|phantom|puppeteer)%%'
+            GROUP BY day ORDER BY day
+        """, (month_ago,))
+        daily_traffic = [dict(r) for r in cur.fetchall()]
+
+        # Top paths (human only, all time)
+        cur.execute("""
+            SELECT path, COUNT(*) as views, COUNT(DISTINCT ip_hash) as unique_ips
+            FROM page_views
+            WHERE LOWER(user_agent) NOT SIMILAR TO '%%(bot|crawl|spider|slurp|bingpreview|facebookexternalhit|semrush|ahref|bytespider|gptbot|claudebot|petalbot|yandex|baidu|duckduckbot|ia_archiver|mj12bot|dotbot|rogerbot|dataforseo|blexbot|seznambot|megaindex|go-http-client|python-requests|curl|wget|scrapy|headless|phantom|puppeteer)%%'
+            GROUP BY path ORDER BY views DESC LIMIT 10
+        """)
+        top_paths = [dict(r) for r in cur.fetchall()]
+
+        # Top bot user agents (for awareness)
+        cur.execute("""
+            SELECT
+                CASE
+                    WHEN LOWER(user_agent) LIKE '%%googlebot%%' THEN 'Googlebot'
+                    WHEN LOWER(user_agent) LIKE '%%bingbot%%' OR LOWER(user_agent) LIKE '%%bingpreview%%' THEN 'Bing'
+                    WHEN LOWER(user_agent) LIKE '%%semrush%%' THEN 'SEMrush'
+                    WHEN LOWER(user_agent) LIKE '%%ahref%%' THEN 'Ahrefs'
+                    WHEN LOWER(user_agent) LIKE '%%bytespider%%' THEN 'ByteSpider'
+                    WHEN LOWER(user_agent) LIKE '%%gptbot%%' THEN 'GPTBot'
+                    WHEN LOWER(user_agent) LIKE '%%claudebot%%' THEN 'ClaudeBot'
+                    WHEN LOWER(user_agent) LIKE '%%petalbot%%' THEN 'PetalBot'
+                    WHEN LOWER(user_agent) LIKE '%%yandex%%' THEN 'Yandex'
+                    WHEN LOWER(user_agent) LIKE '%%facebookexternalhit%%' THEN 'Facebook'
+                    WHEN LOWER(user_agent) LIKE '%%duckduckbot%%' THEN 'DuckDuckBot'
+                    WHEN LOWER(user_agent) LIKE '%%dataforseo%%' THEN 'DataForSEO'
+                    WHEN LOWER(user_agent) LIKE '%%python-requests%%' THEN 'python-requests'
+                    WHEN LOWER(user_agent) LIKE '%%go-http-client%%' THEN 'Go-http-client'
+                    ELSE 'Other bot'
+                END as bot_name,
+                COUNT(*) as hits
+            FROM page_views
+            WHERE LOWER(user_agent) SIMILAR TO '%%(bot|crawl|spider|slurp|bingpreview|facebookexternalhit|semrush|ahref|bytespider|gptbot|claudebot|petalbot|yandex|baidu|duckduckbot|ia_archiver|mj12bot|dotbot|rogerbot|dataforseo|blexbot|seznambot|megaindex|go-http-client|python-requests|curl|wget|scrapy|headless|phantom|puppeteer)%%'
+            GROUP BY bot_name ORDER BY hits DESC LIMIT 10
+        """)
+        top_bots = [dict(r) for r in cur.fetchall()]
+
         # Popular configs
         cur.execute("""
             SELECT deck_width || 'x' || deck_depth as size, COUNT(*) as c
@@ -845,7 +908,8 @@ def get_stats() -> dict:
         return {
             "generations": {"total": total, "today": today, "this_week": this_week, "this_month": this_month},
             "users": {"total": users_total, "today": users_today, "this_week": users_week, "opted_in": users_opted_in},
-            "page_views": {"total": pv_total, "today": pv_today, "unique_today": pv_unique_today},
+            "page_views": {"total": pv_total, "today": pv_today, "unique_today": pv_unique_today,
+                "traffic": traffic, "daily_traffic": daily_traffic, "top_paths": top_paths, "top_bots": top_bots},
             "popular": {
                 "sizes": [{"size": r["size"], "count": r["c"]} for r in top_sizes],
                 "attachment": [{"type": r["attachment"], "count": r["c"]} for r in top_attachment],

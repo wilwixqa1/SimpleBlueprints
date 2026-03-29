@@ -260,7 +260,11 @@ function render() {
   html += '<div class="card"><div class="label">PDFs Generated</div><div class="val">'+g.total+'</div><div class="detail">'+g.today+' today, '+g.this_week+' this week</div></div>';
   html += '<div class="card"><div class="label">Registered Users</div><div class="val">'+u.total+'</div><div class="detail">'+u.today+' today, '+u.this_week+' this week</div></div>';
   html += '<div class="card"><div class="label">Email Opt-ins</div><div class="val green">'+u.opted_in+'</div><div class="detail">of '+u.total+' total</div></div>';
-  html += '<div class="card"><div class="label">Page Views</div><div class="val">'+pv.total+'</div><div class="detail">'+pv.today+' today, '+pv.unique_today+' unique</div></div>';
+  var pvTraffic = pv.traffic || {};
+  var pvHuman = (pvTraffic.total||0) - (pvTraffic.bots||0);
+  var pvBotPct = (pvTraffic.total||0) > 0 ? pct(pvTraffic.bots||0, pvTraffic.total) : 0;
+  html += '<div class="card"><div class="label">Page Views</div><div class="val">'+pvHuman+'</div><div class="detail">human (' + (pvTraffic.unique_human_ips||0) + ' unique IPs). '+pv.today+' today.</div></div>';
+  html += '<div class="card"><div class="label">Bot Traffic</div><div class="val'+(pvBotPct>50?' orange':'')+'">'+pvBotPct+'%</div><div class="detail">'+(pvTraffic.bots||0)+' bot / '+(pvTraffic.total||0)+' total</div></div>';
   html += '<div class="card"><div class="label">Checkout Starts</div><div class="val blue">'+(chk.starts||0)+'</div><div class="detail">'+(chk.abandons||0)+' abandoned</div></div>';
   html += '<div class="card"><div class="label">Purchases</div><div class="val green">'+(chk.completes||0)+'</div><div class="detail">'+((chk.starts||0)>0?pct(chk.completes||0,chk.starts)+'% conversion':'no checkouts yet')+'</div></div>';
   html += '</div>';
@@ -276,6 +280,38 @@ function render() {
     }).join('');
   }
   html += '</div></div>';
+
+  // ============ TRAFFIC BREAKDOWN ============
+  var dt = pv.daily_traffic || [];
+  if (dt.length > 0) {
+    var dtMx = Math.max.apply(null, dt.map(function(x){return x.unique_ips}).concat([1]));
+    html += '<div class="card"><div class="card-title">Daily Unique Visitors (human, '+activeDays+'d)</div><div class="chart">';
+    html += dt.map(function(x) {
+      return '<div class="chart-bar" style="height:'+Math.max(x.unique_ips/dtMx*100,4)+'%;background:var(--blue)"><div class="tip">'+x.day+': '+x.unique_ips+' unique ('+x.views+' views)</div></div>';
+    }).join('');
+    html += '</div></div>';
+  }
+
+  html += '<div class="grid">';
+  // Top paths
+  var tp = pv.top_paths || [];
+  if (tp.length > 0) {
+    html += '<div class="card"><div class="card-title">Top Pages (human)</div><table><tr><th>Path</th><th>Views</th><th>Unique IPs</th></tr>';
+    tp.forEach(function(r) {
+      html += '<tr><td style="font-family:\'DM Mono\',monospace;font-size:11px">'+r.path+'</td><td>'+r.views+'</td><td>'+r.unique_ips+'</td></tr>';
+    });
+    html += '</table></div>';
+  }
+  // Top bots
+  var tb = pv.top_bots || [];
+  if (tb.length > 0) {
+    html += '<div class="card"><div class="card-title">Bot Breakdown</div><table><tr><th>Bot</th><th>Hits</th></tr>';
+    tb.forEach(function(r) {
+      html += '<tr><td>'+r.bot_name+'</td><td>'+r.hits+'</td></tr>';
+    });
+    html += '</table></div>';
+  }
+  html += '</div>';
 
   // ============ SECTION 2: PRODUCT FUNNEL ============
   html += '<div class="section-label">Product Quality</div>';
