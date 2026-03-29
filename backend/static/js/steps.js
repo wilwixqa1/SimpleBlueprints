@@ -73,8 +73,8 @@ window.SurveyPreview = SurveyPreview;
 
 // S53: Rotate lot vertices to match survey orientation for display
 // Shapes are generated with street at bottom. This rotates around centroid.
-// Optional mirror flips left-right after rotation to fix chirality mismatch.
-function _rotateVertsForDisplay(verts, streetSide, mirrored) {
+// hFlip mirrors left-right, vFlip mirrors top-bottom.
+function _rotateVertsForDisplay(verts, streetSide, hFlip, vFlip) {
   var result = verts;
   if (streetSide && streetSide !== "bottom") {
     var cx = 0, cy = 0;
@@ -91,25 +91,26 @@ function _rotateVertsForDisplay(verts, streetSide, mirrored) {
       });
     }
   }
-  if (mirrored) {
-    var mcx = 0;
-    for (var j = 0; j < result.length; j++) { mcx += result[j][0]; }
-    mcx /= result.length;
-    result = result.map(function(v) { return [2 * mcx - v[0], v[1]]; });
+  if (hFlip || vFlip) {
+    var fcx = 0, fcy = 0;
+    for (var j = 0; j < result.length; j++) { fcx += result[j][0]; fcy += result[j][1]; }
+    fcx /= result.length; fcy /= result.length;
+    result = result.map(function(v) {
+      return [hFlip ? 2 * fcx - v[0] : v[0], vFlip ? 2 * fcy - v[1] : v[1]];
+    });
   }
   return result;
 }
 window._rotateVertsForDisplay = _rotateVertsForDisplay;
 
 // S48: Shape cards for compare view with preview selection
-function CompareShapes({ candidates, previewIdx, streetSide, mirrored }) {
+function CompareShapes({ candidates, previewIdx, streetSide, hFlip, vFlip }) {
   if (!candidates || candidates.length === 0) return React.createElement("div", { style: { fontSize: 10, color: _br.mu, fontFamily: _mono } }, "No shapes available");
-  console.log("CompareShapes render: streetSide=" + streetSide + " mirrored=" + mirrored);
   var edgeColors = ["#e53935", "#2563eb", "#8B7355", "#7c3aed", "#0d9488"];
   return React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 8 } },
     candidates.map(function(cand, ci) {
       var isSelected = previewIdx === ci;
-      var cv = _rotateVertsForDisplay(cand.vertices, streetSide, mirrored);
+      var cv = _rotateVertsForDisplay(cand.vertices, streetSide, hFlip, vFlip);
       // Compute bounding box from rotated vertices
       var cminX = Infinity, cminY = Infinity, cmaxX = -Infinity, cmaxY = -Infinity;
       cv.forEach(function(v) { if (v[0] < cminX) cminX = v[0]; if (v[1] < cminY) cminY = v[1]; if (v[0] > cmaxX) cmaxX = v[0]; if (v[1] > cmaxY) cmaxY = v[1]; });
