@@ -854,6 +854,43 @@ def get_stats() -> dict:
         """)
         top_bots = [dict(r) for r in cur.fetchall()]
 
+        # Top "human" user agents (to spot stealth bots)
+        cur.execute("""
+            SELECT
+                CASE
+                    WHEN LENGTH(user_agent) < 30 THEN user_agent
+                    ELSE SUBSTRING(user_agent FROM 1 FOR 80)
+                END as ua_short,
+                COUNT(*) as hits,
+                COUNT(DISTINCT ip_hash) as unique_ips
+            FROM page_views
+            WHERE LOWER(user_agent) NOT SIMILAR TO '%%(bot|crawl|spider|slurp|bingpreview|facebookexternalhit|semrush|ahref|bytespider|gptbot|claudebot|petalbot|yandex|baidu|duckduckbot|ia_archiver|mj12bot|dotbot|rogerbot|dataforseo|blexbot|seznambot|megaindex|go-http-client|python-requests|curl|wget|scrapy|headless|phantom|puppeteer)%%'
+            GROUP BY ua_short ORDER BY hits DESC LIMIT 15
+        """)
+        top_human_uas = [dict(r) for r in cur.fetchall()]
+
+        # IP visit frequency: how many IPs visited 1x, 2-5x, 6-20x, 20+
+        cur.execute("""
+            SELECT
+                CASE
+                    WHEN visit_count = 1 THEN '1 visit'
+                    WHEN visit_count BETWEEN 2 AND 5 THEN '2-5 visits'
+                    WHEN visit_count BETWEEN 6 AND 20 THEN '6-20 visits'
+                    ELSE '20+ visits'
+                END as bucket,
+                COUNT(*) as ip_count,
+                SUM(visit_count) as total_views
+            FROM (
+                SELECT ip_hash, COUNT(*) as visit_count
+                FROM page_views
+                WHERE LOWER(user_agent) NOT SIMILAR TO '%%(bot|crawl|spider|slurp|bingpreview|facebookexternalhit|semrush|ahref|bytespider|gptbot|claudebot|petalbot|yandex|baidu|duckduckbot|ia_archiver|mj12bot|dotbot|rogerbot|dataforseo|blexbot|seznambot|megaindex|go-http-client|python-requests|curl|wget|scrapy|headless|phantom|puppeteer)%%'
+                GROUP BY ip_hash
+            ) sub
+            GROUP BY bucket
+            ORDER BY MIN(visit_count)
+        """)
+        ip_frequency = [dict(r) for r in cur.fetchall()]
+
         # Popular configs
         cur.execute("""
             SELECT deck_width || 'x' || deck_depth as size, COUNT(*) as c
@@ -909,7 +946,8 @@ def get_stats() -> dict:
             "generations": {"total": total, "today": today, "this_week": this_week, "this_month": this_month},
             "users": {"total": users_total, "today": users_today, "this_week": users_week, "opted_in": users_opted_in},
             "page_views": {"total": pv_total, "today": pv_today, "unique_today": pv_unique_today,
-                "traffic": traffic, "daily_traffic": daily_traffic, "top_paths": top_paths, "top_bots": top_bots},
+                "traffic": traffic, "daily_traffic": daily_traffic, "top_paths": top_paths, "top_bots": top_bots,
+                "top_human_uas": top_human_uas, "ip_frequency": ip_frequency},
             "popular": {
                 "sizes": [{"size": r["size"], "count": r["c"]} for r in top_sizes],
                 "attachment": [{"type": r["attachment"], "count": r["c"]} for r in top_attachment],

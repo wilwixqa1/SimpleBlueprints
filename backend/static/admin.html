@@ -313,6 +313,28 @@ function render() {
   }
   html += '</div>';
 
+  // Traffic diagnostics row 2
+  html += '<div class="grid">';
+  // IP visit frequency
+  var ipf = pv.ip_frequency || [];
+  if (ipf.length > 0) {
+    html += '<div class="card"><div class="card-title">Visitor Frequency (human IPs)</div><table><tr><th>Bucket</th><th>IPs</th><th>Page Views</th></tr>';
+    ipf.forEach(function(r) {
+      html += '<tr><td>'+r.bucket+'</td><td>'+r.ip_count+'</td><td>'+r.total_views+'</td></tr>';
+    });
+    html += '</table></div>';
+  }
+  // Top human user agents
+  var thua = pv.top_human_uas || [];
+  if (thua.length > 0) {
+    html += '<div class="card"><div class="card-title">Top "Human" User Agents</div><table><tr><th>User Agent</th><th>Hits</th><th>IPs</th></tr>';
+    thua.forEach(function(r) {
+      html += '<tr><td style="font-family:\'DM Mono\',monospace;font-size:10px;word-break:break-all;max-width:400px">'+r.ua_short+'</td><td>'+r.hits+'</td><td>'+r.unique_ips+'</td></tr>';
+    });
+    html += '</table></div>';
+  }
+  html += '</div>';
+
   // ============ SECTION 2: PRODUCT FUNNEL ============
   html += '<div class="section-label">Product Quality</div>';
 
