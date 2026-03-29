@@ -414,7 +414,7 @@ async def extract_survey(request: Request):
             }
 
         payload = {
-            "model": "claude-sonnet-4-6",
+            "model": "claude-opus-4-6",
             "max_tokens": 1024,
             "temperature": 0,
             "messages": [{
