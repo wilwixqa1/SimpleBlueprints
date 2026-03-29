@@ -744,6 +744,199 @@ async def rank_shapes(request: Request):
         return {"ok": False, "error": str(e)}
 
 
+# S54: AI Helper - conversational guide assistant
+AI_HELPER_PARAMS = {
+    0: {
+        "step_name": "Site Plan",
+        "step_description": "Setting up property boundaries, house position, and lot details.",
+        "params": {
+            "lotWidth": {"desc": "Lot width in feet (front to back neighbor)", "min": 30, "max": 300, "type": "number"},
+            "lotDepth": {"desc": "Lot depth in feet (street to back)", "min": 50, "max": 400, "type": "number"},
+            "houseWidth": {"desc": "House width in feet (wall where deck attaches)", "min": 20, "max": 80, "type": "number"},
+            "houseDepth": {"desc": "House depth in feet", "min": 20, "max": 60, "type": "number"},
+            "houseOffsetSide": {"desc": "Distance from left property line to house", "min": 5, "max": 200, "type": "number"},
+            "houseDistFromStreet": {"desc": "Distance from street to front of house", "min": 5, "max": 200, "type": "number"},
+            "setbackFront": {"desc": "Front setback in feet (minimum distance from street)", "min": 0, "max": 50, "type": "number"},
+            "setbackSide": {"desc": "Side setback in feet", "min": 0, "max": 30, "type": "number"},
+            "setbackRear": {"desc": "Rear setback in feet", "min": 0, "max": 50, "type": "number"},
+            "streetName": {"desc": "Street name for site plan label", "type": "string"},
+            "northAngle": {"desc": "North arrow angle in degrees (0=up, 90=right, 180=down, 270=left)", "min": 0, "max": 359, "type": "number"},
+            "slopePercent": {"desc": "Ground slope percentage (0 for flat)", "min": 0, "max": 30, "type": "number"},
+            "slopeDirection": {"desc": "Slope direction", "type": "choice", "options": ["front-to-back", "back-to-front", "left-to-right", "right-to-left"]},
+        }
+    },
+    1: {
+        "step_name": "Size & Shape",
+        "step_description": "Designing the deck dimensions, height, stairs, and attachment method.",
+        "params": {
+            "width": {"desc": "Deck width in feet (along the house wall)", "min": 8, "max": 50, "type": "number"},
+            "depth": {"desc": "Deck depth in feet (how far it extends into the yard)", "min": 6, "max": 24, "type": "number"},
+            "height": {"desc": "Deck height in feet above ground", "min": 1, "max": 14, "type": "number"},
+            "hasStairs": {"desc": "Whether the deck has stairs", "type": "boolean"},
+            "stairLocation": {"desc": "Which side stairs exit from", "type": "choice", "options": ["front", "left", "right"]},
+            "stairWidth": {"desc": "Stair width in feet", "min": 3, "max": 8, "type": "number"},
+            "deckOffset": {"desc": "Horizontal offset of deck center from house center (negative=left, positive=right)", "type": "number"},
+            "attachment": {"desc": "How deck attaches to house", "type": "choice", "options": ["ledger", "freestanding"]},
+        }
+    },
+    2: {
+        "step_name": "Structure",
+        "step_description": "Structural specifications: joists, beams, posts, footings. Most values are auto-calculated from IRC tables.",
+        "params": {
+            "joistSize": {"desc": "Joist lumber size", "type": "choice", "options": ["2x6", "2x8", "2x10", "2x12"]},
+            "joistSpacing": {"desc": "Joist spacing in inches", "type": "choice", "options": [12, 16]},
+            "attachment": {"desc": "Ledger (bolted to house) or freestanding (own posts)", "type": "choice", "options": ["ledger", "freestanding"]},
+        }
+    },
+    3: {
+        "step_name": "Finishes",
+        "step_description": "Choosing decking material, railing style, and reviewing cost estimates.",
+        "params": {
+            "deckingType": {"desc": "Decking board material", "type": "choice", "options": ["pt_wood", "cedar", "composite"]},
+            "railingType": {"desc": "Railing style", "type": "choice", "options": ["wood", "composite", "aluminum", "cable", "glass", "none"]},
+        }
+    },
+    4: {
+        "step_name": "Review",
+        "step_description": "Final review and PDF blueprint generation.",
+        "params": {}
+    }
+}
+
+def build_ai_helper_prompt(step, params, extraction_summary):
+    step_info = AI_HELPER_PARAMS.get(step, AI_HELPER_PARAMS[0])
+    param_desc = ""
+    current_vals = ""
+    for k, v in step_info["params"].items():
+        param_desc += f"- {k}: {v['desc']}"
+        if v.get("type") == "choice":
+            param_desc += f" (options: {v['options']})"
+        elif v.get("min") is not None:
+            param_desc += f" (range: {v['min']}-{v['max']})"
+        param_desc += "\n"
+        val = params.get(k)
+        if val is not None:
+            current_vals += f"- {k}: {val}\n"
+
+    extraction_note = ""
+    if extraction_summary:
+        extraction_note = f"\nExtraction results from their survey upload:\n{extraction_summary}\n"
+
+    return f"""You are the AI guide for SimpleBlueprints, a tool that helps homeowners create permit-ready deck blueprints. You are currently helping on Step {step}: {step_info['step_name']} - {step_info['step_description']}
+
+Your personality: Warm, knowledgeable, concise. You are a friendly building expert helping a non-technical homeowner. Use plain English. Avoid jargon unless asked. Keep responses to 1-3 sentences unless the user asks for detail.
+
+SETTABLE PARAMETERS for this step:
+{param_desc if param_desc else "(No settable parameters on this step)"}
+
+CURRENT VALUES:
+{current_vals if current_vals else "(defaults)"}
+{extraction_note}
+RESPONSE FORMAT: Always respond with valid JSON only. No markdown, no backticks, no preamble.
+{{
+  "message": "Your conversational response to the user",
+  "actions": [
+    {{"param": "paramName", "value": newValue}}
+  ]
+}}
+
+RULES:
+- "actions" array is optional. Only include it when the user clearly wants to set or change a value.
+- Values must respect the min/max ranges and valid options listed above.
+- If the user asks a question, just answer it (no actions needed).
+- If the user describes what they want in natural language, translate to parameter values and set them.
+- If the user says something ambiguous, ask a clarifying question (no actions).
+- When you set values, confirm what you set in your message.
+- For deck height, help users think about it: "How high is your back door above the ground?" Common heights: 2-4 feet for most homes, 6-10 feet for walkout basements.
+- A setback is the minimum distance a structure must be from a property line. Permit offices enforce these.
+- A ledger board is a board bolted directly to the house framing. Freestanding means the deck has its own support posts near the house instead."""
+
+
+@app.post("/api/ai-helper")
+async def ai_helper(request: Request):
+    """AI-powered conversational guide assistant."""
+    user_id = get_current_user_id(request)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Login required")
+    if not ANTHROPIC_API_KEY:
+        raise HTTPException(status_code=500, detail="AI helper not configured")
+
+    try:
+        body = await request.json()
+        user_message = body.get("message", "").strip()
+        step = body.get("step", 0)
+        params = body.get("params", {})
+        history = body.get("history", [])
+        extraction_summary = body.get("extractionSummary", "")
+
+        if not user_message:
+            return {"ok": False, "error": "No message provided"}
+
+        system_prompt = build_ai_helper_prompt(step, params, extraction_summary)
+
+        # Build conversation messages
+        messages = []
+        # Include last 6 turns of history for context
+        for h in history[-6:]:
+            messages.append({"role": h["role"], "content": h["text"]})
+        messages.append({"role": "user", "content": user_message})
+
+        payload = {
+            "model": "claude-sonnet-4-6",
+            "max_tokens": 500,
+            "temperature": 0.3,
+            "system": system_prompt,
+            "messages": messages
+        }
+
+        req = urllib.request.Request(
+            "https://api.anthropic.com/v1/messages",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "x-api-key": ANTHROPIC_API_KEY,
+                "anthropic-version": "2023-06-01"
+            }
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            result = json.loads(resp.read().decode("utf-8"))
+
+        text = ""
+        for block in result.get("content", []):
+            if block.get("type") == "text":
+                text += block["text"]
+
+        # Parse JSON response
+        text = text.strip()
+        # Strip markdown code fences if present
+        if text.startswith("```"):
+            text = text.split("\n", 1)[1] if "\n" in text else text[3:]
+        if text.endswith("```"):
+            text = text[:-3]
+        text = text.strip()
+
+        parsed = json.loads(text)
+        return {
+            "ok": True,
+            "message": parsed.get("message", ""),
+            "actions": parsed.get("actions", [])
+        }
+
+    except json.JSONDecodeError as je:
+        print(f"AI helper JSON parse error: {je}, raw: {text[:200] if 'text' in dir() else 'N/A'}")
+        # If we got text but it didn't parse as JSON, return the raw text as message
+        if 'text' in dir() and text:
+            return {"ok": True, "message": text, "actions": []}
+        return {"ok": False, "error": "Could not parse AI response"}
+    except urllib.error.HTTPError as he:
+        error_body = he.read().decode("utf-8", errors="replace")
+        print(f"AI helper HTTP error: {he.code} body: {error_body[:500]}")
+        return {"ok": False, "error": f"AI service error ({he.code})"}
+    except Exception as e:
+        print(f"AI helper error: {e}")
+        return {"ok": False, "error": str(e)}
+
+
 @app.post("/api/generate-test")
 async def generate_test(request: Request):
     user_id = get_current_user_id(request)

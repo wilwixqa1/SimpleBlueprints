@@ -479,9 +479,11 @@ GUIDE_PHASES_STEP4.forEach(function(ph) { _guidePhaseMap[ph.id] = ph; });
 var _guideStep4Order = GUIDE_PHASES_STEP4.map(function(ph) { return ph.id; });
 
 // GuidePanel: embedded guide at top of wizard step
-function GuidePanel({ phase, onAction, onBack, history, onToggleOff, message, tip }) {
+function GuidePanel({ phase, onAction, onBack, history, onToggleOff, message, tip, chatMessages, chatLoading, onSendMessage }) {
   var ph = _guidePhaseMap[phase];
   if (!ph) return null;
+
+  var chatInputRef = React.useRef(null);
 
   // Progress: check all step arrays
   var _allOrders = [_guidePhaseOrder, _guideStep1Order, _guideStep2Order, _guideStep3Order, _guideStep4Order];
@@ -500,6 +502,15 @@ function GuidePanel({ phase, onAction, onBack, history, onToggleOff, message, ti
   if (pct < 5) pct = 5;
 
   var canGoBack = history && history.length > 0;
+
+  function handleChatSubmit(e) {
+    if (e) e.preventDefault();
+    var input = chatInputRef.current;
+    if (!input || !input.value.trim() || chatLoading) return;
+    var msg = input.value.trim();
+    input.value = "";
+    if (onSendMessage) onSendMessage(msg);
+  }
 
   return <div style={{
     marginBottom: 16,
@@ -525,6 +536,84 @@ function GuidePanel({ phase, onAction, onBack, history, onToggleOff, message, ti
     {/* Tip */}
     {displayTip && <div style={{ fontSize: 11, color: _br.mu, fontFamily: _sans, lineHeight: 1.5, marginBottom: 12 }}>
       {displayTip}
+    </div>}
+
+    {/* S54: Chat conversation area */}
+    {chatMessages && chatMessages.length > 0 && <div style={{
+      marginBottom: 10, maxHeight: 200, overflowY: "auto",
+      borderRadius: 8, background: "rgba(255,255,255,0.6)",
+      padding: "8px 10px", border: "1px solid " + _br.bd
+    }}>
+      {chatMessages.map(function(msg, mi) {
+        var isUser = msg.role === "user";
+        return <div key={mi} style={{
+          marginBottom: mi < chatMessages.length - 1 ? 8 : 0,
+          display: "flex", flexDirection: "column",
+          alignItems: isUser ? "flex-end" : "flex-start"
+        }}>
+          <div style={{
+            maxWidth: "85%", padding: "7px 11px", borderRadius: 10,
+            fontSize: 12, fontFamily: _sans, lineHeight: 1.45,
+            background: isUser ? _br.gn : "#fff",
+            color: isUser ? "#fff" : _br.dk,
+            border: isUser ? "none" : ("1px solid " + _br.bd),
+            boxShadow: "0 1px 3px rgba(0,0,0,0.06)"
+          }}>
+            {msg.text}
+          </div>
+          {/* Action confirmations */}
+          {msg.actions && msg.actions.length > 0 && <div style={{
+            marginTop: 4, display: "flex", gap: 4, flexWrap: "wrap",
+            justifyContent: isUser ? "flex-end" : "flex-start"
+          }}>
+            {msg.actions.map(function(act, ai) {
+              return <span key={ai} style={{
+                fontSize: 9, fontFamily: _mono, color: _br.gn, fontWeight: 700,
+                background: _br.gn + "15", padding: "2px 8px", borderRadius: 10,
+                border: "1px solid " + _br.gn + "33"
+              }}>
+                {act.param} = {JSON.stringify(act.value)}
+              </span>;
+            })}
+          </div>}
+        </div>;
+      })}
+      {chatLoading && <div style={{
+        display: "flex", alignItems: "center", gap: 6, padding: "4px 0"
+      }}>
+        <div style={{
+          width: 6, height: 6, borderRadius: "50%", background: _br.gn,
+          animation: "pulse 1s ease-in-out infinite"
+        }} />
+        <span style={{ fontSize: 11, color: _br.mu, fontFamily: _sans, fontStyle: "italic" }}>Thinking...</span>
+      </div>}
+    </div>}
+
+    {/* S54: Chat text input */}
+    {onSendMessage && <div style={{ marginBottom: 10 }}>
+      <form onSubmit={handleChatSubmit} style={{ display: "flex", gap: 6 }}>
+        <input ref={chatInputRef} type="text"
+          placeholder="Type here..."
+          disabled={chatLoading}
+          onKeyDown={function(e) { if (e.key === "Enter" && !e.shiftKey) handleChatSubmit(e); }}
+          style={{
+            flex: 1, padding: "8px 12px", borderRadius: 8, fontSize: 12,
+            fontFamily: _sans, border: "1px solid " + _br.bd,
+            background: "#fff", color: _br.dk, outline: "none",
+            transition: "border-color 0.2s",
+            opacity: chatLoading ? 0.6 : 1
+          }}
+          onFocus={function(e) { e.target.style.borderColor = _br.gn; }}
+          onBlur={function(e) { e.target.style.borderColor = _br.bd; }}
+        />
+        <button type="submit" disabled={chatLoading} style={{
+          padding: "8px 14px", borderRadius: 8, border: "none",
+          background: chatLoading ? _br.mu : _br.gn, color: "#fff",
+          fontSize: 11, fontFamily: _mono, fontWeight: 700,
+          cursor: chatLoading ? "default" : "pointer",
+          transition: "background 0.2s", flexShrink: 0
+        }}>{"\u2191"}</button>
+      </form>
     </div>}
 
     {/* Action buttons */}
@@ -671,6 +760,64 @@ function StepContent(props) {
   // S49: AI Guide state
   // null = choice screen not yet shown, true = guided, false = manual
   const [guideActive, setGuideActive] = _stUS(null);
+
+  // S54: AI Helper chat state
+  const [chatMessages, setChatMessages] = _stUS([]);
+  const [chatLoading, setChatLoading] = _stUS(false);
+
+  function sendChatMessage(msg) {
+    var userMsg = { role: "user", text: msg };
+    setChatMessages(function(prev) { return prev.concat([userMsg]); });
+    setChatLoading(true);
+
+    // Build extraction summary if available
+    var extSummary = "";
+    if (extractResult) {
+      var er = extractResult;
+      var parts = [];
+      if (er.area) parts.push("Lot area: " + er.area + " sq ft");
+      if (er.edges && er.edges.length > 0) parts.push("Edges: " + er.edges.map(function(e) { return (e.length || "?") + "'"; }).join(", "));
+      if (er.streetName) parts.push("Street: " + er.streetName);
+      if (er.houseWidth) parts.push("House width: " + er.houseWidth + "'");
+      if (er.houseDepth) parts.push("House depth: " + er.houseDepth + "'");
+      extSummary = parts.join(". ");
+    }
+
+    // Collect current history for API
+    var apiHistory = chatMessages.map(function(m) { return { role: m.role, text: m.text }; });
+
+    fetch(API + "/api/ai-helper", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        message: msg,
+        step: step,
+        params: p,
+        history: apiHistory,
+        extractionSummary: extSummary
+      })
+    }).then(function(res) { return res.json(); }).then(function(data) {
+      setChatLoading(false);
+      if (data.ok) {
+        var assistantMsg = { role: "assistant", text: data.message, actions: data.actions || [] };
+        setChatMessages(function(prev) { return prev.concat([assistantMsg]); });
+        // Apply any actions
+        if (data.actions && data.actions.length > 0) {
+          data.actions.forEach(function(act) {
+            if (act.param && act.value !== undefined) {
+              u(act.param, act.value);
+            }
+          });
+        }
+      } else {
+        setChatMessages(function(prev) { return prev.concat([{ role: "assistant", text: data.error || "Something went wrong. Try again." }]); });
+      }
+    }).catch(function(err) {
+      setChatLoading(false);
+      setChatMessages(function(prev) { return prev.concat([{ role: "assistant", text: "Connection error. Please try again." }]); });
+    });
+  }
 
   // S50: PPRBD jurisdiction detection helper
   var _pprbdCities = ["colorado springs","fountain","manitou springs","green mountain falls","monument","palmer lake","woodland park","security","widefield","cascade","peyton","falcon","black forest"];
@@ -1093,6 +1240,7 @@ function StepContent(props) {
         onToggleOff={function() { setGuideActive(false); }}
         message={s1Msg}
         tip={s1Tip}
+        chatMessages={chatMessages} chatLoading={chatLoading} onSendMessage={sendChatMessage}
       />;
     })()}
 // {/*   Zone selector bar   */}
@@ -1757,6 +1905,7 @@ function StepContent(props) {
           onToggleOff={function() { setGuideActive(false); }}
           message={s0Msg}
           tip={s0Tip}
+          chatMessages={chatMessages} chatLoading={chatLoading} onSendMessage={sendChatMessage}
         />;
       })()}
 
@@ -2607,6 +2756,7 @@ function StepContent(props) {
       onBack={guideBack}
       history={guideHistory}
       onToggleOff={function() { setGuideActive(false); }}
+      chatMessages={chatMessages} chatLoading={chatLoading} onSendMessage={sendChatMessage}
     />}
     <Chips label="Joist spacing" field="joistSpacing" opts={[[12, '12" O.C.'], [16, '16" O.C.'], [24, '24" O.C.']]} u={u} p={p} />
     <Chips label="Snow load" field="snowLoad" opts={[["none", "None"], ["light", "Light"], ["moderate", "Moderate"], ["heavy", "Heavy"]]} u={u} p={p} />
@@ -2730,6 +2880,7 @@ function StepContent(props) {
         history={guideHistory}
         onToggleOff={function() { setGuideActive(false); }}
         message={s3Msg}
+        chatMessages={chatMessages} chatLoading={chatLoading} onSendMessage={sendChatMessage}
       />;
     })()}
     <Chips label="Decking" field="deckingType" opts={[["composite", "Composite (Trex)"], ["pt_lumber", "Pressure Treated"]]} u={u} p={p} />
@@ -2767,6 +2918,7 @@ function StepContent(props) {
         onToggleOff={function() { setGuideActive(false); }}
         message={s4Msg}
         tip={s4Tip}
+        chatMessages={chatMessages} chatLoading={chatLoading} onSendMessage={sendChatMessage}
       />;
     })()}
     <div style={{ marginBottom: 14 }}>
