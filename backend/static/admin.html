@@ -297,6 +297,27 @@ function render() {
   html += '<div class="card"><div class="label">Auto-mirror Fires</div><div class="val">'+(am.fires||0)+'</div><div class="detail">'+(am.user_flips||0)+' user flips after</div></div>';
   html += '</div>';
 
+  // Extraction confidence breakdown
+  var cb = ext.confidence_breakdown || {};
+  var cbKeys = Object.keys(cb);
+  if (cbKeys.length > 0) {
+    // Friendly labels for confidence fields
+    var fieldLabels = {lotEdges:'Lot Edges', lotArea:'Lot Area', houseWidth:'House Width', houseDepth:'House Depth',
+      setbacks:'Setbacks', houseOffsetSide:'House Offset', houseDistFromStreet:'Dist from Street',
+      cornerAngles:'Corner Angles', address:'Address', siteObjects:'Site Objects'};
+    html += '<div class="card"><div class="card-title">Extraction Confidence</div><table><tr><th>Field</th><th style="color:var(--green)">High</th><th style="color:var(--orange)">Med</th><th style="color:var(--red)">Low</th></tr>';
+    cbKeys.sort().forEach(function(k) {
+      var d = cb[k], total = (d.high||0) + (d.medium||0) + (d.low||0);
+      var label = fieldLabels[k] || k;
+      html += '<tr><td>'+label+'</td>';
+      html += '<td style="color:var(--green)">'+(d.high||0)+(total>0?' ('+pct(d.high||0,total)+'%)':'')+'</td>';
+      html += '<td style="color:var(--orange)">'+(d.medium||0)+(total>0?' ('+pct(d.medium||0,total)+'%)':'')+'</td>';
+      html += '<td style="color:var(--red)">'+(d.low||0)+(total>0?' ('+pct(d.low||0,total)+'%)':'')+'</td>';
+      html += '</tr>';
+    });
+    html += '</table></div>';
+  }
+
   // Step timing
   var timing = S.step_timing || [];
   if (timing.length > 0) {

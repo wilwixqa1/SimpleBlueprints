@@ -554,11 +554,33 @@ def get_tracking_stats(days: int = 30) -> dict:
                 COUNT(*) as total,
                 COUNT(*) FILTER (WHERE (event_data->>'success')::boolean = true) as successes,
                 AVG((event_data->>'duration_ms')::numeric) as avg_duration_ms,
-                AVG((event_data->>'confidence')::numeric) FILTER (WHERE event_data ? 'confidence') as avg_confidence
+                COUNT(*) FILTER (WHERE event_data ? 'confidence') as has_confidence
             FROM events
             WHERE event_type = 'extraction_complete' AND created_at >= {cutoff}
         """)
         extraction = dict(cur.fetchone())
+
+        # --- EXTRACTION CONFIDENCE BREAKDOWN ---
+        # Flatten the confidence JSON object and count high/medium/low per field
+        cur.execute(f"""
+            SELECT kv.key as field, kv.value as level, COUNT(*) as c
+            FROM events, jsonb_each_text(event_data->'confidence') as kv
+            WHERE event_type = 'extraction_complete' AND created_at >= {cutoff}
+                AND event_data ? 'confidence'
+                AND jsonb_typeof(event_data->'confidence') = 'object'
+            GROUP BY kv.key, kv.value
+            ORDER BY kv.key, kv.value
+        """)
+        conf_raw = cur.fetchall()
+        # Reshape into {field: {high: N, medium: N, low: N}}
+        confidence_breakdown = {}
+        for r in conf_raw:
+            field = r["field"]
+            if field not in confidence_breakdown:
+                confidence_breakdown[field] = {"high": 0, "medium": 0, "low": 0}
+            if r["level"] in ("high", "medium", "low"):
+                confidence_breakdown[field][r["level"]] = r["c"]
+        extraction["confidence_breakdown"] = confidence_breakdown
 
         # --- AUTO-CONFIRM / MIRROR STATS ---
         cur.execute(f"""
