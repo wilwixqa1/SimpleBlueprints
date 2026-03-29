@@ -567,12 +567,19 @@ function GuidePanel({ phase, onAction, onBack, history, onToggleOff, message, ti
             justifyContent: isUser ? "flex-end" : "flex-start"
           }}>
             {msg.actions.map(function(act, ai) {
+              var chipText = "";
+              if (act.param) chipText = act.param + " = " + JSON.stringify(act.value);
+              else if (act.navigate) chipText = "Showing: " + act.navigate;
+              else if (act.siteElementUpdate) chipText = "Updated " + (act.siteElementUpdate.type || "element");
+              else if (act.siteElementAdd) chipText = "Added " + (act.siteElementAdd.type || "element");
+              else if (act.siteElementRemove) chipText = "Removed element";
+              else return null;
               return <span key={ai} style={{
                 fontSize: 9, fontFamily: _mono, color: _br.gn, fontWeight: 700,
                 background: _br.gn + "15", padding: "2px 8px", borderRadius: 10,
                 border: "1px solid " + _br.gn + "33"
               }}>
-                {act.param} = {JSON.stringify(act.value)}
+                {chipText}
               </span>;
             })}
           </div>}
@@ -810,6 +817,43 @@ function StepContent(props) {
             }
             if (act.navigate) {
               _navigateToSection(act.navigate);
+            }
+            // S54: Site element actions
+            if (act.siteElementUpdate) {
+              var upd = act.siteElementUpdate;
+              var els = (p.siteElements || []).slice();
+              if (upd.index >= 0 && upd.index < els.length) {
+                var el = Object.assign({}, els[upd.index]);
+                if (upd.x !== undefined) el.x = upd.x;
+                if (upd.y !== undefined) el.y = upd.y;
+                if (upd.w !== undefined) el.w = upd.w;
+                if (upd.d !== undefined) el.d = upd.d;
+                if (upd.type !== undefined) el.type = upd.type;
+                if (upd.label !== undefined) el.label = upd.label;
+                els[upd.index] = el;
+                u("siteElements", els);
+              }
+            }
+            if (act.siteElementAdd) {
+              var newEl = act.siteElementAdd;
+              var els2 = (p.siteElements || []).slice();
+              els2.push({
+                type: newEl.type || "shed",
+                label: newEl.label || "",
+                x: newEl.x || 0,
+                y: newEl.y || 0,
+                w: newEl.w || 10,
+                d: newEl.d || 10
+              });
+              u("siteElements", els2);
+            }
+            if (act.siteElementRemove) {
+              var rmIdx = act.siteElementRemove.index;
+              var els3 = (p.siteElements || []).slice();
+              if (rmIdx >= 0 && rmIdx < els3.length) {
+                els3.splice(rmIdx, 1);
+                u("siteElements", els3);
+              }
             }
           });
         }

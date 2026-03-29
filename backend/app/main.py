@@ -822,6 +822,31 @@ def build_ai_helper_prompt(step, params, extraction_summary):
     if extraction_summary:
         extraction_note = f"\nExtraction results from their survey upload:\n{extraction_summary}\n"
 
+    # S54: Include site elements context
+    site_elements_note = ""
+    site_els = params.get("siteElements") or []
+    if site_els:
+        site_elements_note = "\nSITE ELEMENTS currently on the plan:\n"
+        for i, el in enumerate(site_els):
+            etype = el.get("type", "unknown")
+            elabel = el.get("label", "")
+            ex, ey = el.get("x", 0), el.get("y", 0)
+            ew, ed = el.get("w", 0), el.get("d", 0)
+            site_elements_note += f"- index {i}: type={etype}, label=\"{elabel}\", x={ex}, y={ey}, w={ew}', d={ed}'\n"
+    else:
+        site_elements_note = "\nSITE ELEMENTS: None currently on the plan.\n"
+    site_elements_note += """
+Site element properties (all settable):
+- type: one of "garage", "shed", "pool", "driveway", "patio", "tree", "ac_unit", "fence", "walkway"
+- label: display name (e.g. "EXISTING GARAGE")
+- x: horizontal position from left property line (feet)
+- y: vertical position from street/front property line (feet)
+- w: width in feet
+- d: depth in feet
+
+Coordinate system: (0,0) is the bottom-left corner at the street. X increases left to right, Y increases from street toward the rear. So a garage at x=50, y=80 is in the back-right area of the lot.
+"""
+
     # S54: UI map for navigate actions - describes what sections exist and how they work
     ui_maps = {
         0: """UI SECTIONS (scrollable/expandable):
@@ -880,7 +905,7 @@ SETTABLE PARAMETERS for this step:
 
 CURRENT VALUES:
 {current_vals if current_vals else "(defaults)"}
-{extraction_note}
+{extraction_note}{site_elements_note}
 {ui_map}
 
 RESPONSE FORMAT: Always respond with valid JSON only. No markdown, no backticks, no preamble.
@@ -888,7 +913,10 @@ RESPONSE FORMAT: Always respond with valid JSON only. No markdown, no backticks,
   "message": "Your conversational response to the user",
   "actions": [
     {{"param": "paramName", "value": newValue}},
-    {{"navigate": "sectionId"}}
+    {{"navigate": "sectionId"}},
+    {{"siteElementUpdate": {{"index": 0, "x": 10, "y": 20}}}},
+    {{"siteElementAdd": {{"type": "garage", "label": "GARAGE", "x": 10, "y": 50, "w": 20, "d": 20}}}},
+    {{"siteElementRemove": {{"index": 0}}}}
   ]
 }}
 
@@ -900,6 +928,7 @@ RULES:
 - If the user says something ambiguous, ask a clarifying question (no actions).
 - When you set values, confirm what you set in your message.
 - Use {{"navigate": "sectionId"}} to scroll the user to the relevant section and highlight it. Use this when the user needs to SEE controls to complete a task (like choosing a stair template visually, or toggling chamfer corners). Combine navigate with your instructional message.
+- SITE ELEMENTS: Use siteElementUpdate to modify an existing element's properties (only include the properties you want to change). Use siteElementAdd to add a new element. Use siteElementRemove to remove one. When the user asks about a site element (position, size, etc.), reference the current site elements data to answer accurately.
 - For complex visual tasks (adding zones, changing stair templates, adding chamfers), use navigate to show the section and INSTRUCT the user on what to click. Don't try to do it programmatically for visual tasks.
 - For simple value changes (dimensions, Yes/No toggles, choosing from a list), set the value directly with a param action. No need to navigate.
 - For deck height, help users think about it: "How high is your back door above the ground?" Common heights: 2-4 feet for most homes, 6-10 feet for walkout basements.
