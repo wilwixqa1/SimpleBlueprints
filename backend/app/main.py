@@ -1017,7 +1017,8 @@ RULES:
 - A ledger board is a board bolted directly to the house framing. Freestanding means the deck has its own support posts near the house instead.
 - Never mention "sections" or "sectionId" or UI implementation details. Just describe what the user should look for and do.
 - CROSS-STEP FIXES: If the user reports a problem visible in the site plan preview (like deck overlapping with a garage), fix it immediately using cross-step parameters. Don't tell the user to fix it in a later step. The preview updates live, so they'll see the fix right away.
-- TEACH THE TOOL: When you make a change for the user, briefly mention how they can do it themselves. For example: "I've shrunk the garage to 20' wide. If you want to fine-tune it, you can adjust the size in the Site Elements section below." This builds confidence and helps them learn the tool. Keep it to one short sentence, not a tutorial."""
+- TEACH THE TOOL: When you make a change for the user, briefly mention how they can do it themselves. For example: "I've shrunk the garage to 20' wide. If you want to fine-tune it, you can adjust the size in the Site Elements section below." This builds confidence and helps them learn the tool. Keep it to one short sentence, not a tutorial.
+- REFERENCE PHOTOS: Users can attach or paste reference photos of decks they like using the camera button or by pasting an image from the web. When a user's description is vague or you are unsure what layout they want (e.g. "I want something fancy" or "make it look like my neighbor's"), suggest they share a reference photo: "If you have a photo of a deck you like, you can paste it or click the camera icon to share it, and I'll match the settings for you." Do not ask for photos unprompted on every message; only suggest when it would genuinely help resolve ambiguity."""
 
 
 # ============================================================
@@ -1144,6 +1145,10 @@ async def ai_helper(request: Request):
         guide_phase = body.get("guidePhase", "")
         compare_context = body.get("compareContext", "")
 
+        # S56: Reference image support
+        image_data = body.get("image")
+        has_image = bool(image_data and image_data.get("b64"))
+
         if not user_message:
             return {"ok": False, "error": "No message provided"}
 
@@ -1162,14 +1167,42 @@ async def ai_helper(request: Request):
 
         system_prompt = build_ai_helper_prompt(step, params, extraction_summary, guide_phase, compare_context)
 
+        # S56: Add image analysis instructions when image is present
+        if has_image:
+            system_prompt += """
+
+REFERENCE IMAGE ANALYSIS:
+The user has shared a reference photo. Analyze it carefully and map what you see to settable parameters. Look for:
+- Deck shape/layout: rectangular, L-shaped, multi-level, wraparound
+- Approximate proportions: estimate width vs depth ratio
+- Stair configuration: straight, L-turn, switchback, wrap, location (front/left/right)
+- Railing style: metal/iron (use fortress) or wood
+- Decking material: composite (uniform color, no grain) or pressure-treated wood (visible grain, knots)
+- Attachment: ledger (flush against house) or freestanding (gap/posts near house)
+- Corner modifications: chamfered/angled corners, and which ones
+- Height: estimate from stair count (each step is ~7.5 inches)
+
+Set as many parameters as you can confidently identify. Be honest about what you cannot determine from the photo. If the photo shows features not yet supported (pergola, built-in seating, planters, multi-level, hot tub, curved edges), acknowledge them and explain they are not yet available.
+
+Describe what you see FIRST in your response text (so the description stays in chat history for future turns), then set the params via ACTIONS."""
+
         messages = []
         for h in history[-6:]:
             messages.append({"role": h["role"], "content": h["text"]})
-        messages.append({"role": "user", "content": user_message})
+
+        # S56: Build multimodal user content when image is present
+        if has_image:
+            user_content = [
+                {"type": "image", "source": {"type": "base64", "media_type": image_data.get("mediaType", "image/jpeg"), "data": image_data["b64"]}},
+                {"type": "text", "text": user_message}
+            ]
+            messages.append({"role": "user", "content": user_content})
+        else:
+            messages.append({"role": "user", "content": user_message})
 
         payload = {
-            "model": "claude-sonnet-4-6",
-            "max_tokens": 400,
+            "model": "claude-opus-4-20250514" if has_image else "claude-sonnet-4-6",
+            "max_tokens": 600 if has_image else 400,
             "temperature": 0.3,
             "system": system_prompt,
             "messages": messages,

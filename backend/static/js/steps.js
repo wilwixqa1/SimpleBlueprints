@@ -7,6 +7,40 @@
 const { useState: _stUS, useEffect: _stUE, useMemo: _stUM } = React;
 const { br: _br, mono: _mono, sans: _sans } = window.SB;
 
+// S56: Client-side image resize for AI helper reference photos
+function _resizeImageFile(file, maxDim, callback) {
+  maxDim = maxDim || 1024;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var img = new Image();
+    img.onload = function() {
+      var w = img.width, h = img.height;
+      if (w > maxDim || h > maxDim) {
+        if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
+        else { w = Math.round(w * maxDim / h); h = maxDim; }
+      }
+      var canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+      var b64 = canvas.toDataURL("image/jpeg", 0.85).split(",")[1];
+      callback({ b64: b64, mediaType: "image/jpeg", thumbUrl: canvas.toDataURL("image/jpeg", 0.5) });
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+// S56: Handle paste/drop image from clipboard
+function _imageFromClipboard(items, callback) {
+  for (var i = 0; i < items.length; i++) {
+    if (items[i].type.indexOf("image") >= 0) {
+      var file = items[i].getAsFile();
+      if (file) { _resizeImageFile(file, 1024, callback); return true; }
+    }
+  }
+  return false;
+}
+
 // S47: Survey preview component with page navigation (pdf.js for PDFs, img for images)
 function SurveyPreview({ b64, fileType }) {
   var _s = _stUS(null), src = _s[0], setSrc = _s[1];
@@ -525,6 +559,17 @@ function GuidePanel({ phase, onAction, onBack, history, onToggleOff, message, ti
   if (!ph) return null;
 
   var chatInputRef = React.useRef(null);
+  var fileInputRef = React.useRef(null);
+
+  // S56: Pending image attachment state
+  var _imgState = _stUS(null);
+  var pendingImage = _imgState[0], setPendingImage = _imgState[1];
+
+  function _handleImageFile(file) {
+    if (!file || file.type.indexOf("image") < 0) return;
+    if (file.size > 20 * 1024 * 1024) { alert("Image too large (max 20MB)"); return; }
+    _resizeImageFile(file, 1024, function(data) { setPendingImage(data); });
+  }
 
   // Progress: check all step arrays
   var _allOrders = [_guidePhaseOrder, _guideStep1Order, _guideStep2Order, _guideStep3Order, _guideStep4Order];
@@ -547,10 +592,15 @@ function GuidePanel({ phase, onAction, onBack, history, onToggleOff, message, ti
   function handleChatSubmit(e) {
     if (e) e.preventDefault();
     var input = chatInputRef.current;
-    if (!input || !input.value.trim() || chatLoading) return;
-    var msg = input.value.trim();
-    input.value = "";
-    if (onSendMessage) onSendMessage(msg);
+    var msg = (input && input.value.trim()) || "";
+    // S56: Allow image-only messages (no text required if image attached)
+    if (!msg && !pendingImage) return;
+    if (chatLoading) return;
+    if (!msg && pendingImage) msg = "Here's a reference photo of what I'm looking for.";
+    if (input) input.value = "";
+    var imgData = pendingImage;
+    setPendingImage(null);
+    if (onSendMessage) onSendMessage(msg, imgData);
   }
 
   return <div style={{
@@ -603,6 +653,8 @@ function GuidePanel({ phase, onAction, onBack, history, onToggleOff, message, ti
             border: isUser ? "none" : ("1px solid " + _br.bd),
             boxShadow: "0 1px 3px rgba(0,0,0,0.06)"
           }}>
+            {/* S56: Show image thumbnail in chat bubble */}
+            {isUser && msg.image && msg.image.thumbUrl && <img src={msg.image.thumbUrl} style={{ maxWidth: "100%", maxHeight: 120, borderRadius: 6, marginBottom: msg.text ? 6 : 0, display: "block" }} />}
             {isUser ? msg.text : _renderChatText(msg.text)}
           </div>
           {/* Action confirmations */}
@@ -631,13 +683,32 @@ function GuidePanel({ phase, onAction, onBack, history, onToggleOff, message, ti
       })}
     </div>}
 
-    {/* S54: Chat text input */}
+    {/* S54: Chat text input with S56 image support */}
     {onSendMessage && <div style={{ marginBottom: 10 }}>
+      {/* S56: Pending image preview */}
+      {pendingImage && <div style={{ marginBottom: 6, display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", background: "#f0fdf4", borderRadius: 8, border: "1px solid #bbf7d0" }}>
+        <img src={pendingImage.thumbUrl} style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 6, border: "1px solid " + _br.bd }} />
+        <span style={{ fontSize: 10, fontFamily: _mono, color: _br.gn, fontWeight: 600, flex: 1 }}>Reference photo attached</span>
+        <button onClick={function() { setPendingImage(null); }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 14, color: _br.mu, padding: 2 }}>{"\u2715"}</button>
+      </div>}
       <form onSubmit={handleChatSubmit} style={{ display: "flex", gap: 6 }}>
+        <input type="file" ref={fileInputRef} accept="image/*" style={{ display: "none" }} onChange={function(e) { if (e.target.files && e.target.files[0]) _handleImageFile(e.target.files[0]); e.target.value = ""; }} />
+        <button type="button" onClick={function() { if (fileInputRef.current) fileInputRef.current.click(); }} disabled={chatLoading} title="Attach reference photo" style={{
+          padding: "8px 10px", borderRadius: 8, border: "1px solid " + _br.bd,
+          background: pendingImage ? "#f0fdf4" : "#fff", color: pendingImage ? _br.gn : _br.mu,
+          fontSize: 14, cursor: chatLoading ? "default" : "pointer", flexShrink: 0,
+          transition: "background 0.2s"
+        }}>{"\uD83D\uDCF7"}</button>
         <input ref={chatInputRef} type="text"
-          placeholder={_chatPlaceholders[phase] || "Ask a question or describe what you want..."}
+          placeholder={pendingImage ? "Describe what you like about this deck..." : (_chatPlaceholders[phase] || "Ask a question or describe what you want...")}
           disabled={chatLoading}
           onKeyDown={function(e) { if (e.key === "Enter" && !e.shiftKey) handleChatSubmit(e); }}
+          onPaste={function(e) {
+            var items = e.clipboardData && e.clipboardData.items;
+            if (items && _imageFromClipboard(items, function(data) { setPendingImage(data); })) {
+              e.preventDefault();
+            }
+          }}
           style={{
             flex: 1, padding: "8px 12px", borderRadius: 8, fontSize: 12,
             fontFamily: _sans, border: "1px solid " + _br.bd,
@@ -855,12 +926,13 @@ function StepContent(props) {
     });
   }
 
-  function sendChatMessage(msg) {
+  function sendChatMessage(msg, imageData) {
     var userMsg = { role: "user", text: msg };
+    if (imageData) userMsg.image = { thumbUrl: imageData.thumbUrl };
     setChatMessages(function(prev) { return prev.concat([userMsg]); });
     setChatLoading(true);
     // S55: Track AI helper message
-    if (window._trackEvent) window._trackEvent('ai_helper_message', { message_length: msg.length, step: step, guide_phase: guidePhase });
+    if (window._trackEvent) window._trackEvent('ai_helper_message', { message_length: msg.length, step: step, guide_phase: guidePhase, has_image: !!imageData });
 
     var extSummary = "";
     if (extractResult) {
@@ -907,7 +979,7 @@ function StepContent(props) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ message: msg, step: step, params: p, history: apiHistory, extractionSummary: extSummary, compareContext: compareContext, guidePhase: guidePhase, sessionId: window._sbSessionId || "", anonymousId: window._sbAnonymousId || "" })
+      body: JSON.stringify({ message: msg, step: step, params: p, history: apiHistory, extractionSummary: extSummary, compareContext: compareContext, guidePhase: guidePhase, sessionId: window._sbSessionId || "", anonymousId: window._sbAnonymousId || "", image: imageData ? { b64: imageData.b64, mediaType: imageData.mediaType } : null })
     }).then(function(res) {
       if (!res.ok) throw new Error("Server error: " + res.status);
       var reader = res.body.getReader();
