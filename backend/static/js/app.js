@@ -904,13 +904,16 @@ const App = function SimpleBlueprints() {
                           borderRadius: 8, cursor: "pointer", fontSize: 13, fontFamily: mono, fontWeight: 700,
                           marginTop: 14, display: "flex", alignItems: "center", justifyContent: "center", gap: 8
                         }}>{"\u2705"} Looks right, continue</button>
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
-                          <span style={{ fontSize: 9, fontFamily: mono, color: br.mu }}>Not quite right?</span>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+                          <span style={{ fontSize: 9, fontFamily: mono, color: br.mu }}>Orientation off?</span>
                           <button onClick={() => { setShapeHFlip(!shapeHFlip); }} style={{ fontSize: 9, fontFamily: mono, color: (_effectiveHFlip) ? "#2e7d32" : br.mu, background: (_effectiveHFlip) ? "#f0fdf4" : "none", border: "1px solid " + ((_effectiveHFlip) ? "#2e7d32" : br.bd), borderRadius: 4, padding: "2px 8px", cursor: "pointer" }}>{"\u2194"} Flip</button>
                           <button onClick={() => { setShapeVFlip(!shapeVFlip); }} style={{ fontSize: 9, fontFamily: mono, color: _effectiveVFlip ? "#2e7d32" : br.mu, background: _effectiveVFlip ? "#f0fdf4" : "none", border: "1px solid " + (_effectiveVFlip ? "#2e7d32" : br.bd), borderRadius: 4, padding: "2px 8px", cursor: "pointer" }}>{"\u2195"} Flip</button>
-                          <span style={{ color: br.bd, fontSize: 9 }}>|</span>
-                          <button onClick={() => { setAutoConfirmDismissed(true); }} style={{ fontSize: 9, fontFamily: mono, color: br.mu, background: "none", border: "none", cursor: "pointer", textDecoration: "underline", padding: 0 }}>Show all shapes</button>
                         </div>
+                        <button onClick={() => { setAutoConfirmDismissed(true); }} style={{
+                          width: "100%", padding: "10px", background: "none", color: "#92400e", border: "1px solid #fde68a",
+                          borderRadius: 6, cursor: "pointer", fontSize: 11, fontFamily: mono, fontWeight: 600,
+                          marginTop: 10, display: "flex", alignItems: "center", justifyContent: "center", gap: 6
+                        }}>Wrong shape? See all options</button>
                       </div>
                     </div>
                   </div>;
