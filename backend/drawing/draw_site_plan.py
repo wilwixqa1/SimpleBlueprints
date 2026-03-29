@@ -99,7 +99,7 @@ def draw_site_plan(fig, params, calc):
     attachment = calc.get("attachment", "ledger")
     zones = params.get("zones", [])
 
-    ax = fig.add_axes([0.08, 0.08, 0.72, 0.82])
+    ax = fig.add_axes([0.08, 0.08, 0.63, 0.82])
     ax.set_aspect('equal')
     ax.axis('off')
 
@@ -659,18 +659,18 @@ def draw_site_plan(fig, params, calc):
         fig.text(0.44, 0.92, "  |  ".join(subtitle_parts),
                  ha='center', fontsize=7, fontfamily='monospace', color=BRAND["mute"])
 
-    # === LEGEND + SETBACKS + AREA INFO BOX (S51: inside drawing area) ===
-    # Positioned in upper-right of axes using axes-relative coords (0-1).
-    # This avoids collision with the title block strip at x=0.855.
-    _ta = ax.transAxes
-    _box_right = 0.98   # right edge of info box
-    _box_left = 0.72    # left edge of info box
-    _lx = _box_left + 0.02  # text left margin
-    _vx = _box_left + 0.15  # value column x
-    _row_h = 0.025      # line height
-    _sec_gap = 0.015    # gap between sections
+    # === LEGEND + SETBACKS + AREA INFO BOX (S51: right margin) ===
+    # Positioned between axes right edge (~0.71) and title block (0.855)
+    # using figure-level coords so it never overlaps the drawing.
+    _tf = fig.transFigure
+    _box_left = 0.72
+    _box_right = 0.845
+    _lx = _box_left + 0.008  # text left margin
+    _vx = _box_left + 0.075  # value column x
+    _row_h = 0.021            # line height
+    _sec_gap = 0.010          # gap between sections
 
-    # -- Compute content height to size the background box --
+    # -- Build legend items --
     legend_items = [
         (BRAND["dark"], "solid", "Property Line"),
         (BRAND["red"], "dashed", "Setback Line"),
@@ -688,133 +688,127 @@ def draw_site_plan(fig, params, calc):
     total_impervious = house_area + deck_area + el_impervious_area
     coverage_pct = (total_impervious / lot_area * 100) if lot_area > 0 else 0
     _has_other = el_impervious_area > 0
-    _area_rows = 5 + (1 if _has_other else 0)  # lot, bldg, deck, [other], covered, coverage
+    _area_rows = 5 + (1 if _has_other else 0)
 
-    _n_lines = (1 + len(legend_items)           # LEGEND header + items
-                + 1 + 4                          # SETBACKS header + 4 rows
-                + 1 + _area_rows                 # AREA header + rows
-                + 1)                             # divider line space
-    _total_h = _n_lines * _row_h + 3 * _sec_gap + 0.03  # sections + padding
-    _box_top = 0.98
+    _n_lines = (1 + len(legend_items) + 1 + 4 + 1 + _area_rows + 1)
+    _total_h = _n_lines * _row_h + 3 * _sec_gap + 0.025
+    _box_top = 0.88
     _box_bot = _box_top - _total_h
 
     # Background box
     _bg = patches.FancyBboxPatch(
         (_box_left, _box_bot), _box_right - _box_left, _total_h,
-        boxstyle="round,pad=0.008", facecolor='white', edgecolor=BRAND["border"],
-        linewidth=0.8, transform=_ta, zorder=15, alpha=0.95)
-    ax.add_patch(_bg)
+        boxstyle="round,pad=0.005", facecolor='white', edgecolor=BRAND["border"],
+        linewidth=0.8, transform=_tf, zorder=15, alpha=0.95)
+    _bg.set_clip_on(False)
+    fig.add_artist(_bg)
 
-    _y = _box_top - 0.025  # start below top padding
+    _y = _box_top - 0.02
 
-    # -- LEGEND section --
-    ax.text(_lx, _y, "LEGEND", fontsize=7, fontweight='bold',
-            fontfamily='monospace', color=BRAND["dark"], transform=_ta, zorder=16)
+    # -- LEGEND --
+    fig.text(_lx, _y, "LEGEND", fontsize=6.5, fontweight='bold',
+             fontfamily='monospace', color=BRAND["dark"])
     _y -= _row_h
 
     for _lc, _ls, _ll in legend_items:
-        # Draw a small sample line or box
-        _sx = _lx       # sample x start (axes frac)
-        _sw = 0.04      # sample width
+        _sx = _lx
+        _sw = 0.03
         if _ls == "solid":
-            _sample = Line2D([_sx, _sx + _sw], [_y + 0.005, _y + 0.005],
-                             color=_lc, lw=2, transform=_ta, zorder=16)
-            ax.add_line(_sample)
+            _ln = Line2D([_sx, _sx + _sw], [_y + 0.004, _y + 0.004],
+                         color=_lc, lw=2, transform=_tf, zorder=16)
+            _ln.set_clip_on(False)
+            fig.add_artist(_ln)
         elif _ls == "dashed":
-            _sample = Line2D([_sx, _sx + _sw], [_y + 0.005, _y + 0.005],
-                             color=_lc, lw=1.5, linestyle='--', transform=_ta, zorder=16)
-            ax.add_line(_sample)
+            _ln = Line2D([_sx, _sx + _sw], [_y + 0.004, _y + 0.004],
+                         color=_lc, lw=1.5, linestyle='--', transform=_tf, zorder=16)
+            _ln.set_clip_on(False)
+            fig.add_artist(_ln)
         elif _ls == "hatch":
-            _hbox = patches.FancyBboxPatch(
-                (_sx, _y - 0.003), _sw, 0.016,
+            _hb = patches.FancyBboxPatch(
+                (_sx, _y - 0.002), _sw, 0.013,
                 boxstyle="square,pad=0", facecolor='white', edgecolor=_lc,
-                linewidth=0.8, hatch='///', transform=_ta, zorder=16)
-            ax.add_patch(_hbox)
+                linewidth=0.7, hatch='///', transform=_tf, zorder=16)
+            _hb.set_clip_on(False)
+            fig.add_artist(_hb)
         elif _ls == "filled":
-            _fbox = patches.FancyBboxPatch(
-                (_sx, _y - 0.003), _sw, 0.016,
+            _fb = patches.FancyBboxPatch(
+                (_sx, _y - 0.002), _sw, 0.013,
                 boxstyle="square,pad=0", facecolor=_lc, edgecolor=_lc,
-                linewidth=0.5, alpha=0.6, transform=_ta, zorder=16)
-            ax.add_patch(_fbox)
-        ax.text(_sx + _sw + 0.015, _y, _ll, fontsize=5.5, fontfamily='monospace',
-                color=BRAND["dark"], transform=_ta, zorder=16)
+                linewidth=0.5, alpha=0.6, transform=_tf, zorder=16)
+            _fb.set_clip_on(False)
+            fig.add_artist(_fb)
+        fig.text(_sx + _sw + 0.008, _y, _ll, fontsize=5, fontfamily='monospace',
+                 color=BRAND["dark"])
         _y -= _row_h
 
     _y -= _sec_gap
 
-    # -- SETBACKS section --
-    ax.text(_lx, _y, "SETBACKS", fontsize=7, fontweight='bold',
-            fontfamily='monospace', color=BRAND["dark"], transform=_ta, zorder=16)
+    # -- SETBACKS --
+    fig.text(_lx, _y, "SETBACKS", fontsize=6.5, fontweight='bold',
+             fontfamily='monospace', color=BRAND["dark"])
     _y -= _row_h
     for _sl, _sv in [("Front", sb_front), ("Rear", sb_rear),
                       ("Left", sb_left), ("Right", sb_right)]:
-        ax.text(_lx, _y, f"{_sl}:", fontsize=5.5, fontfamily='monospace',
-                color=BRAND["mute"], fontweight='bold', transform=_ta, zorder=16)
-        ax.text(_vx, _y, f"{_sv}'", fontsize=5.5, fontfamily='monospace',
-                color=BRAND["dark"], fontweight='bold', transform=_ta, zorder=16)
+        fig.text(_lx, _y, f"{_sl}:", fontsize=5, fontfamily='monospace',
+                 color=BRAND["mute"], fontweight='bold')
+        fig.text(_vx, _y, f"{_sv}'", fontsize=5, fontfamily='monospace',
+                 color=BRAND["dark"], fontweight='bold')
         _y -= _row_h
 
     _y -= _sec_gap
 
-    # -- AREA TABULATIONS section --
-    ax.text(_lx, _y, "AREA TABULATIONS", fontsize=7, fontweight='bold',
-            fontfamily='monospace', color=BRAND["dark"], transform=_ta, zorder=16)
+    # -- AREA TABULATIONS --
+    fig.text(_lx, _y, "AREA TABULATIONS", fontsize=6.5, fontweight='bold',
+             fontfamily='monospace', color=BRAND["dark"])
     _y -= _row_h
 
-    # Lot area
-    ax.text(_lx, _y, "Lot Area:", fontsize=5.5, fontfamily='monospace',
-            color=BRAND["mute"], fontweight='bold', transform=_ta, zorder=16)
+    fig.text(_lx, _y, "Lot Area:", fontsize=5, fontfamily='monospace',
+             color=BRAND["mute"], fontweight='bold')
     if lot_area >= 43560:
         _acres = lot_area / 43560
-        ax.text(_vx, _y, f"{_acres:.2f} AC ({lot_area:,.0f} SF)",
-                fontsize=5, fontfamily='monospace',
-                color=BRAND["dark"], fontweight='bold', transform=_ta, zorder=16)
+        fig.text(_vx, _y, f"{_acres:.2f} AC ({lot_area:,.0f} SF)",
+                 fontsize=4.5, fontfamily='monospace',
+                 color=BRAND["dark"], fontweight='bold')
     else:
-        ax.text(_vx, _y, f"{lot_area:,.0f} SF", fontsize=5.5, fontfamily='monospace',
-                color=BRAND["dark"], fontweight='bold', transform=_ta, zorder=16)
+        fig.text(_vx, _y, f"{lot_area:,.0f} SF", fontsize=5, fontfamily='monospace',
+                 color=BRAND["dark"], fontweight='bold')
     _y -= _row_h
 
-    # Building
-    ax.text(_lx, _y, "Building:", fontsize=5.5, fontfamily='monospace',
-            color=BRAND["mute"], fontweight='bold', transform=_ta, zorder=16)
-    ax.text(_vx, _y, f"{house_area:,.0f} SF", fontsize=5.5, fontfamily='monospace',
-            color=BRAND["dark"], fontweight='bold', transform=_ta, zorder=16)
+    fig.text(_lx, _y, "Building:", fontsize=5, fontfamily='monospace',
+             color=BRAND["mute"], fontweight='bold')
+    fig.text(_vx, _y, f"{house_area:,.0f} SF", fontsize=5, fontfamily='monospace',
+             color=BRAND["dark"], fontweight='bold')
     _y -= _row_h
 
-    # Deck
-    ax.text(_lx, _y, "Deck:", fontsize=5.5, fontfamily='monospace',
-            color=BRAND["mute"], fontweight='bold', transform=_ta, zorder=16)
-    ax.text(_vx, _y, f"{deck_area:,.0f} SF", fontsize=5.5, fontfamily='monospace',
-            color=BRAND["dark"], fontweight='bold', transform=_ta, zorder=16)
+    fig.text(_lx, _y, "Deck:", fontsize=5, fontfamily='monospace',
+             color=BRAND["mute"], fontweight='bold')
+    fig.text(_vx, _y, f"{deck_area:,.0f} SF", fontsize=5, fontfamily='monospace',
+             color=BRAND["dark"], fontweight='bold')
     _y -= _row_h
 
-    # Other impervious (conditional)
     if _has_other:
-        ax.text(_lx, _y, "Other:", fontsize=5.5, fontfamily='monospace',
-                color=BRAND["mute"], fontweight='bold', transform=_ta, zorder=16)
-        ax.text(_vx, _y, f"{el_impervious_area:,.0f} SF", fontsize=5.5,
-                fontfamily='monospace', color=BRAND["dark"], fontweight='bold',
-                transform=_ta, zorder=16)
+        fig.text(_lx, _y, "Other:", fontsize=5, fontfamily='monospace',
+                 color=BRAND["mute"], fontweight='bold')
+        fig.text(_vx, _y, f"{el_impervious_area:,.0f} SF", fontsize=5,
+                 fontfamily='monospace', color=BRAND["dark"], fontweight='bold')
         _y -= _row_h
 
-    # Divider line
-    _y -= 0.005
-    _div = Line2D([_lx, _box_right - 0.02], [_y, _y],
-                  color=BRAND["border"], lw=0.5, transform=_ta, zorder=16)
-    ax.add_line(_div)
-    _y -= 0.012
+    # Divider
+    _y -= 0.004
+    _div = Line2D([_lx, _box_right - 0.01], [_y, _y],
+                  color=BRAND["border"], lw=0.5, transform=_tf)
+    _div.set_clip_on(False)
+    fig.add_artist(_div)
+    _y -= 0.010
 
-    # Total covered
-    ax.text(_lx, _y, "Covered:", fontsize=5.5, fontfamily='monospace',
-            color=BRAND["mute"], fontweight='bold', transform=_ta, zorder=16)
-    ax.text(_vx, _y, f"{total_impervious:,.0f} SF", fontsize=5.5,
-            fontfamily='monospace', color=BRAND["dark"], fontweight='bold',
-            transform=_ta, zorder=16)
+    fig.text(_lx, _y, "Covered:", fontsize=5, fontfamily='monospace',
+             color=BRAND["mute"], fontweight='bold')
+    fig.text(_vx, _y, f"{total_impervious:,.0f} SF", fontsize=5,
+             fontfamily='monospace', color=BRAND["dark"], fontweight='bold')
     _y -= _row_h
 
-    # Coverage percentage
     warn_color = "#e65100" if coverage_pct > 45 else BRAND["dark"]
-    ax.text(_lx, _y, "Coverage:", fontsize=5.5, fontfamily='monospace',
-            color=BRAND["mute"], fontweight='bold', transform=_ta, zorder=16)
-    ax.text(_vx, _y, f"{coverage_pct:.1f}%", fontsize=6, fontfamily='monospace',
-            color=warn_color, fontweight='bold', transform=_ta, zorder=16)
+    fig.text(_lx, _y, "Coverage:", fontsize=5, fontfamily='monospace',
+             color=BRAND["mute"], fontweight='bold')
+    fig.text(_vx, _y, f"{coverage_pct:.1f}%", fontsize=5.5, fontfamily='monospace',
+             color=warn_color, fontweight='bold')
