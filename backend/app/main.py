@@ -646,8 +646,8 @@ async def rank_shapes(request: Request):
 
         payload = {
             "model": "claude-opus-4-6",
-            "max_tokens": 8192,
-            "thinking": {"type": "adaptive"},
+            "max_tokens": 1024,
+            "temperature": 0,
             "messages": [{"role": "user", "content": [doc_block, {"type": "text", "text": prompt}]}]
         }
 
@@ -663,7 +663,7 @@ async def rank_shapes(request: Request):
             }
         )
 
-        with urllib.request.urlopen(req, timeout=120) as resp:
+        with urllib.request.urlopen(req, timeout=45) as resp:
             result = json.loads(resp.read().decode("utf-8"))
             text = ""
             for block in result.get("content", []):
