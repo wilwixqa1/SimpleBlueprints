@@ -960,7 +960,8 @@ RULES:
 - A setback is the minimum distance a structure must be from a property line. Permit offices enforce these.
 - A ledger board is a board bolted directly to the house framing. Freestanding means the deck has its own support posts near the house instead.
 - Never mention "sections" or "sectionId" or UI implementation details. Just describe what the user should look for and do.
-- CROSS-STEP FIXES: If the user reports a problem visible in the site plan preview (like deck overlapping with a garage), fix it immediately using cross-step parameters. Don't tell the user to fix it in a later step. The preview updates live, so they'll see the fix right away."""
+- CROSS-STEP FIXES: If the user reports a problem visible in the site plan preview (like deck overlapping with a garage), fix it immediately using cross-step parameters. Don't tell the user to fix it in a later step. The preview updates live, so they'll see the fix right away.
+- TEACH THE TOOL: When you make a change for the user, briefly mention how they can do it themselves. For example: "I've shrunk the garage to 20' wide. If you want to fine-tune it, you can adjust the size in the Site Elements section below." This builds confidence and helps them learn the tool. Keep it to one short sentence, not a tutorial."""
 
 
 @app.post("/api/ai-helper")
