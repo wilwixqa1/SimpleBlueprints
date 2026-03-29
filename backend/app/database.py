@@ -516,7 +516,7 @@ def get_tracking_stats(days: int = 30) -> dict:
 
         # Bot detection pattern (single source of truth)
         # Covers: known bots, scrapers, security scanners, HTTP libraries,
-        # ancient browsers (IE/Trident, Chrome <20), headless defaults, bare UAs
+        # ancient browsers (IE/Trident), headless defaults, bare UAs
         BOT_PATTERN = (
             "%%(bot|crawl|spider|slurp|bingpreview|facebookexternalhit"
             "|semrush|ahref|bytespider|gptbot|claudebot|petalbot|yandex"
@@ -527,15 +527,32 @@ def get_tracking_stats(days: int = 30) -> dict:
             "|palo alto|nessus|qualys|nikto|nmap|zgrab|masscan"
             "|req/|httpx/|axios/|node-fetch|undici|okhttp|java/"
             "|dalvik/|nexus 5 build|mra58n"
-            "|trident/|msie |edge/1[0-8]\\."
+            "|trident/|msie "
             ")%%"
         )
-        # For very short or bare UAs and ancient Chrome
+        # Additional checks that need different SQL operators
         BOT_EXTRA_SQL = (
             " OR LENGTH(TRIM(user_agent)) < 15"
             " OR user_agent = 'Mozilla/5.0'"
-            " OR LOWER(user_agent) ~ 'chrome/[1-9][^0-9]'"
-            " OR LOWER(user_agent) ~ 'chrome/1[0-9][^0-9]'"
+            " OR LOWER(user_agent) LIKE '%%chrome/1.%%'"
+            " OR LOWER(user_agent) LIKE '%%chrome/2.%%'"
+            " OR LOWER(user_agent) LIKE '%%chrome/3.%%'"
+            " OR LOWER(user_agent) LIKE '%%chrome/4.%%'"
+            " OR LOWER(user_agent) LIKE '%%chrome/5.%%'"
+            " OR LOWER(user_agent) LIKE '%%chrome/6.%%'"
+            " OR LOWER(user_agent) LIKE '%%chrome/7.%%'"
+            " OR LOWER(user_agent) LIKE '%%chrome/8.%%'"
+            " OR LOWER(user_agent) LIKE '%%chrome/9.%%'"
+            " OR LOWER(user_agent) LIKE '%%chrome/10.%%'"
+            " OR LOWER(user_agent) LIKE '%%chrome/11.%%'"
+            " OR LOWER(user_agent) LIKE '%%chrome/12.%%'"
+            " OR LOWER(user_agent) LIKE '%%chrome/13.%%'"
+            " OR LOWER(user_agent) LIKE '%%chrome/14.%%'"
+            " OR LOWER(user_agent) LIKE '%%chrome/15.%%'"
+            " OR LOWER(user_agent) LIKE '%%chrome/16.%%'"
+            " OR LOWER(user_agent) LIKE '%%chrome/17.%%'"
+            " OR LOWER(user_agent) LIKE '%%chrome/18.%%'"
+            " OR LOWER(user_agent) LIKE '%%chrome/19.%%'"
         )
         IS_BOT_SQL = f"(LOWER(user_agent) SIMILAR TO '{BOT_PATTERN}'{BOT_EXTRA_SQL})"
         NOT_BOT_SQL = f"(NOT {IS_BOT_SQL})"
@@ -871,7 +888,7 @@ def get_stats() -> dict:
                     WHEN LOWER(user_agent) LIKE '%%req/%%' OR LOWER(user_agent) LIKE '%%httpx/%%' THEN 'HTTP library'
                     WHEN LOWER(user_agent) LIKE '%%dalvik/%%' THEN 'Dalvik'
                     WHEN LOWER(user_agent) LIKE '%%trident/%%' OR LOWER(user_agent) LIKE '%%msie %%' THEN 'Ancient IE'
-                    WHEN LOWER(user_agent) ~ 'chrome/[1-9][^0-9]' OR LOWER(user_agent) ~ 'chrome/1[0-9][^0-9]' THEN 'Ancient Chrome'
+                    WHEN LOWER(user_agent) LIKE '%%chrome/1.%%' OR LOWER(user_agent) LIKE '%%chrome/2.%%' OR LOWER(user_agent) LIKE '%%chrome/3.%%' OR LOWER(user_agent) LIKE '%%chrome/4.%%' OR LOWER(user_agent) LIKE '%%chrome/5.%%' OR LOWER(user_agent) LIKE '%%chrome/6.%%' OR LOWER(user_agent) LIKE '%%chrome/7.%%' OR LOWER(user_agent) LIKE '%%chrome/8.%%' OR LOWER(user_agent) LIKE '%%chrome/9.%%' OR LOWER(user_agent) LIKE '%%chrome/10.%%' OR LOWER(user_agent) LIKE '%%chrome/11.%%' OR LOWER(user_agent) LIKE '%%chrome/12.%%' OR LOWER(user_agent) LIKE '%%chrome/13.%%' OR LOWER(user_agent) LIKE '%%chrome/14.%%' OR LOWER(user_agent) LIKE '%%chrome/15.%%' OR LOWER(user_agent) LIKE '%%chrome/16.%%' OR LOWER(user_agent) LIKE '%%chrome/17.%%' OR LOWER(user_agent) LIKE '%%chrome/18.%%' OR LOWER(user_agent) LIKE '%%chrome/19.%%' THEN 'Ancient Chrome'
                     WHEN LENGTH(TRIM(user_agent)) < 15 OR user_agent = 'Mozilla/5.0' THEN 'Bare/empty UA'
                     ELSE 'Other bot'
                 END as bot_name,
