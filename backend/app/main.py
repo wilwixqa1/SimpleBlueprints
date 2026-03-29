@@ -555,12 +555,12 @@ async def extract_survey(request: Request):
 
 SHAPE_RANK_PROMPT = """You are analyzing a property survey to determine the correct lot shape and orientation.
 
-Above you see the SURVEY SITE PLAN page, followed by {shapes_text}. Each candidate has the same edge lengths but arranged differently, producing different outlines. The candidate shapes have been rotated to match the survey's orientation, so you can compare them directly to the lot boundary on the survey without mentally rotating.
+Above you see the SURVEY SITE PLAN page, followed by {shapes_text}. Each candidate has the same edge lengths but arranged differently, producing different outlines. The candidate shapes have been rotated to match the survey's orientation.
 
 TASKS:
-1. SHAPE MATCHING: Compare the OUTLINE of each numbered candidate shape image to the lot boundary drawn on the survey. Which candidate looks most like the actual lot boundary? Give the 0-based index.
+1. SHAPE MATCHING: Compare the VISUAL OUTLINE of each candidate shape image to the lot boundary drawn on the survey. Focus on the overall shape: is it roughly rectangular, trapezoidal, triangular, L-shaped? Match the proportions and angles visually. Do NOT reason from edge lengths. Just look at which shape image most closely matches what you see on the survey. Give the 0-based index.
 
-2. CONFIDENCE: "high" if one clearly matches, "medium" if 2-3 are close, "low" if hard to tell.
+2. CONFIDENCE: "high" if one clearly matches visually, "medium" if 2-3 look similar, "low" if hard to tell.
 
 3. NORTH DIRECTION: Look for a north arrow or compass rose on the survey. Which direction does it point? 0=up, 45=upper-right, 90=right, 135=lower-right, 180=down, 225=lower-left, 270=left, 315=upper-left.
 
@@ -614,26 +614,17 @@ def render_candidate_images(candidates, street_side="bottom"):
         if not verts or len(verts) < 3:
             continue
         verts = rotate_verts(verts, street_side)
-        fig, ax = plt.subplots(1, 1, figsize=(2, 2), dpi=72)
+        fig, ax = plt.subplots(1, 1, figsize=(3, 3), dpi=100)
         xs = [v[0] for v in verts] + [verts[0][0]]
         ys = [v[1] for v in verts] + [verts[0][1]]
         ax.fill(xs, ys, alpha=0.15, color="#3d5a2e")
-        ax.plot(xs, ys, color="#3d5a2e", linewidth=2)
-        # Label edges with lengths
-        edges = c.get("edges", [])
-        for ei, e in enumerate(edges):
-            v1 = verts[ei]
-            v2 = verts[(ei + 1) % len(verts)]
-            mx, my = (v1[0] + v2[0]) / 2, (v1[1] + v2[1]) / 2
-            label = f"{e['length']}'"
-            ax.text(mx, my, label, fontsize=6, ha="center", va="center",
-                    bbox=dict(boxstyle="round,pad=0.15", facecolor="white", edgecolor="none", alpha=0.8))
+        ax.plot(xs, ys, color="#3d5a2e", linewidth=2.5)
         ax.set_aspect("equal")
-        ax.set_title(f"Shape {i}", fontsize=8, fontweight="bold")
+        ax.set_title(f"Shape {i}", fontsize=10, fontweight="bold")
         ax.axis("off")
         fig.tight_layout(pad=0.3)
         buf = io.BytesIO()
-        fig.savefig(buf, format="png", bbox_inches="tight", dpi=72)
+        fig.savefig(buf, format="png", bbox_inches="tight", dpi=100)
         plt.close(fig)
         buf.seek(0)
         images.append(base64.b64encode(buf.read()).decode("utf-8"))
