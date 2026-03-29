@@ -110,6 +110,27 @@ def init_tables():
         cur.execute("CREATE INDEX IF NOT EXISTS idx_aiconv_session ON ai_conversations(session_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_aiconv_user ON ai_conversations(user_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_aiconv_created ON ai_conversations(created_at)")
+        # S55: Add classify column if not exists
+        try:
+            cur.execute("ALTER TABLE ai_conversations ADD COLUMN IF NOT EXISTS classify TEXT DEFAULT ''")
+        except Exception:
+            pass
+        # S55: AI Insights table (batch analysis results)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS ai_insights (
+                id SERIAL PRIMARY KEY,
+                conversation_count INTEGER NOT NULL,
+                event_summary JSONB,
+                feature_requests JSONB DEFAULT '[]',
+                pain_points JSONB DEFAULT '[]',
+                product_issues JSONB DEFAULT '[]',
+                usage_patterns JSONB DEFAULT '[]',
+                recommendations JSONB DEFAULT '[]',
+                raw_analysis TEXT,
+                trigger_type TEXT,
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
         # S55: Add stripe_customer_id to users if not exists
         try:
             cur.execute("""
@@ -293,8 +314,8 @@ def log_ai_message(msg: dict):
             cur = conn.cursor()
             cur.execute("""
                 INSERT INTO ai_conversations
-                (user_id, anonymous_id, session_id, step, guide_phase, role, message, actions, action_count, cost_cents, duration_ms)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                (user_id, anonymous_id, session_id, step, guide_phase, role, message, actions, action_count, cost_cents, duration_ms, classify)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (
                 msg.get("user_id"),
                 msg.get("anonymous_id"),
@@ -307,14 +328,134 @@ def log_ai_message(msg: dict):
                 msg.get("action_count", 0),
                 msg.get("cost_cents", 0),
                 msg.get("duration_ms"),
+                msg.get("classify", ""),
             ))
     except Exception as e:
         print(f"AI message log error: {e}")
 
 
 # ============================================================
-# TRACKING STATS (S55 Admin Dashboard)
+# AI INSIGHTS (S55 - Batch Analysis)
 # ============================================================
+
+def should_generate_insight() -> bool:
+    """Check if we should trigger a new insight: 50+ convos since last, or 7+ days."""
+    try:
+        with get_db() as conn:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            # Get last insight timestamp
+            cur.execute("SELECT created_at FROM ai_insights ORDER BY created_at DESC LIMIT 1")
+            last = cur.fetchone()
+            if not last:
+                # No insights yet; check if we have any conversations at all
+                cur.execute("SELECT COUNT(*) as c FROM ai_conversations WHERE role = 'user'")
+                count = cur.fetchone()["c"]
+                return count >= 50
+            last_ts = last["created_at"]
+            # Check days since last insight
+            cur.execute("SELECT EXTRACT(EPOCH FROM (NOW() - %s)) / 86400 as days", (last_ts,))
+            days = cur.fetchone()["days"]
+            if days >= 7:
+                # Also need at least 5 conversations to be worth it
+                cur.execute("SELECT COUNT(*) as c FROM ai_conversations WHERE role = 'user' AND created_at > %s", (last_ts,))
+                return cur.fetchone()["c"] >= 5
+            # Check conversation count since last insight
+            cur.execute("SELECT COUNT(*) as c FROM ai_conversations WHERE role = 'user' AND created_at > %s", (last_ts,))
+            count = cur.fetchone()["c"]
+            return count >= 50
+    except Exception as e:
+        print(f"Insight check error: {e}")
+        return False
+
+
+def get_conversations_for_insight() -> list:
+    """Get conversations since last insight for batch analysis."""
+    try:
+        with get_db() as conn:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute("SELECT created_at FROM ai_insights ORDER BY created_at DESC LIMIT 1")
+            last = cur.fetchone()
+            since = last["created_at"] if last else "2020-01-01"
+            cur.execute("""
+                SELECT session_id, role, message, step, guide_phase, classify,
+                       action_count, created_at
+                FROM ai_conversations
+                WHERE created_at > %s
+                ORDER BY session_id, created_at
+                LIMIT 500
+            """, (since,))
+            return [dict(r) for r in cur.fetchall()]
+    except Exception as e:
+        print(f"Get conversations for insight error: {e}")
+        return []
+
+
+def get_event_summary_for_insight() -> dict:
+    """Get event stats since last insight for context in batch analysis."""
+    try:
+        with get_db() as conn:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute("SELECT created_at FROM ai_insights ORDER BY created_at DESC LIMIT 1")
+            last = cur.fetchone()
+            since = last["created_at"] if last else "2020-01-01"
+            cur.execute("""
+                SELECT event_type, COUNT(*) as c
+                FROM events WHERE created_at > %s
+                GROUP BY event_type ORDER BY c DESC
+            """, (since,))
+            event_counts = {r["event_type"]: r["c"] for r in cur.fetchall()}
+            # Classify breakdown
+            cur.execute("""
+                SELECT classify, COUNT(*) as c
+                FROM ai_conversations
+                WHERE role = 'assistant' AND classify != '' AND created_at > %s
+                GROUP BY classify ORDER BY c DESC
+            """, (since,))
+            classify_counts = {r["classify"]: r["c"] for r in cur.fetchall()}
+            return {"event_counts": event_counts, "classify_counts": classify_counts}
+    except Exception as e:
+        print(f"Event summary for insight error: {e}")
+        return {}
+
+
+def save_insight(insight: dict):
+    """Save a batch analysis insight."""
+    try:
+        with get_db() as conn:
+            cur = conn.cursor()
+            cur.execute("""
+                INSERT INTO ai_insights
+                (conversation_count, event_summary, feature_requests, pain_points,
+                 product_issues, usage_patterns, recommendations, raw_analysis, trigger_type)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (
+                insight.get("conversation_count", 0),
+                Json(insight.get("event_summary", {})),
+                Json(insight.get("feature_requests", [])),
+                Json(insight.get("pain_points", [])),
+                Json(insight.get("product_issues", [])),
+                Json(insight.get("usage_patterns", [])),
+                Json(insight.get("recommendations", [])),
+                insight.get("raw_analysis", ""),
+                insight.get("trigger_type", "auto"),
+            ))
+    except Exception as e:
+        print(f"Save insight error: {e}")
+
+
+def get_latest_insight() -> dict | None:
+    """Get the most recent insight for dashboard display."""
+    try:
+        with get_db() as conn:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute("""
+                SELECT * FROM ai_insights ORDER BY created_at DESC LIMIT 1
+            """)
+            row = cur.fetchone()
+            return dict(row) if row else None
+    except Exception as e:
+        print(f"Get latest insight error: {e}")
+        return None
 
 def get_tracking_stats(days: int = 30) -> dict:
     """Get comprehensive tracking stats for the admin dashboard."""
@@ -493,6 +634,19 @@ def get_tracking_stats(days: int = 30) -> dict:
         """)
         checkout = dict(cur.fetchone())
 
+        # --- AI CLASSIFY BREAKDOWN ---
+        cur.execute(f"""
+            SELECT classify, COUNT(*) as c
+            FROM ai_conversations
+            WHERE role = 'assistant' AND classify != '' AND classify IS NOT NULL
+                AND created_at >= {cutoff}
+            GROUP BY classify ORDER BY c DESC
+        """)
+        classify_breakdown = [dict(r) for r in cur.fetchall()]
+
+        # --- LATEST INSIGHT ---
+        latest_insight = get_latest_insight()
+
         return {
             "period_days": days,
             "sessions": sessions,
@@ -507,9 +661,20 @@ def get_tracking_stats(days: int = 30) -> dict:
                 "stuck_sessions": stuck_sessions,
                 "common_questions": common_questions,
                 "recent_conversations": recent_conversations,
+                "classify_breakdown": classify_breakdown,
             },
             "checkout": checkout,
             "errors": errors,
+            "latest_insight": {
+                "feature_requests": latest_insight["feature_requests"] if latest_insight else [],
+                "pain_points": latest_insight["pain_points"] if latest_insight else [],
+                "product_issues": latest_insight["product_issues"] if latest_insight else [],
+                "usage_patterns": latest_insight["usage_patterns"] if latest_insight else [],
+                "recommendations": latest_insight["recommendations"] if latest_insight else [],
+                "created_at": str(latest_insight["created_at"]) if latest_insight else None,
+                "conversation_count": latest_insight["conversation_count"] if latest_insight else 0,
+                "trigger_type": latest_insight["trigger_type"] if latest_insight else None,
+            } if latest_insight else None,
         }
 
 
