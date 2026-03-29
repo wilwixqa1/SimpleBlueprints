@@ -611,8 +611,11 @@ def render_candidate_images(candidates):
         buf.seek(0)
         images.append(base64.b64encode(buf.read()).decode("utf-8"))
     return images
+
+
+def get_site_plan_page(pdf_b64):
     """Extract just the site plan page from a PDF as a single-page PDF."""
-    import fitz, io
+    import fitz
     try:
         pdf_bytes = base64.b64decode(pdf_b64)
         doc = fitz.open(stream=pdf_bytes, filetype="pdf")
