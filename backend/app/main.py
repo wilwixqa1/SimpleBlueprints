@@ -678,6 +678,7 @@ async def rank_shapes(request: Request):
         prompt = SHAPE_RANK_PROMPT.replace("{shapes_text}", f"{len(shape_images)} candidate shapes shown as images above")
         content_blocks.append({"type": "text", "text": prompt})
 
+        import urllib.request, urllib.error
         payload = {
             "model": "claude-opus-4-6",
             "max_tokens": 1024,
@@ -685,7 +686,6 @@ async def rank_shapes(request: Request):
             "messages": [{"role": "user", "content": content_blocks}]
         }
 
-        import urllib.request, urllib.error
         req = urllib.request.Request(
             "https://api.anthropic.com/v1/messages",
             data=json.dumps(payload).encode("utf-8"),
