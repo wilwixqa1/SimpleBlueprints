@@ -1036,8 +1036,13 @@ function StepContent(props) {
           console.log("Stage 2 success:", JSON.stringify(data.data));
           setRankingResult(data.data);
           window._rankingResult = data.data;
-          // S54: Push Opus northAngle into p so PDF north arrow is accurate
-          if (data.data.northAngle != null) u("northAngle", data.data.northAngle);
+          // S54: Adjust northAngle for canonical lot orientation (street-at-bottom)
+          // Opus returns north relative to survey drawing; our rendering rotates the lot
+          // based on streetSide, so north arrow must rotate by the same amount.
+          var _ssAdj = { bottom: 0, top: 180, right: 90, left: 270 };
+          var _rawNorth = data.data.northAngle || 0;
+          var _ss = data.data.streetSide || "bottom";
+          u("northAngle", (_rawNorth + (_ssAdj[_ss] || 0)) % 360);
           var idx = data.data.bestShapeIndex;
           if (idx != null && idx >= 0 && idx < shapeCandidates.length && window._onPreviewShape) {
             window._onPreviewShape(idx);
