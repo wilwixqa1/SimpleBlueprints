@@ -645,8 +645,9 @@ const App = function SimpleBlueprints() {
   const [traceMode, setTraceMode] = useState(false);
   const [compareMode, setCompareMode] = useState(false);
   const [previewIdx, setPreviewIdx] = useState(null);
+  const [autoConfirmDismissed, setAutoConfirmDismissed] = useState(false);
   // S48: Reset preview when exiting compare mode
-  useEffect(() => { if (!compareMode) { setPreviewIdx(null); window._previewShapeIndex = null; } }, [compareMode]);
+  useEffect(() => { if (!compareMode) { setPreviewIdx(null); window._previewShapeIndex = null; setAutoConfirmDismissed(false); } }, [compareMode]);
   // S48: Expose preview callback for CompareShapes
   useEffect(() => { window._onPreviewShape = function(idx) { setPreviewIdx(idx); window._previewShapeIndex = idx; }; return () => { window._onPreviewShape = null; }; }, []);
   const [traceState, setTraceState] = useState({
@@ -841,6 +842,66 @@ const App = function SimpleBlueprints() {
             <div style={{ background: step === 0 ? br.cr : (view === "3d" ? "transparent" : br.cr), border: step === 0 || view !== "3d" ? `1px solid ${br.bd}` : "none", borderRadius: 6, padding: step === 0 ? 8 : (view === "3d" ? 0 : 12), minHeight: 320 }}>
               {/* S48: Compare mode - survey + shapes + preview */}
               {step === 0 && compareMode && sitePlanB64 && SurveyPreview && <div>
+                {/* S53: Auto-confirm when Opus returns high confidence */}
+                {window._rankingResult && window._rankingResult.confidence === "high" && previewIdx != null && !autoConfirmDismissed && window._shapeCompareData ? (() => {
+                  var bestIdx = previewIdx;
+                  var cands = window._shapeCompareData.candidates;
+                  var bestCand = cands[bestIdx];
+                  if (!bestCand) return null;
+                  var streetSide = window._shapeCompareData.extractResult ? window._shapeCompareData.extractResult.streetSide : null;
+                  var rv = window._rotateVertsForDisplay ? window._rotateVertsForDisplay(bestCand.vertices, streetSide) : bestCand.vertices;
+                  var mnX = Infinity, mnY = Infinity, mxX = -Infinity, mxY = -Infinity;
+                  rv.forEach(v => { if (v[0] < mnX) mnX = v[0]; if (v[1] < mnY) mnY = v[1]; if (v[0] > mxX) mxX = v[0]; if (v[1] > mxY) mxY = v[1]; });
+                  var sw = mxX - mnX, sh = mxY - mnY, sp = Math.max(sw, sh) * 0.12;
+                  var svgW = sw + sp * 2, svgH = sh + sp * 2;
+                  var pts = rv.map(v => (v[0] - mnX + sp).toFixed(1) + "," + (svgH - (v[1] - mnY) - sp).toFixed(1)).join(" ");
+                  var edgeColors = ["#e53935", "#2563eb", "#8B7355", "#7c3aed", "#0d9488"];
+                  return <div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                      <span style={{ fontSize: 20 }}>{"\u2728"}</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: br.dk, fontFamily: mono }}>We identified your lot shape</span>
+                    </div>
+                    <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                      <div style={{ flex: "1 1 55%" }}>
+                        <div style={{ fontSize: 8, fontWeight: 700, color: br.mu, fontFamily: mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 4 }}>Your Survey</div>
+                        <SurveyPreview b64={sitePlanB64} fileType={sitePlanFile && sitePlanFile.name.toLowerCase().endsWith(".pdf") ? "pdf" : "image"} />
+                      </div>
+                      <div style={{ flex: "1 1 45%", display: "flex", flexDirection: "column", alignItems: "center" }}>
+                        <div style={{ fontSize: 8, fontWeight: 700, color: br.mu, fontFamily: mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 8 }}>Detected Shape</div>
+                        <svg viewBox={`0 0 ${svgW.toFixed(0)} ${svgH.toFixed(0)}`} style={{ width: "100%", maxWidth: 220, height: 180 }} preserveAspectRatio="xMidYMid meet">
+                          <polygon points={pts} fill="rgba(46,125,50,0.12)" stroke="#2e7d32" strokeWidth={Math.max(1.5, svgW / 180)} strokeLinejoin="round" />
+                          {rv.map((v, vi) => {
+                            var v2 = rv[(vi + 1) % rv.length];
+                            var emx = (v[0] + v2[0]) / 2 - mnX + sp;
+                            var emy = svgH - ((v[1] + v2[1]) / 2 - mnY) - sp;
+                            return <circle key={vi} cx={emx.toFixed(1)} cy={emy.toFixed(1)} r={4} fill={edgeColors[vi % edgeColors.length]} />;
+                          })}
+                        </svg>
+                        <div style={{ width: "100%", marginTop: 8 }}>
+                          {bestCand.edges.map((e, ei) => {
+                            var col = edgeColors[ei % edgeColors.length];
+                            var isStr = e.type === "street";
+                            return <div key={ei} style={{ display: "flex", alignItems: "center", gap: 6, padding: "2px 0" }}>
+                              <span style={{ width: 8, height: 8, borderRadius: "50%", background: col, flexShrink: 0 }} />
+                              <span style={{ fontSize: 12, fontFamily: mono, fontWeight: 700, color: br.tx }}>{e.length}'</span>
+                              <span style={{ fontSize: 10, fontFamily: mono, color: isStr ? "#e53935" : br.mu, fontWeight: isStr ? 600 : 400 }}>{isStr ? (e.label || "street") : (e.neighborLabel || e.setbackType || "")}</span>
+                            </div>;
+                          })}
+                          <div style={{ fontSize: 10, fontFamily: mono, color: br.mu, marginTop: 4 }}>{bestCand.area.toLocaleString()} SF</div>
+                        </div>
+                        <button onClick={() => { if (window._selectShape) window._selectShape(bestIdx); }} style={{
+                          width: "100%", padding: "14px", background: "#2e7d32", color: "#fff", border: "none",
+                          borderRadius: 8, cursor: "pointer", fontSize: 13, fontFamily: mono, fontWeight: 700,
+                          marginTop: 14, display: "flex", alignItems: "center", justifyContent: "center", gap: 8
+                        }}>{"\u2705"} Looks right, continue</button>
+                        <button onClick={() => { setAutoConfirmDismissed(true); }} style={{
+                          width: "100%", padding: "10px", background: "none", color: br.mu, border: "none",
+                          cursor: "pointer", fontSize: 10, fontFamily: mono, marginTop: 6, textDecoration: "underline"
+                        }}>That's not my lot</button>
+                      </div>
+                    </div>
+                  </div>;
+                })() : <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                   <span style={{ fontSize: 10, fontWeight: 700, color: br.dk, fontFamily: mono }}>Compare survey to proposed shapes</span>
                   <button onClick={() => { if (previewIdx != null) { setPreviewIdx(null); window._previewShapeIndex = null; } else { setCompareMode(false); if (window._resetExtraction) window._resetExtraction(); } }} style={{ fontSize: 9, fontFamily: mono, color: br.mu, background: "none", border: "1px solid " + br.bd, borderRadius: 4, padding: "4px 10px", cursor: "pointer" }}>{previewIdx != null ? "\u2190 All shapes" : "\u2190 Start over"}</button>
@@ -889,6 +950,7 @@ const App = function SimpleBlueprints() {
                     }}>{window._rankingResult && window._rankingResult.bestShapeIndex === previewIdx ? "\uD83E\uDD16 AI Recommends - " : "\u2705 "}Confirm Option {previewIdx + 1}</button>
                   </div>
                 </div>}
+              </div>}
               </div>}
               {step === 0 && !traceMode && !compareMode && SitePlanView && <SitePlanView p={p} c={c} u={u} />}
               {step === 0 && traceMode && TraceView && <div>
