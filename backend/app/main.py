@@ -807,7 +807,7 @@ AI_HELPER_PARAMS = {
     }
 }
 
-def build_ai_helper_prompt(step, params, extraction_summary, guide_phase=""):
+def build_ai_helper_prompt(step, params, extraction_summary, guide_phase="", compare_context=""):
     step_info = AI_HELPER_PARAMS.get(step, AI_HELPER_PARAMS[0])
     param_desc = ""
     current_vals = ""
@@ -850,6 +850,11 @@ def build_ai_helper_prompt(step, params, extraction_summary, guide_phase=""):
     extraction_note = ""
     if extraction_summary:
         extraction_note = f"\nExtraction results from their survey upload:\n{extraction_summary}\n"
+
+    # S56: Include compare mode context (shape candidates + ranking)
+    compare_note = ""
+    if compare_context:
+        compare_note = f"\n{compare_context}\nWhen the user asks about shapes, candidates, or which option to pick, use this context to give specific answers. Reference shapes by their number (Shape 1, Shape 2, etc.). If the AI has recommended a shape, explain the recommendation. If ranking is in progress, let them know it's still analyzing. The user can click a shape card to preview it, then click 'Confirm' to apply it.\n"
 
     # S54: Include site elements context
     site_elements_note = ""
@@ -962,7 +967,7 @@ SETTABLE PARAMETERS for this step:
 {"CROSS-STEP PARAMETERS (always available - the site plan preview shows the deck on every step):" + chr(10) + cross_desc + chr(10) + "Current deck values:" + chr(10) + (cross_vals if cross_vals else "(defaults)") if cross_desc else ""}
 CURRENT VALUES:
 {current_vals if current_vals else "(defaults)"}
-{extraction_note}{site_elements_note}
+{extraction_note}{compare_note}{site_elements_note}
 {ui_map}
 
 RESPONSE FORMAT:
@@ -1137,6 +1142,7 @@ async def ai_helper(request: Request):
         history = body.get("history", [])
         extraction_summary = body.get("extractionSummary", "")
         guide_phase = body.get("guidePhase", "")
+        compare_context = body.get("compareContext", "")
 
         if not user_message:
             return {"ok": False, "error": "No message provided"}
@@ -1154,7 +1160,7 @@ async def ai_helper(request: Request):
             "message": user_message,
         })
 
-        system_prompt = build_ai_helper_prompt(step, params, extraction_summary, guide_phase)
+        system_prompt = build_ai_helper_prompt(step, params, extraction_summary, guide_phase, compare_context)
 
         messages = []
         for h in history[-6:]:

@@ -815,7 +815,17 @@ function StepContent(props) {
     if (!actions || actions.length === 0) return;
     actions.forEach(function(act) {
       if (act.param && act.value !== undefined) u(act.param, act.value);
-      if (act.navigate) _navigateToSection(act.navigate);
+      if (act.navigate) {
+        // S56: Ensure prerequisite state before navigating to conditional sections
+        var _stairSections = { stairs: true, stairTemplate: true, advanced: true };
+        if (_stairSections[act.navigate] && !p.hasStairs) {
+          u("hasStairs", true);
+          // Extra delay for React to re-render the section into the DOM
+          setTimeout(function() { _navigateToSection(act.navigate); }, 350);
+        } else {
+          _navigateToSection(act.navigate);
+        }
+      }
       if (act.siteElementUpdate) {
         var upd = act.siteElementUpdate;
         var els = (p.siteElements || []).slice();
@@ -864,6 +874,29 @@ function StepContent(props) {
       extSummary = parts.join(". ");
     }
 
+    // S56: Build compare mode context for AI helper
+    var compareContext = "";
+    if (compareMode && shapeCandidates.length > 0) {
+      compareContext = "COMPARE MODE ACTIVE: User is choosing between " + shapeCandidates.length + " lot shape candidates.\n";
+      shapeCandidates.forEach(function(c, i) {
+        compareContext += "  Shape " + (i + 1) + " (index " + i + "): " + c.edges.length + " edges, area=" + c.area + " SF";
+        if (c.edges) {
+          var edgeLens = c.edges.map(function(e) { return Math.round(e.length) + "'"; });
+          compareContext += ", edge lengths: " + edgeLens.join(", ");
+        }
+        compareContext += "\n";
+      });
+      if (rankingInProgress) {
+        compareContext += "AI ranking is IN PROGRESS (analyzing survey to recommend best shape).\n";
+      } else if (rankingResult && !rankingResult.failed) {
+        compareContext += "AI RECOMMENDATION: Shape " + (rankingResult.bestShapeIndex + 1) + " (index " + rankingResult.bestShapeIndex + "), confidence: " + (rankingResult.confidence || "unknown");
+        if (rankingResult.reason) compareContext += ". Reason: " + rankingResult.reason;
+        compareContext += "\n";
+      } else if (rankingResult && rankingResult.failed) {
+        compareContext += "AI ranking failed. User must choose manually.\n";
+      }
+    }
+
     var apiHistory = chatMessages.map(function(m) { return { role: m.role, text: m.text }; });
 
     // Add placeholder assistant message for streaming
@@ -874,7 +907,7 @@ function StepContent(props) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ message: msg, step: step, params: p, history: apiHistory, extractionSummary: extSummary, guidePhase: guidePhase, sessionId: window._sbSessionId || "", anonymousId: window._sbAnonymousId || "" })
+      body: JSON.stringify({ message: msg, step: step, params: p, history: apiHistory, extractionSummary: extSummary, compareContext: compareContext, guidePhase: guidePhase, sessionId: window._sbSessionId || "", anonymousId: window._sbAnonymousId || "" })
     }).then(function(res) {
       if (!res.ok) throw new Error("Server error: " + res.status);
       var reader = res.body.getReader();
@@ -1344,6 +1377,8 @@ function StepContent(props) {
           window._rankingResult = data.data;
           // S55: Track shape ranking complete
           if (window._trackEvent) window._trackEvent('shape_ranking_complete', { best_index: data.data.bestShapeIndex, confidence: data.data.confidence || '', streetSide: data.data.streetSide || '' });
+          // S56: Track auto-mirror if streetSide triggers it
+          if (data.data.streetSide === 'top' && window._trackEvent) window._trackEvent('auto_mirror_fired', { streetSide: 'top' });
           // S54: Adjust northAngle for canonical lot orientation (street-at-bottom)
           // Opus returns north relative to survey drawing; our rendering rotates the lot
           // based on streetSide, so north arrow must rotate by the same amount.
