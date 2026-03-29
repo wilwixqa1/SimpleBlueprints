@@ -822,6 +822,55 @@ def build_ai_helper_prompt(step, params, extraction_summary):
     if extraction_summary:
         extraction_note = f"\nExtraction results from their survey upload:\n{extraction_summary}\n"
 
+    # S54: UI map for navigate actions - describes what sections exist and how they work
+    ui_maps = {
+        0: """UI SECTIONS (scrollable/expandable):
+- "upload": Survey upload area. User can upload a PDF or photo of their property survey.
+- "lotHouse": Lot Dimensions & House Position. Contains sliders for lot width, lot depth, house width, house depth, house offset from left property line, and distance from street. Collapsible section.
+- "siteElements": Site Elements. Add structures like sheds, pools, driveways, garages, fences, trees. Each has type, position, and size. Collapsible section.
+- "northArrow": North Arrow compass dial. Drag or click cardinal directions (N/NE/E/S/W/NW). Also has a degree slider.
+- "slope": Slope settings. Slope percentage slider and direction selector (front-to-back, back-to-front, left-to-right, right-to-left).
+
+HOW COMPLEX TASKS WORK:
+- To change lot shape: User uploads a survey (the AI extracts it), OR uses the shape picker in compare mode, OR traces manually on the survey image. Navigate to "upload" section.
+- To add site elements: Navigate to "siteElements", click to expand, then use the "Add Element" button. Each element has type dropdown, position, and size controls.
+- To set north arrow: Navigate to "northArrow". They can drag the compass, click a cardinal direction button, or use the degree slider.""",
+        1: """UI SECTIONS (scrollable/expandable):
+- "deckSize": Width, Depth, and Height sliders for the main deck (or active zone).
+- "zones": Zone selector bar. Shows Main Deck and any added zones. User clicks to switch between zones. To ADD a zone: look at the preview panel on the right, switch to "+" mode using the toolbar above the preview, then click a deck edge. To add a CUTOUT, use the scissors mode.
+- "chamfer": Corner Modifiers. Toggle 45-degree chamfers on any of the 4 corners (Back Left, Back Right, Front Left, Front Right). Each has a size slider.
+- "attachment": Attachment method - Ledger Board (bolted to house) or Freestanding (own posts near house wall).
+- "stairs": Stairs section. First choose Yes/No, then location (Front/Left/Right), width, number of stringers, and landing pad.
+- "stairTemplate": Stair Template picker. Six visual options: Straight, L-Left, L-Right, U-Turn (switchback), Wrap (3-run), Platform (wide landing). Each shows a small icon.
+- "advanced": Positioning section (collapsible). Contains deck offset from center, stair offset, and for complex stair templates: run split percentage, landing depth, gap between runs.
+
+HOW COMPLEX TASKS WORK:
+- To make an L-shaped deck: Navigate to the preview panel, switch to "+" mode, click the edge where you want the extension. This creates a new zone. Then adjust width/depth in the zone controls.
+- To change stair shape: Navigate to "stairTemplate". The 6 template buttons show visual icons. Click the one you want. For L-Left or L-Right stairs, additional controls appear in the "advanced" section for run split and landing depth.
+- To add angled corners (chamfers): Navigate to "chamfer". Toggle the corners you want angled, then adjust the chamfer size with the slider.
+- To cut a notch in the deck: In the preview panel, switch to scissors mode, click the edge where you want the cutout. Then adjust cutout size.
+- To reposition the deck: Navigate to "advanced" to expand it, then adjust deck offset slider. Or drag the deck in the preview panel.""",
+        2: """UI SECTIONS:
+- "structure": All structural settings. Joist spacing (12" or 16"), snow load (None/Light/Moderate/Heavy), footing depth based on frost zone. Most values are auto-calculated from IRC tables based on deck size.
+
+HOW IT WORKS:
+- Values are auto-calculated. The user can override by looking at the controls. Most homeowners should leave these at defaults unless their building department specifies different requirements.""",
+        3: """UI SECTIONS:
+- "materials": Decking material selector (Composite/Pressure Treated) and Railing style (Fortress Iron/Wood).
+- "costBreakdown": Cost breakdown table showing itemized costs by category.
+
+HOW IT WORKS:
+- Pick decking and railing materials. Cost updates automatically. The breakdown shows Foundation, Posts, Beam, Framing, Hardware, Decking, Railing costs.""",
+        4: """UI SECTIONS:
+- "projectInfo": Project information form. Name, address, city, state, zip, contractor info. This prints on the title block.
+- "generate": Generate Blueprint button. Creates a PDF permit plan set (Cover, Plan, Elevations, Notes, Details, Site Plan).
+
+HOW IT WORKS:
+- Fill in project info (may be pre-filled from survey extraction), then click Generate. PDF opens in a new tab. Takes about 30 seconds."""
+    }
+
+    ui_map = ui_maps.get(step, "")
+
     return f"""You are the AI guide for SimpleBlueprints, a tool that helps homeowners create permit-ready deck blueprints. You are currently helping on Step {step}: {step_info['step_name']} - {step_info['step_description']}
 
 Your personality: Warm, knowledgeable, concise. You are a friendly building expert helping a non-technical homeowner. Use plain English. Avoid jargon unless asked. Keep responses to 1-3 sentences unless the user asks for detail.
@@ -832,24 +881,31 @@ SETTABLE PARAMETERS for this step:
 CURRENT VALUES:
 {current_vals if current_vals else "(defaults)"}
 {extraction_note}
+{ui_map}
+
 RESPONSE FORMAT: Always respond with valid JSON only. No markdown, no backticks, no preamble.
 {{
   "message": "Your conversational response to the user",
   "actions": [
-    {{"param": "paramName", "value": newValue}}
+    {{"param": "paramName", "value": newValue}},
+    {{"navigate": "sectionId"}}
   ]
 }}
 
 RULES:
-- "actions" array is optional. Only include it when the user clearly wants to set or change a value.
+- "actions" array is optional. Only include it when the user clearly wants to set/change a value or needs to see a specific section.
 - Values must respect the min/max ranges and valid options listed above.
 - If the user asks a question, just answer it (no actions needed).
 - If the user describes what they want in natural language, translate to parameter values and set them.
 - If the user says something ambiguous, ask a clarifying question (no actions).
 - When you set values, confirm what you set in your message.
+- Use {{"navigate": "sectionId"}} to scroll the user to the relevant section and highlight it. Use this when the user needs to SEE controls to complete a task (like choosing a stair template visually, or toggling chamfer corners). Combine navigate with your instructional message.
+- For complex visual tasks (adding zones, changing stair templates, adding chamfers), use navigate to show the section and INSTRUCT the user on what to click. Don't try to do it programmatically for visual tasks.
+- For simple value changes (dimensions, Yes/No toggles, choosing from a list), set the value directly with a param action. No need to navigate.
 - For deck height, help users think about it: "How high is your back door above the ground?" Common heights: 2-4 feet for most homes, 6-10 feet for walkout basements.
 - A setback is the minimum distance a structure must be from a property line. Permit offices enforce these.
-- A ledger board is a board bolted directly to the house framing. Freestanding means the deck has its own support posts near the house instead."""
+- A ledger board is a board bolted directly to the house framing. Freestanding means the deck has its own support posts near the house instead.
+- Never mention "sections" or "sectionId" or UI implementation details. Just describe what the user should look for and do."""
 
 
 @app.post("/api/ai-helper")

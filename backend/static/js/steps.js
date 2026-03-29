@@ -808,6 +808,9 @@ function StepContent(props) {
             if (act.param && act.value !== undefined) {
               u(act.param, act.value);
             }
+            if (act.navigate) {
+              _navigateToSection(act.navigate);
+            }
           });
         }
       } else {
@@ -817,6 +820,34 @@ function StepContent(props) {
       setChatLoading(false);
       setChatMessages(function(prev) { return prev.concat([{ role: "assistant", text: "Connection error. Please try again." }]); });
     });
+  }
+
+  // S54: Navigate to a UI section - expand, scroll, highlight
+  function _navigateToSection(sectionId) {
+    // Expand relevant collapsed sections
+    var expandMap = {
+      "lotHouse": function() { setShowLotHouse(true); },
+      "siteElements": function() { setShowSiteElements(true); },
+      "upload": function() { setShowUpload(true); },
+      "advanced": function() { setShowAdvanced(true); }
+    };
+    if (expandMap[sectionId]) expandMap[sectionId]();
+
+    // Scroll and highlight after a brief delay (so expanded content renders)
+    setTimeout(function() {
+      var el = document.querySelector('[data-section="' + sectionId + '"]');
+      if (!el) return;
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      // Pulse highlight
+      el.style.transition = "box-shadow 0.3s ease, outline 0.3s ease";
+      el.style.outline = "2px solid #3d5a2e";
+      el.style.boxShadow = "0 0 16px rgba(61,90,46,0.25)";
+      el.style.borderRadius = "8px";
+      setTimeout(function() {
+        el.style.outline = "none";
+        el.style.boxShadow = "none";
+      }, 2000);
+    }, 150);
   }
 
   // S50: PPRBD jurisdiction detection helper
@@ -1280,9 +1311,11 @@ function StepContent(props) {
     </div>}
 
 // {/* Width / Depth / Height sliders   zone-aware */}
+    <div data-section="deckSize">
     <Slider label={isZone0 ? "Width (along house)" : "Width"} value={zoneW} min={isCutout ? 2 : 4} max={50} step={0.5} fmt={fmtFtIn} field="width" u={u} p={p} />
     <Slider label={isZone0 ? "Depth (from house)" : "Depth"} value={zoneD} min={isCutout ? 2 : 4} max={24} step={0.5} fmt={fmtFtIn} field="depth" u={u} p={p} />
     {isZone0 && <Slider label="Height above grade" value={p.height} min={1} max={14} step={0.5} fmt={fmtFtIn} field="height" u={u} p={p} />}
+    </div>
 
     {/* Zone offset slider (zones 1+ add type) */}
     {!isZone0 && activeZoneObj && activeZoneObj.type === "add" && (
@@ -1320,7 +1353,7 @@ function StepContent(props) {
     </>}
 
 // {/*   Chamfer controls for active zone   */}
-    {!isCutout && <div style={{ marginBottom: 16, padding: 12, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}` }}>
+    {!isCutout && <div data-section="chamfer" style={{ marginBottom: 16, padding: 12, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}` }}>
       <div style={{ fontSize: 9, fontWeight: 700, color: "#7c3aed", fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 8 }}>Corner Modifiers</div>
       <div style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, marginBottom: 8 }}>Toggle 45{"\u00B0"} chamfers on corners. Adjust size below.</div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
@@ -1350,7 +1383,10 @@ function StepContent(props) {
 // {/*   Zone 0 only: house width, attachment, stairs   */}
     {isZone0 && <>
       <Slider label="House width" value={p.houseWidth} min={20} max={80} field="houseWidth" u={u} p={p} />
+      <div data-section="attachment">
       <Chips label="Attachment" field="attachment" opts={[["ledger", "Ledger Board"], ["freestanding", "Freestanding"]]} u={u} p={p} />
+      </div>
+      <div data-section="stairs">
       <Chips label="Stairs" field="hasStairs" opts={[[true, "Yes"], [false, "No"]]} u={u} p={p} />
       {p.hasStairs && <>
         <Chips label="Stair location" field="stairLocation" opts={[["front", "Front"], ["left", "Left"], ["right", "Right"]]} u={u} p={p} />
@@ -1358,7 +1394,7 @@ function StepContent(props) {
         <Slider label="Number of stringers" value={p.numStringers} min={2} max={5} field="numStringers" unit="" u={u} p={p} />
         <Chips label="Landing pad" field="hasLanding" opts={[[true, "Yes"], [false, "No"]]} u={u} p={p} />
       {p.hasStairs && <>
-        <div style={{ marginBottom: 16 }}>
+        <div data-section="stairTemplate" style={{ marginBottom: 16 }}>
           <Label>Stair Template</Label>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 5 }}>
             {[
@@ -1385,6 +1421,9 @@ function StepContent(props) {
 
       </>}
 
+      </div>{/* close data-section="stairs" */}
+
+      <div data-section="advanced">
       <button onClick={() => setShowAdvanced(!showAdvanced)} style={{ width: "100%", padding: "8px 14px", marginBottom: 12, background: "none", border: `1px solid ${_br.bd}`, borderRadius: 6, cursor: "pointer", fontSize: 10, fontFamily: _mono, color: _br.mu, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <span>Positioning (drag in preview or set here)</span>
         <span style={{ transform: showAdvanced ? "rotate(180deg)" : "none", transition: "0.2s" }}>{"\u25BE"}</span>
@@ -1406,6 +1445,7 @@ function StepContent(props) {
         <Slider label="Gap Between Runs" value={p.stairGap!=null?p.stairGap:0.5} min={0} max={2} step={0.5} field="stairGap" fmt={fmtFtIn} u={u} p={p} />
       )}
       </div>}
+      </div>{/* close data-section="advanced" */}
 
     </>}
   </>;
@@ -1931,7 +1971,7 @@ function StepContent(props) {
         <span>{"\uD83D\uDCCF"} Lot Dimensions, House Position & Setbacks</span>
         <span style={{ transform: guideSectionVisible('lotHouse', showLotHouse) ? "rotate(180deg)" : "none", transition: "0.2s" }}>{"\u25BE"}</span>
       </button>
-      {guideSectionVisible('lotHouse', showLotHouse) && <div style={{ padding: 14, background: _br.wr, borderRadius: "0 0 8px 8px", border: "1px solid " + _br.bd, borderTop: "none", marginBottom: 14 }}>
+      {guideSectionVisible('lotHouse', showLotHouse) && <div data-section="lotHouse" style={{ padding: 14, background: _br.wr, borderRadius: "0 0 8px 8px", border: "1px solid " + _br.bd, borderTop: "none", marginBottom: 14 }}>
         <div style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, marginBottom: 12, lineHeight: 1.6, padding: "8px 10px", background: "#fff", borderRadius: 6, border: "1px solid " + _br.bd }}>
           {"\uD83D\uDCA1"} Don't know your exact lot size? Check your county assessor or tax records online, or look at your closing documents. Approximate dimensions are fine for planning.
         </div>
@@ -2180,7 +2220,7 @@ function StepContent(props) {
             <span>{elArr.length > 0 ? ("\u2302 " + elArr.length + " site element" + (elArr.length !== 1 ? "s" : "") + " placed") : "\u2302 Add site elements (shed, pool, driveway...)"}</span>
             <span style={{ transform: guideSectionVisible('siteElements', showSiteElements) ? "rotate(180deg)" : "none", transition: "0.2s" }}>{"\u25BE"}</span>
           </button>
-          {guideSectionVisible('siteElements', showSiteElements) && <div style={{ padding: 14, background: _br.wr, borderRadius: "0 0 8px 8px", border: "1px solid " + _br.bd, borderTop: "none", marginBottom: 14 }}>
+          {guideSectionVisible('siteElements', showSiteElements) && <div data-section="siteElements" style={{ padding: 14, background: _br.wr, borderRadius: "0 0 8px 8px", border: "1px solid " + _br.bd, borderTop: "none", marginBottom: 14 }}>
             <div style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, marginBottom: 8, lineHeight: 1.5 }}>Click to place elements on your site plan.</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, marginBottom: 10 }}>
               {Object.keys(siteElDefs).map(function(type) {
@@ -2293,7 +2333,7 @@ function StepContent(props) {
         var cardinals = ["N","NE","E","SE","S","SW","W","NW"];
         var cardIdx = Math.round(northAngle / 45) % 8;
         var cardLabel = cardinals[cardIdx];
-        return <div style={{ padding: 14, background: _br.wr, borderRadius: 8, border: "1px solid " + _br.bd, marginBottom: 14 }}>
+        return <div data-section="northArrow" style={{ padding: 14, background: _br.wr, borderRadius: 8, border: "1px solid " + _br.bd, marginBottom: 14 }}>
           <div style={{ fontSize: 9, fontWeight: 700, color: _br.mu, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 8 }}>{"\uD83E\uDDED"} North Arrow Direction</div>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
             <svg width={64} height={64} viewBox="0 0 64 64" style={{ cursor: "pointer", flexShrink: 0 }}
@@ -2348,7 +2388,7 @@ function StepContent(props) {
       })()}
 
       {/* === SLOPE / GRADE (S33) === */}
-      {guideSectionVisible('slope', guideActive === false) && <div style={{ padding: 14, background: _br.wr, borderRadius: 8, border: "1px solid " + _br.bd, marginBottom: 14 }}>
+      {guideSectionVisible('slope', guideActive === false) && <div data-section="slope" style={{ padding: 14, background: _br.wr, borderRadius: 8, border: "1px solid " + _br.bd, marginBottom: 14 }}>
         <div style={{ fontSize: 9, fontWeight: 700, color: _br.mu, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 8 }}>{"\u2B06\uFE0F"} Site Slope / Grade</div>
         <Slider label="Slope %" value={p.slopePercent || 0} min={0} max={15} step={0.5} field="slopePercent" unit="%" u={u} p={p} />
         {(p.slopePercent || 0) > 0 && <div style={{ marginBottom: 12 }}>
@@ -2391,7 +2431,7 @@ function StepContent(props) {
         <span>{sitePlanFile ? ("\u2713 Survey attached: " + sitePlanFile.name) : "\uD83D\uDCC4 Have a property survey? Upload it here"}</span>
         <span style={{ transform: guideSectionVisible('upload', showUpload || !!sitePlanFile) ? "rotate(180deg)" : "none", transition: "0.2s" }}>{"\u25BE"}</span>
       </button>
-      {guideSectionVisible('upload', showUpload || !!sitePlanFile) && <div style={{ padding: 14, background: _br.wr, borderRadius: "0 0 8px 8px", border: "1px solid " + _br.bd, borderTop: "none", marginBottom: 14 }}>
+      {guideSectionVisible('upload', showUpload || !!sitePlanFile) && <div data-section="upload" style={{ padding: 14, background: _br.wr, borderRadius: "0 0 8px 8px", border: "1px solid " + _br.bd, borderTop: "none", marginBottom: 14 }}>
         <div style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, marginBottom: 10, lineHeight: 1.6, padding: "8px 10px", background: "#fff", borderRadius: 6, border: "1px solid " + _br.bd }}>
           {"\uD83D\uDCA1"} Upload your property survey, plat map, or site plan. This will be included as a separate sheet in your blueprint package. The dimensions above will still be used for the generated site plan.
         </div>
@@ -2758,9 +2798,11 @@ function StepContent(props) {
       onToggleOff={function() { setGuideActive(false); }}
       chatMessages={chatMessages} chatLoading={chatLoading} onSendMessage={sendChatMessage}
     />}
+    <div data-section="structure">
     <Chips label="Joist spacing" field="joistSpacing" opts={[[12, '12" O.C.'], [16, '16" O.C.'], [24, '24" O.C.']]} u={u} p={p} />
     <Chips label="Snow load" field="snowLoad" opts={[["none", "None"], ["light", "Light"], ["moderate", "Moderate"], ["heavy", "Heavy"]]} u={u} p={p} />
     <Chips label="Footing depth (frost line)" field="frostZone" opts={[["warm", '12"'], ["moderate", '24"'], ["cold", '36"'], ["severe", '48"']]} u={u} p={p} />
+    </div>
 
     <div style={{ marginTop: 16, padding: 14, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}` }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
@@ -2883,9 +2925,11 @@ function StepContent(props) {
         chatMessages={chatMessages} chatLoading={chatLoading} onSendMessage={sendChatMessage}
       />;
     })()}
+    <div data-section="materials">
     <Chips label="Decking" field="deckingType" opts={[["composite", "Composite (Trex)"], ["pt_lumber", "Pressure Treated"]]} u={u} p={p} />
     <Chips label="Railing" field="railType" opts={[["fortress", "Fortress Iron"], ["wood", "Wood"]]} u={u} p={p} />
-    <div style={{ marginTop: 16, padding: 14, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}` }}>
+    </div>
+    <div data-section="costBreakdown" style={{ marginTop: 16, padding: 14, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}` }}>
       <div style={{ fontSize: 10, fontWeight: 700, color: _br.gn, marginBottom: 6, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>Cost Breakdown</div>
       {(() => { var allItems = zc ? m.items.concat(zc.extraItems) : m.items; return ["Foundation", "Posts", "Beam", "Ledger", "Framing", "Hardware", "Decking", "Railing", "Misc"].map(cat => { const t = allItems.filter(i => i.cat === cat).reduce((s, i) => s + i.qty * i.cost, 0); return t > 0 ? <Spec key={cat} l={cat} v={`${t.toFixed(0)}`} /> : null; }); })()}
       <div style={{ height: 2, background: _br.gn, margin: "8px 0", opacity: 0.3 }} />
@@ -2971,7 +3015,7 @@ function StepContent(props) {
       </div>
     </div>
 
-    <div style={{ padding: 14, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}`, marginBottom: 14 }}>
+    <div data-section="projectInfo" style={{ padding: 14, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}`, marginBottom: 14 }}>
       <div style={{ fontSize: 9, fontWeight: 700, color: _br.gn, marginBottom: 10, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>Project Information <span style={{ fontWeight: 400, color: _br.mu, fontSize: 8 }}>(prints on title block)</span></div>
       {[["owner", "Owner / Applicant Name"],["address", "Project Address"],["city", "City"]].map(([f, lbl]) => (
         <div key={f} style={{ marginBottom: 8 }}>
@@ -3085,7 +3129,7 @@ function StepContent(props) {
       <div style={{fontSize:10,color:"#66bb6a",fontFamily:_mono}}>Includes tax + 5% contingency</div>
     </div>
 
-    <div style={{background:_br.dk,borderRadius:10,padding:20,textAlign:"center",marginBottom:10}}>
+    <div data-section="generate" style={{background:_br.dk,borderRadius:10,padding:20,textAlign:"center",marginBottom:10}}>
       <div style={{fontSize:10,fontFamily:_mono,color:"rgba(255,255,255,0.5)",letterSpacing:"2px",textTransform:"uppercase",marginBottom:6}}>Your Blueprint Package</div>
       <div style={{display:"flex",justifyContent:"center",gap:16,marginBottom:12,flexWrap:"wrap"}}>
         {["Plan View","Framing Plan","Elevations","Details","Site Plan"].concat(
