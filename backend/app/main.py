@@ -449,6 +449,10 @@ async def extract_survey(request: Request):
 
     except json.JSONDecodeError as e:
         return {"ok": False, "error": "Failed to parse AI response: " + str(e)}
+    except urllib.error.HTTPError as he:
+        error_body = he.read().decode("utf-8", errors="replace") if he.fp else ""
+        print("Survey extraction HTTP error: " + str(he.code) + " body: " + error_body[:500])
+        return {"ok": False, "error": "HTTP Error " + str(he.code) + ": " + error_body[:200]}
     except Exception as e:
         print("Survey extraction error: " + str(e))
         return {"ok": False, "error": str(e)}
