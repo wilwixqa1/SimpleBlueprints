@@ -845,7 +845,7 @@ const App = function SimpleBlueprints() {
                   <span style={{ fontSize: 10, fontWeight: 700, color: br.dk, fontFamily: mono }}>Compare survey to proposed shapes</span>
                   <button onClick={() => setCompareMode(false)} style={{ fontSize: 9, fontFamily: mono, color: br.mu, background: "none", border: "1px solid " + br.bd, borderRadius: 4, padding: "4px 10px", cursor: "pointer" }}>Back</button>
                 </div>
-                <div style={{ fontSize: 9, color: br.mu, fontFamily: mono, marginBottom: 10, lineHeight: 1.5, fontStyle: "italic" }}>Use the arrows to find the site plan page in your survey. Tap a shape that matches your lot.</div>
+                <div style={{ fontSize: 10, color: "#1e40af", fontFamily: mono, marginBottom: 10, lineHeight: 1.6, padding: "8px 12px", background: "#eff6ff", borderRadius: 6, border: "1px solid #bfdbfe" }}>{"\uD83D\uDCA1"} Use the <strong>page arrows</strong> on the left to find your lot boundary. Then <strong>tap the shape</strong> on the right that matches.</div>
                 <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
                   <div style={{ flex: "1 1 55%" }}>
                     <div style={{ fontSize: 8, fontWeight: 700, color: br.mu, fontFamily: mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 4 }}>Your Survey</div>
@@ -859,7 +859,7 @@ const App = function SimpleBlueprints() {
                   </div>
                   <div style={{ flex: "1 1 45%", display: "flex", flexDirection: "column" }}>
                     <div style={{ fontSize: 8, fontWeight: 700, color: br.mu, fontFamily: mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 4 }}>Proposed Shapes</div>
-                    <div style={{ fontSize: 9, fontFamily: mono, color: br.mu, marginBottom: 6 }}>Not a match? <button onClick={() => { setCompareMode(false); setTraceState({ calPoints: [], calDist: "", ppf: null, vertices: [], edgeMeta: [], edgeLengths: [], imgW: 0, imgH: 0, selectedEdge: null, selectedVertex: null, pdfPage: 1, pdfPageCount: 1 }); setTraceMode(true); }} style={{ fontSize: 9, fontFamily: mono, color: "#ca8a04", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", fontWeight: 700, padding: 0 }}>Trace manually</button></div>
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 10px", background: "#fefce8", borderRadius: 5, border: "1px solid #fde68a", marginBottom: 8 }}><span style={{ fontSize: 9, fontFamily: mono, color: "#92400e" }}>Not a match?</span><button onClick={() => { setCompareMode(false); setTraceState({ calPoints: [], calDist: "", ppf: null, vertices: [], edgeMeta: [], edgeLengths: [], imgW: 0, imgH: 0, selectedEdge: null, selectedVertex: null, pdfPage: 1, pdfPageCount: 1 }); setTraceMode(true); }} style={{ fontSize: 9, fontFamily: mono, color: "#ca8a04", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", fontWeight: 700, padding: 0 }}>Trace manually</button></div>
                     <div style={{ maxHeight: "60vh", overflowY: "auto", flex: 1 }}>
                       <CompareShapes candidates={window._shapeCompareData ? window._shapeCompareData.candidates : []} previewIdx={previewIdx} />
                       <div style={{ marginTop: 10, padding: 14, background: "#fefce8", border: "2px dashed #ca8a04", borderRadius: 8, textAlign: "center" }}>
