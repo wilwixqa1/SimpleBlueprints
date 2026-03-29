@@ -73,7 +73,7 @@ window.SurveyPreview = SurveyPreview;
 function CompareShapes({ candidates, previewIdx }) {
   if (!candidates || candidates.length === 0) return React.createElement("div", { style: { fontSize: 10, color: _br.mu, fontFamily: _mono } }, "No shapes available");
   var edgeColors = ["#e53935", "#2563eb", "#8B7355", "#7c3aed", "#0d9488"];
-  return React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr", gap: 8 } },
+  return React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 8 } },
     candidates.map(function(cand, ci) {
       var isSelected = previewIdx === ci;
       var cv = cand.vertices;
