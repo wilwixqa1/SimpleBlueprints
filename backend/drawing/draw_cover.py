@@ -213,8 +213,7 @@ def draw_cover_sheet(fig, params, calc, project_info=None, cover_image_b64=None)
         ("A-2", "ELEVATIONS"),
         ("A-3", "GENERAL NOTES"),
         ("A-4", "DETAILS"),
-        ("A-5", "MATERIALS"),
-        ("A-6", "SITE PLAN"),
+        ("A-5", "SITE PLAN"),
     ]
     dy = info_y - 5.5
     for i, (num, title) in enumerate(sheets):
