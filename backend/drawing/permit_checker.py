@@ -302,10 +302,11 @@ def check_joist_span(params, calc, spec):
     joist_span = calc.get("joist_span", 0)
     joist_size = calc.get("joist_size", "2x10")
     joist_spacing = calc.get("joist_spacing", 16)
-    TL = calc.get("TL", 55)
+    LL = calc.get("LL", 40)
+    species = calc.get("species", "dfl_hf_spf")
 
     from .calc_engine import get_joist_spans_for_load
-    spans = get_joist_spans_for_load(TL)
+    spans = get_joist_spans_for_load(LL, species)
     max_span = spans.get(joist_size, {}).get(joist_spacing, 0)
 
     if max_span == 0:
@@ -314,7 +315,7 @@ def check_joist_span(params, calc, spec):
             category="structural", sheet="A-1", severity="error",
             status="fail",
             message="Joist size/spacing combination not in IRC tables.",
-            detail=f"{joist_size} @ {joist_spacing}\" O.C. at {TL} PSF total load",
+            detail=f"{joist_size} @ {joist_spacing}\" O.C. at {LL} PSF design load ({species})",
             fix="Change joist spacing to 12\", 16\", or 24\" in Step 2.",
             fix_step=2,
         )
@@ -327,7 +328,7 @@ def check_joist_span(params, calc, spec):
             message=f"Joist span exceeds IRC maximum for {joist_size}.",
             detail=(
                 f"{joist_size} @ {joist_spacing}\" O.C. spans {joist_span:.1f}' "
-                f"(max {max_span:.1f}' at {TL} PSF)"
+                f"(max {max_span:.1f}' at {LL} PSF design load)"
             ),
             fix="Reduce deck depth or upgrade to larger joists in Step 2.",
             fix_step=2,
@@ -340,7 +341,7 @@ def check_joist_span(params, calc, spec):
         message="Joist span within IRC limits.",
         detail=(
             f"{joist_size} @ {joist_spacing}\" O.C. spans {joist_span:.1f}' "
-            f"(max {max_span:.1f}' at {TL} PSF)"
+            f"(max {max_span:.1f}' at {LL} PSF design load)"
         ),
     )
 
