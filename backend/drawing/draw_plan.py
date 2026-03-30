@@ -125,6 +125,96 @@ def format_feet_inches(feet):
 # ============================================================
 BEAM_SETBACK = 1.5  # beam inset from far edge (ft)
 
+# S61: Per-zone structural sizing (for zone labels on A-1)
+def compute_zone_sizing(zone, calc):
+    """Compute independent joist/beam sizing for an add zone."""
+    from .calc_engine import get_joist_spans_for_load, auto_select_beam
+    edge = zone.get("attachEdge", "front")
+    zw = zone.get("w", 8)
+    zd = zone.get("d", 6)
+    sp = calc.get("joist_spacing", 16)
+    LL = calc.get("LL", 40)
+    species = calc.get("species", "dfl_hf_spf")
+
+    if edge in ("right", "left"):
+        beam_len = zd
+        j_span = zw - BEAM_SETBACK
+        n_posts = max(2, math.ceil(zd / 8) + 1)
+    else:
+        beam_len = zw
+        j_span = zd - BEAM_SETBACK
+        n_posts = max(2, math.ceil(zw / 8) + 1)
+
+    zone_joist_spans = get_joist_spans_for_load(LL, species)
+    zone_joist_size = "2x12"
+    for _zsz, _zsp in zone_joist_spans.items():
+        if _zsp.get(sp, 0) >= j_span:
+            zone_joist_size = _zsz
+            break
+
+    zone_beam_span = beam_len / max(n_posts - 1, 1)
+    zone_beam_size = auto_select_beam(zone_beam_span, j_span, LL, species)
+
+    return {
+        "joist_size": zone_joist_size,
+        "beam_size": zone_beam_size,
+        "beam_span": round(zone_beam_span, 1),
+        "j_span": round(j_span, 1),
+    }
+
+
+# S61: Chamfer polygon helper
+def get_chamfered_vertices(x, y, w, d, corners):
+    """
+    Convert a rectangle + corner chamfers into polygon vertices.
+    corners: dict with keys BL, BR, FL, FR, each {type, size}.
+    Returns list of (x, y) tuples going CCW from bottom-left.
+    """
+    if not corners:
+        return [(x, y), (x + w, y), (x + w, y + d), (x, y + d)]
+
+    verts = []
+    # Bottom edge: BL to BR (left to right)
+    bl = corners.get("BL", {})
+    br = corners.get("BR", {})
+    fr = corners.get("FR", {})
+    fl = corners.get("FL", {})
+
+    bl_s = bl.get("size", 0) if bl.get("type") == "chamfer" else 0
+    br_s = br.get("size", 0) if br.get("type") == "chamfer" else 0
+    fr_s = fr.get("size", 0) if fr.get("type") == "chamfer" else 0
+    fl_s = fl.get("size", 0) if fl.get("type") == "chamfer" else 0
+
+    # BL corner
+    if bl_s > 0:
+        verts.append((x, y + bl_s))
+        verts.append((x + bl_s, y))
+    else:
+        verts.append((x, y))
+
+    # BR corner
+    if br_s > 0:
+        verts.append((x + w - br_s, y))
+        verts.append((x + w, y + br_s))
+    else:
+        verts.append((x + w, y))
+
+    # FR corner
+    if fr_s > 0:
+        verts.append((x + w, y + d - fr_s))
+        verts.append((x + w - fr_s, y + d))
+    else:
+        verts.append((x + w, y + d))
+
+    # FL corner
+    if fl_s > 0:
+        verts.append((x + fl_s, y + d))
+        verts.append((x, y + d - fl_s))
+    else:
+        verts.append((x, y + d))
+
+    return verts
+
 
 def compute_zone_framing(zone, rect, joist_spacing_in=16):
     """
@@ -207,10 +297,11 @@ def draw_zone_framing(ax, zone, rect, calc):
                           fill=False, ec=BRAND["dark"], lw=0.4, ls='--')
         ax.add_patch(pier)
 
-    # Zone label with joist callout
+    # S61: Zone label with zone-specific joist/beam callout
+    zs = compute_zone_sizing(zone, calc)
     label = zone.get("label", f"Zone {zone.get('id', '?')}")
     ax.text(rect["x"] + rect["w"] / 2, rect["y"] + rect["d"] / 2,
-            f'{label}\n{calc.get("joist_size", "2x12")} @ {calc.get("joist_spacing", 16)}" O.C.',
+            f'{label}\n{zs["joist_size"]} @ {calc.get("joist_spacing", 16)}" O.C.\n{zs["beam_size"].upper()} BEAM',
             ha='center', va='center', fontsize=3.5,
             fontfamily='monospace', color=BRAND["mute"], fontstyle='italic')
 
@@ -273,8 +364,10 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
 
         # Deck body
         if is_framing:
-            # Zone 0 framing area
-            ax.add_patch(patches.Rectangle((0, 0), W, D,
+            # S61: Zone 0 framing area (chamfer-aware)
+            _main_corners = params.get("mainCorners")
+            _z0_verts = get_chamfered_vertices(0, 0, W, D, _main_corners)
+            ax.add_patch(Polygon(_z0_verts, closed=True,
                          fc='#fcfaf5', ec=BRAND["dark"], lw=2))
             # S22: Draw framing for add zones
             if has_zones:
@@ -289,7 +382,10 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
                 fill = ZONE_FILLS[idx % len(ZONE_FILLS)]
                 board_color = ZONE_BOARD_COLORS[idx % len(ZONE_BOARD_COLORS)]
 
-                ax.add_patch(patches.Rectangle((r["x"], r["y"]), r["w"], r["d"],
+                # S61: Chamfer-aware zone outline
+                _zcorners = params.get("mainCorners") if ar["id"] == 0 else ar["zone"].get("corners")
+                _zverts = get_chamfered_vertices(r["x"], r["y"], r["w"], r["d"], _zcorners)
+                ax.add_patch(Polygon(_zverts, closed=True,
                              fc=fill, ec=BRAND["dark"], lw=2))
 
                 # Board lines

@@ -559,8 +559,21 @@ def calculate_structure(params):
 
     warnings = []
     max_span_available = joist_spans.get("2x12", {}).get(joist_spacing, 0)
-    if joist_span > max_span_available:
-        warnings.append(f"Joist span ({joist_span:.1f}') exceeds IRC tables for {species} at {LL} PSF design load. Engineering required.")
+
+    # S61: Engineering required flag for joist over-span
+    if attachment == "ledger":
+        max_depth_for_joists = round(max_span_available + 1.5, 1) if max_span_available > 0 else 0
+    else:
+        max_depth_for_joists = round((max_span_available + 0.75) * 2, 1) if max_span_available > 0 else 0
+    joist_over_span = joist_span > max_span_available and max_span_available > 0
+    engineering_required = joist_over_span
+
+    if joist_over_span:
+        warnings.append(
+            f"Joist span ({joist_span:.1f}') exceeds IRC R507.6 max ({max_span_available:.1f}') "
+            f"for 2x12 @ {joist_spacing}\" O.C. at {LL} PSF. "
+            f"Intermediate beam required. Engineering review needed."
+        )
 
     # Beam span check against IRC R507.5 (S60)
     beam_max_span = get_beam_max_span(beam_size, joist_span, LL, species)
@@ -590,6 +603,8 @@ def calculate_structure(params):
         "mid_span_blocking": mid_span_blocking, "blocking_count": blocking_count,
         "stairs": stair_info, "warnings": warnings,
         "joist_hangers_for_beam": joist_hangers_for_beam,
+        "engineering_required": engineering_required,
+        "max_depth_for_joists": max_depth_for_joists,
         "auto": {
             "joist": auto_joist, "beam": auto_beam,
             "post_size": auto_post_size, "post_count": auto_np,

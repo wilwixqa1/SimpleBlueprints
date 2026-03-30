@@ -223,7 +223,18 @@ function calcStructure(p) {
   const blockingCount = midSpanBlocking ? Math.ceil(W / (sp / 12)) - 1 : 0;
   const warnings = [];
   const maxSpan = (table["2x12"] || {})[sp] || 0;
-  if (jSpan > maxSpan) warnings.push(`Joist span (${jSpan.toFixed(1)}') exceeds IRC at ${LL} PSF design load. Engineering required.`);
+
+  // S61: Engineering required flag for joist over-span
+  var maxDepthForJoists = 0;
+  if (maxSpan > 0) {
+    maxDepthForJoists = attachment === "ledger" ? +(maxSpan + 1.5).toFixed(1) : +((maxSpan + 0.75) * 2).toFixed(1);
+  }
+  var joistOverSpan = maxSpan > 0 && jSpan > maxSpan;
+  var engineeringRequired = joistOverSpan;
+
+  if (joistOverSpan) {
+    warnings.push(`Joist span (${jSpan.toFixed(1)}') exceeds IRC R507.6 max (${maxSpan.toFixed(1)}') for 2x12 @ ${sp}" O.C. at ${LL} PSF. Intermediate beam required. Engineering review needed.`);
+  }
 
   // Beam span check against IRC R507.5 (S60)
   const beamMaxSpan = beamSize.includes("LVL") ? 999 : getBeamMaxSpan(beamSize, jSpan, LL);
@@ -254,6 +265,7 @@ function calcStructure(p) {
   }
 
   return { W, D, H, area, lotArea, LL, DL, TL, joistSize, sp, jSpan: +jSpan.toFixed(1), nJ, beamSize, bSpan: +bSpan.toFixed(1), beamMaxSpan: +beamMaxSpan.toFixed(1), postSize, nP, totalPosts, pp, postHeights, fDiam, fDepth, nF: totalPosts, ledgerSize: joistSize, railLen: +railLen.toFixed(1), guardRequired, guardHeight, midSpanBlocking, blockingCount, stairs, warnings, attachment,
+    engineeringRequired, maxDepthForJoists,
     auto: { joist: autoJoist, beam: autoBeam, postSize: autoPostSize, postCount: autoNP, footing: autoFDiam, guardHeight: autoGuardHeight }
   };
 }

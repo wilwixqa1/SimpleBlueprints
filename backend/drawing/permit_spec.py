@@ -247,6 +247,10 @@ def build_permit_spec(params, calc):
     # --- Warnings from calc engine ---
     spec["warnings"] = calc.get("warnings", [])
 
+    # S61: Engineering required flag (joist over-span)
+    spec["engineering_required"] = calc.get("engineering_required", False)
+    spec["max_depth_for_joists"] = calc.get("max_depth_for_joists", 0)
+
     # ============================================================
     # PRE-FORMATTED LABEL STRINGS
     # ============================================================

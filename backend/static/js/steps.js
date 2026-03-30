@@ -1602,6 +1602,14 @@ function StepContent(props) {
     <div data-section="deckSize">
     <Slider label={isZone0 ? "Width (along house)" : "Width"} value={zoneW} min={isCutout ? 2 : 4} max={50} step={0.5} fmt={fmtFtIn} field="width" u={u} p={p} />
     <Slider label={isZone0 ? "Depth (from house)" : "Depth"} value={zoneD} min={isCutout ? 2 : 4} max={24} step={0.5} fmt={fmtFtIn} field="depth" u={u} p={p} />
+    {isZone0 && c.engineeringRequired && <div style={{ padding: "8px 10px", background: "#fef2f2", borderRadius: 6, border: "1px solid #fca5a5", marginBottom: 8, marginTop: -4 }}>
+      <div style={{ fontSize: 9, fontWeight: 700, color: "#dc2626", fontFamily: _mono, marginBottom: 3 }}>{"\u26A0\uFE0F"} ENGINEERING REQUIRED</div>
+      <div style={{ fontSize: 8, color: "#991b1b", fontFamily: _mono, lineHeight: 1.5 }}>
+        Joist span ({c.jSpan}') exceeds IRC R507.6 max for 2x12 @ {c.sp}" O.C. at {c.LL} PSF.
+        An intermediate beam is needed, which requires engineering review.
+        Max depth for prescriptive compliance: {c.maxDepthForJoists}'.
+      </div>
+    </div>}
     {isZone0 && <Slider label="Height above grade" value={p.height} min={1} max={14} step={0.5} fmt={fmtFtIn} field="height" u={u} p={p} />}
     </div>
 
