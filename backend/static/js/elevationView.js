@@ -112,7 +112,7 @@ function ElevationView({ c, p }) {
     const sY = Math.min(12, 100 / Math.max(H + 5, 8));
     const dSW = spanFt * sX; const svgW = dSW + pad * 2 + 40; const svgH = (H + 5) * sY + pad + 45;
     const gnd = pad + (H + 3) * sY; const dY = gnd - H * sY;
-    const dX = pad; const rTop = dY - 2.5 * sY; const bH = 0.8 * sY;
+    const dX = pad; const rTop = dY - ((c.guardHeight || 36) / 12) * sY; const bH = 0.8 * sY;
 
     // S33: Grade slope computation
     var slopePct = (p.slopePercent || 0) / 100;
@@ -264,7 +264,7 @@ function ElevationView({ c, p }) {
         }
         zSecW = sec.w * sX;
         var zDY = gnd - sec.deckTop * sY; // per-section deck top (future: height-per-zone)
-        var zRTop = zDY - 2.5 * sY;
+        var zRTop = zDY - ((c.guardHeight || 36) / 12) * sY;
         var zAlpha = isRear ? 0.4 : 1;
         var zDash = isRear ? "4,2" : "none";
         var zBeamAlpha = isRear ? 0.25 : 0.8;

@@ -100,6 +100,15 @@ function calcStructure(p) {
   const nJ = Math.ceil(W / (sp / 12)) + 1;
   let railLen = W + D * 2; if (attachment === "freestanding") railLen += W;
   if (p.hasStairs) railLen -= 3;
+
+  // Guard rail system (IRC R312.1.1, R312.1.3)
+  const guardRequired = H * 12 > 30;
+  const autoGuardHeight = H > 8 ? 42 : 36;
+  let guardHeight = autoGuardHeight;
+  if (p.overGuardHeight) {
+    guardHeight = guardRequired ? Math.max(p.overGuardHeight, 36) : p.overGuardHeight;
+  }
+
   const totalPosts = attachment === "ledger" ? nP : nP * 2;
   let stairs = null;
   if (p.hasStairs && H > 0.5) {
@@ -150,8 +159,8 @@ function calcStructure(p) {
 // warnings.push(`  Fewer posts (${p.overPostCount}) than recommended (${autoNP}). May not meet code.`);
   }
 
-  return { W, D, H, area, lotArea, LL, DL, TL, joistSize, sp, jSpan: +jSpan.toFixed(1), nJ, beamSize, bSpan: +bSpan.toFixed(1), postSize, nP, totalPosts, pp, postHeights, fDiam, fDepth, nF: totalPosts, ledgerSize: joistSize, railLen: +railLen.toFixed(1), midSpanBlocking, blockingCount, stairs, warnings, attachment,
-    auto: { joist: autoJoist, beam: autoBeam, postSize: autoPostSize, postCount: autoNP, footing: autoFDiam }
+  return { W, D, H, area, lotArea, LL, DL, TL, joistSize, sp, jSpan: +jSpan.toFixed(1), nJ, beamSize, bSpan: +bSpan.toFixed(1), postSize, nP, totalPosts, pp, postHeights, fDiam, fDepth, nF: totalPosts, ledgerSize: joistSize, railLen: +railLen.toFixed(1), guardRequired, guardHeight, midSpanBlocking, blockingCount, stairs, warnings, attachment,
+    auto: { joist: autoJoist, beam: autoBeam, postSize: autoPostSize, postCount: autoNP, footing: autoFDiam, guardHeight: autoGuardHeight }
   };
 }
 

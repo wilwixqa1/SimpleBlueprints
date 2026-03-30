@@ -148,6 +148,21 @@ def calculate_structure(params):
     if params.get("hasStairs"):
         rail_length -= 3
 
+    # Guard rail system (IRC R312.1.1, R312.1.3)
+    # Guards required when walking surface > 30" above adjacent grade
+    guard_required = height * 12 > 30
+    # Auto height: 36" standard (IRC R312.1.3), 42" for elevated decks
+    # Many jurisdictions require 42" for decks significantly above grade
+    auto_guard_height = 42 if height > 8 else 36
+    # Accept user override, but never below the IRC minimum when required
+    override_guard = params.get("overGuardHeight")
+    if override_guard and guard_required:
+        guard_height = max(override_guard, 36)  # IRC floor
+    elif override_guard:
+        guard_height = override_guard
+    else:
+        guard_height = auto_guard_height
+
     stair_info = None
     if params.get("hasStairs") and height > 0.5:
         stair_width = params.get("stairWidth", 4)
@@ -198,13 +213,14 @@ def calculate_structure(params):
         "post_heights": post_heights,
         "footing_diam": footing_diam, "footing_depth": footing_depth,
         "num_footings": total_posts, "ledger_size": ledger_size,
-        "rail_length": round(rail_length, 1), "rail_height": 36,
+        "rail_length": round(rail_length, 1), "rail_height": guard_height,
+        "guard_required": guard_required, "auto_guard_height": auto_guard_height,
         "mid_span_blocking": mid_span_blocking, "blocking_count": blocking_count,
         "stairs": stair_info, "warnings": warnings,
         "joist_hangers_for_beam": joist_hangers_for_beam,
         "auto": {
             "joist": auto_joist, "beam": auto_beam,
             "post_size": auto_post_size, "post_count": auto_np,
-            "footing": auto_footing,
+            "footing": auto_footing, "guard_height": auto_guard_height,
         }
     }

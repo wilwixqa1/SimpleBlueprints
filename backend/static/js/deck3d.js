@@ -371,7 +371,7 @@ window.buildDeckScene = function(scene, p, c, THREE) {
   });
 
 // S20: Railing   from exposed edges (multi-zone) or hardcoded (single-zone)
-  var rH = 3, trY = H + bdH + rH, brY = H + bdH + 0.25;
+  var rH = (c.guardHeight || 36) / 12, trY = H + bdH + rH, brY = H + bdH + 0.25;
   var railTopW = 0.18, railBotW = 0.12, balW = 0.07, balSp = 0.5, postW = 0.3;
   var railZStart = isLedger ? cz + 0.3 : cz;
 
@@ -700,7 +700,7 @@ window.buildDeckScene = function(scene, p, c, THREE) {
           if (eLen < 0.1) return;
           var emx = (ex1 + ex2) / 2, emz = (ez1 + ez2) / 2;
           var isHEdge = Math.abs(edz) < 0.01;
-          var lrH = 3.0;
+          var lrH = (c.guardHeight || 36) / 12;
 
           var lTopG = isHEdge ? new THREE.BoxGeometry(eLen, 0.15, 0.15) : new THREE.BoxGeometry(0.15, 0.15, eLen);
           var lTopM = new THREE.Mesh(lTopG, mats.rail);

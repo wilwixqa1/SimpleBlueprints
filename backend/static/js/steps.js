@@ -3214,6 +3214,24 @@ function StepContent(props) {
     <div data-section="materials">
     <Chips label="Decking" field="deckingType" opts={[["composite", "Composite (Trex)"], ["pt_lumber", "Pressure Treated"]]} u={u} p={p} />
     <Chips label="Railing" field="railType" opts={[["fortress", "Fortress Iron"], ["wood", "Wood"]]} u={u} p={p} />
+    {/* S58: Guard height with auto/manual toggle */}
+    {(() => { const isOver = !!p.overGuardHeight; const val = isOver ? p.overGuardHeight : c.auto.guardHeight; const req = c.guardRequired; return (
+      <div style={{ marginTop: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+          <span style={{ fontSize: 10, fontWeight: 700, color: _br.tx, fontFamily: _mono }}>Guard Height</span>
+          <button onClick={() => u("overGuardHeight", isOver ? null : c.auto.guardHeight)} style={{ fontSize: 8, fontFamily: _mono, padding: "2px 8px", borderRadius: 3, cursor: "pointer", border: `1px solid ${isOver ? _br.ac : _br.bd}`, background: isOver ? "#fef9e7" : "#fff", color: isOver ? _br.ac : _br.mu, fontWeight: 700 }}>{isOver ? "MANUAL \u270E" : "AUTO \u2713"}</button>
+        </div>
+        <div style={{ display: "flex", gap: 4 }}>
+          {[36, 42].map(h =>
+            <button key={h} onClick={() => isOver && u("overGuardHeight", h)} style={{ flex: 1, padding: "6px 4px", fontSize: 11, fontFamily: _mono, cursor: isOver ? "pointer" : "default", border: val === h ? `2px solid ${isOver ? _br.ac : _br.gn}` : `1px solid ${_br.bd}`, background: val === h ? (isOver ? "#fef9e7" : "#edf5e8") : (isOver ? "#fff" : "#fafafa"), color: val === h ? (isOver ? _br.ac : _br.gn) : (isOver ? _br.tx : "#ccc"), borderRadius: 5, fontWeight: val === h ? 700 : 400, opacity: isOver ? 1 : 0.7, textAlign: "center" }}>
+              {h}"
+            </button>
+          )}
+        </div>
+        {req && <div style={{ fontSize: 9, color: _br.mu, marginTop: 4, fontStyle: "italic", fontFamily: _mono }}>Guards required (deck &gt;30" above grade). {c.H > 8 ? "42\" recommended for elevated decks." : "36\" is IRC minimum."}</div>}
+        {!req && <div style={{ fontSize: 9, color: _br.mu, marginTop: 4, fontStyle: "italic", fontFamily: _mono }}>Deck is 30" or less above grade. Guards optional but recommended.</div>}
+      </div>
+    ); })()}
     </div>
     <div data-section="costBreakdown" style={{ marginTop: 16, padding: 14, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}` }}>
       <div style={{ fontSize: 10, fontWeight: 700, color: _br.gn, marginBottom: 6, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>Cost Breakdown</div>
@@ -3292,7 +3310,7 @@ function StepContent(props) {
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10, marginBottom: 14 }}>
       <div style={{ padding: 12, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}` }}>
         <div style={{ fontSize: 9, fontWeight: 700, color: _br.gn, marginBottom: 6, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>Project</div>
-        <Spec l="Size" v={`${fmtFtIn(c.W)}\u00D7${fmtFtIn(c.D)} (${zc ? zc.totalArea : c.area} SF)`} /><Spec l="Height" v={fmtFtIn(c.H)} /><Spec l="Attach" v={c.attachment === "ledger" ? "Ledger" : "Free"} /><Spec l="Stairs" v={p.hasStairs ? `${p.stairLocation} ${fmtFtIn(p.stairWidth || 4)} \u00B7 ${p.numStringers || 3} stringers${p.hasLanding ? " \u00B7 landing" : ""}` : "None"} /><Spec l="Deck" v={p.deckingType === "composite" ? "Composite" : "PT"} /><Spec l="Rail" v={p.railType === "fortress" ? "Fortress" : "Wood"} />
+        <Spec l="Size" v={`${fmtFtIn(c.W)}\u00D7${fmtFtIn(c.D)} (${zc ? zc.totalArea : c.area} SF)`} /><Spec l="Height" v={fmtFtIn(c.H)} /><Spec l="Attach" v={c.attachment === "ledger" ? "Ledger" : "Free"} /><Spec l="Stairs" v={p.hasStairs ? `${p.stairLocation} ${fmtFtIn(p.stairWidth || 4)} \u00B7 ${p.numStringers || 3} stringers${p.hasLanding ? " \u00B7 landing" : ""}` : "None"} /><Spec l="Deck" v={p.deckingType === "composite" ? "Composite" : "PT"} /><Spec l="Rail" v={`${p.railType === "fortress" ? "Fortress" : "Wood"} \u00B7 ${c.guardHeight || 36}"`} />
       </div>
       <div style={{ padding: 12, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}` }}>
         <div style={{ fontSize: 9, fontWeight: 700, color: _br.gn, marginBottom: 6, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>Structure</div>
