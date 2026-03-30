@@ -649,30 +649,6 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
                          angle=params.get("northAngle", 0) or 0)
         draw_scale_bar(ax, bbox["x"], -house_depth - margin_y * 0.35)
 
-        # S61: Engineering required stamp on framing plan
-        if is_framing and calc.get("engineering_required"):
-            _stamp_x = W / 2
-            _stamp_y = D / 2 + 1.5
-            _stamp_w = min(W * 0.85, 16)
-            _stamp_h = 3.2
-            ax.add_patch(patches.FancyBboxPatch(
-                (_stamp_x - _stamp_w / 2, _stamp_y - _stamp_h / 2),
-                _stamp_w, _stamp_h,
-                boxstyle='round,pad=0.3',
-                fc='#fef2f2', ec='#dc2626', lw=2.5, zorder=20, alpha=0.95))
-            ax.text(_stamp_x, _stamp_y + 0.5,
-                    'ENGINEERING REVIEW REQUIRED',
-                    ha='center', va='center', fontsize=9, fontweight='bold',
-                    color='#dc2626', fontfamily='monospace', zorder=21)
-            ax.text(_stamp_x, _stamp_y - 0.5,
-                    f'JOIST SPAN ({calc["joist_span"]:.1f}\') EXCEEDS IRC R507.6',
-                    ha='center', va='center', fontsize=6, fontweight='bold',
-                    color='#991b1b', fontfamily='monospace', zorder=21)
-            ax.text(_stamp_x, _stamp_y - 1.1,
-                    'INTERMEDIATE BEAM REQUIRED - SUBMIT WITH ENGINEER STAMP',
-                    ha='center', va='center', fontsize=5,
-                    color='#991b1b', fontfamily='monospace', zorder=21)
-
 # ============================================================
 # TEST: Generate 3 configs
 # ============================================================
