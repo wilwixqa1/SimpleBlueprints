@@ -252,3 +252,24 @@ def draw_cover_sheet(fig, params, calc, project_info=None, cover_image_b64=None,
                 cs.get("stamp_line", ""),
                 fontsize=3.5, fontfamily='monospace',
                 color=BRAND["dark"], ha='center', wrap=True)
+
+    # S61: Engineering required stamp on cover sheet
+    if calc.get("engineering_required"):
+        _eng_y = 4.5
+        _eng_x = idx_x
+        ax.add_patch(patches.FancyBboxPatch(
+            (_eng_x + 0.5, _eng_y), idx_w - 1, 3,
+            boxstyle='round,pad=0.2',
+            fc='#fef2f2', ec='#dc2626', lw=1.5, zorder=20))
+        ax.text(_eng_x + idx_w / 2, _eng_y + 2,
+                'ENGINEERING REVIEW',
+                fontsize=5, fontweight='bold', fontfamily='monospace',
+                color='#dc2626', ha='center', zorder=21)
+        ax.text(_eng_x + idx_w / 2, _eng_y + 1,
+                'REQUIRED',
+                fontsize=5, fontweight='bold', fontfamily='monospace',
+                color='#dc2626', ha='center', zorder=21)
+        ax.text(_eng_x + idx_w / 2, _eng_y + 0.2,
+                'JOIST SPAN EXCEEDS IRC R507.6',
+                fontsize=3.5, fontfamily='monospace',
+                color='#991b1b', ha='center', zorder=21)
