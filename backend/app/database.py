@@ -16,6 +16,31 @@ DATABASE_URL = os.getenv("DATABASE_URL", "")
 SB_PHASE = os.getenv("SB_PHASE", "testing")  # testing | beta | production
 
 # ============================================================
+# BOT DETECTION (module-level, shared by get_tracking_stats and get_stats)
+# ============================================================
+BOT_PATTERN = (
+    "%%(bot|crawl|spider|slurp|bingpreview|facebookexternalhit"
+    "|semrush|ahref|bytespider|gptbot|claudebot|petalbot|yandex"
+    "|baidu|duckduckbot|ia_archiver|mj12bot|dotbot|rogerbot"
+    "|dataforseo|blexbot|seznambot|megaindex"
+    "|go-http-client|python-requests|curl/|wget/|scrapy"
+    "|headless|phantom|puppeteer"
+    "|palo alto|nessus|qualys|nikto|nmap|zgrab|masscan"
+    "|req/|httpx/|axios/|node-fetch|undici|okhttp|java/"
+    "|dalvik/|nexus 5 build|mra58n"
+    "|trident/|msie "
+    ")%%"
+)
+BOT_EXTRA_SQL = (
+    " OR LENGTH(TRIM(user_agent)) < 15"
+    " OR user_agent = 'Mozilla/5.0'"
+    " OR LOWER(user_agent) ~ 'chrome/[1-9]\\.'"
+    " OR LOWER(user_agent) ~ 'chrome/1[0-9]\\.'"
+)
+IS_BOT_SQL = f"(LOWER(user_agent) SIMILAR TO '{BOT_PATTERN}'{BOT_EXTRA_SQL})"
+NOT_BOT_SQL = f"(NOT {IS_BOT_SQL})"
+
+# ============================================================
 # CONNECTION POOL (S55)
 # ============================================================
 # minconn=2: keep 2 connections warm at all times
@@ -513,34 +538,6 @@ def get_tracking_stats(days: int = 30) -> dict:
     with get_db() as conn:
         cur = conn.cursor(cursor_factory=RealDictCursor)
         cutoff = f"NOW() - INTERVAL '{days} days'"
-
-        # Bot detection pattern (single source of truth)
-        # Covers: known bots, scrapers, security scanners, HTTP libraries,
-        # ancient browsers (IE/Trident), headless defaults, bare UAs
-        BOT_PATTERN = (
-            "%%(bot|crawl|spider|slurp|bingpreview|facebookexternalhit"
-            "|semrush|ahref|bytespider|gptbot|claudebot|petalbot|yandex"
-            "|baidu|duckduckbot|ia_archiver|mj12bot|dotbot|rogerbot"
-            "|dataforseo|blexbot|seznambot|megaindex"
-            "|go-http-client|python-requests|curl/|wget/|scrapy"
-            "|headless|phantom|puppeteer"
-            "|palo alto|nessus|qualys|nikto|nmap|zgrab|masscan"
-            "|req/|httpx/|axios/|node-fetch|undici|okhttp|java/"
-            "|dalvik/|nexus 5 build|mra58n"
-            "|trident/|msie "
-            ")%%"
-        )
-        # Additional checks using POSIX regex (~) for version patterns,
-        # simple SQL for length/exact match. ~ works fine in f-strings (no % chars).
-        # SIMILAR TO doesn't support character classes like [0-9], so we use ~ here.
-        BOT_EXTRA_SQL = (
-            " OR LENGTH(TRIM(user_agent)) < 15"
-            " OR user_agent = 'Mozilla/5.0'"
-            " OR LOWER(user_agent) ~ 'chrome/[1-9]\\.'"
-            " OR LOWER(user_agent) ~ 'chrome/1[0-9]\\.'"
-        )
-        IS_BOT_SQL = f"(LOWER(user_agent) SIMILAR TO '{BOT_PATTERN}'{BOT_EXTRA_SQL})"
-        NOT_BOT_SQL = f"(NOT {IS_BOT_SQL})"
 
         # --- FUNNEL COUNTS ---
         funnel_types = [
