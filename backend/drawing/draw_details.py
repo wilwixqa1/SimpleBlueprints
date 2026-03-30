@@ -16,7 +16,7 @@ from .calc_engine import calculate_structure
 from .draw_plan import BRAND, draw_dimension_h, draw_dimension_v, format_feet_inches
 
 
-def draw_ledger_detail(ax, params, calc):
+def draw_ledger_detail(ax, params, calc, spec=None):
     """Ledger-to-house connection cross section"""
     ax.set_xlim(-3, 16)
     ax.set_ylim(-4, 13)  # S57: increased from 12 to prevent title clipping
@@ -27,6 +27,10 @@ def draw_ledger_detail(ax, params, calc):
     ax.text(-2, 11, 'LEDGER DETAIL', fontsize=9, fontweight='bold',
             fontfamily='monospace', color=BRAND["dark"])
     ax.text(-2, 10, 'NOT TO SCALE', fontsize=5, fontfamily='monospace', color=BRAND["mute"])
+
+    ledger_size = spec["ledger"]["size"] if spec else calc["ledger_size"]
+    joist_size = spec["joists"]["size"] if spec else calc["joist_size"]
+    joist_hanger_model = spec["hardware"]["joist_hanger"]["model"] if spec else "JOIST HANGER"
 
     # House wall section
     ax.add_patch(patches.Rectangle((0, -2), 2, 12, fc=BRAND["house"], ec=BRAND["dark"], lw=1.2))
@@ -45,7 +49,7 @@ def draw_ledger_detail(ax, params, calc):
 
     # Ledger board
     ax.add_patch(patches.Rectangle((4, 1.5), 1.2, 7, fc=BRAND["post"], ec=BRAND["dark"], lw=1))
-    ax.text(8.5, 5, f'{calc["ledger_size"]} PT\nLEDGER', fontsize=5, fontweight='bold', color=BRAND["dark"])
+    ax.text(8.5, 5, f'{ledger_size} PT\nLEDGER', fontsize=5, fontweight='bold', color=BRAND["dark"])
     ax.annotate('', xy=(5.2, 5), xytext=(8.3, 5),
                 arrowprops=dict(arrowstyle='->', color=BRAND["dark"], lw=0.5))
 
@@ -55,11 +59,13 @@ def draw_ledger_detail(ax, params, calc):
         ax.plot([2, 5.2], [by, by], color=BRAND["red"], lw=1.5)
         ax.plot(2.5, by, 'o', ms=3, color=BRAND["red"])
         ax.plot(5.2, by, 'o', ms=3, color=BRAND["red"])
-    ax.text(8.5, 3, '(2) 5" LEDGER\nLOCKS @ 16" O.C.', fontsize=4.5, fontweight='bold', color=BRAND["red"])
+    _fastener = spec["hardware"]["ledger_fastener"] if spec else {"size": '5"', "spacing": 16}
+    ax.text(8.5, 3, f'(2) {_fastener["size"]} LEDGER\nLOCKS @ {_fastener["spacing"]}" O.C.',
+            fontsize=4.5, fontweight='bold', color=BRAND["red"])
 
     # Joist
     ax.add_patch(patches.Rectangle((5.2, 1.8), 0.8, 6.4, fc=BRAND["wood"], ec=BRAND["dark"], lw=0.6))
-    ax.text(8.5, 7.5, f'{calc["joist_size"]} JOIST', fontsize=4.5, color=BRAND["dark"])
+    ax.text(8.5, 7.5, f'{joist_size} JOIST', fontsize=4.5, color=BRAND["dark"])
     ax.annotate('', xy=(6, 7.5), xytext=(8.3, 7.5),
                 arrowprops=dict(arrowstyle='->', color=BRAND["dark"], lw=0.5))
 
@@ -73,14 +79,14 @@ def draw_ledger_detail(ax, params, calc):
 
     # Joist hanger
     ax.plot([5.2, 5.2, 6, 6], [2, 1.5, 1.5, 2], color='#888', lw=1.5)
-    ax.text(5.4, 0.8, 'JOIST HANGER', fontsize=3.5, color=BRAND["mute"])
+    ax.text(5.4, 0.8, f"SIMPSON '{joist_hanger_model}'", fontsize=3.5, color=BRAND["mute"])
 
     # Joist tape
     ax.add_patch(patches.Rectangle((5.2, 8.2), 0.8, 0.3, fc='#555', ec=BRAND["dark"], lw=0.3))
     ax.text(8.5, 8.2, 'JOIST TAPE', fontsize=3.5, color=BRAND["mute"])
 
 
-def draw_footing_detail(ax, params, calc):
+def draw_footing_detail(ax, params, calc, spec=None):
     """Concrete pier footing cross section"""
     ax.set_xlim(-3, 16)
     ax.set_ylim(-9, 10)
@@ -91,6 +97,11 @@ def draw_footing_detail(ax, params, calc):
     ax.text(-2, 9, 'FOOTING DETAIL', fontsize=9, fontweight='bold',
             fontfamily='monospace', color=BRAND["dark"])
     ax.text(-2, 8, 'NOT TO SCALE', fontsize=5, fontfamily='monospace', color=BRAND["mute"])
+
+    post_size = spec["posts"]["size"] if spec else calc["post_size"]
+    footing_diam = spec["footings"]["diameter"] if spec else calc["footing_diam"]
+    footing_depth = spec["footings"]["depth"] if spec else calc["footing_depth"]
+    post_base_model = spec["hardware"]["post_base"]["model"] if spec else ("ABU66Z" if post_size == "6x6" else "ABU44Z")
 
     # Ground
     ax.plot([-2, 14], [0, 0], color=BRAND["dark"], lw=1)
@@ -109,7 +120,7 @@ def draw_footing_detail(ax, params, calc):
                  fc=BRAND["concrete"], ec=BRAND["mute"], lw=0.8, ls='--'))
 
     ax.text(3 + pier_width / 2, -pier_visual_depth / 2,
-            f'{calc["footing_diam"]}" DIA.\nCONCRETE\nPIER', ha='center', fontsize=5, color='#555')
+            f'{footing_diam}" DIA.\nCONCRETE\nPIER', ha='center', fontsize=5, color='#555')
 
     # Grade label
     ax.text(11, 0.3, 'GRADE', fontsize=4.5, color=BRAND["dark"])
@@ -122,14 +133,13 @@ def draw_footing_detail(ax, params, calc):
     # Post base hardware
     ax.add_patch(patches.Rectangle((3.5, 0), pier_width - 1, 0.5,
                  fc='#888', ec=BRAND["dark"], lw=0.8))
-    post_base_name = "ABU66Z" if calc["post_size"] == "6x6" else "ABU44Z"
-    ax.text(10, 1.2, f"SIMPSON '{post_base_name}'\nPOST BASE", fontsize=4.5, color=BRAND["dark"])
+    ax.text(10, 1.2, f"SIMPSON '{post_base_model}'\nPOST BASE", fontsize=4.5, color=BRAND["dark"])
 
     # Post
-    post_visual_w = 2.2 if calc["post_size"] == "6x6" else 1.5
+    post_visual_w = 2.2 if post_size == "6x6" else 1.5
     ax.add_patch(patches.Rectangle((3 + (pier_width - post_visual_w) / 2, 0.5),
                  post_visual_w, 6, fc=BRAND["post"], ec=BRAND["dark"], lw=1))
-    ax.text(10, 4.5, f'{calc["post_size"]} PT POST', fontsize=5, fontweight='bold', color=BRAND["dark"])
+    ax.text(10, 4.5, f'{post_size} PT POST', fontsize=5, fontweight='bold', color=BRAND["dark"])
 
     # Rebar (subtle, not the visual focus)
     ax.plot([4, 4], [-pier_visual_depth + 0.5, 0], color='#b04040', lw=0.5, ls='--')
@@ -143,12 +153,12 @@ def draw_footing_detail(ax, params, calc):
 
     # Dimensions
     draw_dimension_v(ax, 1.5, -pier_visual_depth, 0,
-                     f'{calc["footing_depth"]}" MIN.', offset=-2, color=BRAND["blue"], fontsize=5)
+                     f'{footing_depth}" MIN.', offset=-2, color=BRAND["blue"], fontsize=5)
     draw_dimension_h(ax, 3, 3 + pier_width, -pier_visual_depth,
-                     f'{calc["footing_diam"]}" DIA.', offset=-2, color=BRAND["red"], fontsize=5)
+                     f'{footing_diam}" DIA.', offset=-2, color=BRAND["red"], fontsize=5)
 
 
-def draw_guard_rail_detail(ax, params, calc):
+def draw_guard_rail_detail(ax, params, calc, spec=None):
     """Guard rail cross section / front view"""
     ax.set_xlim(-2, 18)
     ax.set_ylim(-2, 10)
@@ -159,6 +169,8 @@ def draw_guard_rail_detail(ax, params, calc):
     ax.text(-1, 9, 'GUARD RAIL DETAIL', fontsize=9, fontweight='bold',
             fontfamily='monospace', color=BRAND["dark"])
     ax.text(-1, 8.2, 'NOT TO SCALE', fontsize=5, fontfamily='monospace', color=BRAND["mute"])
+
+    rail_height = spec["guardrail"]["height"] if spec else calc.get("rail_height", 36)
 
     rail_visual_h = 6.0  # visual rail height
 
@@ -195,7 +207,7 @@ def draw_guard_rail_detail(ax, params, calc):
 
     # Dimensions
     draw_dimension_v(ax, -0.5, 0, rail_visual_h + 0.4,
-                     f'{calc["rail_height"]}" MIN.', offset=-1.5, color=BRAND["red"], fontsize=5)
+                     f'{rail_height}" MIN.', offset=-1.5, color=BRAND["red"], fontsize=5)
 
     # 4" sphere test
     sphere_r = 0.35
@@ -209,7 +221,7 @@ def draw_guard_rail_detail(ax, params, calc):
             fontsize=4, color=BRAND["red"])
 
 
-def draw_post_beam_detail(ax, params, calc):
+def draw_post_beam_detail(ax, params, calc, spec=None):
     """Post cap to beam connection detail"""
     ax.set_xlim(-2, 16)
     ax.set_ylim(-3, 10)
@@ -221,23 +233,28 @@ def draw_post_beam_detail(ax, params, calc):
             fontfamily='monospace', color=BRAND["dark"])
     ax.text(-1, 8.2, 'NOT TO SCALE', fontsize=5, fontfamily='monospace', color=BRAND["mute"])
 
+    post_size = spec["posts"]["size"] if spec else calc["post_size"]
+    beam_size = spec["beam"]["size"] if spec else calc["beam_size"]
+    joist_size = spec["joists"]["size"] if spec else calc["joist_size"]
+    cap_model = spec["hardware"]["post_cap"]["model"] if spec else ("BCS2-3/6" if post_size == "6x6" else "BC4")
+    is_lvl = spec["beam"]["is_lvl"] if spec else ("LVL" in beam_size)
+
     # Post
-    post_w = 2.2 if calc["post_size"] == "6x6" else 1.5
+    post_w = 2.2 if post_size == "6x6" else 1.5
     ax.add_patch(patches.Rectangle((3, -2), post_w, 6,
                  fc=BRAND["post"], ec=BRAND["dark"], lw=1))
-    ax.text(9, 0.5, f'{calc["post_size"]} PT POST', fontsize=5, fontweight='bold', color=BRAND["dark"])
+    ax.text(9, 0.5, f'{post_size} PT POST', fontsize=5, fontweight='bold', color=BRAND["dark"])
 
     # Post cap
     ax.add_patch(patches.Rectangle((2.5, 4), post_w + 1, 0.5,
                  fc='#888', ec=BRAND["dark"], lw=0.8))
-    cap_name = "BCS2-3/6" if calc["post_size"] == "6x6" else "BC4"
-    ax.text(9, 4, f"SIMPSON '{cap_name}'\nPOST CAP", fontsize=4.5, color=BRAND["dark"])
+    ax.text(9, 4, f"SIMPSON '{cap_model}'\nPOST CAP", fontsize=4.5, color=BRAND["dark"])
 
     # Beam
     beam_y = 4.5
     beam_visual_w = 7
 
-    plies = 3 if "3-ply" in calc["beam_size"] else 2
+    plies = 3 if "3-ply" in beam_size else 2
     ax.add_patch(patches.Rectangle((1, beam_y), beam_visual_w, 2.5,
                  fc=BRAND["beam"], ec=BRAND["dark"], lw=1))
 
@@ -246,11 +263,10 @@ def draw_post_beam_detail(ax, params, calc):
         px = 1 + p * ply_spacing
         ax.plot([px, px], [beam_y, beam_y + 2.5], color='#9a8030', lw=0.5)
 
-    is_lvl = "LVL" in calc["beam_size"]
     if is_lvl:
         beam_label = f'({plies}) 1-3/4" x 11-7/8"\n2.0E LVL EXT. GRADE'
     else:
-        beam_lumber = calc["beam_size"].split(" ", 1)[1] if " " in calc["beam_size"] else calc["beam_size"]
+        beam_lumber = beam_size.split(" ", 1)[1] if " " in beam_size else beam_size
         beam_label = f'({plies}) {beam_lumber}\nPT BEAM'
 
     ax.text(9, 5.5, beam_label, fontsize=4.5, fontweight='bold', color=BRAND["dark"])
@@ -258,7 +274,7 @@ def draw_post_beam_detail(ax, params, calc):
     # Joist on top
     ax.add_patch(patches.Rectangle((0.5, 7), 8, 0.8,
                  fc=BRAND["wood"], ec=BRAND["dark"], lw=0.6))
-    ax.text(9, 7.2, f'{calc["joist_size"]} DECK JOIST', fontsize=4.5, color=BRAND["dark"])
+    ax.text(9, 7.2, f'{joist_size} DECK JOIST', fontsize=4.5, color=BRAND["dark"])
 
     # Through bolts
     for by in [5, 5.8, 6.5]:
@@ -274,14 +290,17 @@ def draw_post_beam_detail(ax, params, calc):
 # ============================================================
 def draw_details_sheet(fig, params, calc, spec=None):
     """Draw all 4 detail views on one sheet"""
+    if spec is None:
+        from .permit_spec import build_permit_spec
+        spec = build_permit_spec(params, calc)
 
     axes = fig.subplots(2, 2)
     fig.subplots_adjust(left=0.04, right=0.84, top=0.93, bottom=0.06, hspace=0.3, wspace=0.15)
 
-    draw_ledger_detail(axes[0, 0], params, calc)
-    draw_footing_detail(axes[0, 1], params, calc)
-    draw_guard_rail_detail(axes[1, 0], params, calc)
-    draw_post_beam_detail(axes[1, 1], params, calc)
+    draw_ledger_detail(axes[0, 0], params, calc, spec)
+    draw_footing_detail(axes[0, 1], params, calc, spec)
+    draw_guard_rail_detail(axes[1, 0], params, calc, spec)
+    draw_post_beam_detail(axes[1, 1], params, calc, spec)
 
     # Construction notes at bottom
     fig.text(0.05, 0.03,

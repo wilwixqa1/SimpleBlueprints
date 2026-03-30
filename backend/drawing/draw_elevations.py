@@ -1022,10 +1022,14 @@ def draw_side_elevation(ax, params, calc, direction="east", compact=False, spec=
         _lbl_post = min(H * 0.4, _lbl_beam - _min_gap)
         _lbl_pier = min(-0.5, _lbl_post - _min_gap)
 
-        ax.text(lbl_x, _lbl_rail, f'{calc["rail_height"]}" RAIL', **lbl_kw)
-        ax.text(lbl_x, _lbl_beam, f'{calc["beam_size"].upper()}', **lbl_kw)
-        ax.text(lbl_x, _lbl_post, f'{calc["post_size"]} POST', **lbl_kw)
-        ax.text(lbl_x, _lbl_pier, f'{calc["footing_diam"]}" DIA. PIER', **lbl_kw)
+        ax.text(lbl_x, _lbl_rail,
+                spec["labels"]["guardrail"] if spec else f'{calc["rail_height"]}" RAIL', **lbl_kw)
+        ax.text(lbl_x, _lbl_beam,
+                spec["labels"]["beam"] if spec else f'{calc["beam_size"].upper()}', **lbl_kw)
+        ax.text(lbl_x, _lbl_post,
+                f'{calc["post_size"]} POST', **lbl_kw)
+        ax.text(lbl_x, _lbl_pier,
+                f'{calc["footing_diam"]}" DIA. PIER', **lbl_kw)
 
         dim_x = deck_start_x + D + max(0.5, stair_ext + 0.5)
         draw_dimension_v(ax, dim_x, ground_y, deck_top,
