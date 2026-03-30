@@ -32,7 +32,7 @@ def format_feet_inches(feet):
         return f"{ft}'-{inches:.0f}\""
 
 
-def draw_cover_sheet(fig, params, calc, project_info=None, cover_image_b64=None):
+def draw_cover_sheet(fig, params, calc, project_info=None, cover_image_b64=None, compliance_summary=None):
     """Draw Sheet A-0: Cover page with 3D rendering and project details."""
     pi = project_info or {}
     if isinstance(pi, str):
@@ -225,3 +225,21 @@ def draw_cover_sheet(fig, params, calc, project_info=None, cover_image_b64=None)
         ax.text(idx_x + 5, dy, title, fontsize=label_fs, fontfamily='monospace',
                 color=BRAND["dark"])
         dy -= row_h
+
+    # S58: Compliance summary stamp
+    if compliance_summary:
+        cs = compliance_summary
+        stamp_y = 7.5
+        # Divider line
+        ax.plot([idx_x + 1, idx_x + idx_w - 1], [stamp_y + 2, stamp_y + 2],
+                color=BRAND["border"], lw=0.5)
+        # Status icon
+        status_color = BRAND["green"] if cs["overall_status"] == "ready" else (
+            "#e65100" if cs["overall_status"] == "warnings" else BRAND["red"])
+        ax.text(idx_x + idx_w / 2, stamp_y + 1.2, "COMPLIANCE CHECK",
+                fontsize=4.5, fontweight='bold', fontfamily='monospace',
+                color=status_color, ha='center')
+        ax.text(idx_x + idx_w / 2, stamp_y,
+                cs.get("stamp_line", ""),
+                fontsize=3.5, fontfamily='monospace',
+                color=BRAND["dark"], ha='center', wrap=True)

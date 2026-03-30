@@ -207,7 +207,8 @@ def generate_blueprint_pdf(params: dict) -> tuple:
 
     with PdfPages(str(permit_path)) as pdf:
         fig0 = plt.figure(figsize=(14, 8.5)); fig0.set_facecolor('white')
-        draw_cover_sheet(fig0, params, calc, pi, cover_img)
+        _compliance = get_compliance_summary(permit_report)
+        draw_cover_sheet(fig0, params, calc, pi, cover_img, compliance_summary=_compliance)
         pdf.savefig(fig0, dpi=200); plt.close(fig0)
 
         for sheet_num, sheet_name, draw_fn in permit_sheets:
@@ -1348,6 +1349,30 @@ Describe what you see FIRST in your response text (so the description stays in c
     return StreamingResponse(generate(), media_type="text/event-stream")
 
 
+# S58: Pre-generation permit readiness check
+@app.post("/api/check-permit")
+async def check_permit(request: Request):
+    """Run permit checks without generating PDF. Fast (~50ms)."""
+    try:
+        body = await request.body()
+        params = DeckParams(**json.loads(body))
+    except (json.JSONDecodeError, Exception) as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    p = params.dict()
+    # Run the same clamps as generate_blueprint_pdf
+    p["width"] = max(8, min(50, p.get("width", 20)))
+    p["depth"] = max(6, min(24, p.get("depth", 12)))
+    p["height"] = max(1, min(14, p.get("height", 4)))
+    calc = calculate_structure(p)
+    spec = build_permit_spec(p, calc)
+    report = run_checks("deck", p, calc, spec)
+    return {"permit_report": report_to_dict(report), "calc_summary": {
+        "joist_size": calc["joist_size"], "beam_size": calc["beam_size"],
+        "post_size": calc["post_size"], "footing_diam": calc["footing_diam"],
+        "guard_height": calc["rail_height"], "TL": calc["TL"],
+    }}
+
+
 @app.post("/api/generate-test")
 async def generate_test(request: Request):
     user_id = get_current_user_id(request)
@@ -1545,6 +1570,35 @@ async def admin_csv(request: Request):
     for u in users:
         csv += f'{u["email"]},{u.get("name","")},{u["email_opt_in"]},{u["created_at"]},{u["last_login"]}\n'
     return Response(content=csv, media_type="text/csv", headers={"Content-Disposition":"attachment; filename=simpleblueprints-users.csv"})
+
+
+# S58: Plan quality matrix endpoint
+@app.get("/admin/api/plan-quality")
+async def admin_plan_quality(request: Request):
+    """Run test matrix and return readiness results for all configurations."""
+    _check_admin(request)
+    from drawing.permit_checker import run_test_matrix, report_to_dict
+    results = run_test_matrix()
+    return {
+        "configs": [
+            {
+                "name": name,
+                "overall_status": report.overall_status,
+                "readiness_pct": report.readiness_pct,
+                "passed": report.passed,
+                "total": report.total_applicable,
+                "failed": report.failed,
+                "warnings": report.warnings,
+                "gaps": len(report.capability_gaps),
+                "failing_checks": [
+                    {"id": c.id, "message": c.message, "severity": c.severity}
+                    for c in report.checks
+                    if c.status in ("fail", "unsupported")
+                ],
+            }
+            for name, report in results
+        ]
+    }
 
 
 # ============================================================

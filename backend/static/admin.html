@@ -398,6 +398,10 @@ function render() {
     html += '</table></div>';
   }
 
+  // ============ SECTION 2b: PLAN QUALITY MATRIX (S58) ============
+  html += '<div class="section-label">Plan Quality Matrix</div>';
+  html += '<div id="plan-quality-section"><button onclick="loadPlanQuality()" style="padding:8px 16px;border:1px solid var(--border);background:#fff;border-radius:6px;cursor:pointer;font-family:\'DM Mono\',monospace;font-size:11px">Run Test Matrix</button><div style="font-size:10px;color:var(--text3);margin-top:6px">Tests 8 deck configurations against IRC compliance checks</div></div>';
+
   // ============ SECTION 3: AI HELPER INTELLIGENCE ============
   html += '<div class="section-label">AI Helper Intelligence</div>';
 
@@ -544,6 +548,47 @@ function render() {
 
 load();
 setInterval(load, 30000);
+
+// S58: Plan Quality Matrix
+async function loadPlanQuality() {
+  var el = document.getElementById('plan-quality-section');
+  el.innerHTML = '<div style="color:var(--text3);font-size:11px">Running 8 configurations...</div>';
+  try {
+    var r = await fetch('/admin/api/plan-quality');
+    var d = await r.json();
+    var html = '<table><tr><th>Configuration</th><th>Status</th><th>Score</th><th>Issues</th></tr>';
+    var statusColors = {ready:'var(--green)',warnings:'var(--orange)',not_ready:'var(--red)',unsupported:'var(--orange)'};
+    var statusLabels = {ready:'READY',warnings:'WARN',not_ready:'FAIL',unsupported:'NOTE'};
+    d.configs.forEach(function(c) {
+      var color = statusColors[c.overall_status] || 'var(--text3)';
+      var label = statusLabels[c.overall_status] || c.overall_status;
+      html += '<tr>';
+      html += '<td style="font-size:11px">'+c.name+'</td>';
+      html += '<td><span class="tag" style="background:'+color+';color:#fff;padding:2px 6px;border-radius:3px;font-size:9px">'+label+'</span></td>';
+      html += '<td style="font-weight:700;color:'+color+'">'+Math.round(c.readiness_pct*100)+'%</td>';
+      html += '<td style="font-size:10px;color:var(--text3)">';
+      if (c.failing_checks.length === 0) {
+        html += 'All '+c.total+' checks passed';
+      } else {
+        c.failing_checks.forEach(function(f) {
+          var fc = f.severity === 'error' ? 'var(--red)' : 'var(--orange)';
+          html += '<div style="color:'+fc+'">'+f.id+': '+f.message+'</div>';
+        });
+      }
+      html += '</td></tr>';
+    });
+    html += '</table>';
+    // Summary bar
+    var okCount = d.configs.filter(function(c){return c.overall_status==='ready'}).length;
+    html += '<div style="margin-top:8px;font-size:11px;color:var(--text2)">'+okCount+'/'+d.configs.length+' configurations pass 100%. ';
+    var failCount = d.configs.filter(function(c){return c.overall_status==='not_ready'}).length;
+    if (failCount > 0) html += '<span style="color:var(--red)">'+failCount+' have structural violations.</span>';
+    html += '</div>';
+    el.innerHTML = '<div class="card" style="max-width:100%"><div class="card-title">Permit Readiness Matrix</div>' + html + '</div>';
+  } catch(e) {
+    el.innerHTML = '<div style="color:var(--red)">Error: '+e.message+'</div>';
+  }
+}
 </script>
 </body>
 </html>
