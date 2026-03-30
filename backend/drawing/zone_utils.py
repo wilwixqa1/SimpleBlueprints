@@ -2,7 +2,84 @@
 SimpleBlueprints -- Zone Utilities (Python port of zoneUtils.js)
 Computes zone rectangles, composite outline, and exposed edges for PDF rendering.
 S21: Plan view only. Framing/elevations remain zone-0 only.
+S61: Chamfer-aware edge computation.
 """
+
+import math
+
+
+def _get_zone_corners(params, zone_id):
+    """Get chamfer corner data for a zone. Returns None if no chamfers."""
+    if zone_id == 0:
+        return params.get("mainCorners")
+    zones = params.get("zones", [])
+    for z in zones:
+        if z.get("id") == zone_id:
+            return z.get("corners")
+    return None
+
+
+def _chamfered_vertices(x, y, w, d, corners):
+    """
+    Convert a rectangle + corner chamfers into polygon vertices.
+    corners: dict with keys BL, BR, FL, FR, each {type, size}.
+    Returns list of (x, y) tuples going CCW from bottom-left.
+    """
+    if not corners:
+        return [(x, y), (x + w, y), (x + w, y + d), (x, y + d)]
+
+    bl = corners.get("BL", {})
+    br = corners.get("BR", {})
+    fr = corners.get("FR", {})
+    fl = corners.get("FL", {})
+
+    bl_s = bl.get("size", 0) if bl.get("type") == "chamfer" else 0
+    br_s = br.get("size", 0) if br.get("type") == "chamfer" else 0
+    fr_s = fr.get("size", 0) if fr.get("type") == "chamfer" else 0
+    fl_s = fl.get("size", 0) if fl.get("type") == "chamfer" else 0
+
+    verts = []
+    if bl_s > 0:
+        verts.append((x, y + bl_s))
+        verts.append((x + bl_s, y))
+    else:
+        verts.append((x, y))
+
+    if br_s > 0:
+        verts.append((x + w - br_s, y))
+        verts.append((x + w, y + br_s))
+    else:
+        verts.append((x + w, y))
+
+    if fr_s > 0:
+        verts.append((x + w, y + d - fr_s))
+        verts.append((x + w - fr_s, y + d))
+    else:
+        verts.append((x + w, y + d))
+
+    if fl_s > 0:
+        verts.append((x + fl_s, y + d))
+        verts.append((x, y + d - fl_s))
+    else:
+        verts.append((x, y + d))
+
+    return verts
+
+
+def _chamfer_perimeter_delta(corners):
+    """Compute the change in perimeter due to chamfers.
+    Each chamfer of size S removes 2S of axis-aligned edge and adds S*sqrt(2) diagonal.
+    Returns a negative number (chamfers shorten perimeter).
+    """
+    if not corners:
+        return 0
+    delta = 0
+    for k in ("BL", "BR", "FL", "FR"):
+        c = corners.get(k, {})
+        if c.get("type") == "chamfer" and c.get("size", 0) > 0:
+            s = c["size"]
+            delta += s * math.sqrt(2) - 2 * s
+    return delta
 
 
 def get_zone_rect(zone, parent_w, parent_d):
@@ -100,28 +177,55 @@ def _subtract_segments(start, end, blockers):
 def get_exposed_edges(params):
     """
     Compute exposed edges that need railing.
-    Returns list of {"x1", "y1", "x2", "y2", "dir": "h"|"v"}.
+    S61: Chamfer-aware. Generates edges from chamfered vertex lists instead of
+    rectangles. Diagonal chamfer edges are always exposed. Axis-aligned edges
+    go through the standard overlap subtraction with neighboring zones.
+
+    Returns list of {"x1", "y1", "x2", "y2", "dir": "h"|"v"|"d"}.
     Excludes house-wall edges (y=0 for ledger) and shared interior edges.
     """
     attachment = params.get("attachment", "ledger")
     add_rects = get_additive_rects(params)
 
+    # Phase 1: Build edges from chamfered vertices for each zone
     all_edges = []
     for ar in add_rects:
         r = ar["rect"]
         rid = ar["id"]
         x, y, w, d = r["x"], r["y"], r["w"], r["d"]
-        all_edges.append({"x1": x, "y1": y, "x2": x + w, "y2": y, "dir": "h", "rid": rid, "edge": "back"})
-        all_edges.append({"x1": x, "y1": y + d, "x2": x + w, "y2": y + d, "dir": "h", "rid": rid, "edge": "front"})
-        all_edges.append({"x1": x, "y1": y, "x2": x, "y2": y + d, "dir": "v", "rid": rid, "edge": "left"})
-        all_edges.append({"x1": x + w, "y1": y, "x2": x + w, "y2": y + d, "dir": "v", "rid": rid, "edge": "right"})
+        corners = _get_zone_corners(params, rid)
+        verts = _chamfered_vertices(x, y, w, d, corners)
 
+        for vi in range(len(verts)):
+            v1 = verts[vi]
+            v2 = verts[(vi + 1) % len(verts)]
+            dx = abs(v1[0] - v2[0])
+            dy = abs(v1[1] - v2[1])
+            if dx < 0.01:
+                edir = "v"
+            elif dy < 0.01:
+                edir = "h"
+            else:
+                edir = "d"
+            all_edges.append({
+                "x1": v1[0], "y1": v1[1], "x2": v2[0], "y2": v2[1],
+                "dir": edir, "rid": rid,
+            })
+
+    # Phase 2: Filter and subtract
     exposed = []
-
     for e in all_edges:
-        if attachment == "ledger" and e["edge"] == "back" and abs(e["y1"]) < 0.01 and e["rid"] == 0:
+        # Skip ledger edge: any horizontal edge at y=0 for zone 0
+        if attachment == "ledger" and e["dir"] == "h" and e["rid"] == 0:
+            if abs(e["y1"]) < 0.01 and abs(e["y2"]) < 0.01:
+                continue
+
+        # Diagonal edges are always exposed (can't be shared with rectangular zones)
+        if e["dir"] == "d":
+            exposed.append({"x1": e["x1"], "y1": e["y1"], "x2": e["x2"], "y2": e["y2"], "dir": "d"})
             continue
 
+        # Axis-aligned edges: subtract overlapping portions from neighboring zones
         blockers = []
         for ar2 in add_rects:
             if ar2["id"] == e["rid"]:
@@ -130,15 +234,21 @@ def get_exposed_edges(params):
             x2, y2, w2, d2 = r2["x"], r2["y"], r2["w"], r2["d"]
 
             if e["dir"] == "h":
+                e_y = e["y1"]
+                e_x_min = min(e["x1"], e["x2"])
+                e_x_max = max(e["x1"], e["x2"])
                 for ry in [y2, y2 + d2]:
-                    if abs(ry - e["y1"]) < 0.01:
-                        overlap = _segments_overlap(e["x1"], e["x2"], x2, x2 + w2)
+                    if abs(ry - e_y) < 0.01:
+                        overlap = _segments_overlap(e_x_min, e_x_max, x2, x2 + w2)
                         if overlap:
                             blockers.append(overlap)
-            else:
+            else:  # "v"
+                e_x = e["x1"]
+                e_y_min = min(e["y1"], e["y2"])
+                e_y_max = max(e["y1"], e["y2"])
                 for rx in [x2, x2 + w2]:
-                    if abs(rx - e["x1"]) < 0.01:
-                        overlap = _segments_overlap(e["y1"], e["y2"], y2, y2 + d2)
+                    if abs(rx - e_x) < 0.01:
+                        overlap = _segments_overlap(e_y_min, e_y_max, y2, y2 + d2)
                         if overlap:
                             blockers.append(overlap)
 
@@ -146,12 +256,16 @@ def get_exposed_edges(params):
             exposed.append({"x1": e["x1"], "y1": e["y1"], "x2": e["x2"], "y2": e["y2"], "dir": e["dir"]})
         else:
             if e["dir"] == "h":
-                segments = _subtract_segments(e["x1"], e["x2"], blockers)
+                e_x_min = min(e["x1"], e["x2"])
+                e_x_max = max(e["x1"], e["x2"])
+                segments = _subtract_segments(e_x_min, e_x_max, blockers)
                 for s_start, s_end in segments:
                     if s_end - s_start > 0.05:
                         exposed.append({"x1": s_start, "y1": e["y1"], "x2": s_end, "y2": e["y2"], "dir": "h"})
             else:
-                segments = _subtract_segments(e["y1"], e["y2"], blockers)
+                e_y_min = min(e["y1"], e["y2"])
+                e_y_max = max(e["y1"], e["y2"])
+                segments = _subtract_segments(e_y_min, e_y_max, blockers)
                 for s_start, s_end in segments:
                     if s_end - s_start > 0.05:
                         exposed.append({"x1": e["x1"], "y1": s_start, "x2": e["x2"], "y2": s_end, "dir": "v"})

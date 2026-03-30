@@ -507,6 +507,21 @@ def calculate_structure(params):
     if params.get("hasStairs"):
         rail_length -= 3
 
+    # S61: Adjust railing length for chamfers
+    # Each chamfer of size S removes 2S of axis-aligned edge and adds S*sqrt(2) diagonal
+    _main_corners = params.get("mainCorners")
+    if _main_corners:
+        for _ck in ("BL", "BR", "FL", "FR"):
+            _cc = _main_corners.get(_ck, {})
+            if _cc.get("type") == "chamfer" and _cc.get("size", 0) > 0:
+                _cs = _cc["size"]
+                # Skip back corners on ledger (BL/BR back edges aren't railing)
+                if attachment == "ledger" and _ck in ("BL", "BR"):
+                    # Only lose depth-side edge portion, gain diagonal
+                    rail_length += _cs * math.sqrt(2) - _cs
+                else:
+                    rail_length += _cs * math.sqrt(2) - 2 * _cs
+
     # Guard rail system (IRC R312.1.1, R312.1.3)
     # Guards required when walking surface > 30" above adjacent grade
     guard_required = height * 12 > 30

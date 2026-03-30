@@ -18,7 +18,7 @@ import math
 # Import our calculation engine
 from .calc_engine import calculate_structure
 from .stair_utils import get_stair_placement, get_stair_exit_side
-from .zone_utils import get_additive_rects, get_cutout_rects, get_exposed_edges, get_bounding_box
+from .zone_utils import get_additive_rects, get_cutout_rects, get_exposed_edges, get_bounding_box, _chamfered_vertices
 
 # ============================================================
 # DRAWING CONSTANTS
@@ -126,59 +126,6 @@ def format_feet_inches(feet):
 BEAM_SETBACK = 1.5  # beam inset from far edge (ft)
 
 
-# S61: Chamfer polygon helper
-def get_chamfered_vertices(x, y, w, d, corners):
-    """
-    Convert a rectangle + corner chamfers into polygon vertices.
-    corners: dict with keys BL, BR, FL, FR, each {type, size}.
-    Returns list of (x, y) tuples going CCW from bottom-left.
-    """
-    if not corners:
-        return [(x, y), (x + w, y), (x + w, y + d), (x, y + d)]
-
-    verts = []
-    # Bottom edge: BL to BR (left to right)
-    bl = corners.get("BL", {})
-    br = corners.get("BR", {})
-    fr = corners.get("FR", {})
-    fl = corners.get("FL", {})
-
-    bl_s = bl.get("size", 0) if bl.get("type") == "chamfer" else 0
-    br_s = br.get("size", 0) if br.get("type") == "chamfer" else 0
-    fr_s = fr.get("size", 0) if fr.get("type") == "chamfer" else 0
-    fl_s = fl.get("size", 0) if fl.get("type") == "chamfer" else 0
-
-    # BL corner
-    if bl_s > 0:
-        verts.append((x, y + bl_s))
-        verts.append((x + bl_s, y))
-    else:
-        verts.append((x, y))
-
-    # BR corner
-    if br_s > 0:
-        verts.append((x + w - br_s, y))
-        verts.append((x + w, y + br_s))
-    else:
-        verts.append((x + w, y))
-
-    # FR corner
-    if fr_s > 0:
-        verts.append((x + w, y + d - fr_s))
-        verts.append((x + w - fr_s, y + d))
-    else:
-        verts.append((x + w, y + d))
-
-    # FL corner
-    if fl_s > 0:
-        verts.append((x + fl_s, y + d))
-        verts.append((x, y + d - fl_s))
-    else:
-        verts.append((x, y + d))
-
-    return verts
-
-
 def compute_zone_framing(zone, rect, joist_spacing_in=16):
     """
     Compute framing layout for an add zone.
@@ -238,15 +185,18 @@ def draw_zone_framing(ax, zone, rect, calc, zone_sizing=None):
     footing_diam = calc.get("footing_diam", 30)
     b = framing["beam"]
 
-    # Zone outline
-    ax.add_patch(patches.Rectangle(
-        (rect["x"], rect["y"]), rect["w"], rect["d"],
-        fc='#fcfaf5', ec=BRAND["dark"], lw=1.5))
+    # S61: Zone outline (chamfer-aware)
+    _zcorners = zone.get("corners")
+    _zverts = _chamfered_vertices(rect["x"], rect["y"], rect["w"], rect["d"], _zcorners)
+    _z_clip = Polygon(_zverts, closed=True,
+                 fc='#fcfaf5', ec=BRAND["dark"], lw=1.5)
+    ax.add_patch(_z_clip)
 
-    # Joists
+    # Joists (clipped to zone chamfer polygon)
     for jl in framing["joist_lines"]:
-        ax.plot([jl["x1"], jl["x2"]], [jl["y1"], jl["y2"]],
+        ln, = ax.plot([jl["x1"], jl["x2"]], [jl["y1"], jl["y2"]],
                 color=BRAND["light"], lw=0.4)
+        ln.set_clip_path(_z_clip)
 
     # Beam
     ax.plot([b["x1"], b["x2"]], [b["y1"], b["y2"]],
@@ -334,7 +284,7 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
         if is_framing:
             # S61: Zone 0 framing area (chamfer-aware)
             _main_corners = params.get("mainCorners")
-            _z0_verts = get_chamfered_vertices(0, 0, W, D, _main_corners)
+            _z0_verts = _chamfered_vertices(0, 0, W, D, _main_corners)
             _z0_clip = Polygon(_z0_verts, closed=True,
                          fc='#fcfaf5', ec=BRAND["dark"], lw=2)
             ax.add_patch(_z0_clip)
@@ -361,7 +311,7 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
 
                 # S61: Chamfer-aware zone outline (also used as clip path for board lines)
                 _zcorners = params.get("mainCorners") if ar["id"] == 0 else ar["zone"].get("corners")
-                _zverts = get_chamfered_vertices(r["x"], r["y"], r["w"], r["d"], _zcorners)
+                _zverts = _chamfered_vertices(r["x"], r["y"], r["w"], r["d"], _zcorners)
                 _zone_clip = Polygon(_zverts, closed=True,
                              fc=fill, ec=BRAND["dark"], lw=2)
                 ax.add_patch(_zone_clip)
@@ -589,31 +539,9 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
             ax.text(W / 2, D / 2 - 0.8, spec["labels"]["guardrail"],
                     ha='center', fontsize=5, fontfamily='monospace', color='#666')
 
-        # Railing (S21: zone-aware exposed edges, S61: chamfer-aware)
-        _main_corners = params.get("mainCorners")
-        _has_chamfer = _main_corners and any(
-            _main_corners.get(k, {}).get("type") == "chamfer" and _main_corners.get(k, {}).get("size", 0) > 0
-            for k in ("BL", "BR", "FL", "FR")
-        )
-        if _has_chamfer:
-            # Build clip polygon for zone 0
-            _rail_verts = get_chamfered_vertices(0, 0, W, D, _main_corners)
-            _rail_clip = Polygon(_rail_verts, closed=True, fc='none', ec='none', lw=0)
-            ax.add_patch(_rail_clip)
-            # Draw existing exp_edges clipped to chamfer polygon
-            for e in exp_edges:
-                ln, = ax.plot([e["x1"], e["x2"]], [e["y1"], e["y2"]], color=BRAND["rail"], lw=3.5)
-                ln.set_clip_path(_rail_clip)
-            # Add chamfer diagonal faces as railing
-            for vi in range(len(_rail_verts)):
-                v1 = _rail_verts[vi]
-                v2 = _rail_verts[(vi + 1) % len(_rail_verts)]
-                # Diagonal = both x and y change (not axis-aligned)
-                if abs(v1[0] - v2[0]) > 0.01 and abs(v1[1] - v2[1]) > 0.01:
-                    ax.plot([v1[0], v2[0]], [v1[1], v2[1]], color=BRAND["rail"], lw=3.5)
-        else:
-            for e in exp_edges:
-                ax.plot([e["x1"], e["x2"]], [e["y1"], e["y2"]], color=BRAND["rail"], lw=3.5)
+        # Railing (S61: chamfer-aware edges from zone_utils)
+        for e in exp_edges:
+            ax.plot([e["x1"], e["x2"]], [e["y1"], e["y2"]], color=BRAND["rail"], lw=3.5)
 
         # Stairs (parametric)
         if has_stairs and calc.get("stairs"):
