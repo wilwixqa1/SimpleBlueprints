@@ -110,7 +110,9 @@ def build_permit_spec(params, calc):
         "TL": TL,
         "ledger_capacity": ledger_capacity,
         "snow_load": params.get("snowLoad", "none"),
-        "ground_snow": LL - 40,  # base LL is always 40; remainder is snow
+        # Raw ground snow PSF from params (not derived from LL)
+        "ground_snow": {"none": 0, "light": 20, "moderate": 40, "heavy": 60}.get(
+            params.get("snowLoad", "none"), 0),
     }
 
     # --- Joists ---
@@ -287,7 +289,15 @@ def build_permit_spec(params, calc):
     ).replace("  ", " ")
 
     # Loads box
-    labels["loads_LL"] = f'L.L. = {LL} PSF'
+    # Loads box - always show actual live load (40 PSF), add snow when applicable
+    labels["loads_LL"] = 'L.L. = 40 PSF'
+    _ground_snow = spec["loads"]["ground_snow"]
+    if _ground_snow > 40:
+        labels["loads_snow"] = f'G.S.L. = {_ground_snow} PSF (GOVERNS)'
+    elif _ground_snow > 0:
+        labels["loads_snow"] = f'G.S.L. = {_ground_snow} PSF'
+    else:
+        labels["loads_snow"] = None
     labels["loads_DL"] = f'D.L. = {DL} PSF'
     labels["loads_TL"] = f'T.L. = {TL} PSF'
     labels["loads_ledger"] = f'LEDGER = {ledger_capacity} PSF' if attachment == "ledger" else None

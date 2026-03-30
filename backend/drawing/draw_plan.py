@@ -429,22 +429,35 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
                         bbox=dict(boxstyle='square,pad=0.1', fc='white', ec='none', alpha=0.85))
 
             # S57: Loads box - inside deck, bottom-left corner
+            # S58: Snow load line added when applicable
+            _has_snow = bool(spec["labels"].get("loads_snow"))
+            _has_ledger = bool(spec["labels"].get("loads_ledger"))
             _lb_x = 0.3
             _lb_y = 0.3
-            _lb_h = 3.4 if spec["labels"].get("loads_ledger") else 2.8
-            ax.add_patch(patches.Rectangle((_lb_x, _lb_y), 4.5, _lb_h,
+            _lb_lines = 3 + (1 if _has_snow else 0) + (1 if _has_ledger else 0)
+            _lb_h = 0.5 + _lb_lines * 0.6
+            ax.add_patch(patches.Rectangle((_lb_x, _lb_y), 5.5, _lb_h,
                          fc='#fafaf8', ec=BRAND["dark"], lw=0.5, zorder=5))
             _ly = _lb_y + _lb_h - 0.5
+            _line_n = 0
             ax.text(_lb_x + 0.2, _ly, 'DECK LOADS:', fontsize=4.5,
                     fontweight='bold', color=BRAND["dark"], zorder=6)
-            ax.text(_lb_x + 0.2, _ly - 0.6, spec["labels"]["loads_LL"],
+            _line_n += 1
+            ax.text(_lb_x + 0.2, _ly - _line_n * 0.6, spec["labels"]["loads_LL"],
                     fontsize=4, color=BRAND["dark"], zorder=6)
-            ax.text(_lb_x + 0.2, _ly - 1.2, spec["labels"]["loads_DL"],
+            if _has_snow:
+                _line_n += 1
+                ax.text(_lb_x + 0.2, _ly - _line_n * 0.6, spec["labels"]["loads_snow"],
+                        fontsize=4, color=BRAND["dark"], zorder=6)
+            _line_n += 1
+            ax.text(_lb_x + 0.2, _ly - _line_n * 0.6, spec["labels"]["loads_DL"],
                     fontsize=4, color=BRAND["dark"], zorder=6)
-            ax.text(_lb_x + 0.2, _ly - 1.8, spec["labels"]["loads_TL"],
+            _line_n += 1
+            ax.text(_lb_x + 0.2, _ly - _line_n * 0.6, spec["labels"]["loads_TL"],
                     fontsize=4, fontweight='bold', color=BRAND["red"], zorder=6)
-            if spec["labels"].get("loads_ledger"):
-                ax.text(_lb_x + 0.2, _ly - 2.4, spec["labels"]["loads_ledger"],
+            if _has_ledger:
+                _line_n += 1
+                ax.text(_lb_x + 0.2, _ly - _line_n * 0.6, spec["labels"]["loads_ledger"],
                         fontsize=4, color=BRAND["dark"], zorder=6)
 
 

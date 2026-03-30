@@ -59,7 +59,10 @@ def calculate_structure(params):
     else:
         lot_area = params.get("lotWidth", 80) * params.get("lotDepth", 120)
     DL = 15 if params["deckingType"] == "composite" else 12
-    LL = 40 + snow
+    # IRC R507.6 footnote a: "Snow load not assumed to be concurrent
+    # with live load." Use whichever is greater, not both added.
+    # Live load minimum is always 40 PSF (IRC Table R301.5).
+    LL = max(40, snow)
     TL = DL + LL
 
     joist_span = depth - 1.5 if attachment == "ledger" else depth / 2 - 0.75

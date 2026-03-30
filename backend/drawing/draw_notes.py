@@ -123,11 +123,16 @@ def draw_notes_sheet(fig, params, calc, spec=None):
         ("All work shall comply with the 2021 International Residential Code (IRC) "
          "and all applicable local amendments. Obtain all required permits prior to construction.",
          "IRC R105.1"),
-        ("Design loads: " + str(spec["loads"]["LL"]) + " PSF live load, "
+        (("Design loads: 40 PSF live load, "
          + str(spec["loads"]["DL"]) + " PSF dead load"
          + (", " + str(spec["loads"]["ground_snow"]) + " PSF ground snow load"
-            if spec["loads"]["ground_snow"] > 0 else "") + ".",
-         "IRC Table R301.5"),
+            + (" (governs)" if spec["loads"]["ground_snow"] > 40 else "")
+            if spec["loads"]["ground_snow"] > 0 else "") + ". "
+         + "Snow load not concurrent with live load per IRC R507.6 fn. a."
+         if spec["loads"]["ground_snow"] > 0
+         else "Design loads: 40 PSF live load, "
+         + str(spec["loads"]["DL"]) + " PSF dead load."),
+         "IRC Table R301.5, R507.6"),
         ("Contractor shall verify all dimensions and site conditions prior to construction. "
          "Report any discrepancies to the designer.",
          None),

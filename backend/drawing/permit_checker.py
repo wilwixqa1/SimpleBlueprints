@@ -710,7 +710,7 @@ def check_post_height(params, calc, spec):
     code_ref="IRC Table R301.5",
 )
 def check_loads_consistency(params, calc, spec):
-    """Verify spec loads match calc engine and labels contain correct values."""
+    """Verify load values are consistent across calc engine, spec, and labels."""
     if not spec:
         return CheckResult(
             id="CALC_LOADS_CONSISTENCY",
@@ -724,37 +724,52 @@ def check_loads_consistency(params, calc, spec):
 
     calc_ll = calc.get("LL", 0)
     calc_dl = calc.get("DL", 0)
+    calc_tl = calc.get("TL", 0)
     spec_ll = loads.get("LL", 0)
     spec_dl = loads.get("DL", 0)
+    spec_tl = loads.get("TL", 0)
 
-    if calc_ll != spec_ll or calc_dl != spec_dl:
+    issues = []
+
+    # Engine to spec consistency
+    if calc_ll != spec_ll:
+        issues.append(f"LL mismatch: calc={calc_ll}, spec={spec_ll}")
+    if calc_dl != spec_dl:
+        issues.append(f"DL mismatch: calc={calc_dl}, spec={spec_dl}")
+    if calc_tl != spec_tl:
+        issues.append(f"TL mismatch: calc={calc_tl}, spec={spec_tl}")
+
+    # Math consistency: TL should equal DL + LL
+    expected_tl = spec_dl + spec_ll
+    if spec_tl != expected_tl:
+        issues.append(f"TL={spec_tl} but DL+LL={expected_tl}")
+
+    # Snow load label present when snow > 0
+    ground_snow = loads.get("ground_snow", 0)
+    if ground_snow > 0 and not labels.get("loads_snow"):
+        issues.append("Ground snow > 0 but no snow label in loads box")
+
+    # TL label contains correct value
+    tl_label = labels.get("loads_TL", "")
+    if str(spec_tl) not in tl_label:
+        issues.append(f"TL label '{tl_label}' missing value {spec_tl}")
+
+    if issues:
         return CheckResult(
             id="CALC_LOADS_CONSISTENCY",
             category="structural", sheet="A-3", severity="error",
             status="fail",
-            message="Load values inconsistent between calc engine and spec.",
-            detail=(
-                f"Calc: LL={calc_ll}, DL={calc_dl}. "
-                f"Spec: LL={spec_ll}, DL={spec_dl}."
-            ),
+            message="Load values inconsistent: " + "; ".join(issues),
+            detail=f"Calc: LL={calc_ll}, DL={calc_dl}, TL={calc_tl}. Snow={ground_snow} PSF.",
         )
 
-    ll_label = labels.get("loads_LL", "")
-    if str(spec_ll) not in ll_label:
-        return CheckResult(
-            id="CALC_LOADS_CONSISTENCY",
-            category="structural", sheet="A-3", severity="error",
-            status="fail",
-            message="Load label does not match calculated value.",
-            detail=f"Label: '{ll_label}', expected LL={spec_ll} PSF",
-        )
-
+    snow_note = f", ground snow={ground_snow} PSF" if ground_snow > 0 else ""
     return CheckResult(
         id="CALC_LOADS_CONSISTENCY",
         category="structural", sheet="A-3", severity="error",
         status="pass",
         message="Design loads consistent across all sheets.",
-        detail=f"LL={spec_ll} PSF, DL={spec_dl} PSF, TL={loads.get('TL', 0)} PSF",
+        detail=f"LL={spec_ll} PSF, DL={spec_dl} PSF, TL={spec_tl} PSF{snow_note}",
     )
 
 
@@ -976,6 +991,233 @@ def check_loads_ledger_label(params, calc, spec):
 
 
 # ============================================================
+# LAYER 2b: SITE / CONFIGURATION VALIDATION CHECKS
+# ============================================================
+# These check user inputs against each other for logical
+# consistency. They catch real mistakes, not engine tautologies.
+
+
+@check(
+    id="SITE_SETBACK_COMPLIANCE",
+    products=["deck", "porch", "pergola", "shed", "garage"],
+    category="structural",
+    sheet="A-5",
+    severity="error",
+    code_ref="Local zoning ordinance",
+)
+def check_setback_compliance(params, calc, spec):
+    """Check if deck (including zones and stairs) fits within setback lines."""
+    lot_w = params.get("lotWidth", 80)
+    lot_d = params.get("lotDepth", 120)
+    sb_side = params.get("setbackSide", 5)
+    sb_rear = params.get("setbackRear", 20)
+    sb_front = params.get("setbackFront", 25)
+
+    house_w = params.get("houseWidth", 40)
+    house_x = params.get("houseOffsetSide", 20)
+    house_y = params.get("houseDistFromStreet") or sb_front
+    house_d = params.get("houseDepth", 30)
+    deck_w = calc.get("width", 20)
+    deck_d = calc.get("depth", 12)
+    deck_offset = params.get("deckOffset", 0)
+
+    # Deck zone 0 position (matches draw_site_plan.py)
+    z0_x = house_x + (house_w - deck_w) / 2 + deck_offset
+    z0_y = house_y + house_d
+
+    # Get bounding box including all zones
+    try:
+        from .zone_utils import get_bounding_box
+        bb = get_bounding_box(params)
+    except Exception:
+        bb = {"x": 0, "y": 0, "w": deck_w, "d": deck_d}
+
+    deck_left = z0_x + bb["x"]
+    deck_right = z0_x + bb["x"] + bb["w"]
+    deck_rear = z0_y + bb["y"] + bb["d"]
+
+    # Add stair projection
+    stair_proj = 0
+    if params.get("hasStairs") and calc.get("stairs"):
+        stair_proj = calc["stairs"].get("total_run_ft", 0)
+        stair_loc = params.get("stairLocation", "front")
+        if stair_loc == "front":
+            deck_rear += stair_proj
+        elif stair_loc == "left":
+            deck_left -= stair_proj
+        elif stair_loc == "right":
+            deck_right += stair_proj
+
+    violations = []
+    if deck_left < sb_side:
+        violations.append(
+            f"Left edge {deck_left:.1f}' from property line "
+            f"(setback requires {sb_side}')"
+        )
+    if deck_right > lot_w - sb_side:
+        violations.append(
+            f"Right edge {lot_w - deck_right:.1f}' from property line "
+            f"(setback requires {sb_side}')"
+        )
+    if deck_rear > lot_d - sb_rear:
+        violations.append(
+            f"Rear edge {lot_d - deck_rear:.1f}' from rear property line "
+            f"(setback requires {sb_rear}')"
+        )
+
+    if violations:
+        return CheckResult(
+            id="SITE_SETBACK_COMPLIANCE",
+            category="structural", sheet="A-5", severity="error",
+            status="fail",
+            message="Deck extends into setback zone.",
+            detail="; ".join(violations),
+            fix="Reduce deck size, adjust deck offset, or verify setbacks with your building department.",
+            fix_step=0,
+        )
+
+    return CheckResult(
+        id="SITE_SETBACK_COMPLIANCE",
+        category="structural", sheet="A-5", severity="error",
+        status="pass",
+        message="Deck within setback boundaries.",
+        detail=(
+            f"Side clearance: L={deck_left:.1f}' R={lot_w - deck_right:.1f}' "
+            f"(req {sb_side}'). Rear clearance: {lot_d - deck_rear:.1f}' (req {sb_rear}')."
+        ),
+    )
+
+
+@check(
+    id="IRC_POST_SIZE_HEIGHT",
+    products=["deck", "porch"],
+    category="structural",
+    sheet="A-2",
+    severity="error",
+    code_ref="IRC R507.8",
+)
+def check_post_size_height(params, calc, spec):
+    """IRC R507.8: 4x4 posts max 8', 6x6 posts max 14'."""
+    post_size = calc.get("post_size", "6x6")
+    height = calc.get("height", 4)
+    post_heights = calc.get("post_heights", [height])
+    max_post_h = max(post_heights) if post_heights else height
+
+    if post_size == "4x4" and max_post_h > 8:
+        return CheckResult(
+            id="IRC_POST_SIZE_HEIGHT",
+            category="structural", sheet="A-2", severity="error",
+            status="fail",
+            message=f"4x4 posts limited to 8' height. Tallest post is {max_post_h:.1f}'.",
+            detail="IRC R507.8: 4x4 or 4x6 posts max 8'. 6x6 posts max 14'.",
+            fix="Switch to 6x6 posts in Step 2, or reduce deck height.",
+            fix_step=2,
+        )
+
+    if post_size == "4x6" and max_post_h > 8:
+        return CheckResult(
+            id="IRC_POST_SIZE_HEIGHT",
+            category="structural", sheet="A-2", severity="error",
+            status="fail",
+            message=f"4x6 posts limited to 8' height. Tallest post is {max_post_h:.1f}'.",
+            detail="IRC R507.8: 4x4 or 4x6 posts max 8'. 6x6 posts max 14'.",
+            fix="Switch to 6x6 posts in Step 2, or reduce deck height.",
+            fix_step=2,
+        )
+
+    if post_size == "6x6" and max_post_h > 14:
+        return CheckResult(
+            id="IRC_POST_SIZE_HEIGHT",
+            category="structural", sheet="A-2", severity="error",
+            status="fail",
+            message=f"6x6 posts limited to 14'. Tallest post is {max_post_h:.1f}'.",
+            detail="IRC R507.8: 6x6 posts max 14'. Taller requires engineering.",
+            fix="Reduce deck height or consult an engineer.",
+            fix_step=1,
+        )
+
+    return CheckResult(
+        id="IRC_POST_SIZE_HEIGHT",
+        category="structural", sheet="A-2", severity="error",
+        status="pass",
+        message=f"{post_size} posts within IRC height limits.",
+        detail=f"Tallest post: {max_post_h:.1f}' (max {'8' if '4x' in post_size else '14'}')",
+    )
+
+
+@check(
+    id="SITE_IMPERVIOUS_COVERAGE",
+    products=["deck", "porch", "pergola", "shed", "garage"],
+    category="structural",
+    sheet="A-5",
+    severity="warning",
+    code_ref="Local zoning ordinance",
+)
+def check_impervious_coverage(params, calc, spec):
+    """Flag high impervious lot coverage. Many jurisdictions cap at 40-50%."""
+    lot_w = params.get("lotWidth", 80)
+    lot_d = params.get("lotDepth", 120)
+    house_w = params.get("houseWidth", 40)
+    house_d = params.get("houseDepth", 30)
+    deck_w = calc.get("width", 20)
+    deck_d = calc.get("depth", 12)
+
+    # Use lot_area from calc if available (polygon-based)
+    lot_area = calc.get("lot_area", lot_w * lot_d)
+
+    house_area = house_w * house_d
+    deck_area = calc.get("area", deck_w * deck_d)
+
+    # Add zone areas
+    try:
+        from .zone_utils import get_additive_rects, get_cutout_rects
+        add_rects = get_additive_rects(params)
+        cut_rects = get_cutout_rects(params)
+        deck_area = sum(r["rect"]["w"] * r["rect"]["d"] for r in add_rects)
+        deck_area -= sum(r["rect"]["w"] * r["rect"]["d"] for r in cut_rects)
+    except Exception:
+        pass
+
+    # Add site elements
+    el_area = 0
+    impervious_types = {"driveway", "garage", "shed", "patio"}
+    for el in params.get("siteElements", []):
+        if el.get("type", "") in impervious_types:
+            el_area += el.get("w", 0) * el.get("d", 0)
+
+    total_impervious = house_area + deck_area + el_area
+    coverage_pct = (total_impervious / lot_area * 100) if lot_area > 0 else 0
+
+    if coverage_pct > 50:
+        return CheckResult(
+            id="SITE_IMPERVIOUS_COVERAGE",
+            category="structural", sheet="A-5", severity="warning",
+            status="fail",
+            message=f"Impervious lot coverage is {coverage_pct:.1f}%.",
+            detail=(
+                f"House {house_area:.0f} SF + Deck {deck_area:.0f} SF"
+                + (f" + Other {el_area:.0f} SF" if el_area > 0 else "")
+                + f" = {total_impervious:.0f} SF on {lot_area:.0f} SF lot. "
+                "Many jurisdictions cap at 40-50%."
+            ),
+            fix="Check your local zoning code for maximum lot coverage percentage.",
+            fix_step=0,
+        )
+
+    return CheckResult(
+        id="SITE_IMPERVIOUS_COVERAGE",
+        category="structural", sheet="A-5", severity="warning",
+        status="pass",
+        message=f"Impervious lot coverage: {coverage_pct:.1f}%.",
+        detail=(
+            f"House {house_area:.0f} SF + Deck {deck_area:.0f} SF"
+            + (f" + Other {el_area:.0f} SF" if el_area > 0 else "")
+            + f" = {total_impervious:.0f} SF on {lot_area:.0f} SF lot"
+        ),
+    )
+
+
+# ============================================================
 # LAYER 3: CAPABILITY GAPS
 # ============================================================
 # Status is "unsupported" - product limitation, not user error.
@@ -1086,8 +1328,8 @@ def get_compliance_summary(report):
         "summary_line": report.summary,
         # Compact line for cover sheet
         "stamp_line": (
-            f"Checked against {report.total_applicable} IRC requirements. "
-            f"{report.passed} passed."
+            f"Automated pre-check: {report.passed}/{report.total_applicable} "
+            f"structural and drawing checks passed."
             + (f" {len(report.capability_gaps)} advisory notice(s)."
                if report.capability_gaps else "")
         ),

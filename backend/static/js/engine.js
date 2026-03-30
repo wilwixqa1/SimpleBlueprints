@@ -39,7 +39,8 @@ function calcStructure(p) {
   } else {
     lotArea = (p.lotWidth || 80) * (p.lotDepth || 120);
   }
-  const LL = 40 + (SNOW[snowLoad] || 0);
+  // IRC R507.6 footnote a: snow not concurrent with live load. Use whichever is greater.
+  const LL = Math.max(40, SNOW[snowLoad] || 0);
   const DL = deckingType === "composite" ? 15 : 12;
   const TL = LL + DL;
   const jSpan = attachment === "ledger" ? D - 1.5 : D / 2 - 0.75;
