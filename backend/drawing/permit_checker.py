@@ -1027,29 +1027,9 @@ def check_zone_calcs(params, calc, spec):
     )
 
 
-@check(
-    id="CAP_GUARD_HEIGHT_TALL",
-    products=["deck", "porch"],
-    category="capability",
-    sheet="A-2",
-    severity="warning",
-    conditions=["height_over_8ft"],
-)
-def check_guard_height_tall(params, calc, spec):
-    rail_height = calc.get("rail_height", 36)
-    return CheckResult(
-        id="CAP_GUARD_HEIGHT_TALL",
-        category="capability", sheet="A-2", severity="warning",
-        status="unsupported",
-        message="Guard height for tall decks not yet auto-adjusted.",
-        detail=(
-            f"Deck is over 8' above grade. Guard is {rail_height}\". "
-            "Some jurisdictions require 42\" guards for elevated decks. "
-            "Our engine does not yet auto-adjust guard height based on deck height."
-        ),
-        fix="Check your local building code for guard height requirements.",
-        fix_step=3,
-    )
+# CAP_GUARD_HEIGHT_TALL: RESOLVED in S58 Push 3.
+# Engine now auto-adjusts guard height (42" for decks >8').
+# The IRC_GUARD_HEIGHT structural check validates the actual value.
 
 
 @check(
