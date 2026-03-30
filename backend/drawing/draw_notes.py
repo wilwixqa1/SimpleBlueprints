@@ -139,6 +139,11 @@ def draw_notes_sheet(fig, params, calc, spec=None):
         ("All lumber in contact with concrete, masonry, or ground shall be pressure-treated "
          "(UC4A min.) or approved decay-resistant species.",
          "IRC R507.2"),
+        ("Structural lumber design basis: No. 2 grade, " +
+         spec["labels"]["loads_lumber"].replace("LUMBER: No. 2 ", "") +
+         ", wet service factor included. "
+         "All span tables per IRC 2021 Section R507.",
+         "IRC R507.5, R507.6"),
     ]
     y = draw_section(left_col_x, y, "GENERAL REQUIREMENTS", general_notes)
 

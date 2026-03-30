@@ -302,6 +302,16 @@ def build_permit_spec(params, calc):
     labels["loads_TL"] = f'T.L. = {TL} PSF'
     labels["loads_ledger"] = f'LEDGER = {ledger_capacity} PSF' if attachment == "ledger" else None
 
+    # Lumber species design basis (S60)
+    # Default is DFL/HF/SPF. Species param reserved for future professional mode.
+    _species = calc.get("species", "dfl_hf_spf")
+    _species_names = {
+        "southern_pine": "SOUTHERN PINE",
+        "dfl_hf_spf": "DFL / HEM-FIR / SPF",
+        "redwood_cedar": "REDWOOD / W. CEDAR / PP / RP",
+    }
+    labels["loads_lumber"] = f'LUMBER: No. 2 {_species_names.get(_species, "DFL / HEM-FIR / SPF")}'
+
     # Stair labels
     if stair_info:
         n_str = stair_info["num_stringers"]

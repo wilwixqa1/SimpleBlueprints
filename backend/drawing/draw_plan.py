@@ -430,11 +430,12 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
 
             # S57: Loads box - inside deck, bottom-left corner
             # S58: Snow load line added when applicable
+            # S60: Lumber species design basis added
             _has_snow = bool(spec["labels"].get("loads_snow"))
             _has_ledger = bool(spec["labels"].get("loads_ledger"))
             _lb_x = 0.3
             _lb_y = 0.3
-            _lb_lines = 3 + (1 if _has_snow else 0) + (1 if _has_ledger else 0)
+            _lb_lines = 4 + (1 if _has_snow else 0) + (1 if _has_ledger else 0)
             _lb_h = 0.5 + _lb_lines * 0.6
             ax.add_patch(patches.Rectangle((_lb_x, _lb_y), 5.5, _lb_h,
                          fc='#fafaf8', ec=BRAND["dark"], lw=0.5, zorder=5))
@@ -455,6 +456,9 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
             _line_n += 1
             ax.text(_lb_x + 0.2, _ly - _line_n * 0.6, spec["labels"]["loads_TL"],
                     fontsize=4, fontweight='bold', color=BRAND["red"], zorder=6)
+            _line_n += 1
+            ax.text(_lb_x + 0.2, _ly - _line_n * 0.6, spec["labels"]["loads_lumber"],
+                    fontsize=4, color=BRAND["dark"], zorder=6)
             if _has_ledger:
                 _line_n += 1
                 ax.text(_lb_x + 0.2, _ly - _line_n * 0.6, spec["labels"]["loads_ledger"],
