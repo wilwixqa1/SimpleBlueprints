@@ -220,9 +220,26 @@ def get_exposed_edges(params):
             if abs(e["y1"]) < 0.01 and abs(e["y2"]) < 0.01:
                 continue
 
-        # Diagonal edges are always exposed (can't be shared with rectangular zones)
+        # Diagonal edges: exposed only if the chamfer is on the exterior
+        # Check if the cut-off corner falls inside another zone's rectangle.
+        # If it does, the chamfer is at an internal junction and should NOT get railing.
         if e["dir"] == "d":
-            exposed.append({"x1": e["x1"], "y1": e["y1"], "x2": e["x2"], "y2": e["y2"], "dir": "d"})
+            # The cut-off corner is one of (x1,y2) or (x2,y1) -- check both
+            candidates = [(e["x1"], e["y2"]), (e["x2"], e["y1"])]
+            is_internal = False
+            for ar2 in add_rects:
+                if ar2["id"] == e["rid"]:
+                    continue
+                r2 = ar2["rect"]
+                for cx, cy in candidates:
+                    if (r2["x"] - 0.1 <= cx <= r2["x"] + r2["w"] + 0.1 and
+                        r2["y"] - 0.1 <= cy <= r2["y"] + r2["d"] + 0.1):
+                        is_internal = True
+                        break
+                if is_internal:
+                    break
+            if not is_internal:
+                exposed.append({"x1": e["x1"], "y1": e["y1"], "x2": e["x2"], "y2": e["y2"], "dir": "d"})
             continue
 
         # Axis-aligned edges: subtract overlapping portions from neighboring zones
