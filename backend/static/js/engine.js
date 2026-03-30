@@ -314,8 +314,10 @@ function estMaterials(p, c) {
   }
   items.push({ cat: "Misc", item: "Joist Tape + Misc", qty: 1, cost: 120 });
   if (p.beamType === 'flush') {
-    const joistCount = Math.ceil((p.width * 12) / 16) + 1;
-    items.push({ cat: "Hardware", item: "Beam Joist Hangers (LUS)", qty: joistCount, cost: 4 });
+    // Flush beam: joists hang into beam with hangers
+    // Ledger: 1 beam line = nJ hangers. Freestanding: 2 beam lines = nJ * 2
+    var _flushMult = c.attachment === 'freestanding' ? 2 : 1;
+    items.push({ cat: "Hardware", item: "Beam Joist Hangers (LUS)", qty: c.nJ * _flushMult, cost: 4 });
   }
   const sub = items.reduce((s, i) => s + i.qty * i.cost, 0);
   return { items, sub, tax: sub * 0.08, cont: sub * 0.05, total: sub * 1.13 };

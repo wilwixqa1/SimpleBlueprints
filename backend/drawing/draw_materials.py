@@ -100,9 +100,12 @@ def estimate_materials(params, calc):
 
     # Hardware
     items.append({"cat": "Hardware", "item": "Joist Hangers", "qty": nJ * 2, "cost": 6})
-    # Flush beam: add beam-to-joist hangers (one per joist end at beam)
+    # Flush beam: add beam-to-joist hangers
+    # Ledger: joists meet 1 beam line from one side = nJ hangers
+    # Freestanding: joists span between 2 beam lines = nJ * 2 hangers
     if c.get("beam_type", "dropped") == "flush":
-        items.append({"cat": "Hardware", "item": "Beam Joist Hangers (LUS)", "qty": nJ, "cost": 4})
+        _flush_mult = 2 if c.get("attachment") == "freestanding" else 1
+        items.append({"cat": "Hardware", "item": "Beam Joist Hangers (LUS)", "qty": nJ * _flush_mult, "cost": 4})
     items.append({"cat": "Hardware", "item": "Hurricane Ties + Nails", "qty": 1, "cost": round(nJ * 2.75 + 50, 2)})
 
     # Decking

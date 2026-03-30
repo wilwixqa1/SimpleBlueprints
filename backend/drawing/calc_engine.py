@@ -547,7 +547,12 @@ def calculate_structure(params):
         }
 
     # Joist hanger count for flush beams
-    joist_hangers_for_beam = num_joists * 2 if beam_type == "flush" else 0
+    # Ledger: joists meet 1 beam line = num_joists hangers
+    # Freestanding: joists span between 2 beam lines = num_joists * 2
+    if beam_type == "flush":
+        joist_hangers_for_beam = num_joists * (2 if attachment == "freestanding" else 1)
+    else:
+        joist_hangers_for_beam = 0
 
     mid_span_blocking = joist_span > 7
     blocking_count = math.ceil(width / (joist_spacing / 12)) - 1 if mid_span_blocking else 0
