@@ -3127,10 +3127,13 @@ function StepContent(props) {
               </button>
             ))}
           </div>
+          <div style={{ fontSize: 7, color: c.warnings.some(function(w) { return w.indexOf("Joist span") >= 0; }) ? _br.rd : _br.mu, fontFamily: _mono, marginTop: 4 }}>
+            Span: {c.jSpan}' {c.attachment === "ledger" ? "(ledger to beam)" : "(beam to beam)"} {"\u00B7"} {c.joistSize}@{c.sp}" O.C.
+          </div>
         </div>
       ); })()}
 
-      {(() => { const isOver = !!p.overBeam; const val = isOver ? p.overBeam : c.auto.beam; const opts = ["2-ply 2x8", "2-ply 2x10", "2-ply 2x12", "3-ply 2x8", "3-ply 2x10", "3-ply 2x12", "3-ply LVL 1.75x12"]; return (
+      {(() => { const isOver = !!p.overBeam; const val = isOver ? p.overBeam : c.auto.beam; const opts = ["2-ply 2x6", "2-ply 2x8", "2-ply 2x10", "2-ply 2x12", "3-ply 2x6", "3-ply 2x8", "3-ply 2x10", "3-ply 2x12", "3-ply LVL 1.75x12"]; return (
         <div style={{ marginBottom: 10 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
             <span style={{ fontSize: 10, color: _br.mu, fontFamily: _mono, fontWeight: 700 }}>BEAM</span>
@@ -3142,6 +3145,9 @@ function StepContent(props) {
                 {short}{!isOver && sz === c.auto.beam && <div style={{ fontSize: 6, color: _br.gn, marginTop: 1 }}>REC</div>}
               </button>
             ); })}
+          </div>
+          <div style={{ fontSize: 7, color: c.bSpan > c.beamMaxSpan ? _br.rd : _br.mu, fontFamily: _mono, marginTop: 4 }}>
+            Span: {c.bSpan}' between posts {c.beamMaxSpan < 900 ? `(max ${c.beamMaxSpan}' per IRC R507.5)` : '(engineering required)'}
           </div>
         </div>
       ); })()}
