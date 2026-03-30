@@ -1267,14 +1267,13 @@ def check_zone_calcs(params, calc, spec):
     return CheckResult(
         id="CAP_ZONE_CALCS",
         category="capability", sheet="A-1", severity="warning",
-        status="unsupported",
-        message="Zone extensions use main deck structural sizing.",
+        status="pass",
+        message="Zone extensions have independent structural sizing.",
         detail=(
-            "L-shape and wraparound extensions currently use the same "
-            "beam, joist, and footing calculations as the main deck. "
-            "Smaller extensions may be over-built, which is safe but not optimized."
+            "S60: Zone joist, beam, and footing sizes are computed independently "
+            "based on each zone's dimensions and the design load. "
+            "Plan view labels on A-1 still show main deck member sizes."
         ),
-        fix="This is conservative (safe). Independent zone calcs are on our roadmap.",
     )
 
 

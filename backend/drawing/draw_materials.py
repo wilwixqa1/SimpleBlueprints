@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
 from .zone_utils import get_exposed_edges
+from .calc_engine import get_joist_spans_for_load, auto_select_beam
 
 BRAND = {
     "dark": "#1a1f16", "green": "#3d5a2e", "cream": "#faf8f3",
@@ -162,13 +163,14 @@ def estimate_zone_materials(params, calc):
     extra_footings = 0
     extra_items = []
 
-    # Pull base calc values for consistency
+    # Pull base calc values
     sp = calc.get("joist_spacing", 16)
-    fDiam = calc.get("footing_diam", 30)
     fDepth = calc.get("footing_depth", 36)
     post_size = calc.get("post_size", "6x6")
-    beam_size = calc.get("beam_size", "3-ply 2x10")
-    joist_size = calc.get("joist_size", "2x12")
+    LL = calc.get("LL", 40)
+    TL = calc.get("TL", 55)
+    species = calc.get("species", "dfl_hf_spf")
+    rail_type = params.get("railType", "fortress")
 
     for z in zones:
         edge = z.get("attachEdge", "front")
@@ -195,6 +197,27 @@ def estimate_zone_materials(params, calc):
             n_joists = math.ceil(zw / (sp / 12)) + 1
             n_posts = max(2, math.ceil(zw / 8) + 1)
 
+        # S60: Per-zone independent joist sizing
+        zone_joist_spans = get_joist_spans_for_load(LL, species)
+        zone_joist_size = "2x12"
+        for _zsz, _zsp in zone_joist_spans.items():
+            if _zsp.get(sp, 0) >= j_span:
+                zone_joist_size = _zsz
+                break
+
+        # S60: Per-zone independent beam sizing
+        zone_beam_span = beam_len / (n_posts - 1)
+        zone_beam_size = auto_select_beam(zone_beam_span, j_span, LL, species)
+
+        # S60: Per-zone independent footing sizing
+        zone_trib = (beam_len / max(n_posts - 1, 1)) * (zw if edge in ("right", "left") else zd)
+        zone_req_d = math.sqrt(zone_trib * TL / 1500 / math.pi) * 2 * 12
+        zone_f_diam = 12
+        for _fs in [12, 16, 18, 21, 24, 30, 36, 42]:
+            if _fs >= zone_req_d:
+                zone_f_diam = _fs
+                break
+
         extra_posts += n_posts
         extra_footings += n_posts
 
@@ -202,24 +225,24 @@ def estimate_zone_materials(params, calc):
         jL = math.ceil(j_span)
 
         # Foundation
-        bags = math.ceil((math.pi * (fDiam / 24) ** 2 * (fDepth / 12)) / 0.6) * n_posts
+        bags = math.ceil((math.pi * (zone_f_diam / 24) ** 2 * (fDepth / 12)) / 0.6) * n_posts
         extra_items.append({"cat": "Foundation", "item": f"Concrete bags ({label})", "qty": bags, "cost": 6.50})
-        extra_items.append({"cat": "Foundation", "item": f"Sonotube ({label})", "qty": n_posts, "cost": 28 if fDiam > 18 else 18})
+        extra_items.append({"cat": "Foundation", "item": f'Sonotube {zone_f_diam}" ({label})', "qty": n_posts, "cost": 28 if zone_f_diam > 18 else 18})
         extra_items.append({"cat": "Foundation", "item": f"Post Base ({label})", "qty": n_posts, "cost": 42 if post_size == "6x6" else 28})
 
         # Posts
         extra_items.append({"cat": "Posts", "item": f"{post_size} Posts ({label})", "qty": n_posts, "cost": 48 if post_size == "6x6" else 24})
         extra_items.append({"cat": "Posts", "item": f"Post Caps ({label})", "qty": n_posts, "cost": 38 if post_size == "6x6" else 22})
 
-        # Beam
-        plies = int(beam_size[0])
-        is_lvl = "LVL" in beam_size
+        # Beam (zone-specific size)
+        plies = int(zone_beam_size[0])
+        is_lvl = "LVL" in zone_beam_size
         extra_items.append({"cat": "Beam", "item": f'{"LVL" if is_lvl else "PT Beam"} ({label})',
                             "qty": math.ceil(beam_len / 20) * plies, "cost": 95 if is_lvl else 55})
 
-        # Joists + rim
+        # Joists + rim (zone-specific size)
         j_cost = 22 if jL <= 10 else (32 if jL <= 12 else 42)
-        extra_items.append({"cat": "Framing", "item": f"{joist_size} Joists {jL}' ({label})", "qty": n_joists + 2, "cost": j_cost})
+        extra_items.append({"cat": "Framing", "item": f"{zone_joist_size} Joists {jL}' ({label})", "qty": n_joists + 2, "cost": j_cost})
         extra_items.append({"cat": "Framing", "item": f"Rim Joists ({label})", "qty": 3, "cost": 32})
 
         # Decking
@@ -235,6 +258,14 @@ def estimate_zone_materials(params, calc):
 
         # Hardware
         extra_items.append({"cat": "Hardware", "item": f"Joist Hangers ({label})", "qty": n_joists * 2, "cost": 6})
+
+        # S60: Zone railing (3 exposed sides)
+        z_rail_len = (2 * zw + zd) if edge in ("right", "left") else (2 * zd + zw)
+        if rail_type == "fortress":
+            extra_items.append({"cat": "Railing", "item": f"Fortress Panels ({label})", "qty": math.ceil(z_rail_len / 7), "cost": 80})
+            extra_items.append({"cat": "Railing", "item": f"Fortress Posts ({label})", "qty": math.ceil(z_rail_len / 6) + 1, "cost": 45})
+        else:
+            extra_items.append({"cat": "Railing", "item": f"Wood Rail Kit ({label})", "qty": math.ceil(z_rail_len / 8), "cost": 85})
 
     extra_sub = sum(i["qty"] * i["cost"] for i in extra_items)
     base_area = calc.get("area", W * D)

@@ -21,6 +21,73 @@ function getSpanTable(designLoad) {
   return JOIST_SPANS[70];
 }
 
+// IRC 2021 Tables R507.5(1)-(4): DFL/HF/SPF beam span tables (S60)
+// Values in decimal feet, columns = effective joist span [6,8,10,12,14,16,18]
+const BEAM_SPANS = {
+  40: {
+    "2-ply 2x6":  [6.08,5.25,4.75,4.33,3.92,3.58,3.25],
+    "2-ply 2x8":  [8.17,7.08,6.33,5.75,5.17,4.67,4.33],
+    "2-ply 2x10": [10.0,8.58,7.75,7.0,6.5,6.0,5.5],
+    "2-ply 2x12": [11.58,10.0,8.92,8.17,7.58,7.08,6.67],
+    "3-ply 2x6":  [7.67,6.67,6.0,5.5,5.08,4.75,4.5],
+    "3-ply 2x8":  [10.25,8.83,7.92,7.25,6.67,6.25,5.92],
+    "3-ply 2x10": [12.5,10.83,9.67,8.83,8.17,7.67,7.17],
+    "3-ply 2x12": [14.5,12.58,11.25,10.25,9.5,8.92,8.42],
+  },
+  50: {
+    "2-ply 2x6":  [6.0,5.17,4.58,4.17,3.83,3.42,3.17],
+    "2-ply 2x8":  [8.0,6.92,6.17,5.67,5.0,4.58,4.17],
+    "2-ply 2x10": [9.75,8.42,7.58,6.92,6.33,5.83,5.33],
+    "2-ply 2x12": [11.33,9.83,8.75,8.0,7.42,6.92,6.5],
+    "3-ply 2x6":  [7.5,6.5,5.75,5.25,4.92,4.58,4.33],
+    "3-ply 2x8":  [10.0,8.67,7.75,7.08,6.5,6.08,5.67],
+    "3-ply 2x10": [12.25,10.58,9.5,8.67,8.0,7.5,7.0],
+    "3-ply 2x12": [14.25,12.33,11.0,10.08,9.33,8.75,8.25],
+  },
+  60: {
+    "2-ply 2x6":  [5.5,4.75,4.25,3.83,3.42,3.08,2.83],
+    "2-ply 2x8":  [7.42,6.42,5.75,5.0,4.58,4.08,3.75],
+    "2-ply 2x10": [9.0,7.83,7.0,6.33,5.75,5.17,4.83],
+    "2-ply 2x12": [10.5,9.08,8.08,7.42,6.92,6.33,5.83],
+    "3-ply 2x6":  [6.92,6.0,5.33,4.92,4.5,4.17,3.83],
+    "3-ply 2x8":  [9.25,8.0,7.17,6.5,6.08,5.5,5.0],
+    "3-ply 2x10": [11.33,9.83,8.75,8.0,7.42,6.92,6.42],
+    "3-ply 2x12": [13.17,11.42,10.17,9.33,8.58,8.08,7.58],
+  },
+  70: {
+    "2-ply 2x6":  [5.17,4.5,4.0,3.42,3.08,2.83,2.58],
+    "2-ply 2x8":  [6.92,6.0,5.25,4.58,4.08,3.67,3.42],
+    "2-ply 2x10": [8.42,7.33,6.5,5.83,5.17,4.75,4.42],
+    "2-ply 2x12": [9.83,8.5,7.58,6.92,6.33,5.75,5.33],
+    "3-ply 2x6":  [6.5,5.58,5.0,4.58,4.17,3.75,3.42],
+    "3-ply 2x8":  [8.67,7.5,6.67,6.08,5.5,5.0,4.58],
+    "3-ply 2x10": [10.58,9.17,8.17,7.5,6.92,6.33,5.83],
+    "3-ply 2x12": [12.33,10.67,9.58,8.75,8.08,7.58,7.08],
+  },
+};
+const _BEAM_JOIST_COLS = [6,8,10,12,14,16,18];
+const _BEAM_ORDER = [
+  "2-ply 2x6","2-ply 2x8","2-ply 2x10","2-ply 2x12",
+  "3-ply 2x6","3-ply 2x8","3-ply 2x10","3-ply 2x12",
+];
+
+function getBeamMaxSpan(beamSize, joistSpan, designLoad) {
+  var tier = 70;
+  for (var t of [40,50,60,70]) { if (designLoad <= t) { tier = t; break; } }
+  var tbl = BEAM_SPANS[tier];
+  var spans = tbl[beamSize];
+  if (!spans) return 0;
+  if (joistSpan <= _BEAM_JOIST_COLS[0]) return spans[0];
+  if (joistSpan >= _BEAM_JOIST_COLS[_BEAM_JOIST_COLS.length-1]) return spans[spans.length-1];
+  for (var i = 0; i < _BEAM_JOIST_COLS.length - 1; i++) {
+    if (joistSpan >= _BEAM_JOIST_COLS[i] && joistSpan <= _BEAM_JOIST_COLS[i+1]) {
+      var frac = (joistSpan - _BEAM_JOIST_COLS[i]) / (_BEAM_JOIST_COLS[i+1] - _BEAM_JOIST_COLS[i]);
+      return +(spans[i] + frac * (spans[i+1] - spans[i])).toFixed(2);
+    }
+  }
+  return spans[spans.length-1];
+}
+
 function calcStructure(p) {
   const { width: W, depth: D, height: H, joistSpacing: sp, attachment, snowLoad, frostZone, deckingType } = p;
   const area = W * D;
@@ -59,75 +126,7 @@ function calcStructure(p) {
   if (p.overJoist) { joistSize = p.overJoist; joistAuto = false; }
 
   // === BEAM - IRC R507.5 table lookup (S60) ===
-  // DFL/HF/SPF beam span tables keyed by design load tier
-  // Values in decimal feet, columns = effective joist span [6,8,10,12,14,16,18]
-  const BEAM_SPANS = {
-    40: {
-      "2-ply 2x6":  [6.08,5.25,4.75,4.33,3.92,3.58,3.25],
-      "2-ply 2x8":  [8.17,7.08,6.33,5.75,5.17,4.67,4.33],
-      "2-ply 2x10": [10.0,8.58,7.75,7.0,6.5,6.0,5.5],
-      "2-ply 2x12": [11.58,10.0,8.92,8.17,7.58,7.08,6.67],
-      "3-ply 2x6":  [7.67,6.67,6.0,5.5,5.08,4.75,4.5],
-      "3-ply 2x8":  [10.25,8.83,7.92,7.25,6.67,6.25,5.92],
-      "3-ply 2x10": [12.5,10.83,9.67,8.83,8.17,7.67,7.17],
-      "3-ply 2x12": [14.5,12.58,11.25,10.25,9.5,8.92,8.42],
-    },
-    50: {
-      "2-ply 2x6":  [6.0,5.17,4.58,4.17,3.83,3.42,3.17],
-      "2-ply 2x8":  [8.0,6.92,6.17,5.67,5.0,4.58,4.17],
-      "2-ply 2x10": [9.75,8.42,7.58,6.92,6.33,5.83,5.33],
-      "2-ply 2x12": [11.33,9.83,8.75,8.0,7.42,6.92,6.5],
-      "3-ply 2x6":  [7.5,6.5,5.75,5.25,4.92,4.58,4.33],
-      "3-ply 2x8":  [10.0,8.67,7.75,7.08,6.5,6.08,5.67],
-      "3-ply 2x10": [12.25,10.58,9.5,8.67,8.0,7.5,7.0],
-      "3-ply 2x12": [14.25,12.33,11.0,10.08,9.33,8.75,8.25],
-    },
-    60: {
-      "2-ply 2x6":  [5.5,4.75,4.25,3.83,3.42,3.08,2.83],
-      "2-ply 2x8":  [7.42,6.42,5.75,5.0,4.58,4.08,3.75],
-      "2-ply 2x10": [9.0,7.83,7.0,6.33,5.75,5.17,4.83],
-      "2-ply 2x12": [10.5,9.08,8.08,7.42,6.92,6.33,5.83],
-      "3-ply 2x6":  [6.92,6.0,5.33,4.92,4.5,4.17,3.83],
-      "3-ply 2x8":  [9.25,8.0,7.17,6.5,6.08,5.5,5.0],
-      "3-ply 2x10": [11.33,9.83,8.75,8.0,7.42,6.92,6.42],
-      "3-ply 2x12": [13.17,11.42,10.17,9.33,8.58,8.08,7.58],
-    },
-    70: {
-      "2-ply 2x6":  [5.17,4.5,4.0,3.42,3.08,2.83,2.58],
-      "2-ply 2x8":  [6.92,6.0,5.25,4.58,4.08,3.67,3.42],
-      "2-ply 2x10": [8.42,7.33,6.5,5.83,5.17,4.75,4.42],
-      "2-ply 2x12": [9.83,8.5,7.58,6.92,6.33,5.75,5.33],
-      "3-ply 2x6":  [6.5,5.58,5.0,4.58,4.17,3.75,3.42],
-      "3-ply 2x8":  [8.67,7.5,6.67,6.08,5.5,5.0,4.58],
-      "3-ply 2x10": [10.58,9.17,8.17,7.5,6.92,6.33,5.83],
-      "3-ply 2x12": [12.33,10.67,9.58,8.75,8.08,7.58,7.08],
-    },
-  };
-  const _BEAM_JOIST_COLS = [6,8,10,12,14,16,18];
-  const _BEAM_ORDER = [
-    "2-ply 2x6","2-ply 2x8","2-ply 2x10","2-ply 2x12",
-    "3-ply 2x6","3-ply 2x8","3-ply 2x10","3-ply 2x12",
-  ];
-
-  function getBeamMaxSpan(beamSize, joistSpan, designLoad) {
-    // Find correct load tier
-    var tier = 70;
-    for (var t of [40,50,60,70]) { if (designLoad <= t) { tier = t; break; } }
-    var table = BEAM_SPANS[tier];
-    var spans = table[beamSize];
-    if (!spans) return 0;
-    // Clamp to table range
-    if (joistSpan <= _BEAM_JOIST_COLS[0]) return spans[0];
-    if (joistSpan >= _BEAM_JOIST_COLS[_BEAM_JOIST_COLS.length-1]) return spans[spans.length-1];
-    // Interpolate (IRC permits interpolation)
-    for (var i = 0; i < _BEAM_JOIST_COLS.length - 1; i++) {
-      if (joistSpan >= _BEAM_JOIST_COLS[i] && joistSpan <= _BEAM_JOIST_COLS[i+1]) {
-        var frac = (joistSpan - _BEAM_JOIST_COLS[i]) / (_BEAM_JOIST_COLS[i+1] - _BEAM_JOIST_COLS[i]);
-        return +(spans[i] + frac * (spans[i+1] - spans[i])).toFixed(2);
-      }
-    }
-    return spans[spans.length-1];
-  }
+  // BEAM_SPANS, _BEAM_ORDER, getBeamMaxSpan now at module scope
 
   // Auto posts - beam-aware (S60)
   let nP = W <= 10 ? 2 : W <= 16 ? 3 : W <= 24 ? 3 : W <= 32 ? 4 : Math.max(4, Math.ceil(W / 10) + 1);
@@ -332,11 +331,13 @@ function calcAllZones(p, baseCalc) {
   var extraPosts = 0, extraFootings = 0;
   var extraItems = [];
   var BS = 1.5;
+  var LL = baseCalc.LL, TL = baseCalc.TL;
+  var zoneCalcs = [];  // S60: per-zone structural info
   for (var i = 0; i < zones.length; i++) {
     var z = zones[i];
     var edge = z.attachEdge || "front";
     var zw = z.w || 8, zd = z.d || 6;
-    if (z.type === "cutout") { cutArea += zw * zd; continue; }
+    if (z.type === "cutout") { cutArea += zw * zd; zoneCalcs.push(null); continue; }
     addArea += zw * zd;
     var sp = baseCalc.sp || 16;
     var beamLen, jSpan, nJoists, nPosts;
@@ -349,19 +350,44 @@ function calcAllZones(p, baseCalc) {
       nJoists = Math.ceil(zw / (sp / 12)) + 1;
       nPosts = Math.max(2, Math.ceil(zw / 8) + 1);
     }
+
+    // S60: Independent joist sizing for this zone
+    var zTable = getSpanTable(LL);
+    var zJoistSize = "2x12";
+    for (var _zs in zTable) {
+      if ((zTable[_zs][sp] || 0) >= jSpan) { zJoistSize = _zs; break; }
+    }
+
+    // S60: Independent beam sizing for this zone
+    var zBeamSpan = beamLen / (nPosts - 1);
+    var zBeamSize = "3-ply LVL 1.75x12";
+    for (var _bi = 0; _bi < _BEAM_ORDER.length; _bi++) {
+      if (getBeamMaxSpan(_BEAM_ORDER[_bi], jSpan, LL) >= zBeamSpan) {
+        zBeamSize = _BEAM_ORDER[_bi]; break;
+      }
+    }
+
+    // S60: Independent footing sizing for this zone
+    var zTrib = (beamLen / Math.max(nPosts - 1, 1)) * (edge === "right" || edge === "left" ? zw : zd);
+    var zReqD = Math.sqrt(zTrib * TL / 1500 / Math.PI) * 2 * 12;
+    var zFDiam = [12, 16, 18, 21, 24, 30, 36, 42].find(function(s) { return s >= zReqD; }) || 42;
+
     extraPosts += nPosts; extraFootings += nPosts;
     var label = z.label || ("Zone " + z.id);
     var jL = Math.ceil(jSpan);
-    var fD = baseCalc.fDiam, fDp = baseCalc.fDepth;
-    var bags = Math.ceil((Math.PI * Math.pow(fD / 24, 2) * (fDp / 12)) / 0.6) * nPosts;
+    var fDp = baseCalc.fDepth;
+    var bags = Math.ceil((Math.PI * Math.pow(zFDiam / 24, 2) * (fDp / 12)) / 0.6) * nPosts;
+
+    zoneCalcs.push({ joistSize: zJoistSize, beamSize: zBeamSize, beamSpan: +zBeamSpan.toFixed(1), jSpan: +jSpan.toFixed(1), fDiam: zFDiam, nPosts: nPosts });
+
     extraItems.push({ cat: "Foundation", item: "Concrete bags (" + label + ")", qty: bags, cost: 6.5 });
-    extraItems.push({ cat: "Foundation", item: "Sonotube (" + label + ")", qty: nPosts, cost: fD > 18 ? 28 : 18 });
+    extraItems.push({ cat: "Foundation", item: "Sonotube " + zFDiam + "\" (" + label + ")", qty: nPosts, cost: zFDiam > 18 ? 28 : 18 });
     extraItems.push({ cat: "Foundation", item: "Post Base (" + label + ")", qty: nPosts, cost: baseCalc.postSize === "6x6" ? 42 : 28 });
     extraItems.push({ cat: "Posts", item: baseCalc.postSize + " Posts (" + label + ")", qty: nPosts, cost: baseCalc.postSize === "6x6" ? 48 : 24 });
     extraItems.push({ cat: "Posts", item: "Post Caps (" + label + ")", qty: nPosts, cost: baseCalc.postSize === "6x6" ? 38 : 22 });
-    var plies = parseInt(baseCalc.beamSize[0]); var isLVL = baseCalc.beamSize.includes("LVL");
+    var plies = parseInt(zBeamSize[0]); var isLVL = zBeamSize.includes("LVL");
     extraItems.push({ cat: "Beam", item: (isLVL ? "LVL" : "PT Beam") + " (" + label + ")", qty: Math.ceil(beamLen / 20) * plies, cost: isLVL ? 95 : 55 });
-    extraItems.push({ cat: "Framing", item: baseCalc.joistSize + " Joists " + jL + "' (" + label + ")", qty: nJoists + 2, cost: jL <= 10 ? 22 : jL <= 12 ? 32 : 42 });
+    extraItems.push({ cat: "Framing", item: zJoistSize + " Joists " + jL + "' (" + label + ")", qty: nJoists + 2, cost: jL <= 10 ? 22 : jL <= 12 ? 32 : 42 });
     extraItems.push({ cat: "Framing", item: "Rim Joists (" + label + ")", qty: 3, cost: 32 });
     var boardDim = Math.max(zw, zd); var boardLen = Math.ceil(Math.min(zw, zd) + 2);
     var bds = Math.ceil(boardDim / (5.5 / 12)) * 1.1;
@@ -371,13 +397,49 @@ function calcAllZones(p, baseCalc) {
       extraItems.push({ cat: "Decking", item: "5/4x6 PT " + boardLen + "' (" + label + ")", qty: Math.ceil(bds), cost: boardLen <= 10 ? 12 : 18 });
     }
     extraItems.push({ cat: "Hardware", item: "Joist Hangers (" + label + ")", qty: nJoists * 2, cost: 6 });
+
+    // S60: Zone railing (3 exposed sides)
+    var zRailLen;
+    if (edge === "right" || edge === "left") {
+      zRailLen = 2 * zw + zd;
+    } else {
+      zRailLen = 2 * zd + zw;
+    }
+    if (p.railType === "fortress") {
+      extraItems.push({ cat: "Railing", item: "Fortress Panels (" + label + ")", qty: Math.ceil(zRailLen / 7), cost: 80 });
+      extraItems.push({ cat: "Railing", item: "Fortress Posts (" + label + ")", qty: Math.ceil(zRailLen / 6) + 1, cost: 45 });
+    } else {
+      extraItems.push({ cat: "Railing", item: "Wood Rail Kit (" + label + ")", qty: Math.ceil(zRailLen / 8), cost: 85 });
+    }
   }
   var extraSub = 0;
   for (var j = 0; j < extraItems.length; j++) extraSub += extraItems[j].qty * extraItems[j].cost;
-  return { totalArea: Math.round(baseCalc.area + addArea - cutArea), extraPosts: extraPosts, extraFootings: extraFootings, extraItems: extraItems, extraSub: extraSub, extraTotal: extraSub * 1.13 };
+
+  // S60: Zone railing contribution
+  // Each additive zone adds railing on its exposed sides (not the shared edge with main deck)
+  var extraRailLen = 0;
+  for (var ri = 0; ri < zones.length; ri++) {
+    var rz = zones[ri];
+    if (rz.type === "cutout") continue;
+    var re = rz.attachEdge || "front";
+    var rzw = rz.w || 8, rzd = rz.d || 6;
+    if (re === "right" || re === "left") {
+      // Attached along side edge: 2 new short edges (front+back of zone) + 1 far side edge
+      // Main deck loses rz.d from its side railing (net: +2*rzw + rzd - rzd = +2*rzw)
+      // But zone may be shorter than main deck side, so just add the 3 exposed sides
+      extraRailLen += 2 * rzw + rzd;
+    } else {
+      // Attached along front/back: 2 new side edges + 1 far front/back edge
+      extraRailLen += 2 * rzd + rzw;
+    }
+  }
+
+  return { totalArea: Math.round(baseCalc.area + addArea - cutArea), extraPosts: extraPosts, extraFootings: extraFootings, extraItems: extraItems, extraSub: extraSub, extraTotal: extraSub * 1.13, zoneCalcs: zoneCalcs, extraRailLen: +extraRailLen.toFixed(1) };
 }
 // Export to window
 window.JOIST_SPANS = JOIST_SPANS;
+window.BEAM_SPANS = BEAM_SPANS;
+window.getBeamMaxSpan = getBeamMaxSpan;
 window.FROST = FROST;
 window.SNOW = SNOW;
 window.calcStructure = calcStructure;
