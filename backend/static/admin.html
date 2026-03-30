@@ -554,7 +554,7 @@ async function loadPlanQuality() {
   var el = document.getElementById('plan-quality-section');
   el.innerHTML = '<div style="color:var(--text3);font-size:11px">Running 15 configurations...</div>';
   try {
-    var r = await fetch('/admin/api/plan-quality');
+    var r = await fetch('/admin/api/plan-quality', {headers: {'X-Admin-Password': adminPw}});
     var d = await r.json();
     var html = '<table><tr><th>Configuration</th><th>Status</th><th>Score</th><th>Issues</th></tr>';
     var statusColors = {ready:'var(--green)',warnings:'var(--orange)',not_ready:'var(--red)',unsupported:'var(--orange)'};
