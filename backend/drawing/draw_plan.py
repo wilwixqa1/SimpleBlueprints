@@ -403,21 +403,26 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
             ax.text(W / 2, D / 2 - 2.8, spec["labels"]["joist_deck"],
                     ha='center', fontsize=5, fontfamily='monospace', color='#888')
 
-            # Beam
-            ax.plot([1, W - 1], [beam_y, beam_y], color=BRAND["beam"], lw=4)
-            ax.plot([1, W - 1], [beam_y - 0.12, beam_y - 0.12], color=BRAND["beam"], lw=0.5)
-            ax.plot([1, W - 1], [beam_y + 0.12, beam_y + 0.12], color=BRAND["beam"], lw=0.5)
+            # Beam (clipped to chamfer polygon)
+            _bl1, = ax.plot([1, W - 1], [beam_y, beam_y], color=BRAND["beam"], lw=4)
+            _bl2, = ax.plot([1, W - 1], [beam_y - 0.12, beam_y - 0.12], color=BRAND["beam"], lw=0.5)
+            _bl3, = ax.plot([1, W - 1], [beam_y + 0.12, beam_y + 0.12], color=BRAND["beam"], lw=0.5)
+            _bl1.set_clip_path(_z0_clip)
+            _bl2.set_clip_path(_z0_clip)
+            _bl3.set_clip_path(_z0_clip)
             ax.text(W / 2, beam_y - 0.8,
                     spec["labels"]["beam"],
                     ha='center', fontsize=4, fontweight='bold', color='#8B6914')
 
-            # Posts + piers
+            # Posts + piers (clipped to chamfer polygon)
             for px in calc["post_positions"]:
-                ax.plot(px, beam_y, 'o', ms=5, color=BRAND["post"],
+                _pp, = ax.plot(px, beam_y, 'o', ms=5, color=BRAND["post"],
                         mec=BRAND["dark"], mew=0.8)
+                _pp.set_clip_path(_z0_clip)
                 pier = plt.Circle((px, beam_y), calc["footing_diam"] / 24,
                                   fill=False, ec=BRAND["dark"], lw=0.5, ls='--')
                 ax.add_patch(pier)
+                pier.set_clip_path(_z0_clip)
 
             # S34: Per-post height annotations when slope is active
             post_heights = calc.get("post_heights", [])

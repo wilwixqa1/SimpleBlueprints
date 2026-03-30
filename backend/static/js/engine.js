@@ -188,6 +188,23 @@ function calcStructure(p) {
   let railLen = W + D * 2; if (attachment === "freestanding") railLen += W;
   if (p.hasStairs) railLen -= 3;
 
+  // S61: Adjust railing length for chamfers
+  var _mc = p.mainCorners;
+  if (_mc) {
+    ["BL","BR","FL","FR"].forEach(function(_ck) {
+      var _cc = _mc[_ck];
+      if (_cc && _cc.type === "chamfer" && _cc.size > 0) {
+        var _cs = _cc.size;
+        if (attachment === "ledger" && (_ck === "BL" || _ck === "BR")) {
+          // Back corners on ledger: only lose depth-side edge portion, gain diagonal
+          railLen += _cs * Math.sqrt(2) - _cs;
+        } else {
+          railLen += _cs * Math.sqrt(2) - 2 * _cs;
+        }
+      }
+    });
+  }
+
   // Guard rail system (IRC R312.1.1, R312.1.3)
   const guardRequired = H * 12 > 30;
   const autoGuardHeight = H > 8 ? 42 : 36;
