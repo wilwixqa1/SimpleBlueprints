@@ -30,6 +30,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 
 from drawing.calc_engine import calculate_structure
 from drawing.permit_spec import build_permit_spec
+from drawing.permit_checker import run_checks, report_to_dict, get_compliance_summary
 from drawing.draw_plan import draw_plan_and_framing, format_feet_inches
 from drawing.draw_elevations import draw_elevations_sheet
 from drawing.draw_details import draw_details_sheet
@@ -135,7 +136,7 @@ class DeckParams(BaseModel):
 # ============================================================
 # PDF GENERATION
 # ============================================================
-def generate_blueprint_pdf(params: dict) -> tuple[str, str, dict]:
+def generate_blueprint_pdf(params: dict) -> tuple:
     """Generate two PDFs: permit plan set and materials list. Returns (permit_id, materials_id, calc)."""
     # S38: Validate lotVertices
     _lv = params.get("lotVertices")
@@ -177,6 +178,14 @@ def generate_blueprint_pdf(params: dict) -> tuple[str, str, dict]:
     spec = build_permit_spec(params, calc)
     if spec["validation_errors"]:
         print(f"Permit spec validation warnings: {spec['validation_errors']}")
+
+    # S58: Run permit completeness checker
+    permit_report = run_checks("deck", params, calc, spec)
+    if permit_report.overall_status == "not_ready":
+        print(f"Permit checker: NOT READY - {permit_report.summary}")
+    elif permit_report.overall_status != "ready":
+        print(f"Permit checker: {permit_report.overall_status} - {permit_report.summary}")
+
     pi = params.get("projectInfo", {}) or {}
     cover_img = params.get("coverImage", None)
     sp_mode = params.get("sitePlanMode", "generate")
@@ -226,7 +235,7 @@ def generate_blueprint_pdf(params: dict) -> tuple[str, str, dict]:
         draw_title_block(fig_m, "", "MATERIALS & COST ESTIMATE", calc, pi)
         pdf.savefig(fig_m, dpi=200); plt.close(fig_m)
 
-    return permit_id, materials_id, calc
+    return permit_id, materials_id, calc, permit_report
 
 
 # ============================================================
@@ -1350,12 +1359,13 @@ async def generate_test(request: Request):
         params = DeckParams(**json.loads(body))
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="Invalid JSON")
-    permit_id, materials_id, calc = generate_blueprint_pdf(params.dict())
+    permit_id, materials_id, calc, permit_report = generate_blueprint_pdf(params.dict())
     try: db_log_generation(user_id, params.dict(), calc, permit_id)
     except Exception as e: print(f"Log error: {e}")
     return {"file_id": permit_id, "download_url": f"/api/download/{permit_id}",
             "materials_id": materials_id, "materials_url": f"/api/download/{materials_id}",
-            "calc": calc}
+            "calc": calc,
+            "permit_report": report_to_dict(permit_report)}
 
 @app.get("/api/download/{file_id}")
 async def download(file_id: str, type: str = "permit"):
@@ -1386,7 +1396,7 @@ async def check_payment(session_id: str):
         if session.payment_status == "paid":
             pj = session.metadata.get("deck_params")
             if pj:
-                permit_id, materials_id, calc = generate_blueprint_pdf(json.loads(pj))
+                permit_id, materials_id, calc, _report = generate_blueprint_pdf(json.loads(pj))
                 return {"status":"paid","download_url":f"/api/download/{permit_id}",
                         "materials_url":f"/api/download/{materials_id}","calc":calc}
         return {"status":"pending"}
