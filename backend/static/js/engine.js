@@ -1,20 +1,24 @@
 // ============================================================
 // ENGINE   Structural Calculations + Materials Estimator
+// IRC 2021 Table R507.6 joist spans verified from source (S59).
 // ============================================================
 
+// IRC 2021 Table R507.6: DFL/Hem-Fir/SPF (No. 2, wet service, incising factor)
+// Keyed by DESIGN LOAD (40 LL, 50/60/70 ground snow), NOT total load.
 const JOIST_SPANS = {
-  50: { "2x6": { 12: 9.5, 16: 8.5, 24: 7 }, "2x8": { 12: 12.5, 16: 11.5, 24: 9.5 }, "2x10": { 12: 16, 16: 14.5, 24: 12 }, "2x12": { 12: 19.5, 16: 17.5, 24: 14.5 } },
-  60: { "2x6": { 12: 8.5, 16: 7.5, 24: 6 }, "2x8": { 12: 11, 16: 10, 24: 8.5 }, "2x10": { 12: 14, 16: 12.5, 24: 10.5 }, "2x12": { 12: 17, 16: 15.5, 24: 12.5 } },
-  75: { "2x6": { 12: 7.5, 16: 6.5, 24: 5.5 }, "2x8": { 12: 10, 16: 9, 24: 7.5 }, "2x10": { 12: 12.5, 16: 11, 24: 9.5 }, "2x12": { 12: 15, 16: 13.5, 24: 11 } },
-  95: { "2x6": { 12: 6.5, 16: 5.5, 24: 4.5 }, "2x8": { 12: 8.5, 16: 7.5, 24: 6.5 }, "2x10": { 12: 11, 16: 9.5, 24: 8 }, "2x12": { 12: 13, 16: 11.5, 24: 9.5 } },
+  40: { "2x6": { 12: 9.5, 16: 8.33, 24: 6.83 }, "2x8": { 12: 12.5, 16: 11.08, 24: 9.08 }, "2x10": { 12: 15.67, 16: 13.58, 24: 11.08 }, "2x12": { 12: 18.0, 16: 15.75, 24: 12.83 } },
+  50: { "2x6": { 12: 8.83, 16: 8.0, 24: 6.67 }, "2x8": { 12: 11.58, 16: 10.58, 24: 8.92 }, "2x10": { 12: 14.83, 16: 13.25, 24: 10.83 }, "2x12": { 12: 17.75, 16: 15.42, 24: 12.58 } },
+  60: { "2x6": { 12: 8.33, 16: 7.5, 24: 6.17 }, "2x8": { 12: 10.92, 16: 9.92, 24: 8.25 }, "2x10": { 12: 13.92, 16: 12.33, 24: 10.0 }, "2x12": { 12: 16.5, 16: 14.25, 24: 11.67 } },
+  70: { "2x6": { 12: 7.92, 16: 7.08, 24: 5.75 }, "2x8": { 12: 10.42, 16: 9.42, 24: 7.67 }, "2x10": { 12: 13.25, 16: 11.5, 24: 9.42 }, "2x12": { 12: 15.42, 16: 13.33, 24: 10.92 } },
 };
 
 const FROST = { warm: 12, moderate: 24, cold: 36, severe: 48 };
 const SNOW = { none: 0, light: 20, moderate: 40, heavy: 60 };
 
-function getSpanTable(TL) {
-  for (const tier of [50, 60, 75, 95]) { if (TL <= tier) return JOIST_SPANS[tier]; }
-  return JOIST_SPANS[95];
+function getSpanTable(designLoad) {
+  // designLoad = max(40, snow) per IRC footnote a
+  for (const tier of [40, 50, 60, 70]) { if (designLoad <= tier) return JOIST_SPANS[tier]; }
+  return JOIST_SPANS[70];
 }
 
 function calcStructure(p) {
@@ -44,7 +48,8 @@ function calcStructure(p) {
   const DL = deckingType === "composite" ? 15 : 12;
   const TL = LL + DL;
   const jSpan = attachment === "ledger" ? D - 1.5 : D / 2 - 0.75;
-  const table = getSpanTable(TL);
+  // IRC table keyed by design load (LL), not total load (TL)
+  const table = getSpanTable(LL);
 
   // === JOISTS (overridable) ===
   let joistSize = "2x12";
@@ -137,7 +142,7 @@ function calcStructure(p) {
   const blockingCount = midSpanBlocking ? Math.ceil(W / (sp / 12)) - 1 : 0;
   const warnings = [];
   const maxSpan = (table["2x12"] || {})[sp] || 0;
-  if (jSpan > maxSpan) warnings.push(`Joist span (${jSpan.toFixed(1)}') exceeds IRC at ${TL} PSF. Engineering required.`);
+  if (jSpan > maxSpan) warnings.push(`Joist span (${jSpan.toFixed(1)}') exceeds IRC at ${LL} PSF design load. Engineering required.`);
   if (H > 10) warnings.push("Height >10'. Lateral bracing by engineer recommended.");
   if (area > 500) warnings.push("Area >500 SF. Check local permit requirements.");
 
