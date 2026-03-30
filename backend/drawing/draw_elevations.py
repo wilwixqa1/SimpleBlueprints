@@ -545,7 +545,8 @@ def draw_south_elevation(ax, params, calc, compact=False, spec=None):
 
         # S35: Hardware callout on first post only
         if not _hw_callout_done and not compact:
-            _draw_hardware_callout(ax, sx, _ground_at_post + 0.1, 'ABU66Z',
+            _draw_hardware_callout(ax, sx, _ground_at_post + 0.1,
+                                   spec["hardware"]["post_base"]["model"] if spec else 'ABU66Z',
                                    leader_dx=-2.5, leader_dy=-0.5)
             _hw_callout_done = True
 
@@ -862,7 +863,8 @@ def draw_side_elevation(ax, params, calc, direction="east", compact=False, spec=
 
         # S35: Hardware callout on post
         if not compact:
-            _draw_hardware_callout(ax, post_x, _ground_at_post + 0.1, 'ABU66Z',
+            _draw_hardware_callout(ax, post_x, _ground_at_post + 0.1,
+                                   spec["hardware"]["post_base"]["model"] if spec else 'ABU66Z',
                                    leader_dx=-2.5, leader_dy=-0.5)
 
         beam_h = 1.0  # TODO: derive from calc["beam_size"] when per-zone calcs land
@@ -914,7 +916,9 @@ def draw_side_elevation(ax, params, calc, direction="east", compact=False, spec=
         ax.text(lbl_x, deck_top - beam_h / 2,
                 spec["labels"]["beam"] if spec else f'{calc["beam_size"].upper()}', **lbl_kw)
         ax.text(lbl_x, H * 0.4,
-                f'{calc["post_size"]} POST', **lbl_kw)
+                spec["labels"]["post_compact"] if spec else f'{calc["post_size"]} POST', **lbl_kw)
+        ax.text(lbl_x, -0.5,
+                spec["labels"]["pier_compact"] if spec else f'{calc["footing_diam"]}" DIA. PIER', **lbl_kw)
 
         draw_dimension_v(ax, deck_end_x - 0.5, ground_y, deck_top,
                          format_feet_inches(H), offset=-5, color=BRAND["blue"], fontsize=fs_dim)
@@ -965,7 +969,8 @@ def draw_side_elevation(ax, params, calc, direction="east", compact=False, spec=
 
         # S35: Hardware callout on post
         if not compact:
-            _draw_hardware_callout(ax, post_x, _ground_at_post + 0.1, 'ABU66Z',
+            _draw_hardware_callout(ax, post_x, _ground_at_post + 0.1,
+                                   spec["hardware"]["post_base"]["model"] if spec else 'ABU66Z',
                                    leader_dx=2.5, leader_dy=-0.5)
 
         beam_h = 1.0  # TODO: derive from calc["beam_size"] when per-zone calcs land
@@ -1027,9 +1032,9 @@ def draw_side_elevation(ax, params, calc, direction="east", compact=False, spec=
         ax.text(lbl_x, _lbl_beam,
                 spec["labels"]["beam"] if spec else f'{calc["beam_size"].upper()}', **lbl_kw)
         ax.text(lbl_x, _lbl_post,
-                f'{calc["post_size"]} POST', **lbl_kw)
+                spec["labels"]["post_compact"] if spec else f'{calc["post_size"]} POST', **lbl_kw)
         ax.text(lbl_x, _lbl_pier,
-                f'{calc["footing_diam"]}" DIA. PIER', **lbl_kw)
+                spec["labels"]["pier_compact"] if spec else f'{calc["footing_diam"]}" DIA. PIER', **lbl_kw)
 
         dim_x = deck_start_x + D + max(0.5, stair_ext + 0.5)
         draw_dimension_v(ax, dim_x, ground_y, deck_top,

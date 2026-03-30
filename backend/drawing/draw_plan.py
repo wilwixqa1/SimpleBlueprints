@@ -342,6 +342,17 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
                 if jx < W - 0.3:
                     ax.plot([jx, jx], [0.1, beam_y], color=BRAND["light"], lw=0.4)
 
+            # S58: Joist hanger symbols at ledger connections
+            if attachment == "ledger":
+                _hh = 0.35  # hanger symbol height
+                _hw = 0.18  # hanger symbol half-width
+                for jx in np.arange(sp, W, sp):
+                    if jx < W - 0.3:
+                        # Small U-bracket at each joist-to-ledger connection
+                        ax.plot([jx - _hw, jx - _hw, jx + _hw, jx + _hw],
+                                [_hh, 0.02, 0.02, _hh],
+                                color=BRAND["dark"], lw=0.6, solid_capstyle='round')
+
             # Mid-span blocking (when joist span > 7ft)
             j_span = D - 1.5 if attachment == "ledger" else D / 2 - 0.75
             if j_span > 7:

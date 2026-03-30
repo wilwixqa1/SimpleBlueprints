@@ -110,6 +110,7 @@ def build_permit_spec(params, calc):
         "TL": TL,
         "ledger_capacity": ledger_capacity,
         "snow_load": params.get("snowLoad", "none"),
+        "ground_snow": LL - 40,  # base LL is always 40; remainder is snow
     }
 
     # --- Joists ---
@@ -303,6 +304,12 @@ def build_permit_spec(params, calc):
         labels["stair_connector"] = (
             f'SIMPSON \'{stair_conn_top["model"]}\' STRINGER CONNECTOR EA. STRINGER'
         )
+
+    # Compact labels for side elevation views (shorter than A-1 but spec-driven)
+    labels["post_compact"] = f'{post_size} PT POST'
+    labels["pier_compact"] = (
+        f'{footing_diam}" DIA. PIER x {footing_depth}" DEEP'
+    )
 
     spec["labels"] = labels
 
