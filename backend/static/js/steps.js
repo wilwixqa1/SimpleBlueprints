@@ -878,6 +878,24 @@ function StepContent(props) {
   // null = choice screen not yet shown, true = guided, false = manual
   const [guideActive, setGuideActive] = _stUS(null);
 
+  // S60: Permit readiness check state
+  const [permitCheck, setPermitCheck] = _stUS(null);
+  const [permitCheckLoading, setPermitCheckLoading] = _stUS(false);
+  _stUE(function() {
+    if (step !== 4) return;
+    setPermitCheckLoading(true);
+    fetch("/api/check-permit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(p),
+    }).then(function(r) { return r.json(); }).then(function(d) {
+      setPermitCheck(d);
+      setPermitCheckLoading(false);
+    }).catch(function() { setPermitCheckLoading(false); });
+  }, [step, p.width, p.depth, p.height, p.attachment, p.joistSpacing,
+      p.snowLoad, p.frostZone, p.beamType, p.hasStairs, p.deckingType,
+      p.overJoist, p.overBeam, p.overPostSize, p.overPostCount, p.overFooting]);
+
   // S54: AI Helper chat state - persists across step changes via window
   if (!window._chatMessages) window._chatMessages = [];
   const [chatMessages, setChatMessages] = _stUS(window._chatMessages);
@@ -3151,7 +3169,7 @@ function StepContent(props) {
             <button onClick={() => u("overPostCount", isOver ? null : c.auto.postCount)} style={{ fontSize: 8, fontFamily: _mono, padding: "2px 8px", borderRadius: 3, cursor: "pointer", border: `1px solid ${isOver ? _br.ac : _br.bd}`, background: isOver ? "#fef9e7" : "#fff", color: isOver ? _br.ac : _br.mu, fontWeight: 700 }}>{isOver ? "MANUAL \u270E" : "AUTO \u2713"}</button>
           </div>
           <div style={{ display: "flex", gap: 4 }}>
-            {[2, 3, 4, 5, 6].map(n => (
+            {[2, 3, 4, 5, 6, 7, 8].map(n => (
               <button key={n} onClick={() => isOver && u("overPostCount", n)} style={{ flex: 1, padding: "6px 4px", fontSize: 10, fontFamily: _mono, cursor: isOver ? "pointer" : "default", border: val === n ? `2px solid ${isOver ? _br.ac : _br.gn}` : `1px solid ${_br.bd}`, background: val === n ? (isOver ? "#fef9e7" : "#edf5e8") : (isOver ? "#fff" : "#fafafa"), color: val === n ? (isOver ? _br.ac : _br.gn) : (isOver ? _br.tx : "#ccc"), borderRadius: 5, fontWeight: val === n ? 700 : 400, opacity: isOver ? 1 : 0.7, textAlign: "center" }}>
                 {n}{!isOver && n === c.auto.postCount && <div style={{ fontSize: 6, color: _br.gn, marginTop: 1 }}>REC</div>}
               </button>
@@ -3306,6 +3324,47 @@ function StepContent(props) {
       </div>
       <div style={{ textAlign: "center", marginTop: 6 }}><span style={{ fontSize: 8, color: _br.mu, fontFamily: _mono }}>4 sheets included {"\u00B7"} Plan {"\u00B7"} Elevations {"\u00B7"} Details {"\u00B7"} Materials</span></div>
     </div>
+
+    {/* S60: Permit Readiness Card */}
+    {(() => {
+      if (permitCheckLoading) return <div style={{ padding: 14, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}`, marginBottom: 14, textAlign: "center" }}>
+        <span style={{ fontSize: 9, fontFamily: _mono, color: _br.mu }}>Checking permit readiness...</span>
+      </div>;
+      if (!permitCheck) return null;
+      var rpt = permitCheck.permit_report;
+      var isReady = rpt.overall_status === "ready";
+      var isWarn = rpt.overall_status === "warnings";
+      var isFail = rpt.overall_status === "not_ready" || rpt.overall_status === "unsupported";
+      var statusColor = isReady ? "#2e7d32" : isWarn ? "#e65100" : "#c62828";
+      var statusBg = isReady ? "#e8f5e9" : isWarn ? "#fff3e0" : "#fbe9e7";
+      var statusBorder = isReady ? "#a5d6a7" : isWarn ? "#ffcc80" : "#ef9a9a";
+      var statusIcon = isReady ? "\u2705" : isWarn ? "\u26A0\uFE0F" : "\u274C";
+      var statusText = isReady ? "PERMIT READY" : isWarn ? "ADVISORIES" : "ISSUES FOUND";
+      var failChecks = (rpt.checks || []).filter(function(ck) { return ck.status === "fail"; });
+      var gapChecks = rpt.capability_gaps || [];
+      return <div style={{ padding: 14, background: statusBg, borderRadius: 8, border: `1.5px solid ${statusBorder}`, marginBottom: 14 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+          <span style={{ fontSize: 16 }}>{statusIcon}</span>
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: statusColor, fontFamily: _mono, letterSpacing: "1px" }}>{statusText}</div>
+            <div style={{ fontSize: 8, color: _br.mu, fontFamily: _mono }}>{rpt.passed}/{rpt.total_applicable} checks passed {"\u00B7"} IRC 2021</div>
+          </div>
+        </div>
+        {failChecks.length > 0 && <div style={{ marginBottom: 6 }}>
+          {failChecks.map(function(ck, i) { return <div key={i} style={{ fontSize: 8, fontFamily: _mono, color: "#c62828", padding: "3px 0", borderTop: i > 0 ? "1px solid " + statusBorder : "none" }}>
+            {"\u2022"} {ck.message}{ck.fix ? <span style={{ color: _br.mu }}> {"\u2014"} {ck.fix}</span> : null}
+          </div>; })}
+        </div>}
+        {gapChecks.length > 0 && failChecks.length === 0 && <div style={{ marginBottom: 6 }}>
+          {gapChecks.map(function(ck, i) { return <div key={i} style={{ fontSize: 8, fontFamily: _mono, color: "#e65100", padding: "3px 0" }}>
+            {"\u2022"} {ck.message}
+          </div>; })}
+        </div>}
+        <div style={{ fontSize: 7, color: _br.mu, fontFamily: _mono, fontStyle: "italic" }}>
+          Lumber: No. 2 DFL / Hem-Fir / SPF {"\u00B7"} Beam spans per IRC R507.5 {"\u00B7"} Joist spans per IRC R507.6
+        </div>
+      </div>;
+    })()}
 
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10, marginBottom: 14 }}>
       <div style={{ padding: 12, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}` }}>
