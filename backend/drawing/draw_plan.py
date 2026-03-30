@@ -210,17 +210,17 @@ def draw_zone_framing(ax, zone, rect, calc, zone_sizing=None):
                           fill=False, ec=BRAND["dark"], lw=0.4, ls='--')
         ax.add_patch(pier)
 
-    # S61: Zone label with zone-specific joist/beam callout (from spec)
+    # S61: Zone label with zone-specific joist/beam callout (from spec, compact)
     label = zone.get("label", f"Zone {zone.get('id', '?')}")
     if zone_sizing:
         zj = zone_sizing["joist_size"]
         zb = zone_sizing["beam_size"].upper()
-        label_text = f'{label}\n{zj} @ {calc.get("joist_spacing", 16)}" O.C.\n{zb} BEAM'
+        label_text = f'{label}\n{zj} @ {calc.get("joist_spacing", 16)}" / {zb}'
     else:
-        label_text = f'{label}\n{calc.get("joist_size", "2x12")} @ {calc.get("joist_spacing", 16)}" O.C.'
+        label_text = f'{label}\n{calc.get("joist_size", "2x12")} @ {calc.get("joist_spacing", 16)}"'
     ax.text(rect["x"] + rect["w"] / 2, rect["y"] + rect["d"] / 2,
             label_text,
-            ha='center', va='center', fontsize=3.5,
+            ha='center', va='center', fontsize=3.0,
             fontfamily='monospace', color=BRAND["mute"], fontstyle='italic')
 
 
@@ -400,8 +400,6 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
             ax.text(W / 2, D / 2 - 1.5,
                     spec["labels"]["joist"],
                     ha='center', fontsize=6, fontfamily='monospace', color='#666')
-            ax.text(W / 2, D / 2 - 2.8, spec["labels"]["joist_deck"],
-                    ha='center', fontsize=5, fontfamily='monospace', color='#888')
 
             # Beam (clipped to chamfer polygon)
             _bl1, = ax.plot([1, W - 1], [beam_y, beam_y], color=BRAND["beam"], lw=4)
@@ -436,66 +434,62 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
                                 bbox=dict(boxstyle='square,pad=0.1', fc='#fff8f0',
                                           ec='#c4960a', lw=0.3, alpha=0.9))
 
-            # S57: Hardware labels distributed near their elements (Rutstein style)
-            _hw_kw = dict(fontsize=3.5, fontfamily='monospace', color=BRAND["dark"],
-                          bbox=dict(boxstyle='square,pad=0.1', fc='white', ec='none', alpha=0.85))
-
-            # Post/footing label: near leftmost post, above beam
+            # S61: Hardware labels - consolidated for readability
             _first_px = calc["post_positions"][0]
-            ax.text(_first_px, beam_y + 1.5, spec["labels"]["posts_and_hardware"],
-                    ha='left', fontsize=3.3, fontfamily='monospace', color=BRAND["dark"],
-                    bbox=dict(boxstyle='square,pad=0.1', fc='white', ec='none', alpha=0.85))
-            ax.text(_first_px, beam_y + 0.9, spec["labels"]["footings"],
-                    ha='left', fontsize=3.3, fontfamily='monospace', color=BRAND["dark"],
-                    bbox=dict(boxstyle='square,pad=0.1', fc='white', ec='none', alpha=0.85))
+            # Combined post + footing on one line above beam
+            _hw_fs = 3.0
+            _hw_box = dict(boxstyle='square,pad=0.1', fc='white', ec='none', alpha=0.85)
+            ax.text(_first_px, beam_y + 1.2,
+                    f'{spec["posts"]["size"]} PT POSTS ({spec["posts"]["total"]}) W/ {spec["footings"]["diameter"]}" PIERS x {spec["footings"]["depth"]}" DEEP',
+                    ha='left', fontsize=_hw_fs, fontfamily='monospace', color=BRAND["dark"],
+                    bbox=_hw_box)
 
-            # Hurricane tie label: centered below beam label
+            # Hurricane tie + joist hanger: single line below beam
+            _hw_items = []
             if calc.get("beam_type", "dropped") == "dropped":
-                ax.text(W / 2, beam_y - 1.5, spec["labels"]["hurricane_tie"],
-                        ha='center', fontsize=3.3, fontfamily='monospace', color=BRAND["dark"],
-                        bbox=dict(boxstyle='square,pad=0.1', fc='white', ec='none', alpha=0.85))
-
-            # Joist hanger label: near ledger (where hangers connect)
+                _hw_items.append(spec["hardware"]["hurricane_tie"]["model"] + ' TIES')
             if attachment == "ledger":
-                ax.text(W - 0.5, 0.8, spec["labels"]["joist_hanger"],
-                        ha='right', fontsize=3.3, fontfamily='monospace', color=BRAND["dark"],
-                        bbox=dict(boxstyle='square,pad=0.1', fc='white', ec='none', alpha=0.85))
+                _hw_items.append(spec["hardware"]["joist_hanger"]["model"] + ' HANGERS')
+            if _hw_items:
+                ax.text(W / 2, beam_y - 1.5,
+                        'SIMPSON ' + ' + '.join(_hw_items),
+                        ha='center', fontsize=_hw_fs, fontfamily='monospace', color=BRAND["dark"],
+                        bbox=_hw_box)
 
-            # S57: Loads box - inside deck, bottom-left corner
-            # S58: Snow load line added when applicable
-            # S60: Lumber species design basis added
+            # S61: Loads box - moved OUTSIDE deck to lower-left margin
             _has_snow = bool(spec["labels"].get("loads_snow"))
             _has_ledger = bool(spec["labels"].get("loads_ledger"))
-            _lb_x = 0.3
-            _lb_y = 0.3
+            _lb_x = bbox["x"] - margin_x_left + 1
+            _lb_y = -house_depth + 0.5
             _lb_lines = 4 + (1 if _has_snow else 0) + (1 if _has_ledger else 0)
-            _lb_h = 0.5 + _lb_lines * 0.6
-            ax.add_patch(patches.Rectangle((_lb_x, _lb_y), 5.5, _lb_h,
+            _lb_h = 0.5 + _lb_lines * 0.55
+            _lb_w = 5.5
+            ax.add_patch(patches.Rectangle((_lb_x, _lb_y), _lb_w, _lb_h,
                          fc='#fafaf8', ec=BRAND["dark"], lw=0.5, zorder=5))
-            _ly = _lb_y + _lb_h - 0.5
+            _ly = _lb_y + _lb_h - 0.4
             _line_n = 0
-            ax.text(_lb_x + 0.2, _ly, 'DECK LOADS:', fontsize=4.5,
+            ax.text(_lb_x + 0.2, _ly, 'DECK LOADS:', fontsize=4,
                     fontweight='bold', color=BRAND["dark"], zorder=6)
             _line_n += 1
-            ax.text(_lb_x + 0.2, _ly - _line_n * 0.6, spec["labels"]["loads_LL"],
-                    fontsize=4, color=BRAND["dark"], zorder=6)
+            ax.text(_lb_x + 0.2, _ly - _line_n * 0.55, spec["labels"]["loads_LL"],
+                    fontsize=3.5, color=BRAND["dark"], zorder=6)
             if _has_snow:
                 _line_n += 1
-                ax.text(_lb_x + 0.2, _ly - _line_n * 0.6, spec["labels"]["loads_snow"],
-                        fontsize=4, color=BRAND["dark"], zorder=6)
+                ax.text(_lb_x + 0.2, _ly - _line_n * 0.55, spec["labels"]["loads_snow"],
+                        fontsize=3.5, color=BRAND["dark"], zorder=6)
             _line_n += 1
-            ax.text(_lb_x + 0.2, _ly - _line_n * 0.6, spec["labels"]["loads_DL"],
-                    fontsize=4, color=BRAND["dark"], zorder=6)
+            ax.text(_lb_x + 0.2, _ly - _line_n * 0.55, spec["labels"]["loads_DL"],
+                    fontsize=3.5, color=BRAND["dark"], zorder=6)
             _line_n += 1
-            ax.text(_lb_x + 0.2, _ly - _line_n * 0.6, spec["labels"]["loads_TL"],
-                    fontsize=4, fontweight='bold', color=BRAND["red"], zorder=6)
+            ax.text(_lb_x + 0.2, _ly - _line_n * 0.55, spec["labels"]["loads_TL"],
+                    fontsize=3.5, fontweight='bold', color=BRAND["red"], zorder=6)
             _line_n += 1
-            ax.text(_lb_x + 0.2, _ly - _line_n * 0.6, spec["labels"]["loads_lumber"],
-                    fontsize=4, color=BRAND["dark"], zorder=6)
+            ax.text(_lb_x + 0.2, _ly - _line_n * 0.55, spec["labels"]["loads_lumber"],
+                    fontsize=3.5, color=BRAND["dark"], zorder=6)
             if _has_ledger:
                 _line_n += 1
-                ax.text(_lb_x + 0.2, _ly - _line_n * 0.6, spec["labels"]["loads_ledger"],
-                        fontsize=4, color=BRAND["dark"], zorder=6)
+                ax.text(_lb_x + 0.2, _ly - _line_n * 0.55, spec["labels"]["loads_ledger"],
+                        fontsize=3.5, color=BRAND["dark"], zorder=6)
 
 
 
@@ -530,13 +524,6 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
                              format_feet_inches(beam_setback),
                              offset=max(W * 0.04, 1.5), color='#8B6914', fontsize=4.5)
 
-            # Joist count label
-            n_joists = int(W / (calc["joist_spacing"] / 12)) + 1
-            if n_joists > 0:
-                ax.text(W / 2, D / 2 - 3.8,
-                        f'{n_joists} JOISTS',
-                        ha='center', fontsize=4.5, fontfamily='monospace',
-                        color='#999', fontweight='bold')
         else:
             # Plan view labels (zone 0 center)
             ax.text(W / 2, D / 2 + 0.8, spec["labels"]["decking"],
