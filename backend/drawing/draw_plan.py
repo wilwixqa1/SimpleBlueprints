@@ -589,9 +589,31 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
             ax.text(W / 2, D / 2 - 0.8, spec["labels"]["guardrail"],
                     ha='center', fontsize=5, fontfamily='monospace', color='#666')
 
-        # Railing (S21: zone-aware exposed edges)
-        for e in exp_edges:
-            ax.plot([e["x1"], e["x2"]], [e["y1"], e["y2"]], color=BRAND["rail"], lw=3.5)
+        # Railing (S21: zone-aware exposed edges, S61: chamfer-aware)
+        _main_corners = params.get("mainCorners")
+        _has_chamfer = _main_corners and any(
+            _main_corners.get(k, {}).get("type") == "chamfer" and _main_corners.get(k, {}).get("size", 0) > 0
+            for k in ("BL", "BR", "FL", "FR")
+        )
+        if _has_chamfer:
+            # Build clip polygon for zone 0
+            _rail_verts = get_chamfered_vertices(0, 0, W, D, _main_corners)
+            _rail_clip = Polygon(_rail_verts, closed=True, fc='none', ec='none', lw=0)
+            ax.add_patch(_rail_clip)
+            # Draw existing exp_edges clipped to chamfer polygon
+            for e in exp_edges:
+                ln, = ax.plot([e["x1"], e["x2"]], [e["y1"], e["y2"]], color=BRAND["rail"], lw=3.5)
+                ln.set_clip_path(_rail_clip)
+            # Add chamfer diagonal faces as railing
+            for vi in range(len(_rail_verts)):
+                v1 = _rail_verts[vi]
+                v2 = _rail_verts[(vi + 1) % len(_rail_verts)]
+                # Diagonal = both x and y change (not axis-aligned)
+                if abs(v1[0] - v2[0]) > 0.01 and abs(v1[1] - v2[1]) > 0.01:
+                    ax.plot([v1[0], v2[0]], [v1[1], v2[1]], color=BRAND["rail"], lw=3.5)
+        else:
+            for e in exp_edges:
+                ax.plot([e["x1"], e["x2"]], [e["y1"], e["y2"]], color=BRAND["rail"], lw=3.5)
 
         # Stairs (parametric)
         if has_stairs and calc.get("stairs"):
