@@ -108,7 +108,8 @@ class DeckParams(BaseModel):
     numStringers: int = 3; hasLanding: bool = False
     joistSpacing: int = 16; deckingType: str = "composite"
     railType: str = "fortress"; snowLoad: str = "moderate"
-    frostZone: str = "cold"; deckOffset: float = 0; stairOffset: float = 0
+    frostZone: str = "cold"; species: str = "dfl_hf_spf"
+    deckOffset: float = 0; stairOffset: float = 0
     lotWidth: float = 80; lotDepth: float = 120
     lotVertices: Optional[list] = None
     lotEdges: Optional[list] = None

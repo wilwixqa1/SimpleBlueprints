@@ -3088,6 +3088,12 @@ function StepContent(props) {
     <Chips label="Joist spacing" field="joistSpacing" opts={[[12, '12" O.C.'], [16, '16" O.C.'], [24, '24" O.C.']]} u={u} p={p} />
     <Chips label="Snow load" field="snowLoad" opts={[["none", "None"], ["light", "Light"], ["moderate", "Moderate"], ["heavy", "Heavy"]]} u={u} p={p} />
     <Chips label="Footing depth (frost line)" field="frostZone" opts={[["warm", '12"'], ["moderate", '24"'], ["cold", '36"'], ["severe", '48"']]} u={u} p={p} />
+    <Chips label="Wood species" field="species" opts={[["dfl_hf_spf", "Doug Fir / Hem-Fir / SPF"], ["southern_pine", "Southern Pine"], ["redwood_cedar", "Redwood / Cedar"]]} u={u} p={p} />
+    <div style={{ fontSize: 8, color: _br.mu, fontFamily: _mono, marginTop: -6, marginBottom: 8, paddingLeft: 2, fontStyle: "italic" }}>
+      {(p.species || "dfl_hf_spf") === "dfl_hf_spf" ? "Most common lumber outside the South. Default for most regions." :
+       (p.species || "dfl_hf_spf") === "southern_pine" ? "Strongest species group. Common in the Southeast US." :
+       "Weakest species group. Verify your lumber matches this grade."}
+    </div>
     </div>
 
     <div style={{ marginTop: 16, padding: 14, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}` }}>
@@ -3112,7 +3118,7 @@ function StepContent(props) {
         </div>
       ); })()}
 
-      {(() => { const isOver = !!p.overBeam; const val = isOver ? p.overBeam : c.auto.beam; const opts = ["2-ply 2x10", "3-ply 2x10", "3-ply 2x12", "3-ply LVL 1.75x12"]; return (
+      {(() => { const isOver = !!p.overBeam; const val = isOver ? p.overBeam : c.auto.beam; const opts = ["2-ply 2x8", "2-ply 2x10", "2-ply 2x12", "3-ply 2x8", "3-ply 2x10", "3-ply 2x12", "3-ply LVL 1.75x12"]; return (
         <div style={{ marginBottom: 10 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
             <span style={{ fontSize: 10, color: _br.mu, fontFamily: _mono, fontWeight: 700 }}>BEAM</span>
