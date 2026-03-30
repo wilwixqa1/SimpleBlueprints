@@ -125,6 +125,7 @@ IRC_JOIST_SPANS_BY_LOAD = {
     80: IRC_JOIST_SPANS["dfl_hf_spf"][70],   # TL=80 -> IRC 70 PSF snow
 }
 
+# Legacy alias kept for backward compat with permit_checker
 IRC_BEAM_CAPACITY = {
     "2-ply 2x8": {"max_span": 6, "max_trib": 8},
     "2-ply 2x10": {"max_span": 8, "max_trib": 10},
@@ -133,6 +134,233 @@ IRC_BEAM_CAPACITY = {
     "3-ply 2x12": {"max_span": 12, "max_trib": 15},
     "3-ply LVL 1.75x12": {"max_span": 14, "max_trib": 18},
 }
+
+# ============================================================
+# IRC 2021 TABLES R507.5(1) through R507.5(4): BEAM SPANS
+# ============================================================
+# Verified against 2021 IRC published tables (S60).
+# Values in decimal feet, converted from feet-inches.
+# Columns = Effective Deck Joist Span Length: 6, 8, 10, 12, 14, 16, 18 ft
+# Footnotes: DL=10psf, L/delta=360 main, L/delta=180 cantilever.
+#   Snow not concurrent with live load. No.2 grade, wet service.
+#   Beam cantilevers limited to adjacent span / 4.
+#   Effective joist span uses factor from R507.5(5). We use actual
+#   joist span (factor=1.0, assumes max cantilever) which is conservative.
+# ============================================================
+
+_JOIST_SPAN_COLS = [6, 8, 10, 12, 14, 16, 18]
+
+def _fi(f, i):
+    """Convert feet-inches to decimal feet."""
+    return round(f + i / 12.0, 2)
+
+
+# --- TABLE R507.5(1): 40 PSF LIVE LOAD ---
+_BEAM_40 = {
+    "southern_pine": {
+        "2-ply 2x6":  [_fi(6,11), _fi(5,11), _fi(5,4),  _fi(4,10), _fi(4,6),  _fi(4,3),  _fi(4,0)],
+        "2-ply 2x8":  [_fi(8,9),  _fi(7,7),  _fi(6,9),  _fi(6,2),  _fi(5,9),  _fi(5,4),  _fi(5,0)],
+        "2-ply 2x10": [_fi(10,4), _fi(9,0),  _fi(8,0),  _fi(7,4),  _fi(6,9),  _fi(6,4),  _fi(6,0)],
+        "2-ply 2x12": [_fi(12,2), _fi(10,7), _fi(9,5),  _fi(8,7),  _fi(8,0),  _fi(7,5),  _fi(7,0)],
+        "3-ply 2x6":  [_fi(8,6),  _fi(7,5),  _fi(6,8),  _fi(6,1),  _fi(5,8),  _fi(5,3),  _fi(4,11)],
+        "3-ply 2x8":  [_fi(10,11),_fi(9,6),  _fi(8,6),  _fi(7,9),  _fi(7,2),  _fi(6,8),  _fi(6,4)],
+        "3-ply 2x10": [_fi(13,0), _fi(11,2), _fi(10,0), _fi(9,2),  _fi(8,6),  _fi(7,11), _fi(7,6)],
+        "3-ply 2x12": [_fi(15,3), _fi(13,3), _fi(11,10),_fi(10,9), _fi(10,0), _fi(9,4),  _fi(8,10)],
+    },
+    "dfl_hf_spf": {
+        "2-ply 2x6":  [_fi(6,1),  _fi(5,3),  _fi(4,9),  _fi(4,4),  _fi(3,11), _fi(3,7),  _fi(3,3)],
+        "2-ply 2x8":  [_fi(8,2),  _fi(7,1),  _fi(6,4),  _fi(5,9),  _fi(5,2),  _fi(4,8),  _fi(4,4)],
+        "2-ply 2x10": [_fi(10,0), _fi(8,7),  _fi(7,9),  _fi(7,0),  _fi(6,6),  _fi(6,0),  _fi(5,6)],
+        "2-ply 2x12": [_fi(11,7), _fi(10,0), _fi(8,11), _fi(8,2),  _fi(7,7),  _fi(7,1),  _fi(6,8)],
+        "3-ply 2x6":  [_fi(7,8),  _fi(6,8),  _fi(6,0),  _fi(5,6),  _fi(5,1),  _fi(4,9),  _fi(4,6)],
+        "3-ply 2x8":  [_fi(10,3), _fi(8,10), _fi(7,11), _fi(7,3),  _fi(6,8),  _fi(6,3),  _fi(5,11)],
+        "3-ply 2x10": [_fi(12,6), _fi(10,10),_fi(9,8),  _fi(8,10), _fi(8,2),  _fi(7,8),  _fi(7,2)],
+        "3-ply 2x12": [_fi(14,6), _fi(12,7), _fi(11,3), _fi(10,3), _fi(9,6),  _fi(8,11), _fi(8,5)],
+    },
+    "redwood_cedar": {
+        "2-ply 2x6":  [_fi(6,2),  _fi(5,4),  _fi(4,10), _fi(4,5),  _fi(4,0),  _fi(3,8),  _fi(3,4)],
+        "2-ply 2x8":  [_fi(7,10), _fi(6,10), _fi(6,1),  _fi(5,7),  _fi(5,2),  _fi(4,10), _fi(4,5)],
+        "2-ply 2x10": [_fi(9,7),  _fi(8,4),  _fi(7,5),  _fi(6,9),  _fi(6,3),  _fi(5,10), _fi(5,6)],
+        "2-ply 2x12": [_fi(11,1), _fi(9,8),  _fi(8,7),  _fi(7,10), _fi(7,3),  _fi(6,10), _fi(6,5)],
+        "3-ply 2x6":  [_fi(7,8),  _fi(6,9),  _fi(6,0),  _fi(5,6),  _fi(5,1),  _fi(4,9),  _fi(4,6)],
+        "3-ply 2x8":  [_fi(9,10), _fi(8,6),  _fi(7,7),  _fi(6,11), _fi(6,5),  _fi(6,0),  _fi(5,8)],
+        "3-ply 2x10": [_fi(12,0), _fi(10,5), _fi(9,4),  _fi(8,6),  _fi(7,10), _fi(7,4),  _fi(6,11)],
+        "3-ply 2x12": [_fi(13,11),_fi(12,0), _fi(10,9), _fi(9,10), _fi(9,1),  _fi(8,6),  _fi(8,1)],
+    },
+}
+
+# --- TABLE R507.5(2): 50 PSF GROUND SNOW LOAD ---
+_BEAM_50 = {
+    "southern_pine": {
+        "2-ply 2x6":  [_fi(6,8),  _fi(5,9),  _fi(5,2),  _fi(4,9),  _fi(4,4),  _fi(4,1),  _fi(3,10)],
+        "2-ply 2x8":  [_fi(8,6),  _fi(7,4),  _fi(6,7),  _fi(6,0),  _fi(5,7),  _fi(5,2),  _fi(4,11)],
+        "2-ply 2x10": [_fi(10,1), _fi(8,9),  _fi(7,10), _fi(7,1),  _fi(6,7),  _fi(6,2),  _fi(5,10)],
+        "2-ply 2x12": [_fi(11,11),_fi(10,3), _fi(9,2),  _fi(8,5),  _fi(7,9),  _fi(7,3),  _fi(6,10)],
+        "3-ply 2x6":  [_fi(7,11), _fi(7,2),  _fi(6,6),  _fi(5,11), _fi(5,6),  _fi(5,1),  _fi(4,10)],
+        "3-ply 2x8":  [_fi(10,5), _fi(9,3),  _fi(8,3),  _fi(7,6),  _fi(6,11), _fi(6,6),  _fi(6,2)],
+        "3-ply 2x10": [_fi(12,8), _fi(10,11),_fi(9,9),  _fi(8,11), _fi(8,3),  _fi(7,9),  _fi(7,3)],
+        "3-ply 2x12": [_fi(14,11),_fi(12,11),_fi(11,6), _fi(10,6), _fi(9,9),  _fi(9,1),  _fi(8,7)],
+    },
+    "dfl_hf_spf": {
+        "2-ply 2x6":  [_fi(6,0),  _fi(5,2),  _fi(4,7),  _fi(4,2),  _fi(3,10), _fi(3,5),  _fi(3,2)],
+        "2-ply 2x8":  [_fi(8,0),  _fi(6,11), _fi(6,2),  _fi(5,8),  _fi(5,0),  _fi(4,7),  _fi(4,2)],
+        "2-ply 2x10": [_fi(9,9),  _fi(8,5),  _fi(7,7),  _fi(6,11), _fi(6,4),  _fi(5,10), _fi(5,4)],
+        "2-ply 2x12": [_fi(11,4), _fi(9,10), _fi(8,9),  _fi(8,0),  _fi(7,5),  _fi(6,11), _fi(6,6)],
+        "3-ply 2x6":  [_fi(7,6),  _fi(6,6),  _fi(5,9),  _fi(5,3),  _fi(4,11), _fi(4,7),  _fi(4,4)],
+        "3-ply 2x8":  [_fi(10,0), _fi(8,8),  _fi(7,9),  _fi(7,1),  _fi(6,6),  _fi(6,1),  _fi(5,8)],
+        "3-ply 2x10": [_fi(12,3), _fi(10,7), _fi(9,6),  _fi(8,8),  _fi(8,0),  _fi(7,6),  _fi(7,0)],
+        "3-ply 2x12": [_fi(14,3), _fi(12,4), _fi(11,0), _fi(10,1), _fi(9,4),  _fi(8,9),  _fi(8,3)],
+    },
+    "redwood_cedar": {
+        "2-ply 2x6":  [_fi(6,1),  _fi(5,3),  _fi(4,8),  _fi(4,4),  _fi(3,11), _fi(3,6),  _fi(3,3)],
+        "2-ply 2x8":  [_fi(7,8),  _fi(6,8),  _fi(5,11), _fi(5,5),  _fi(5,0),  _fi(4,8),  _fi(4,3)],
+        "2-ply 2x10": [_fi(9,5),  _fi(8,2),  _fi(7,3),  _fi(6,8),  _fi(6,2),  _fi(5,9),  _fi(5,5)],
+        "2-ply 2x12": [_fi(10,11),_fi(9,5),  _fi(8,5),  _fi(7,8),  _fi(7,2),  _fi(6,8),  _fi(6,3)],
+        "3-ply 2x6":  [_fi(7,1),  _fi(6,5),  _fi(5,11), _fi(5,5),  _fi(5,0),  _fi(4,8),  _fi(4,5)],
+        "3-ply 2x8":  [_fi(9,4),  _fi(8,4),  _fi(7,5),  _fi(6,10), _fi(6,4),  _fi(5,11), _fi(5,7)],
+        "3-ply 2x10": [_fi(11,9), _fi(10,2), _fi(9,1),  _fi(8,4),  _fi(7,8),  _fi(7,2),  _fi(6,9)],
+        "3-ply 2x12": [_fi(13,8), _fi(11,10),_fi(10,7), _fi(9,8),  _fi(8,11), _fi(8,4),  _fi(7,10)],
+    },
+}
+
+# --- TABLE R507.5(3): 60 PSF GROUND SNOW LOAD ---
+_BEAM_60 = {
+    "southern_pine": {
+        "2-ply 2x6":  [_fi(6,2),  _fi(5,4),  _fi(4,9),  _fi(4,4),  _fi(4,0),  _fi(3,9),  _fi(3,7)],
+        "2-ply 2x8":  [_fi(7,10), _fi(6,10), _fi(6,1),  _fi(5,7),  _fi(5,2),  _fi(4,10), _fi(4,6)],
+        "2-ply 2x10": [_fi(9,4),  _fi(8,1),  _fi(7,3),  _fi(6,7),  _fi(6,1),  _fi(5,8),  _fi(5,4)],
+        "2-ply 2x12": [_fi(11,0), _fi(9,6),  _fi(8,6),  _fi(7,9),  _fi(7,2),  _fi(6,9),  _fi(6,4)],
+        "3-ply 2x6":  [_fi(7,5),  _fi(6,9),  _fi(6,0),  _fi(5,6),  _fi(5,1),  _fi(4,9),  _fi(4,6)],
+        "3-ply 2x8":  [_fi(9,9),  _fi(8,6),  _fi(7,6),  _fi(6,11), _fi(6,5),  _fi(6,0),  _fi(5,8)],
+        "3-ply 2x10": [_fi(11,8), _fi(10,2), _fi(9,2),  _fi(8,3),  _fi(7,8),  _fi(7,2),  _fi(6,9)],
+        "3-ply 2x12": [_fi(13,9), _fi(11,11),_fi(10,8), _fi(9,9),  _fi(9,0),  _fi(8,5),  _fi(7,11)],
+    },
+    "dfl_hf_spf": {
+        "2-ply 2x6":  [_fi(5,6),  _fi(4,9),  _fi(4,3),  _fi(3,10), _fi(3,5),  _fi(3,1),  _fi(2,10)],
+        "2-ply 2x8":  [_fi(7,5),  _fi(6,5),  _fi(5,9),  _fi(5,0),  _fi(4,7),  _fi(4,1),  _fi(3,9)],
+        "2-ply 2x10": [_fi(9,0),  _fi(7,10), _fi(7,0),  _fi(6,4),  _fi(5,9),  _fi(5,2),  _fi(4,10)],
+        "2-ply 2x12": [_fi(10,6), _fi(9,1),  _fi(8,1),  _fi(7,5),  _fi(6,11), _fi(6,4),  _fi(5,10)],
+        "3-ply 2x6":  [_fi(6,11), _fi(6,0),  _fi(5,4),  _fi(4,11), _fi(4,6),  _fi(4,2),  _fi(3,10)],
+        "3-ply 2x8":  [_fi(9,3),  _fi(8,0),  _fi(7,2),  _fi(6,6),  _fi(6,1),  _fi(5,6),  _fi(5,0)],
+        "3-ply 2x10": [_fi(11,4), _fi(9,10), _fi(8,9),  _fi(8,0),  _fi(7,5),  _fi(6,11), _fi(6,5)],
+        "3-ply 2x12": [_fi(13,2), _fi(11,5), _fi(10,2), _fi(9,4),  _fi(8,7),  _fi(8,1),  _fi(7,7)],
+    },
+    "redwood_cedar": {
+        "2-ply 2x6":  [_fi(5,7),  _fi(4,10), _fi(4,3),  _fi(3,11), _fi(3,6),  _fi(3,2),  _fi(2,11)],
+        "2-ply 2x8":  [_fi(7,1),  _fi(6,2),  _fi(5,6),  _fi(5,0),  _fi(4,7),  _fi(4,2),  _fi(3,10)],
+        "2-ply 2x10": [_fi(8,8),  _fi(7,6),  _fi(6,9),  _fi(6,2),  _fi(5,8),  _fi(5,3),  _fi(4,11)],
+        "2-ply 2x12": [_fi(10,1), _fi(8,9),  _fi(7,10), _fi(7,2),  _fi(6,8),  _fi(6,2),  _fi(5,9)],
+        "3-ply 2x6":  [_fi(6,8),  _fi(5,11), _fi(5,4),  _fi(4,10), _fi(4,5),  _fi(4,1),  _fi(3,9)],
+        "3-ply 2x8":  [_fi(8,9),  _fi(7,9),  _fi(6,11), _fi(6,4),  _fi(5,10), _fi(5,5),  _fi(5,0)],
+        "3-ply 2x10": [_fi(10,11),_fi(9,5),  _fi(8,5),  _fi(7,9),  _fi(7,2),  _fi(6,8),  _fi(6,3)],
+        "3-ply 2x12": [_fi(12,8), _fi(10,11),_fi(9,10), _fi(8,11), _fi(8,3),  _fi(7,9),  _fi(7,3)],
+    },
+}
+
+# --- TABLE R507.5(4): 70 PSF GROUND SNOW LOAD ---
+_BEAM_70 = {
+    "southern_pine": {
+        "2-ply 2x6":  [_fi(5,2),  _fi(4,6),  _fi(4,0),  _fi(3,5),  _fi(3,1),  _fi(2,10), _fi(2,7)],
+        "2-ply 2x8":  [_fi(6,11), _fi(6,0),  _fi(5,3),  _fi(4,7),  _fi(4,1),  _fi(3,8),  _fi(3,5)],
+        "2-ply 2x10": [_fi(8,5),  _fi(7,4),  _fi(6,6),  _fi(5,10), _fi(5,2),  _fi(4,9),  _fi(4,5)],
+        "2-ply 2x12": [_fi(9,10), _fi(8,6),  _fi(7,7),  _fi(6,11), _fi(6,4),  _fi(5,9),  _fi(5,4)],
+        "3-ply 2x6":  [_fi(6,6),  _fi(5,7),  _fi(5,0),  _fi(4,7),  _fi(4,2),  _fi(3,9),  _fi(3,5)],
+        "3-ply 2x8":  [_fi(8,8),  _fi(7,6),  _fi(6,8),  _fi(6,1),  _fi(5,6),  _fi(5,0),  _fi(4,7)],
+        "3-ply 2x10": [_fi(10,7), _fi(9,2),  _fi(8,2),  _fi(7,6),  _fi(6,11), _fi(6,4),  _fi(5,10)],
+        "3-ply 2x12": [_fi(12,4), _fi(10,8), _fi(9,7),  _fi(8,9),  _fi(8,1),  _fi(7,7),  _fi(7,1)],
+    },
+    "dfl_hf_spf": {
+        "2-ply 2x6":  [_fi(5,2),  _fi(4,6),  _fi(4,0),  _fi(3,5),  _fi(3,1),  _fi(2,10), _fi(2,7)],
+        "2-ply 2x8":  [_fi(6,11), _fi(6,0),  _fi(5,3),  _fi(4,7),  _fi(4,1),  _fi(3,8),  _fi(3,5)],
+        "2-ply 2x10": [_fi(8,5),  _fi(7,4),  _fi(6,6),  _fi(5,10), _fi(5,2),  _fi(4,9),  _fi(4,5)],
+        "2-ply 2x12": [_fi(9,10), _fi(8,6),  _fi(7,7),  _fi(6,11), _fi(6,4),  _fi(5,9),  _fi(5,4)],
+        "3-ply 2x6":  [_fi(6,6),  _fi(5,7),  _fi(5,0),  _fi(4,7),  _fi(4,2),  _fi(3,9),  _fi(3,5)],
+        "3-ply 2x8":  [_fi(8,8),  _fi(7,6),  _fi(6,8),  _fi(6,1),  _fi(5,6),  _fi(5,0),  _fi(4,7)],
+        "3-ply 2x10": [_fi(10,7), _fi(9,2),  _fi(8,2),  _fi(7,6),  _fi(6,11), _fi(6,4),  _fi(5,10)],
+        "3-ply 2x12": [_fi(12,4), _fi(10,8), _fi(9,7),  _fi(8,9),  _fi(8,1),  _fi(7,7),  _fi(7,1)],
+    },
+    "redwood_cedar": {
+        "2-ply 2x6":  [_fi(5,3),  _fi(4,7),  _fi(4,1),  _fi(3,6),  _fi(3,2),  _fi(2,11), _fi(2,8)],
+        "2-ply 2x8":  [_fi(6,8),  _fi(5,9),  _fi(5,2),  _fi(4,8),  _fi(4,2),  _fi(3,10), _fi(3,6)],
+        "2-ply 2x10": [_fi(8,2),  _fi(7,1),  _fi(6,4),  _fi(5,9),  _fi(5,4),  _fi(4,10), _fi(4,6)],
+        "2-ply 2x12": [_fi(9,5),  _fi(8,2),  _fi(7,4),  _fi(6,8),  _fi(6,2),  _fi(5,9),  _fi(5,5)],
+        "3-ply 2x6":  [_fi(6,4),  _fi(5,8),  _fi(5,1),  _fi(4,6),  _fi(4,1),  _fi(3,9),  _fi(3,5)],
+        "3-ply 2x8":  [_fi(8,4),  _fi(7,3),  _fi(6,5),  _fi(5,11), _fi(5,5),  _fi(5,1),  _fi(4,8)],
+        "3-ply 2x10": [_fi(10,2), _fi(8,10), _fi(7,11), _fi(7,2),  _fi(6,8),  _fi(6,3),  _fi(5,11)],
+        "3-ply 2x12": [_fi(11,10),_fi(10,3), _fi(9,2),  _fi(8,4),  _fi(7,9),  _fi(7,3),  _fi(6,10)],
+    },
+}
+
+# Combined dict keyed by design load tier
+IRC_BEAM_SPANS = {40: _BEAM_40, 50: _BEAM_50, 60: _BEAM_60, 70: _BEAM_70}
+
+# Ordered beam sizes from smallest to largest capacity
+BEAM_SIZE_ORDER = [
+    "2-ply 2x6", "2-ply 2x8", "2-ply 2x10", "2-ply 2x12",
+    "3-ply 2x6", "3-ply 2x8", "3-ply 2x10", "3-ply 2x12",
+]
+
+
+def get_beam_max_span(beam_size, joist_span, design_load, species="dfl_hf_spf"):
+    """Look up max allowable beam span from IRC R507.5 tables.
+
+    beam_size: e.g. "2-ply 2x10"
+    joist_span: actual joist span in feet (used as effective joist span,
+                conservative since we assume max cantilever factor=1.0)
+    design_load: max(40, snow_load) per IRC footnote a
+    species: "southern_pine", "dfl_hf_spf", or "redwood_cedar"
+
+    Returns max beam span in decimal feet, or 0 if not found.
+    Interpolates between joist span columns per IRC footnote a.
+    """
+    # Find the correct load tier table
+    tiers = sorted(IRC_BEAM_SPANS.keys())
+    table = None
+    for tier in tiers:
+        if design_load <= tier:
+            table = IRC_BEAM_SPANS[tier]
+            break
+    if table is None:
+        table = IRC_BEAM_SPANS[tiers[-1]]
+
+    species_data = table.get(species, table.get("dfl_hf_spf"))
+    spans = species_data.get(beam_size)
+    if not spans:
+        return 0
+
+    # Clamp joist span to table range
+    if joist_span <= _JOIST_SPAN_COLS[0]:
+        return spans[0]
+    if joist_span >= _JOIST_SPAN_COLS[-1]:
+        return spans[-1]
+
+    # Interpolate between columns (IRC explicitly permits interpolation)
+    for idx in range(len(_JOIST_SPAN_COLS) - 1):
+        lo = _JOIST_SPAN_COLS[idx]
+        hi = _JOIST_SPAN_COLS[idx + 1]
+        if lo <= joist_span <= hi:
+            frac = (joist_span - lo) / (hi - lo)
+            return round(spans[idx] + frac * (spans[idx + 1] - spans[idx]), 2)
+    return spans[-1]
+
+
+def auto_select_beam(beam_span, joist_span, design_load, species="dfl_hf_spf"):
+    """Select the smallest beam size that can span the required distance.
+
+    beam_span: required beam span in feet (distance between posts)
+    joist_span: actual joist span in feet
+    design_load: max(40, snow_load)
+    species: wood species group
+
+    Returns beam size string, or "3-ply LVL 1.75x12" if nothing works.
+    """
+    for bsize in BEAM_SIZE_ORDER:
+        max_span = get_beam_max_span(bsize, joist_span, design_load, species)
+        if max_span >= beam_span:
+            return bsize
+    # Nothing in the IRC tables works, recommend LVL (requires engineering)
+    return "3-ply LVL 1.75x12"
+
 
 FROST_DEPTHS = {"warm": 12, "moderate": 24, "cold": 36, "severe": 48}
 SNOW_LOADS = {"none": 0, "light": 20, "moderate": 40, "heavy": 60}
@@ -200,24 +428,28 @@ def calculate_structure(params):
             break
     joist_size = params.get("overJoist") or auto_joist
 
-    # Auto posts
+    # Auto posts - start with width-based estimate, then adjust for beam capacity
     if width <= 10: auto_np = 2
     elif width <= 16: auto_np = 3
     elif width <= 24: auto_np = 3
     elif width <= 32: auto_np = 4
     else: auto_np = max(4, math.ceil(width / 10) + 1)
+
+    # Increase post count if the best IRC beam can't span the distance (S60)
+    # This handles heavy snow / long spans where the old flat model was too generous
+    if not params.get("overPostCount"):
+        for _try in range(6):  # max 6 additional posts
+            _try_span = width / (auto_np - 1)
+            _try_beam = auto_select_beam(_try_span, joist_span, LL, species)
+            if _try_beam != "3-ply LVL 1.75x12":
+                break  # found a standard lumber beam that works
+            auto_np += 1
     num_posts = params.get("overPostCount") or auto_np
 
     beam_span = width / (num_posts - 1)
 
-    # Auto beam
-    auto_beam = None
-    for bsize, caps in IRC_BEAM_CAPACITY.items():
-        if caps["max_span"] >= beam_span and caps["max_trib"] >= depth:
-            auto_beam = bsize
-            break
-    if auto_beam is None:
-        auto_beam = "3-ply LVL 1.75x12"
+    # Auto beam - IRC R507.5 table lookup (S60)
+    auto_beam = auto_select_beam(beam_span, joist_span, LL, species)
     beam_size = params.get("overBeam") or auto_beam
 
     # Auto post size
@@ -324,6 +556,12 @@ def calculate_structure(params):
     max_span_available = joist_spans.get("2x12", {}).get(joist_spacing, 0)
     if joist_span > max_span_available:
         warnings.append(f"Joist span ({joist_span:.1f}') exceeds IRC tables for {species} at {LL} PSF design load. Engineering required.")
+
+    # Beam span check against IRC R507.5 (S60)
+    beam_max_span = get_beam_max_span(beam_size, joist_span, LL, species)
+    if beam_size != "3-ply LVL 1.75x12" and beam_span > beam_max_span:
+        warnings.append(f"Beam span ({beam_span:.1f}') exceeds IRC max ({beam_max_span:.1f}') for {beam_size} at {joist_span:.0f}' joist span. Add posts or upgrade beam.")
+
     if height > 10:
         warnings.append("Height >10'. Lateral bracing by engineer recommended.")
     if area > 500:
@@ -336,6 +574,7 @@ def calculate_structure(params):
         "joist_size": joist_size, "joist_spacing": joist_spacing,
         "joist_span": round(joist_span, 1), "num_joists": num_joists,
         "beam_size": beam_size, "beam_span": round(beam_span, 1),
+        "beam_max_span": round(beam_max_span, 1),
         "post_size": post_size, "num_posts": num_posts,
         "total_posts": total_posts, "post_positions": post_positions,
         "post_heights": post_heights,

@@ -352,17 +352,31 @@ def check_joist_span(params, calc, spec):
     category="structural",
     sheet="A-1",
     severity="error",
-    code_ref="IRC R507.6, Table R507.6",
+    code_ref="IRC R507.5, Tables R507.5(1)-R507.5(4)",
 )
 def check_beam_span(params, calc, spec):
     beam_size = calc.get("beam_size", "3-ply 2x10")
     beam_span = calc.get("beam_span", 0)
-    depth = calc.get("depth", 12)
+    joist_span = calc.get("joist_span", 10)
+    LL = calc.get("LL", 40)
+    species = calc.get("species", "dfl_hf_spf")
 
-    from .calc_engine import IRC_BEAM_CAPACITY
-    caps = IRC_BEAM_CAPACITY.get(beam_size)
+    from .calc_engine import get_beam_max_span, BEAM_SIZE_ORDER
 
-    if caps is None:
+    # LVL beams are outside the prescriptive tables
+    if "LVL" in beam_size.upper():
+        return CheckResult(
+            id="IRC_BEAM_SPAN",
+            category="structural", sheet="A-1", severity="warning",
+            status="fail",
+            message=f"Beam size '{beam_size}' not in standard IRC tables.",
+            detail="LVL beams require engineering documentation.",
+            fix="Consider standard lumber sizes or provide engineering stamp.",
+            fix_step=2,
+        )
+
+    # Check if beam size is in our tables
+    if beam_size not in BEAM_SIZE_ORDER:
         return CheckResult(
             id="IRC_BEAM_SPAN",
             category="structural", sheet="A-1", severity="warning",
@@ -373,24 +387,19 @@ def check_beam_span(params, calc, spec):
             fix_step=2,
         )
 
-    issues = []
-    if beam_span > caps["max_span"]:
-        issues.append(
-            f"span {beam_span:.1f}' exceeds max {caps['max_span']}'"
-        )
-    if depth > caps["max_trib"]:
-        issues.append(
-            f"tributary depth {depth}' exceeds max {caps['max_trib']}'"
-        )
+    max_span = get_beam_max_span(beam_size, joist_span, LL, species)
 
-    if issues:
+    if beam_span > max_span:
         return CheckResult(
             id="IRC_BEAM_SPAN",
             category="structural", sheet="A-1", severity="error",
             status="fail",
             message=f"Beam {beam_size} exceeds IRC capacity.",
-            detail=f"{beam_size}: {'; '.join(issues)}.",
-            fix="Add more posts to reduce beam span, or engine will auto-upgrade beam.",
+            detail=(
+                f"{beam_size}: span {beam_span:.1f}' exceeds max {max_span:.1f}' "
+                f"at {joist_span:.0f}' joist span, {LL} PSF design load."
+            ),
+            fix="Add more posts to reduce beam span, or upgrade beam size.",
             fix_step=2,
         )
 
@@ -398,11 +407,10 @@ def check_beam_span(params, calc, spec):
         id="IRC_BEAM_SPAN",
         category="structural", sheet="A-1", severity="error",
         status="pass",
-        message="Beam span and tributary within IRC limits.",
+        message="Beam span within IRC R507.5 limits.",
         detail=(
             f"{beam_size}: span {beam_span:.1f}' "
-            f"(max {caps['max_span']}'), "
-            f"trib {depth}' (max {caps['max_trib']}')"
+            f"(max {max_span:.1f}' at {joist_span:.0f}' joist span, {LL} PSF)"
         ),
     )
 

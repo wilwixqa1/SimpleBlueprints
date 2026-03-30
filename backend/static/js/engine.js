@@ -58,17 +58,99 @@ function calcStructure(p) {
   const autoJoist = joistSize;
   if (p.overJoist) { joistSize = p.overJoist; joistAuto = false; }
 
-  // === POSTS (overridable count) ===
+  // === BEAM - IRC R507.5 table lookup (S60) ===
+  // DFL/HF/SPF beam span tables keyed by design load tier
+  // Values in decimal feet, columns = effective joist span [6,8,10,12,14,16,18]
+  const BEAM_SPANS = {
+    40: {
+      "2-ply 2x6":  [6.08,5.25,4.75,4.33,3.92,3.58,3.25],
+      "2-ply 2x8":  [8.17,7.08,6.33,5.75,5.17,4.67,4.33],
+      "2-ply 2x10": [10.0,8.58,7.75,7.0,6.5,6.0,5.5],
+      "2-ply 2x12": [11.58,10.0,8.92,8.17,7.58,7.08,6.67],
+      "3-ply 2x6":  [7.67,6.67,6.0,5.5,5.08,4.75,4.5],
+      "3-ply 2x8":  [10.25,8.83,7.92,7.25,6.67,6.25,5.92],
+      "3-ply 2x10": [12.5,10.83,9.67,8.83,8.17,7.67,7.17],
+      "3-ply 2x12": [14.5,12.58,11.25,10.25,9.5,8.92,8.42],
+    },
+    50: {
+      "2-ply 2x6":  [6.0,5.17,4.58,4.17,3.83,3.42,3.17],
+      "2-ply 2x8":  [8.0,6.92,6.17,5.67,5.0,4.58,4.17],
+      "2-ply 2x10": [9.75,8.42,7.58,6.92,6.33,5.83,5.33],
+      "2-ply 2x12": [11.33,9.83,8.75,8.0,7.42,6.92,6.5],
+      "3-ply 2x6":  [7.5,6.5,5.75,5.25,4.92,4.58,4.33],
+      "3-ply 2x8":  [10.0,8.67,7.75,7.08,6.5,6.08,5.67],
+      "3-ply 2x10": [12.25,10.58,9.5,8.67,8.0,7.5,7.0],
+      "3-ply 2x12": [14.25,12.33,11.0,10.08,9.33,8.75,8.25],
+    },
+    60: {
+      "2-ply 2x6":  [5.5,4.75,4.25,3.83,3.42,3.08,2.83],
+      "2-ply 2x8":  [7.42,6.42,5.75,5.0,4.58,4.08,3.75],
+      "2-ply 2x10": [9.0,7.83,7.0,6.33,5.75,5.17,4.83],
+      "2-ply 2x12": [10.5,9.08,8.08,7.42,6.92,6.33,5.83],
+      "3-ply 2x6":  [6.92,6.0,5.33,4.92,4.5,4.17,3.83],
+      "3-ply 2x8":  [9.25,8.0,7.17,6.5,6.08,5.5,5.0],
+      "3-ply 2x10": [11.33,9.83,8.75,8.0,7.42,6.92,6.42],
+      "3-ply 2x12": [13.17,11.42,10.17,9.33,8.58,8.08,7.58],
+    },
+    70: {
+      "2-ply 2x6":  [5.17,4.5,4.0,3.42,3.08,2.83,2.58],
+      "2-ply 2x8":  [6.92,6.0,5.25,4.58,4.08,3.67,3.42],
+      "2-ply 2x10": [8.42,7.33,6.5,5.83,5.17,4.75,4.42],
+      "2-ply 2x12": [9.83,8.5,7.58,6.92,6.33,5.75,5.33],
+      "3-ply 2x6":  [6.5,5.58,5.0,4.58,4.17,3.75,3.42],
+      "3-ply 2x8":  [8.67,7.5,6.67,6.08,5.5,5.0,4.58],
+      "3-ply 2x10": [10.58,9.17,8.17,7.5,6.92,6.33,5.83],
+      "3-ply 2x12": [12.33,10.67,9.58,8.75,8.08,7.58,7.08],
+    },
+  };
+  const _BEAM_JOIST_COLS = [6,8,10,12,14,16,18];
+  const _BEAM_ORDER = [
+    "2-ply 2x6","2-ply 2x8","2-ply 2x10","2-ply 2x12",
+    "3-ply 2x6","3-ply 2x8","3-ply 2x10","3-ply 2x12",
+  ];
+
+  function getBeamMaxSpan(beamSize, joistSpan, designLoad) {
+    // Find correct load tier
+    var tier = 70;
+    for (var t of [40,50,60,70]) { if (designLoad <= t) { tier = t; break; } }
+    var table = BEAM_SPANS[tier];
+    var spans = table[beamSize];
+    if (!spans) return 0;
+    // Clamp to table range
+    if (joistSpan <= _BEAM_JOIST_COLS[0]) return spans[0];
+    if (joistSpan >= _BEAM_JOIST_COLS[_BEAM_JOIST_COLS.length-1]) return spans[spans.length-1];
+    // Interpolate (IRC permits interpolation)
+    for (var i = 0; i < _BEAM_JOIST_COLS.length - 1; i++) {
+      if (joistSpan >= _BEAM_JOIST_COLS[i] && joistSpan <= _BEAM_JOIST_COLS[i+1]) {
+        var frac = (joistSpan - _BEAM_JOIST_COLS[i]) / (_BEAM_JOIST_COLS[i+1] - _BEAM_JOIST_COLS[i]);
+        return +(spans[i] + frac * (spans[i+1] - spans[i])).toFixed(2);
+      }
+    }
+    return spans[spans.length-1];
+  }
+
+  // Auto posts - beam-aware (S60)
   let nP = W <= 10 ? 2 : W <= 16 ? 3 : W <= 24 ? 3 : W <= 32 ? 4 : Math.max(4, Math.ceil(W / 10) + 1);
+  if (!p.overPostCount) {
+    for (var _try = 0; _try < 6; _try++) {
+      var _trySpan = W / (nP - 1);
+      var _found = false;
+      for (var _bs of _BEAM_ORDER) {
+        if (getBeamMaxSpan(_bs, jSpan, LL) >= _trySpan) { _found = true; break; }
+      }
+      if (_found) break;
+      nP++;
+    }
+  }
   const autoNP = nP;
   if (p.overPostCount) { nP = p.overPostCount; }
   const bSpan = W / (nP - 1);
 
-  // === BEAM (overridable) ===
-  let beamSize = "2-ply 2x10";
-  if (bSpan > 8 || D > 10) beamSize = "3-ply 2x10";
-  if (bSpan > 10 || D > 12) beamSize = "3-ply 2x12";
-  if (bSpan > 12) beamSize = "3-ply LVL 1.75x12";
+  // Auto beam from IRC R507.5
+  let beamSize = "3-ply LVL 1.75x12";
+  for (var _bs of _BEAM_ORDER) {
+    if (getBeamMaxSpan(_bs, jSpan, LL) >= bSpan) { beamSize = _bs; break; }
+  }
   const autoBeam = beamSize;
   if (p.overBeam) { beamSize = p.overBeam; }
 
@@ -143,6 +225,13 @@ function calcStructure(p) {
   const warnings = [];
   const maxSpan = (table["2x12"] || {})[sp] || 0;
   if (jSpan > maxSpan) warnings.push(`Joist span (${jSpan.toFixed(1)}') exceeds IRC at ${LL} PSF design load. Engineering required.`);
+
+  // Beam span check against IRC R507.5 (S60)
+  const beamMaxSpan = beamSize.includes("LVL") ? 999 : getBeamMaxSpan(beamSize, jSpan, LL);
+  if (!beamSize.includes("LVL") && bSpan > beamMaxSpan) {
+    warnings.push(`Beam span (${bSpan.toFixed(1)}') exceeds IRC max (${beamMaxSpan.toFixed(1)}') for ${beamSize}. Add posts or upgrade beam.`);
+  }
+
   if (H > 10) warnings.push("Height >10'. Lateral bracing by engineer recommended.");
   if (area > 500) warnings.push("Area >500 SF. Check local permit requirements.");
 
@@ -165,7 +254,7 @@ function calcStructure(p) {
 // warnings.push(`  Fewer posts (${p.overPostCount}) than recommended (${autoNP}). May not meet code.`);
   }
 
-  return { W, D, H, area, lotArea, LL, DL, TL, joistSize, sp, jSpan: +jSpan.toFixed(1), nJ, beamSize, bSpan: +bSpan.toFixed(1), postSize, nP, totalPosts, pp, postHeights, fDiam, fDepth, nF: totalPosts, ledgerSize: joistSize, railLen: +railLen.toFixed(1), guardRequired, guardHeight, midSpanBlocking, blockingCount, stairs, warnings, attachment,
+  return { W, D, H, area, lotArea, LL, DL, TL, joistSize, sp, jSpan: +jSpan.toFixed(1), nJ, beamSize, bSpan: +bSpan.toFixed(1), beamMaxSpan: +beamMaxSpan.toFixed(1), postSize, nP, totalPosts, pp, postHeights, fDiam, fDepth, nF: totalPosts, ledgerSize: joistSize, railLen: +railLen.toFixed(1), guardRequired, guardHeight, midSpanBlocking, blockingCount, stairs, warnings, attachment,
     auto: { joist: autoJoist, beam: autoBeam, postSize: autoPostSize, postCount: autoNP, footing: autoFDiam, guardHeight: autoGuardHeight }
   };
 }
