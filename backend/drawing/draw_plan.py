@@ -125,43 +125,6 @@ def format_feet_inches(feet):
 # ============================================================
 BEAM_SETBACK = 1.5  # beam inset from far edge (ft)
 
-# S61: Per-zone structural sizing (for zone labels on A-1)
-def compute_zone_sizing(zone, calc):
-    """Compute independent joist/beam sizing for an add zone."""
-    from .calc_engine import get_joist_spans_for_load, auto_select_beam
-    edge = zone.get("attachEdge", "front")
-    zw = zone.get("w", 8)
-    zd = zone.get("d", 6)
-    sp = calc.get("joist_spacing", 16)
-    LL = calc.get("LL", 40)
-    species = calc.get("species", "dfl_hf_spf")
-
-    if edge in ("right", "left"):
-        beam_len = zd
-        j_span = zw - BEAM_SETBACK
-        n_posts = max(2, math.ceil(zd / 8) + 1)
-    else:
-        beam_len = zw
-        j_span = zd - BEAM_SETBACK
-        n_posts = max(2, math.ceil(zw / 8) + 1)
-
-    zone_joist_spans = get_joist_spans_for_load(LL, species)
-    zone_joist_size = "2x12"
-    for _zsz, _zsp in zone_joist_spans.items():
-        if _zsp.get(sp, 0) >= j_span:
-            zone_joist_size = _zsz
-            break
-
-    zone_beam_span = beam_len / max(n_posts - 1, 1)
-    zone_beam_size = auto_select_beam(zone_beam_span, j_span, LL, species)
-
-    return {
-        "joist_size": zone_joist_size,
-        "beam_size": zone_beam_size,
-        "beam_span": round(zone_beam_span, 1),
-        "j_span": round(j_span, 1),
-    }
-
 
 # S61: Chamfer polygon helper
 def get_chamfered_vertices(x, y, w, d, corners):
@@ -267,7 +230,7 @@ def compute_zone_framing(zone, rect, joist_spacing_in=16):
     return None
 
 
-def draw_zone_framing(ax, zone, rect, calc):
+def draw_zone_framing(ax, zone, rect, calc, zone_sizing=None):
     """Draw framing elements (outline, joists, beam, posts, piers) for an add zone."""
     framing = compute_zone_framing(zone, rect, calc.get("joist_spacing", 16))
     if not framing:
@@ -297,11 +260,16 @@ def draw_zone_framing(ax, zone, rect, calc):
                           fill=False, ec=BRAND["dark"], lw=0.4, ls='--')
         ax.add_patch(pier)
 
-    # S61: Zone label with zone-specific joist/beam callout
-    zs = compute_zone_sizing(zone, calc)
+    # S61: Zone label with zone-specific joist/beam callout (from spec)
     label = zone.get("label", f"Zone {zone.get('id', '?')}")
+    if zone_sizing:
+        zj = zone_sizing["joist_size"]
+        zb = zone_sizing["beam_size"].upper()
+        label_text = f'{label}\n{zj} @ {calc.get("joist_spacing", 16)}" O.C.\n{zb} BEAM'
+    else:
+        label_text = f'{label}\n{calc.get("joist_size", "2x12")} @ {calc.get("joist_spacing", 16)}" O.C.'
     ax.text(rect["x"] + rect["w"] / 2, rect["y"] + rect["d"] / 2,
-            f'{label}\n{zs["joist_size"]} @ {calc.get("joist_spacing", 16)}" O.C.\n{zs["beam_size"].upper()} BEAM',
+            label_text,
             ha='center', va='center', fontsize=3.5,
             fontfamily='monospace', color=BRAND["mute"], fontstyle='italic')
 
@@ -367,14 +335,23 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
             # S61: Zone 0 framing area (chamfer-aware)
             _main_corners = params.get("mainCorners")
             _z0_verts = get_chamfered_vertices(0, 0, W, D, _main_corners)
-            ax.add_patch(Polygon(_z0_verts, closed=True,
-                         fc='#fcfaf5', ec=BRAND["dark"], lw=2))
+            _z0_clip = Polygon(_z0_verts, closed=True,
+                         fc='#fcfaf5', ec=BRAND["dark"], lw=2)
+            ax.add_patch(_z0_clip)
             # S22: Draw framing for add zones
             if has_zones:
-                for ar in add_rects:
+                _zone_calcs = spec.get("zone_calcs", [])
+                _zones_list = params.get("zones", [])
+                for zi, ar in enumerate(add_rects):
                     if ar["id"] == 0:
                         continue
-                    draw_zone_framing(ax, ar["zone"], ar["rect"], calc)
+                    # Match zone to its zone_calcs entry by finding its index in zones list
+                    _zs = None
+                    for _zli, _zz in enumerate(_zones_list):
+                        if _zz.get("id") == ar["zone"].get("id") and _zli < len(_zone_calcs):
+                            _zs = _zone_calcs[_zli]
+                            break
+                    draw_zone_framing(ax, ar["zone"], ar["rect"], calc, zone_sizing=_zs)
         else:
             # S22: Zone-aware plan view with color differentiation
             for idx, ar in enumerate(add_rects):
@@ -382,19 +359,21 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
                 fill = ZONE_FILLS[idx % len(ZONE_FILLS)]
                 board_color = ZONE_BOARD_COLORS[idx % len(ZONE_BOARD_COLORS)]
 
-                # S61: Chamfer-aware zone outline
+                # S61: Chamfer-aware zone outline (also used as clip path for board lines)
                 _zcorners = params.get("mainCorners") if ar["id"] == 0 else ar["zone"].get("corners")
                 _zverts = get_chamfered_vertices(r["x"], r["y"], r["w"], r["d"], _zcorners)
-                ax.add_patch(Polygon(_zverts, closed=True,
-                             fc=fill, ec=BRAND["dark"], lw=2))
+                _zone_clip = Polygon(_zverts, closed=True,
+                             fc=fill, ec=BRAND["dark"], lw=2)
+                ax.add_patch(_zone_clip)
 
-                # Board lines
+                # Board lines (clipped to chamfer polygon)
                 board_w = 5.5 / 12
                 for bi in range(int(r["d"] / board_w) + 1):
                     by = r["y"] + bi * board_w
                     if by <= r["y"] + r["d"]:
-                        ax.plot([r["x"], r["x"] + r["w"]], [by, by],
+                        ln, = ax.plot([r["x"], r["x"] + r["w"]], [by, by],
                                 color=board_color, lw=0.2)
+                        ln.set_clip_path(_zone_clip)
 
                 # S22: Zone labels + per-zone dimensions for add zones
                 if ar["id"] != 0 and has_zones:
@@ -432,11 +411,12 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
         if is_framing:
             beam_y = D - 1.5
 
-            # Joists
+            # Joists (clipped to chamfer polygon)
             sp = calc["joist_spacing"] / 12
             for jx in np.arange(sp, W, sp):
                 if jx < W - 0.3:
-                    ax.plot([jx, jx], [0.1, beam_y], color=BRAND["light"], lw=0.4)
+                    ln, = ax.plot([jx, jx], [0.1, beam_y], color=BRAND["light"], lw=0.4)
+                    ln.set_clip_path(_z0_clip)
 
             # S58: Joist hanger symbols at ledger connections
             if attachment == "ledger":
@@ -445,9 +425,10 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
                 for jx in np.arange(sp, W, sp):
                     if jx < W - 0.3:
                         # Small U-bracket at each joist-to-ledger connection
-                        ax.plot([jx - _hw, jx - _hw, jx + _hw, jx + _hw],
+                        ln, = ax.plot([jx - _hw, jx - _hw, jx + _hw, jx + _hw],
                                 [_hh, 0.02, 0.02, _hh],
                                 color=BRAND["dark"], lw=0.6, solid_capstyle='round')
+                        ln.set_clip_path(_z0_clip)
 
             # Mid-span blocking (when joist span > 7ft)
             j_span = D - 1.5 if attachment == "ledger" else D / 2 - 0.75
@@ -456,8 +437,9 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
                 sp_ft = calc["joist_spacing"] / 12
                 for jx in np.arange(sp_ft, W, sp_ft):
                     if jx < W - 0.3 and jx + sp_ft < W:
-                        ax.plot([jx, jx + sp_ft], [block_y, block_y],
+                        ln, = ax.plot([jx, jx + sp_ft], [block_y, block_y],
                                 color=BRAND["dark"], lw=0.6, ls='--', dashes=(1.5, 1.5))
+                        ln.set_clip_path(_z0_clip)
                 # S22: Position blocking label relative to bbox right edge
                 ax.text(W / 2, block_y + 0.5,
                         spec["labels"]["blocking"],

@@ -13,6 +13,8 @@ Usage:
     ...
 """
 
+import math
+
 
 # ============================================================
 # HARDWARE SELECTION TABLES
@@ -234,6 +236,41 @@ def build_permit_spec(params, calc):
     # --- Zones ---
     zones = params.get("zones", [])
     spec["has_zones"] = len(zones) > 0
+
+    # S61: Per-zone structural sizing (single source of truth for all consumers)
+    from .calc_engine import get_joist_spans_for_load, auto_select_beam
+    _zone_calcs = []
+    _beam_setback = 1.5
+    for z in zones:
+        if z.get("type") == "cutout":
+            _zone_calcs.append(None)
+            continue
+        _ze = z.get("attachEdge", "front")
+        _zw = z.get("w", 8)
+        _zd = z.get("d", 6)
+        if _ze in ("right", "left"):
+            _zbl = _zd
+            _zjs = _zw - _beam_setback
+            _znp = max(2, math.ceil(_zd / 8) + 1)
+        else:
+            _zbl = _zw
+            _zjs = _zd - _beam_setback
+            _znp = max(2, math.ceil(_zw / 8) + 1)
+        _zjt = get_joist_spans_for_load(LL, calc.get("species", "dfl_hf_spf"))
+        _zj_size = "2x12"
+        for _zsz, _zsp in _zjt.items():
+            if _zsp.get(joist_spacing, 0) >= _zjs:
+                _zj_size = _zsz
+                break
+        _zbs = _zbl / max(_znp - 1, 1)
+        _zb_size = auto_select_beam(_zbs, _zjs, LL, calc.get("species", "dfl_hf_spf"))
+        _zone_calcs.append({
+            "joist_size": _zj_size,
+            "beam_size": _zb_size,
+            "beam_span": round(_zbs, 1),
+            "j_span": round(_zjs, 1),
+        })
+    spec["zone_calcs"] = _zone_calcs
 
     # --- Slope ---
     spec["slope"] = {
