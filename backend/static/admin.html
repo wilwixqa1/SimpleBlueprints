@@ -400,7 +400,7 @@ function render() {
 
   // ============ SECTION 2b: PLAN QUALITY MATRIX (S58) ============
   html += '<div class="section-label">Plan Quality Matrix</div>';
-  html += '<div id="plan-quality-section"><button onclick="loadPlanQuality()" style="padding:8px 16px;border:1px solid var(--border);background:#fff;border-radius:6px;cursor:pointer;font-family:\'DM Mono\',monospace;font-size:11px">Run Test Matrix</button><div style="font-size:10px;color:var(--text3);margin-top:6px">Tests 8 deck configurations against IRC compliance checks</div></div>';
+  html += '<div id="plan-quality-section"><button onclick="loadPlanQuality()" style="padding:8px 16px;border:1px solid var(--border);background:#fff;border-radius:6px;cursor:pointer;font-family:\'DM Mono\',monospace;font-size:11px">Run Test Matrix</button> <button onclick="generateTestSuite()" style="padding:8px 16px;border:1px solid var(--border);background:#fff;border-radius:6px;cursor:pointer;font-family:\'DM Mono\',monospace;font-size:11px">Generate PDF Test Suite</button><div style="font-size:10px;color:var(--text3);margin-top:6px">15 configs: checker validation (fast) or full PDF generation (zip download, ~60-90s)</div></div>';
 
   // ============ SECTION 3: AI HELPER INTELLIGENCE ============
   html += '<div class="section-label">AI Helper Intelligence</div>';
@@ -552,7 +552,7 @@ setInterval(load, 30000);
 // S58: Plan Quality Matrix
 async function loadPlanQuality() {
   var el = document.getElementById('plan-quality-section');
-  el.innerHTML = '<div style="color:var(--text3);font-size:11px">Running 8 configurations...</div>';
+  el.innerHTML = '<div style="color:var(--text3);font-size:11px">Running 15 configurations...</div>';
   try {
     var r = await fetch('/admin/api/plan-quality');
     var d = await r.json();
@@ -589,6 +589,41 @@ async function loadPlanQuality() {
     el.innerHTML = '<div style="color:var(--red)">Error: '+e.message+'</div>';
   }
 }
+
+// S59: PDF Test Suite Generator
+async function generateTestSuite() {
+  var el = document.getElementById('plan-quality-section');
+  var origHTML = el.innerHTML;
+  el.innerHTML = '<div style="color:var(--text3);font-size:11px">Generating 15 PDFs... this takes 60-90 seconds. <span id="suite-timer">0s</span></div>';
+  var t0 = Date.now();
+  var timer = setInterval(function() {
+    var s = Math.round((Date.now() - t0) / 1000);
+    var span = document.getElementById('suite-timer');
+    if (span) span.textContent = s + 's';
+  }, 1000);
+  try {
+    var r = await fetch('/admin/api/generate-test-suite', {headers: {'X-Admin-Password': adminPw}});
+    clearInterval(timer);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    var blob = await r.blob();
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    var cd = r.headers.get('Content-Disposition') || '';
+    var fn = cd.match(/filename=([^\s;]+)/);
+    a.download = fn ? fn[1] : 'SB_TestSuite.zip';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    var elapsed = Math.round((Date.now() - t0) / 1000);
+    el.innerHTML = origHTML + '<div style="margin-top:8px;font-size:11px;color:var(--green)">Test suite downloaded (' + elapsed + 's). Check manifest.txt for details.</div>';
+  } catch(e) {
+    clearInterval(timer);
+    el.innerHTML = origHTML + '<div style="margin-top:8px;color:var(--red);font-size:11px">Error: ' + e.message + '</div>';
+  }
+}
+
 </script>
 </body>
 </html>

@@ -10,6 +10,7 @@ import time
 import hashlib
 import base64
 import io
+import zipfile
 import urllib.request
 import urllib.error
 from pathlib import Path
@@ -1599,6 +1600,91 @@ async def admin_plan_quality(request: Request):
             for name, report in results
         ]
     }
+
+
+@app.get("/admin/api/generate-test-suite")
+async def admin_generate_test_suite(request: Request):
+    """Generate PDFs for all test matrix configs, return as zip with manifest."""
+    _check_admin(request)
+    from drawing.permit_checker import TEST_MATRIX, run_checks, report_to_dict, get_compliance_summary
+    from drawing.calc_engine import calculate_structure
+    from drawing.permit_spec import build_permit_spec
+
+    zip_buf = io.BytesIO()
+    manifest_lines = []
+    manifest_lines.append("SimpleBlueprints PDF Test Suite")
+    manifest_lines.append(f"Generated: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}")
+    manifest_lines.append(f"Configs: {len(TEST_MATRIX)}")
+    manifest_lines.append("=" * 70)
+
+    with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for i, config in enumerate(TEST_MATRIX):
+            name = config["name"]
+            tests_for = config.get("tests_for", "")
+            params = dict(config["params"])  # copy so generate_blueprint_pdf clamps don't mutate
+
+            t0 = time.time()
+            try:
+                permit_id, materials_id, calc, permit_report = generate_blueprint_pdf(params)
+                elapsed = time.time() - t0
+
+                # Add permit PDF to zip
+                permit_path = PDF_DIR / f"{permit_id}.pdf"
+                safe_name = name.replace(" ", "_").replace("(", "").replace(")", "").replace(",", "").replace("/", "-")
+                zf.write(str(permit_path), f"{safe_name}_permit.pdf")
+
+                # Add materials PDF to zip
+                materials_path = PDF_DIR / f"{materials_id}.pdf"
+                zf.write(str(materials_path), f"{safe_name}_materials.pdf")
+
+                # Clean up temp files
+                try:
+                    permit_path.unlink()
+                    materials_path.unlink()
+                except:
+                    pass
+
+                # Build manifest entry
+                manifest_lines.append("")
+                manifest_lines.append(f"CONFIG {name}")
+                manifest_lines.append(f"  Tests for: {tests_for}")
+                manifest_lines.append(f"  Generated in: {elapsed:.1f}s")
+                manifest_lines.append(f"  Checker: {permit_report.overall_status} "
+                                      f"({permit_report.passed}/{permit_report.total_applicable} passed)")
+                manifest_lines.append(f"  Calc: joist={calc['joist_size']} beam={calc['beam_size']} "
+                                      f"post={calc['post_size']} footing={calc['footing_diam']}in "
+                                      f"guard={calc['rail_height']}in TL={calc['TL']}psf")
+                # Log all params
+                manifest_lines.append(f"  Params:")
+                for k, v in sorted(config["params"].items()):
+                    manifest_lines.append(f"    {k}: {v}")
+                # Log failing checks
+                failing = [c for c in permit_report.checks if c.status in ("fail", "unsupported")]
+                if failing:
+                    manifest_lines.append(f"  Failing checks:")
+                    for c in failing:
+                        manifest_lines.append(f"    [{c.severity}] {c.id}: {c.message}")
+
+            except Exception as e:
+                elapsed = time.time() - t0
+                manifest_lines.append("")
+                manifest_lines.append(f"CONFIG {name}")
+                manifest_lines.append(f"  GENERATION FAILED: {str(e)}")
+                manifest_lines.append(f"  Failed after: {elapsed:.1f}s")
+
+        # Add manifest to zip
+        zf.writestr("manifest.txt", "\n".join(manifest_lines))
+
+    zip_buf.seek(0)
+    from starlette.responses import StreamingResponse
+    return StreamingResponse(
+        zip_buf,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f"attachment; filename=SB_TestSuite_{time.strftime('%Y%m%d_%H%M%S')}.zip",
+            "Cache-Control": "no-store",
+        },
+    )
 
 
 # ============================================================

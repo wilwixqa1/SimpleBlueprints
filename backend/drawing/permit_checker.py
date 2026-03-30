@@ -1342,7 +1342,8 @@ def get_compliance_summary(report):
 
 TEST_MATRIX = [
     {
-        "name": "Default (20x12, 4ft, ledger, no snow, stairs)",
+        "name": "01 Default attached (20x12, 4ft)",
+        "tests_for": "Baseline: standard labels, framing, all 4 elevations, stairs front",
         "params": {
             "width": 20, "depth": 12, "height": 4,
             "attachment": "ledger", "beamType": "dropped",
@@ -1356,7 +1357,8 @@ TEST_MATRIX = [
         },
     },
     {
-        "name": "Tall deck (20x12, 9ft, ledger)",
+        "name": "02 Tall attached (20x12, 9ft)",
+        "tests_for": "42in auto-guard, long stair run, tall post labels, 6x6 posts",
         "params": {
             "width": 20, "depth": 12, "height": 9,
             "attachment": "ledger", "beamType": "dropped",
@@ -1370,7 +1372,8 @@ TEST_MATRIX = [
         },
     },
     {
-        "name": "Wide deck (36x12, 4ft, ledger)",
+        "name": "03 Wide attached (36x12, 4ft)",
+        "tests_for": "Many posts (5+), long beam label, wide framing layout, no stairs",
         "params": {
             "width": 36, "depth": 12, "height": 4,
             "attachment": "ledger", "beamType": "dropped",
@@ -1383,7 +1386,8 @@ TEST_MATRIX = [
         },
     },
     {
-        "name": "Freestanding (20x12, 4ft)",
+        "name": "04 Freestanding (20x12, 4ft)",
+        "tests_for": "Dual beams, no ledger labels, freestanding framing plan",
         "params": {
             "width": 20, "depth": 12, "height": 4,
             "attachment": "freestanding", "beamType": "dropped",
@@ -1397,7 +1401,8 @@ TEST_MATRIX = [
         },
     },
     {
-        "name": "L-shape with zone (20x12, ledger, right zone)",
+        "name": "05 L-shape zone right (20x12, 4ft)",
+        "tests_for": "Zone framing on A-1, zone outline on plan view, zone perimeter",
         "params": {
             "width": 20, "depth": 12, "height": 4,
             "attachment": "ledger", "beamType": "dropped",
@@ -1411,7 +1416,8 @@ TEST_MATRIX = [
         },
     },
     {
-        "name": "Heavy snow (20x12, 4ft, ledger, heavy snow, severe frost)",
+        "name": "06 Heavy snow severe frost (20x12, 4ft)",
+        "tests_for": "Loads box with G.S.L. GOVERNS line, deep 48in footings, A-3 snow notes",
         "params": {
             "width": 20, "depth": 12, "height": 4,
             "attachment": "ledger", "beamType": "dropped",
@@ -1425,7 +1431,8 @@ TEST_MATRIX = [
         },
     },
     {
-        "name": "Low deck (16x10, 2ft, ledger, no stairs, moderate frost)",
+        "name": "07 Low deck wood (16x10, 2ft)",
+        "tests_for": "No guards needed, no stairs, wood DL=12 labels, smaller member sizes",
         "params": {
             "width": 16, "depth": 10, "height": 2,
             "attachment": "ledger", "beamType": "dropped",
@@ -1438,7 +1445,8 @@ TEST_MATRIX = [
         },
     },
     {
-        "name": "Max size (50x24, 14ft, ledger, heavy snow, zones)",
+        "name": "08 Max stress (50x24, 14ft, snow, zone)",
+        "tests_for": "Expected structural failures, label overflow, max member sizes, slope+zone",
         "params": {
             "width": 50, "depth": 24, "height": 14,
             "attachment": "ledger", "beamType": "dropped",
@@ -1450,6 +1458,114 @@ TEST_MATRIX = [
             "zones": [{"type": "additive", "attachEdge": "left", "w": 10, "d": 8}],
             "lotWidth": 150, "lotDepth": 200,
             "houseWidth": 70, "houseDepth": 40,
+        },
+    },
+    {
+        "name": "09 Slope 8pct front-to-back (20x12, 4ft)",
+        "tests_for": "Grade lines on all 4 elevations, per-post height variation",
+        "params": {
+            "width": 20, "depth": 12, "height": 4,
+            "attachment": "ledger", "beamType": "dropped",
+            "joistSpacing": 16, "snowLoad": "none", "frostZone": "cold",
+            "deckingType": "composite", "railingType": "fortress",
+            "hasStairs": True, "stairWidth": 4, "stairLocation": "front",
+            "numStringers": 3, "hasLanding": False,
+            "slopePercent": 8, "slopeDirection": "front-to-back",
+            "zones": [],
+            "lotWidth": 80, "lotDepth": 120,
+            "houseWidth": 40, "houseDepth": 30,
+        },
+    },
+    {
+        "name": "10 Flush beam (20x12, 4ft)",
+        "tests_for": "Flush beam framing detail, hanger callouts at both ends, A-4 detail",
+        "params": {
+            "width": 20, "depth": 12, "height": 4,
+            "attachment": "ledger", "beamType": "flush",
+            "joistSpacing": 16, "snowLoad": "none", "frostZone": "cold",
+            "deckingType": "composite", "railingType": "fortress",
+            "hasStairs": True, "stairWidth": 4, "stairLocation": "front",
+            "numStringers": 3, "hasLanding": False,
+            "slopePercent": 0, "zones": [],
+            "lotWidth": 80, "lotDepth": 120,
+            "houseWidth": 40, "houseDepth": 30,
+        },
+    },
+    {
+        "name": "11 Left stair (20x12, 4ft)",
+        "tests_for": "Stair position left on plan view and elevations",
+        "params": {
+            "width": 20, "depth": 12, "height": 4,
+            "attachment": "ledger", "beamType": "dropped",
+            "joistSpacing": 16, "snowLoad": "none", "frostZone": "cold",
+            "deckingType": "composite", "railingType": "fortress",
+            "hasStairs": True, "stairWidth": 4, "stairLocation": "left",
+            "numStringers": 3, "hasLanding": False,
+            "slopePercent": 0, "zones": [],
+            "lotWidth": 80, "lotDepth": 120,
+            "houseWidth": 40, "houseDepth": 30,
+        },
+    },
+    {
+        "name": "12 Right stair (20x12, 4ft)",
+        "tests_for": "Stair position right on plan view and elevations",
+        "params": {
+            "width": 20, "depth": 12, "height": 4,
+            "attachment": "ledger", "beamType": "dropped",
+            "joistSpacing": 16, "snowLoad": "none", "frostZone": "cold",
+            "deckingType": "composite", "railingType": "fortress",
+            "hasStairs": True, "stairWidth": 4, "stairLocation": "right",
+            "numStringers": 3, "hasLanding": False,
+            "slopePercent": 0, "zones": [],
+            "lotWidth": 80, "lotDepth": 120,
+            "houseWidth": 40, "houseDepth": 30,
+        },
+    },
+    {
+        "name": "13 Freestanding tall (20x12, 9ft)",
+        "tests_for": "Dual beam + 42in guard + tall 6x6 posts combined, no ledger",
+        "params": {
+            "width": 20, "depth": 12, "height": 9,
+            "attachment": "freestanding", "beamType": "dropped",
+            "joistSpacing": 16, "snowLoad": "none", "frostZone": "cold",
+            "deckingType": "composite", "railingType": "fortress",
+            "hasStairs": True, "stairWidth": 4, "stairLocation": "front",
+            "numStringers": 3, "hasLanding": False,
+            "slopePercent": 0, "zones": [],
+            "lotWidth": 80, "lotDepth": 120,
+            "houseWidth": 40, "houseDepth": 30,
+        },
+    },
+    {
+        "name": "14 L-shape zone left (24x12, 4ft)",
+        "tests_for": "Zone on left side (opposite of 05), wider deck with zone",
+        "params": {
+            "width": 24, "depth": 12, "height": 4,
+            "attachment": "ledger", "beamType": "dropped",
+            "joistSpacing": 16, "snowLoad": "none", "frostZone": "cold",
+            "deckingType": "composite", "railingType": "fortress",
+            "hasStairs": True, "stairWidth": 4, "stairLocation": "front",
+            "numStringers": 3, "hasLanding": False,
+            "slopePercent": 0,
+            "zones": [{"type": "additive", "attachEdge": "left", "w": 8, "d": 6}],
+            "lotWidth": 80, "lotDepth": 120,
+            "houseWidth": 40, "houseDepth": 30,
+        },
+    },
+    {
+        "name": "15 Moderate snow + slope (20x12, 6ft)",
+        "tests_for": "Combined snow loads box + grade lines, mid-height deck",
+        "params": {
+            "width": 20, "depth": 12, "height": 6,
+            "attachment": "ledger", "beamType": "dropped",
+            "joistSpacing": 16, "snowLoad": "moderate", "frostZone": "cold",
+            "deckingType": "composite", "railingType": "fortress",
+            "hasStairs": True, "stairWidth": 4, "stairLocation": "front",
+            "numStringers": 3, "hasLanding": False,
+            "slopePercent": 5, "slopeDirection": "left-to-right",
+            "zones": [],
+            "lotWidth": 80, "lotDepth": 120,
+            "houseWidth": 40, "houseDepth": 30,
         },
     },
 ]
