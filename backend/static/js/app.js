@@ -695,6 +695,164 @@ const App = function SimpleBlueprints() {
       .catch(() => setAuthLoading(false));
   }, []);
 
+  // ============================================================
+  // S62: Project Persistence (auto-save)
+  // ============================================================
+  const projectIdRef = useRef(null);
+  const saveTimerRef = useRef(null);
+  const lastSavedRef = useRef(null); // JSON string of last saved state
+  const surveyDirtyRef = useRef(false);
+
+  // Build saveable snapshot (excludes large survey unless changed)
+  const buildSavePayload = (opts) => {
+    var payload = {
+      params_json: JSON.stringify(p),
+      info_json: JSON.stringify(info),
+      step: step,
+      site_plan_mode: sitePlanMode,
+    };
+    // Auto-name from address if available
+    if (info.address && info.address.trim()) {
+      payload.name = info.address.trim();
+    }
+    // Only include survey when explicitly flagged dirty
+    if (opts && opts.includeSurvey && sitePlanB64) {
+      payload.survey_b64 = sitePlanB64;
+      surveyDirtyRef.current = false;
+    }
+    return payload;
+  };
+
+  // Save to server (called by debounce timer and beforeunload)
+  const saveProject = (opts) => {
+    if (!user || !projectIdRef.current) return;
+    var payload = buildSavePayload(opts);
+    var snapKey = payload.params_json + "|" + payload.info_json + "|" + payload.step + "|" + payload.site_plan_mode;
+    if (snapKey === lastSavedRef.current && !(opts && opts.includeSurvey)) return; // no changes
+    lastSavedRef.current = snapKey;
+    fetch(API + "/api/projects/" + projectIdRef.current, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(payload),
+      keepalive: true,
+    }).catch(function(e) { console.warn("Auto-save error:", e); });
+  };
+
+  // Create project on first meaningful change (logged-in users only)
+  const ensureProject = () => {
+    if (!user || projectIdRef.current) return;
+    var payload = buildSavePayload();
+    if (surveyDirtyRef.current && sitePlanB64) {
+      payload.survey_b64 = sitePlanB64;
+      surveyDirtyRef.current = false;
+    }
+    fetch(API + "/api/projects", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(payload),
+    })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.project && d.project.id) {
+          projectIdRef.current = d.project.id;
+          console.log("Project created:", d.project.id);
+        }
+      })
+      .catch(function(e) { console.warn("Create project error:", e); });
+  };
+
+  // Schedule debounced save (3s after last change)
+  const scheduleSave = () => {
+    if (!user) return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(function() {
+      if (!projectIdRef.current) {
+        ensureProject();
+      } else {
+        saveProject({ includeSurvey: surveyDirtyRef.current });
+      }
+    }, 3000);
+  };
+
+  // Watch for changes that trigger auto-save (only when in wizard)
+  useEffect(function() {
+    if (page !== "wizard" || !user) return;
+    scheduleSave();
+  }, [p, info, step, sitePlanMode, user, page]);
+
+  // Track survey uploads separately (large payload)
+  useEffect(function() {
+    if (sitePlanB64) surveyDirtyRef.current = true;
+  }, [sitePlanB64]);
+
+  // beforeunload: flush pending save
+  useEffect(function() {
+    var handler = function() {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      if (projectIdRef.current && user) {
+        saveProject({ includeSurvey: surveyDirtyRef.current });
+      }
+    };
+    window.addEventListener("beforeunload", handler);
+    return function() { window.removeEventListener("beforeunload", handler); };
+  }, [user, p, info, step, sitePlanMode, sitePlanB64]);
+
+  // Load a saved project into wizard state
+  const loadProject = (proj) => {
+    if (proj.params_json) {
+      try {
+        var loaded = JSON.parse(proj.params_json);
+        setP(function(prev) { return Object.assign({}, prev, loaded); });
+      } catch(e) { console.warn("Bad params_json:", e); }
+    }
+    if (proj.info_json) {
+      try { setInfo(JSON.parse(proj.info_json)); }
+      catch(e) { console.warn("Bad info_json:", e); }
+    }
+    if (proj.step != null) setStep(proj.step);
+    if (proj.site_plan_mode) setSitePlanMode(proj.site_plan_mode);
+    if (proj.survey_b64) { setSitePlanB64(proj.survey_b64); surveyDirtyRef.current = false; }
+    projectIdRef.current = proj.id;
+    lastSavedRef.current = proj.params_json + "|" + proj.info_json + "|" + proj.step + "|" + proj.site_plan_mode;
+    setPage("wizard");
+  };
+
+  // Navigate back to home (flush save, clear project context)
+  const goHome = () => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    if (projectIdRef.current && user) {
+      saveProject({ includeSurvey: surveyDirtyRef.current });
+    }
+    projectIdRef.current = null;
+    lastSavedRef.current = null;
+    surveyDirtyRef.current = false;
+    setPage("home");
+  };
+
+  // Start a fresh new project (reset all wizard state)
+  const startNewProject = () => {
+    projectIdRef.current = null;
+    lastSavedRef.current = null;
+    surveyDirtyRef.current = false;
+    setP({ width: 20, depth: 12, height: 4, houseWidth: 40, houseDepth: 30, attachment: "ledger", hasStairs: true, stairLocation: "front", stairWidth: 4, numStringers: 3, hasLanding: false, joistSpacing: 16, deckingType: "composite", railType: "fortress", snowLoad: "moderate", frostZone: "cold", lotWidth: 80, lotDepth: 120, setbackFront: 25, setbackSide: 5, setbackRear: 20, houseOffsetSide: 20, deckOffset: 0, stairOffset: 0, beamType: "dropped", stairTemplate: "straight", stairRunSplit: null, stairLandingDepth: null, stairLandingWidth: null, stairGap: 0.5, stairRotation: 0, stairAnchorX: null, stairAnchorY: null, stairAngle: null,
+      houseDistFromStreet: null, streetName: "",
+      lotVertices: null, lotEdges: null, lotArea: null,
+      zones: [], activeZone: 0, nextZoneId: 1, mainCorners: { BL: { type: "square", size: 0 }, BR: { type: "square", size: 0 }, FL: { type: "square", size: 0 }, FR: { type: "square", size: 0 } },
+      sitePlan: { lotShape: "rectangle", lotWidth: 80, lotDepth: 120, streetSide: "south", streetName: "", houseWidth: 40, houseDepth: 30, houseOffsetX: 20, houseOffsetY: 25, houseLabel: "Existing Residence", houseShape: "rectangle", setbackFront: 25, setbackRear: 20, setbackLeft: 5, setbackRight: 5, deckAttachSide: "rear", deckOffsetX: 0, elements: [], address: "", parcelId: "", northAngle: 0, lotCoverage: null, deckToPropertyLine: null }
+    });
+    setInfo({ owner: "", address: "", city: "", state: "", zip: "", lot: "", contractor: "" });
+    setStep(0);
+    setSitePlanMode("generate");
+    setSitePlanFile(null);
+    setSitePlanB64(null);
+    setGenStatus("idle");
+    setGenError("");
+    setMaterialsUrl(null);
+    setPage("wizard");
+  };
+
   const generateBlueprint = async () => {
     setGenStatus("generating"); setGenError(""); setMaterialsUrl(null);
     if (window._trackEvent) window._trackEvent('pdf_generate_start', {});
@@ -705,7 +863,7 @@ const App = function SimpleBlueprints() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ ...p, projectInfo: info, coverImage, sitePlanMode, sitePlanFile: sitePlanB64 }),
+        body: JSON.stringify({ ...p, projectInfo: info, coverImage, sitePlanMode, sitePlanFile: sitePlanB64, project_id: projectIdRef.current }),
       });
       if (res.status === 401) { setGenError("Please sign in first"); setGenStatus("error"); return; }
       if (!res.ok) throw new Error(`Server error: ${res.status}`);
@@ -808,14 +966,14 @@ const App = function SimpleBlueprints() {
   var _effectiveVFlip = shapeVFlip;
 
   // HOME
-  if (page === "home") return <HomePage setPage={setPage} />;
+  if (page === "home") return <HomePage setPage={setPage} user={user} API={API} loadProject={loadProject} startNewProject={startNewProject} />;
 
   // WIZARD
   const views = [["plan", "Plan"], ["elevation", "Elevation"], ["3d", "3D View"]];
   return (
     <div style={{ minHeight: "100vh", background: br.cr }}>
       <nav style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 24px", borderBottom: `1px solid ${br.bd}`, background: "#fff" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }} onClick={() => setPage("home")}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }} onClick={goHome}>
           <div style={{ width: 24, height: 24, background: br.gn, borderRadius: 5, display: "flex", alignItems: "center", justifyContent: "center" }}><span style={{ color: "#fff", fontSize: 11, fontWeight: 900 }}>SB</span></div>
           <span style={{ fontFamily: mono, fontSize: 13, fontWeight: 800, color: br.dk }}>simpleblueprints</span>
         </div>
@@ -856,7 +1014,7 @@ const App = function SimpleBlueprints() {
               sitePlanB64={sitePlanB64} />
 
             <div style={{ display: "flex", justifyContent: "space-between", marginTop: 20 }}>
-              <button onClick={() => step > 0 ? setStep(step - 1) : setPage("home")} style={{ padding: "9px 18px", border: `1px solid ${br.bd}`, borderRadius: 6, background: "transparent", color: br.mu, cursor: "pointer", fontFamily: mono, fontSize: 11, fontWeight: 600 }}>{"\u2190"} {step > 0 ? "Back" : "Home"}</button>
+              <button onClick={() => step > 0 ? setStep(step - 1) : goHome()} style={{ padding: "9px 18px", border: `1px solid ${br.bd}`, borderRadius: 6, background: "transparent", color: br.mu, cursor: "pointer", fontFamily: mono, fontSize: 11, fontWeight: 600 }}>{"\u2190"} {step > 0 ? "Back" : "Home"}</button>
               {step < steps.length - 1 && <button onClick={() => setStep(step + 1)} style={{ padding: "9px 18px", border: "none", borderRadius: 6, background: br.gn, color: "#fff", cursor: "pointer", fontFamily: mono, fontSize: 11, fontWeight: 700 }}>Next {"\u2192"}</button>}
             </div>
           </div>
