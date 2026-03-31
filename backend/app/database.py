@@ -190,6 +190,24 @@ def init_tables():
                 created_at TIMESTAMPTZ DEFAULT NOW()
             )
         """)
+        # S62: Projects table (user-saved deck configurations)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS projects (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id) NOT NULL,
+                name TEXT NOT NULL DEFAULT 'Untitled Deck',
+                status TEXT NOT NULL DEFAULT 'draft',
+                params_json TEXT,
+                info_json TEXT,
+                step INTEGER DEFAULT 0,
+                site_plan_mode TEXT DEFAULT 'generate',
+                survey_b64 TEXT,
+                last_generation_id INTEGER,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_projects_user ON projects(user_id)")
         # S55: Add stripe_customer_id to users if not exists
         try:
             cur.execute("""
@@ -297,6 +315,76 @@ def mark_emailed(gen_id: int):
     with get_db() as conn:
         cur = conn.cursor()
         cur.execute("UPDATE generations SET emailed=TRUE WHERE id=%s", (gen_id,))
+
+
+# ============================================================
+# PROJECT OPERATIONS (S62)
+# ============================================================
+
+def create_project(user_id: int, name: str = "Untitled Deck", params_json: str = None,
+                   info_json: str = None, step: int = 0, site_plan_mode: str = "generate",
+                   survey_b64: str = None) -> dict:
+    """Create a new project. Returns project dict."""
+    with get_db() as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("""
+            INSERT INTO projects (user_id, name, params_json, info_json, step,
+                                  site_plan_mode, survey_b64)
+            VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING *
+        """, (user_id, name, params_json, info_json, step, site_plan_mode, survey_b64))
+        row = cur.fetchone()
+        return dict(row)
+
+
+def list_projects(user_id: int) -> list:
+    """List all projects for a user (summary only, no survey blob)."""
+    with get_db() as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("""
+            SELECT id, name, status, step, site_plan_mode,
+                   params_json, info_json, last_generation_id,
+                   created_at, updated_at
+            FROM projects WHERE user_id=%s
+            ORDER BY updated_at DESC
+        """, (user_id,))
+        return [dict(r) for r in cur.fetchall()]
+
+
+def get_project(project_id: int, user_id: int) -> dict | None:
+    """Get full project including survey blob. Enforces ownership."""
+    with get_db() as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT * FROM projects WHERE id=%s AND user_id=%s", (project_id, user_id))
+        row = cur.fetchone()
+        return dict(row) if row else None
+
+
+def update_project(project_id: int, user_id: int, **fields) -> dict | None:
+    """Update project fields. Only updates provided keys. Enforces ownership."""
+    allowed = {"name", "status", "params_json", "info_json", "step",
+               "site_plan_mode", "survey_b64", "last_generation_id"}
+    updates = {k: v for k, v in fields.items() if k in allowed}
+    if not updates:
+        return get_project(project_id, user_id)
+    set_parts = [f"{k}=%s" for k in updates]
+    set_parts.append("updated_at=NOW()")
+    vals = list(updates.values()) + [project_id, user_id]
+    with get_db() as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            f"UPDATE projects SET {', '.join(set_parts)} WHERE id=%s AND user_id=%s RETURNING *",
+            vals
+        )
+        row = cur.fetchone()
+        return dict(row) if row else None
+
+
+def delete_project(project_id: int, user_id: int) -> bool:
+    """Delete a project. Enforces ownership. Returns True if deleted."""
+    with get_db() as conn:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM projects WHERE id=%s AND user_id=%s", (project_id, user_id))
+        return cur.rowcount > 0
 
 
 # ============================================================

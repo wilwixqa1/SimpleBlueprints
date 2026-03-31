@@ -48,7 +48,8 @@ from app.database import (
     get_stats, log_event, log_events_batch, log_ai_message,
     link_anonymous_to_user, get_tracking_stats,
     should_generate_insight, get_conversations_for_insight,
-    get_event_summary_for_insight, save_insight
+    get_event_summary_for_insight, save_insight,
+    create_project, list_projects, get_project, update_project, delete_project
 )
 from app.auth import (
     get_login_url, exchange_code, sign_session,
@@ -1387,8 +1388,17 @@ async def generate_test(request: Request):
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="Invalid JSON")
     permit_id, materials_id, calc, permit_report = generate_blueprint_pdf(params.dict())
-    try: db_log_generation(user_id, params.dict(), calc, permit_id)
+    gen_id = None
+    try: gen_id = db_log_generation(user_id, params.dict(), calc, permit_id)
     except Exception as e: print(f"Log error: {e}")
+    # S62: Update project status if project_id provided
+    try:
+        raw = json.loads(body)
+        proj_id = raw.get("project_id")
+        if proj_id and gen_id:
+            update_project(proj_id, user_id, status="generated", last_generation_id=gen_id)
+    except Exception as e:
+        print(f"Project link error: {e}")
     return {"file_id": permit_id, "download_url": f"/api/download/{permit_id}",
             "materials_id": materials_id, "materials_url": f"/api/download/{materials_id}",
             "calc": calc,
@@ -1428,6 +1438,122 @@ async def check_payment(session_id: str):
                         "materials_url":f"/api/download/{materials_id}","calc":calc}
         return {"status":"pending"}
     except Exception as e: return {"status":"error","message":str(e)}
+
+
+# ============================================================
+# PROJECT PERSISTENCE (S62)
+# ============================================================
+
+@app.get("/api/projects")
+async def api_list_projects(request: Request):
+    """List all projects for current user (summary, no survey blob)."""
+    user_id = get_current_user_id(request)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Login required")
+    projects = list_projects(user_id)
+    # Extract summary info from params_json for display
+    result = []
+    for proj in projects:
+        summary = {
+            "id": proj["id"],
+            "name": proj["name"],
+            "status": proj["status"],
+            "step": proj["step"],
+            "created_at": str(proj["created_at"]),
+            "updated_at": str(proj["updated_at"]),
+            "last_generation_id": proj["last_generation_id"],
+        }
+        # Pull deck dims from params for card display
+        if proj.get("params_json"):
+            try:
+                pp = json.loads(proj["params_json"])
+                summary["deck_width"] = pp.get("width")
+                summary["deck_depth"] = pp.get("depth")
+                summary["deck_height"] = pp.get("height")
+                summary["attachment"] = pp.get("attachment")
+            except Exception:
+                pass
+        # Pull address from info for card display
+        if proj.get("info_json"):
+            try:
+                ii = json.loads(proj["info_json"])
+                summary["address"] = ii.get("address", "")
+            except Exception:
+                pass
+        result.append(summary)
+    return {"projects": result}
+
+
+@app.post("/api/projects")
+async def api_create_project(request: Request):
+    """Create a new project."""
+    user_id = get_current_user_id(request)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Login required")
+    body = await request.json()
+    name = body.get("name", "Untitled Deck")
+    proj = create_project(
+        user_id=user_id,
+        name=name,
+        params_json=body.get("params_json"),
+        info_json=body.get("info_json"),
+        step=body.get("step", 0),
+        site_plan_mode=body.get("site_plan_mode", "generate"),
+        survey_b64=body.get("survey_b64"),
+    )
+    return {"project": {"id": proj["id"], "name": proj["name"], "status": proj["status"],
+                        "created_at": str(proj["created_at"])}}
+
+
+@app.get("/api/projects/{project_id}")
+async def api_get_project(project_id: int, request: Request):
+    """Get full project including survey blob."""
+    user_id = get_current_user_id(request)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Login required")
+    proj = get_project(project_id, user_id)
+    if not proj:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return {"project": {
+        "id": proj["id"], "name": proj["name"], "status": proj["status"],
+        "step": proj["step"], "site_plan_mode": proj["site_plan_mode"],
+        "params_json": proj["params_json"], "info_json": proj["info_json"],
+        "survey_b64": proj["survey_b64"],
+        "last_generation_id": proj["last_generation_id"],
+        "created_at": str(proj["created_at"]),
+        "updated_at": str(proj["updated_at"]),
+    }}
+
+
+@app.put("/api/projects/{project_id}")
+async def api_update_project(project_id: int, request: Request):
+    """Update project (auto-save). Only sends changed fields."""
+    user_id = get_current_user_id(request)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Login required")
+    body = await request.json()
+    # Whitelist fields the client can update
+    fields = {}
+    for k in ["name", "status", "params_json", "info_json", "step",
+              "site_plan_mode", "survey_b64", "last_generation_id"]:
+        if k in body:
+            fields[k] = body[k]
+    proj = update_project(project_id, user_id, **fields)
+    if not proj:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return {"ok": True, "updated_at": str(proj["updated_at"])}
+
+
+@app.delete("/api/projects/{project_id}")
+async def api_delete_project(project_id: int, request: Request):
+    """Delete a project."""
+    user_id = get_current_user_id(request)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Login required")
+    deleted = delete_project(project_id, user_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return {"ok": True}
 
 
 # ============================================================
