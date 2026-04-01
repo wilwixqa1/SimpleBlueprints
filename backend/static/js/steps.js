@@ -683,6 +683,37 @@ function GuidePanel({ phase, onAction, onBack, history, onToggleOff, message, ti
               </span>;
             })}
           </div>}
+          {/* S62: Suggestion buttons -- clickable quick actions */}
+          {msg.suggestions && msg.suggestions.length > 0 && <div style={{
+            marginTop: 6, display: "flex", gap: 6, flexWrap: "wrap"
+          }}>
+            {msg.suggestions.map(function(sug, si) {
+              var isApplied = msg.appliedSuggestion === si;
+              var isDismissed = msg.appliedSuggestion != null && msg.appliedSuggestion !== si;
+              return <button key={si} disabled={msg.appliedSuggestion != null}
+                onClick={function() {
+                  _applyActions(sug.actions || []);
+                  setChatMessages(function(prev) {
+                    var updated = prev.slice();
+                    var target = Object.assign({}, updated[mi]);
+                    target.appliedSuggestion = si;
+                    updated[mi] = target;
+                    return updated;
+                  });
+                }}
+                style={{
+                  fontSize: 11, fontFamily: _mono, fontWeight: 600,
+                  padding: "6px 14px", borderRadius: 6, cursor: msg.appliedSuggestion != null ? "default" : "pointer",
+                  border: isApplied ? "1.5px solid " + _br.gn : "1px solid " + _br.bd,
+                  background: isApplied ? "#f0fdf4" : isDismissed ? "#f5f5f5" : "#fff",
+                  color: isApplied ? _br.gn : isDismissed ? _br.mu : _br.dk,
+                  opacity: isDismissed ? 0.5 : 1,
+                  transition: "all 0.15s",
+                }}>
+                {isApplied ? "\u2713 " : ""}{sug.label}
+              </button>;
+            })}
+          </div>}
         </div>;
       })}
     </div>}
@@ -1068,16 +1099,27 @@ function StepContent(props) {
                 });
               }
               if (evt.d) {
-                // Done - set final message and apply actions
+                // Done - set final message, separate suggestions from direct actions
+                var allActions = evt.actions || [];
+                var directActions = [];
+                var suggestions = [];
+                allActions.forEach(function(act) {
+                  if (act.suggest) {
+                    suggestions = act.suggest;
+                  } else {
+                    directActions.push(act);
+                  }
+                });
                 setChatMessages(function(prev) {
                   var updated = prev.slice();
                   var last = Object.assign({}, updated[updated.length - 1]);
                   last.text = evt.msg || streamText;
-                  last.actions = evt.actions || [];
+                  last.actions = directActions;
+                  if (suggestions.length > 0) last.suggestions = suggestions;
                   updated[updated.length - 1] = last;
                   return updated;
                 });
-                _applyActions(evt.actions);
+                _applyActions(directActions);
                 setChatLoading(false);
               }
             } catch(e) { /* skip malformed SSE */ }
