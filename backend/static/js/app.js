@@ -700,7 +700,15 @@ const App = function SimpleBlueprints() {
               if (s.step != null) setStep(s.step);
               if (s.sitePlanMode) setSitePlanMode(s.sitePlanMode);
               if (s.sitePlanB64) { setSitePlanB64(s.sitePlanB64); surveyDirtyRef.current = true; }
-              if (s.page) setPage(s.page);
+              if (s.page === "wizard") {
+                // S62: Need to load wizard deps before entering wizard
+                setPage("loading");
+                if (window._loadWizardDeps) {
+                  window._loadWizardDeps().then(function() { setPage("wizard"); }).catch(function() { setPage("home"); });
+                } else { setPage("wizard"); }
+              } else if (s.page) {
+                setPage(s.page);
+              }
             }
           } catch(e) { console.warn("Auth state restore error:", e); }
         }
@@ -834,7 +842,7 @@ const App = function SimpleBlueprints() {
     if (proj.survey_b64) { setSitePlanB64(proj.survey_b64); surveyDirtyRef.current = false; }
     projectIdRef.current = proj.id;
     lastSavedRef.current = proj.params_json + "|" + proj.info_json + "|" + proj.step + "|" + proj.site_plan_mode;
-    setPage("wizard");
+    enterWizard();
   };
 
   // Navigate back to home (flush save, clear project context)
@@ -868,7 +876,24 @@ const App = function SimpleBlueprints() {
     setGenStatus("idle");
     setGenError("");
     setMaterialsUrl(null);
-    setPage("wizard");
+    enterWizard();
+  };
+
+  // S62: Load wizard dependencies then transition to wizard page
+  const enterWizard = () => {
+    if (window._wizardDepsReady && window._wizardDepsReady()) {
+      setPage("wizard");
+      return;
+    }
+    setPage("loading");
+    if (window._loadWizardDeps) {
+      window._loadWizardDeps().then(function() { setPage("wizard"); }).catch(function(e) {
+        console.error("Failed to load wizard:", e);
+        setPage("home");
+      });
+    } else {
+      setPage("wizard"); // fallback if loader not available
+    }
   };
 
   const generateBlueprint = async () => {
@@ -987,6 +1012,14 @@ const App = function SimpleBlueprints() {
   // HOME
   if (page === "home") return <HomePage setPage={setPage} user={user} startNewProject={startNewProject} />;
   if (page === "drafts") return <DraftsPage setPage={setPage} user={user} API={API} loadProject={loadProject} startNewProject={startNewProject} />;
+  if (page === "loading") return (
+    <div style={{ minHeight: "100vh", background: br.cr, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ textAlign: "center" }}>
+        <div style={{ width: 32, height: 32, background: br.gn, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}><span style={{ color: "#fff", fontSize: 16, fontWeight: 900 }}>SB</span></div>
+        <div style={{ fontFamily: mono, fontSize: 12, color: br.mu }}>Loading wizard...</div>
+      </div>
+    </div>
+  );
 
   // WIZARD
   const views = [["plan", "Plan"], ["elevation", "Elevation"], ["3d", "3D View"]];

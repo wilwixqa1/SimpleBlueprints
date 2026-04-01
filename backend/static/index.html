@@ -10,24 +10,90 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<!-- S62: Three.js deferred -- only needed in wizard 3D preview -->
 <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',system-ui,sans-serif;background:#faf8f3;-webkit-font-smoothing:antialiased}#root{min-height:100vh}input[type="range"]{-webkit-appearance:none;height:6px;border-radius:3px;background:#ddd8cc;outline:none}input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#3d5a2e;cursor:pointer}input[type="number"]::-webkit-inner-spin-button,input[type="number"]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}input[type="number"]{-moz-appearance:textfield}</style>
 </head>
 <body>
 <div id="root"></div>
 <!-- S55: Event tracking (vanilla JS, loads before React) -->
 <script src="/static/js/tracking.js?v=s61a"></script>
-<!-- Load order matters: engine   stairs   zones   views   app -->
-<script type="text/babel" src="/static/js/engine.js?v=s61a"></script>
-<script type="text/babel" src="/static/js/stairGeometry.js"></script>
-<script type="text/babel" src="/static/js/zoneUtils.js"></script>
+<!--
+  S62: Split loading for faster landing page.
+  Phase 1 (immediate): engine + home + app = landing page renders fast.
+  Phase 2 (deferred):  Three.js + stairs + zones + views + steps = loaded on wizard entry.
+-->
+<script type="text/babel" src="/static/js/engine.js?v=s62d"></script>
 <script type="text/babel" src="/static/js/home.js?v=s62d"></script>
-<script type="text/babel" src="/static/js/planView.js"></script>
-<script type="text/babel" src="/static/js/elevationView.js"></script>
-<script type="text/babel" src="/static/js/deck3d.js"></script>
-<script type="text/babel" src="/static/js/steps.js?v=s61a"></script>
-<script type="text/babel" src="/static/js/sitePlanView.js"></script>
-<script type="text/babel" src="/static/js/traceView.js"></script>
-    <script type="text/babel" src="/static/js/app.js?v=s62c"></script>
+<script type="text/babel" src="/static/js/app.js?v=s62d"></script>
+<!-- S62: Lazy loader for wizard dependencies -->
+<script>
+(function() {
+  var loaded = false;
+  var loading = false;
+  var callbacks = [];
+
+  function loadScript(url) {
+    return new Promise(function(resolve, reject) {
+      var s = document.createElement("script");
+      s.src = url;
+      s.onload = resolve;
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+
+  function loadBabelScript(url) {
+    return fetch(url)
+      .then(function(r) { return r.text(); })
+      .then(function(code) {
+        var result = Babel.transform(code, { presets: ["react"] });
+        var s = document.createElement("script");
+        s.textContent = result.code;
+        document.head.appendChild(s);
+      });
+  }
+
+  window._wizardDepsReady = function() { return loaded; };
+
+  window._loadWizardDeps = function() {
+    if (loaded) return Promise.resolve();
+    if (loading) return new Promise(function(resolve) { callbacks.push(resolve); });
+    loading = true;
+
+    var v = "v=s62d";
+    return loadScript("https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js")
+      .then(function() {
+        // Load in dependency order: utilities first, then views, then steps
+        return loadBabelScript("/static/js/stairGeometry.js?" + v);
+      })
+      .then(function() { return loadBabelScript("/static/js/zoneUtils.js?" + v); })
+      .then(function() {
+        // Views can load in parallel
+        return Promise.all([
+          loadBabelScript("/static/js/planView.js?" + v),
+          loadBabelScript("/static/js/elevationView.js?" + v),
+          loadBabelScript("/static/js/deck3d.js?" + v),
+          loadBabelScript("/static/js/sitePlanView.js?" + v),
+          loadBabelScript("/static/js/traceView.js?" + v),
+        ]);
+      })
+      .then(function() {
+        // Steps depends on everything above
+        return loadBabelScript("/static/js/steps.js?" + v);
+      })
+      .then(function() {
+        loaded = true;
+        loading = false;
+        callbacks.forEach(function(cb) { cb(); });
+        callbacks = [];
+      })
+      .catch(function(e) {
+        loading = false;
+        console.error("Failed to load wizard deps:", e);
+        throw e;
+      });
+  };
+})();
+</script>
 </body>
 </html>
