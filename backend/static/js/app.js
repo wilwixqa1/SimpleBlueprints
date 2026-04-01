@@ -689,8 +689,26 @@ const App = function SimpleBlueprints() {
           // S55: Link anonymous tracking to authenticated user
           if (window._linkTrackingToUser) window._linkTrackingToUser();
           if (window._trackEvent) window._trackEvent('auth_login', { email: d.user.email });
+          // S62: Restore wizard state saved before OAuth redirect
+          try {
+            var saved = localStorage.getItem("sb_auth_state");
+            if (saved) {
+              localStorage.removeItem("sb_auth_state");
+              var s = JSON.parse(saved);
+              if (s.p) setP(function(prev) { return Object.assign({}, prev, s.p); });
+              if (s.info) setInfo(s.info);
+              if (s.step != null) setStep(s.step);
+              if (s.sitePlanMode) setSitePlanMode(s.sitePlanMode);
+              if (s.sitePlanB64) { setSitePlanB64(s.sitePlanB64); surveyDirtyRef.current = true; }
+              if (s.page) setPage(s.page);
+            }
+          } catch(e) { console.warn("Auth state restore error:", e); }
         }
         setAuthLoading(false);
+        // Clean up auth query params from URL
+        if (window.location.search.includes("auth=")) {
+          window.history.replaceState({}, "", window.location.pathname);
+        }
       })
       .catch(() => setAuthLoading(false));
   }, []);
@@ -985,7 +1003,7 @@ const App = function SimpleBlueprints() {
             <span style={{ fontSize: 10, fontFamily: mono, color: br.mu }}>{user.name || user.email}</span>
             {user.picture && <img src={user.picture} style={{ width: 26, height: 26, borderRadius: "50%", border: `1px solid ${br.bd}` }} referrerPolicy="no-referrer" />}
             <button onClick={() => fetch(`${API}/auth/logout`, { method: "POST", credentials: "include" }).then(() => setUser(null))} style={{ fontSize: 9, fontFamily: mono, color: br.mu, background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>logout</button>
-          </div> : <button onClick={() => { window.location.href = `${API}/auth/login`; }} style={{ padding: "5px 14px", background: br.gn, color: "#fff", border: "none", borderRadius: 5, fontSize: 10, fontFamily: mono, cursor: "pointer", fontWeight: 700 }}>Sign in</button>}
+          </div> : <button onClick={() => { try { var _state = { p: p, info: info, step: step, sitePlanMode: sitePlanMode, page: page }; if (sitePlanB64) _state.sitePlanB64 = sitePlanB64; try { localStorage.setItem("sb_auth_state", JSON.stringify(_state)); } catch(qe) { delete _state.sitePlanB64; localStorage.setItem("sb_auth_state", JSON.stringify(_state)); } } catch(e) { console.warn("Could not save auth state:", e); } window.location.href = `${API}/auth/login`; }} style={{ padding: "5px 14px", background: br.gn, color: "#fff", border: "none", borderRadius: 5, fontSize: 10, fontFamily: mono, cursor: "pointer", fontWeight: 700 }}>Sign in</button>}
         </div>
       </nav>
       <div style={{ height: 3, background: br.wr }}><div style={{ height: "100%", background: br.gn, width: `${((step + 1) / steps.length) * 100}%`, transition: "width 0.3s" }} /></div>
