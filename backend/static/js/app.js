@@ -919,6 +919,7 @@ const App = function SimpleBlueprints() {
   const ElevationView = window.ElevationView;
   const Deck3D = window.Deck3D;
   const HomePage = window.HomePage;
+  const DraftsPage = window.DraftsPage;
   const StepContent = window.StepContent;
   const SitePlanView = window.SitePlanView;
   const TraceView = window.TraceView;
@@ -984,7 +985,8 @@ const App = function SimpleBlueprints() {
   var _effectiveVFlip = shapeVFlip;
 
   // HOME
-  if (page === "home") return <HomePage setPage={setPage} user={user} API={API} loadProject={loadProject} startNewProject={startNewProject} />;
+  if (page === "home") return <HomePage setPage={setPage} user={user} startNewProject={startNewProject} />;
+  if (page === "drafts") return <DraftsPage setPage={setPage} user={user} API={API} loadProject={loadProject} startNewProject={startNewProject} />;
 
   // WIZARD
   const views = [["plan", "Plan"], ["elevation", "Elevation"], ["3d", "3D View"]];
