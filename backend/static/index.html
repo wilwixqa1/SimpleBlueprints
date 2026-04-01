@@ -23,8 +23,10 @@
   Phase 2 (deferred):  Three.js + stairs + zones + views + steps = loaded on wizard entry.
 -->
 <script type="text/babel" src="/static/js/engine.js?v=s62d"></script>
+<script type="text/babel" src="/static/js/stairGeometry.js?v=s62d"></script>
+<script type="text/babel" src="/static/js/zoneUtils.js?v=s62d"></script>
 <script type="text/babel" src="/static/js/home.js?v=s62d"></script>
-<script type="text/babel" src="/static/js/app.js?v=s62d"></script>
+<script type="text/babel" src="/static/js/app.js?v=s62e"></script>
 <!-- S62: Lazy loader for wizard dependencies -->
 <script>
 (function() {
@@ -63,12 +65,7 @@
     var v = "v=s62d";
     return loadScript("https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js")
       .then(function() {
-        // Load in dependency order: utilities first, then views, then steps
-        return loadBabelScript("/static/js/stairGeometry.js?" + v);
-      })
-      .then(function() { return loadBabelScript("/static/js/zoneUtils.js?" + v); })
-      .then(function() {
-        // Views can load in parallel
+        // Views can load in parallel (stairGeometry + zoneUtils already loaded)
         return Promise.all([
           loadBabelScript("/static/js/planView.js?" + v),
           loadBabelScript("/static/js/elevationView.js?" + v),
