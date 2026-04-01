@@ -250,7 +250,7 @@ function calcStructure(p) {
   var engineeringRequired = joistOverSpan;
 
   if (joistOverSpan) {
-    warnings.push(`Joist span (${jSpan.toFixed(1)}') exceeds IRC R507.6 max (${maxSpan.toFixed(1)}') for 2x12 @ ${sp}" O.C. at ${LL} PSF. Intermediate beam required. Engineering review needed.`);
+    warnings.push(`Deck depth (${D}') exceeds IRC prescriptive limit of ${maxDepthForJoists}' for 2x12 @ ${sp}" O.C. at ${LL} PSF. A licensed engineer or architect is required for this design.`);
   }
 
   // Beam span check against IRC R507.5 (S60)

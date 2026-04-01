@@ -321,6 +321,27 @@ def check_joist_span(params, calc, spec):
         )
 
     if joist_span > max_span:
+        # Check if even 2x12 can't handle this depth
+        max_2x12 = spans.get("2x12", {}).get(joist_spacing, 0)
+        if joist_span > max_2x12 and max_2x12 > 0:
+            attachment = params.get("attachment", "ledger")
+            if attachment == "ledger":
+                max_depth = round(max_2x12 + 1.5, 1)
+            else:
+                max_depth = round((max_2x12 + 0.75) * 2, 1)
+            return CheckResult(
+                id="IRC_JOIST_SPAN",
+                category="structural", sheet="A-1", severity="error",
+                status="fail",
+                message=f"Deck depth exceeds IRC prescriptive limit of {max_depth}'.",
+                detail=(
+                    f"No joist size at {joist_spacing}\" O.C. can span {joist_span:.1f}' "
+                    f"(max 2x12 span: {max_2x12:.1f}' at {LL} PSF). "
+                    f"A licensed engineer or architect is required for decks deeper than {max_depth}'."
+                ),
+                fix=f"Reduce deck depth to {max_depth}' or less in Step 1.",
+                fix_step=1,
+            )
         return CheckResult(
             id="IRC_JOIST_SPAN",
             category="structural", sheet="A-1", severity="error",
@@ -330,7 +351,7 @@ def check_joist_span(params, calc, spec):
                 f"{joist_size} @ {joist_spacing}\" O.C. spans {joist_span:.1f}' "
                 f"(max {max_span:.1f}' at {LL} PSF design load)"
             ),
-            fix="Reduce deck depth or upgrade to larger joists in Step 2.",
+            fix="Upgrade to larger joists in Step 2.",
             fix_step=2,
         )
 

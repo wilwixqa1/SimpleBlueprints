@@ -585,9 +585,9 @@ def calculate_structure(params):
 
     if joist_over_span:
         warnings.append(
-            f"Joist span ({joist_span:.1f}') exceeds IRC R507.6 max ({max_span_available:.1f}') "
-            f"for 2x12 @ {joist_spacing}\" O.C. at {LL} PSF. "
-            f"Intermediate beam required. Engineering review needed."
+            f"Deck depth ({depth}') exceeds IRC prescriptive limit of {max_depth_for_joists}' "
+            f"for 2x12 @ {joist_spacing}\" O.C. at {LL} PSF ({species.replace('_', ' ').title()}). "
+            f"A licensed engineer or architect is required for this design."
         )
 
     # Beam span check against IRC R507.5 (S60)
