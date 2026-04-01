@@ -68,48 +68,79 @@ function HomePage({ setPage, user, API, loadProject, startNewProject }) {
   var isDashboard = user && !loadingProjects && projects.length > 0;
 
   // ============================================================
-  // Project card component
+  // Project card
   // ============================================================
   var renderProjectCard = function(proj) {
     var dims = proj.deck_width && proj.deck_depth ? proj.deck_width + "' x " + proj.deck_depth + "'" : "";
     var isOpening = openingId === proj.id;
+    var isGenerated = proj.status === "generated";
     return (
       <div key={proj.id} onClick={function() { if (!isOpening) openProject(proj.id); }}
-        style={{ padding: 18, background: "#fff", border: "1px solid " + br.bd, borderRadius: 10, cursor: isOpening ? "wait" : "pointer", position: "relative", transition: "border-color 0.15s, box-shadow 0.15s", opacity: isOpening ? 0.7 : 1 }}
-        onMouseEnter={function(e) { e.currentTarget.style.borderColor = br.gn; e.currentTarget.style.boxShadow = "0 2px 12px rgba(61,90,46,0.1)"; }}
-        onMouseLeave={function(e) { e.currentTarget.style.borderColor = br.bd; e.currentTarget.style.boxShadow = "none"; }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
-          <div style={{ fontFamily: sans, fontSize: 14, fontWeight: 700, color: br.dk, lineHeight: 1.3, flex: 1, paddingRight: 8 }}>
-            {proj.name || "Untitled Deck"}
+        style={{ padding: 0, background: "#fff", border: "1px solid " + br.bd, borderRadius: 10, cursor: isOpening ? "wait" : "pointer", position: "relative", transition: "border-color 0.15s, box-shadow 0.15s, transform 0.15s", opacity: isOpening ? 0.7 : 1, overflow: "hidden" }}
+        onMouseEnter={function(e) { e.currentTarget.style.borderColor = br.gn; e.currentTarget.style.boxShadow = "0 4px 16px rgba(61,90,46,0.12)"; e.currentTarget.style.transform = "translateY(-2px)"; }}
+        onMouseLeave={function(e) { e.currentTarget.style.borderColor = br.bd; e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.transform = "translateY(0)"; }}>
+        {/* Accent bar */}
+        <div style={{ height: 3, background: isGenerated ? br.gn : br.ac }} />
+        <div style={{ padding: "16px 18px 14px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+            <div style={{ fontFamily: sans, fontSize: 15, fontWeight: 700, color: br.dk, lineHeight: 1.3, flex: 1, paddingRight: 8 }}>
+              {proj.name || "Untitled Deck"}
+            </div>
+            <span style={{ fontSize: 9, fontFamily: mono, fontWeight: 700, padding: "2px 8px", borderRadius: 3, flexShrink: 0,
+              background: isGenerated ? "#f0fdf4" : "#fef9e7",
+              color: isGenerated ? "#2e7d32" : br.ac,
+              border: "1px solid " + (isGenerated ? "#2e7d32" : br.ac),
+            }}>{isGenerated ? "GENERATED" : "DRAFT"}</span>
           </div>
-          <span style={{ fontSize: 9, fontFamily: mono, fontWeight: 700, padding: "2px 8px", borderRadius: 3, flexShrink: 0,
-            background: proj.status === "generated" ? "#f0fdf4" : "#fef9e7",
-            color: proj.status === "generated" ? "#2e7d32" : br.ac,
-            border: "1px solid " + (proj.status === "generated" ? "#2e7d32" : br.ac),
-          }}>{proj.status === "generated" ? "GENERATED" : "DRAFT"}</span>
-        </div>
-        <div style={{ display: "flex", gap: 12, fontSize: 11, fontFamily: mono, color: br.mu, marginBottom: 6 }}>
-          {dims && <span>{dims}</span>}
-          {proj.deck_height && <span>{proj.deck_height}' high</span>}
-          {proj.attachment && <span>{proj.attachment}</span>}
-        </div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div style={{ fontSize: 10, fontFamily: mono, color: br.mu }}>
-            Step {(proj.step || 0) + 1}: {stepNames[proj.step || 0] || "?"} {"\u00B7"} {timeAgo(proj.updated_at)}
+          {/* Dims as pills */}
+          {(dims || proj.attachment) && (
+            <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
+              {dims && <span style={{ fontSize: 11, fontFamily: mono, color: br.dk, fontWeight: 600, background: br.wr, padding: "2px 8px", borderRadius: 4 }}>{dims}</span>}
+              {proj.deck_height && <span style={{ fontSize: 11, fontFamily: mono, color: br.dk, fontWeight: 600, background: br.wr, padding: "2px 8px", borderRadius: 4 }}>{proj.deck_height}' high</span>}
+              {proj.attachment && <span style={{ fontSize: 11, fontFamily: mono, color: br.dk, fontWeight: 600, background: br.wr, padding: "2px 8px", borderRadius: 4 }}>{proj.attachment}</span>}
+            </div>
+          )}
+          {/* Progress dots */}
+          <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
+            {stepNames.map(function(sn, si) {
+              var done = si <= (proj.step || 0);
+              return <div key={si} title={sn} style={{ flex: 1, height: 4, borderRadius: 2, background: done ? br.gn : br.bd }} />;
+            })}
           </div>
-          <button onClick={function(e) { deleteProject(e, proj.id, proj.name || "Untitled Deck"); }}
-            style={{ fontSize: 9, fontFamily: mono, color: br.rd, background: "none", border: "none", cursor: "pointer", padding: "2px 6px", opacity: 0.6 }}
-            onMouseEnter={function(e) { e.currentTarget.style.opacity = "1"; }}
-            onMouseLeave={function(e) { e.currentTarget.style.opacity = "0.6"; }}>
-            delete
-          </button>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ fontSize: 10, fontFamily: mono, color: br.mu }}>
+              {stepNames[proj.step || 0] || "?"} {"\u00B7"} {timeAgo(proj.updated_at)}
+            </div>
+            <button onClick={function(e) { deleteProject(e, proj.id, proj.name || "Untitled Deck"); }}
+              style={{ fontSize: 9, fontFamily: mono, color: br.rd, background: "none", border: "none", cursor: "pointer", padding: "2px 6px", opacity: 0.4 }}
+              onMouseEnter={function(e) { e.currentTarget.style.opacity = "1"; }}
+              onMouseLeave={function(e) { e.currentTarget.style.opacity = "0.4"; }}>
+              delete
+            </button>
+          </div>
         </div>
-        {isOpening && <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(250,248,243,0.8)", borderRadius: 10 }}>
+        {isOpening && <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(250,248,243,0.9)", borderRadius: 10 }}>
           <span style={{ fontFamily: mono, fontSize: 11, color: br.gn, fontWeight: 700 }}>Opening...</span>
         </div>}
       </div>
     );
   };
+
+  // ============================================================
+  // New project card (sits in the grid alongside project cards)
+  // ============================================================
+  var newProjectCard = (
+    <div key="__new" onClick={startNewProject}
+      style={{ padding: 0, background: "transparent", border: "2px dashed " + br.bd, borderRadius: 10, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: 160, transition: "border-color 0.15s, background 0.15s" }}
+      onMouseEnter={function(e) { e.currentTarget.style.borderColor = br.gn; e.currentTarget.style.background = "rgba(61,90,46,0.03)"; }}
+      onMouseLeave={function(e) { e.currentTarget.style.borderColor = br.bd; e.currentTarget.style.background = "transparent"; }}>
+      <div style={{ width: 40, height: 40, borderRadius: "50%", background: br.gn, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 10 }}>
+        <span style={{ color: "#fff", fontSize: 22, fontWeight: 300, lineHeight: 1 }}>+</span>
+      </div>
+      <div style={{ fontFamily: sans, fontSize: 13, fontWeight: 700, color: br.gn }}>New Deck Project</div>
+      <div style={{ fontFamily: sans, fontSize: 11, color: br.mu, marginTop: 3 }}>Start from scratch</div>
+    </div>
+  );
 
   var footer = (
     <div style={{ borderTop: "1px solid " + br.bd, padding: "20px 32px", textAlign: "center" }}>
@@ -121,45 +152,48 @@ function HomePage({ setPage, user, API, loadProject, startNewProject }) {
   // DASHBOARD (logged in + has projects)
   // ============================================================
   if (isDashboard) {
+    var firstName = (user.name || "").split(" ")[0] || "there";
     return (
-      <div style={{ minHeight: "100vh", background: br.cr }}>
-        <nav style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px", borderBottom: "1px solid " + br.bd, background: "#fff" }}>
+      <div style={{ minHeight: "100vh", background: br.cr, display: "flex", flexDirection: "column" }}>
+        <nav style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 20px", borderBottom: "1px solid " + br.bd, background: "#fff" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <div style={{ width: 28, height: 28, background: br.gn, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center" }}><span style={{ color: "#fff", fontSize: 14, fontWeight: 900 }}>SB</span></div>
             <span style={{ fontFamily: mono, fontSize: 15, fontWeight: 800, color: br.dk, letterSpacing: "0.5px" }}>simpleblueprints</span>
             <span style={{ fontSize: 10, color: br.ac, fontWeight: 700, fontFamily: mono, border: "1px solid " + br.ac, padding: "1px 6px", borderRadius: 3, marginLeft: 4 }}>BETA</span>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ fontSize: 10, fontFamily: mono, color: br.mu }}>{user.name || user.email}</span>
-            {user.picture && <img src={user.picture} style={{ width: 26, height: 26, borderRadius: "50%", border: "1px solid " + br.bd }} referrerPolicy="no-referrer" />}
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 11, fontFamily: mono, color: br.mu }}>{user.name || user.email}</span>
+            {user.picture && <img src={user.picture} style={{ width: 28, height: 28, borderRadius: "50%", border: "1px solid " + br.bd }} referrerPolicy="no-referrer" />}
           </div>
         </nav>
 
-        <div style={{ maxWidth: 900, margin: "0 auto", padding: "36px 20px 20px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-            <div>
-              <h1 style={{ fontFamily: sans, fontSize: 22, fontWeight: 800, color: br.dk, margin: 0 }}>Your Projects</h1>
-              <div style={{ fontSize: 12, fontFamily: sans, color: br.mu, marginTop: 4 }}>{projects.length} project{projects.length !== 1 ? "s" : ""}</div>
+        <div style={{ flex: 1 }}>
+          <div style={{ maxWidth: 840, margin: "0 auto", padding: "36px 20px 20px" }}>
+            {/* Welcome */}
+            <div style={{ marginBottom: 28 }}>
+              <h1 style={{ fontFamily: sans, fontSize: 24, fontWeight: 800, color: br.dk, margin: "0 0 4px" }}>Welcome back, {firstName}</h1>
+              <p style={{ fontFamily: sans, fontSize: 13, color: br.mu, margin: 0 }}>{projects.length} project{projects.length !== 1 ? "s" : ""} {"\u00B7"} Pick up where you left off or start something new</p>
             </div>
-            <button onClick={startNewProject} style={{ padding: "10px 20px", background: br.gn, color: "#fff", border: "none", borderRadius: 8, fontSize: 12, fontFamily: mono, cursor: "pointer", fontWeight: 700 }}>+ New Deck</button>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(270px, 1fr))", gap: 14 }}>
-            {projects.map(renderProjectCard)}
-          </div>
-        </div>
 
-        <div style={{ maxWidth: 900, margin: "0 auto", padding: "40px 20px 50px" }}>
-          <div style={{ fontSize: 10, fontFamily: mono, color: br.mu, fontWeight: 700, letterSpacing: "2px", textTransform: "uppercase", marginBottom: 14 }}>Other Project Types</div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {products.filter(function(pr) { return !pr.active; }).map(function(pr) {
-              return (
-                <div key={pr.id} style={{ padding: "8px 14px", background: "#fff", border: "1px solid " + br.bd, borderRadius: 6, opacity: 0.6, display: "flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ fontSize: 14 }}>{pr.icon}</span>
-                  <span style={{ fontFamily: sans, fontSize: 12, color: br.dk, fontWeight: 600 }}>{pr.name}</span>
-                  <span style={{ fontSize: 8, fontFamily: mono, color: br.ac, fontWeight: 700 }}>SOON</span>
-                </div>
-              );
-            })}
+            {/* Grid: project cards + new project card */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))", gap: 14, marginBottom: 48 }}>
+              {projects.map(renderProjectCard)}
+              {newProjectCard}
+            </div>
+
+            {/* Coming soon -- minimal pills */}
+            <div style={{ padding: "20px 0", borderTop: "1px solid " + br.bd }}>
+              <div style={{ fontSize: 10, fontFamily: mono, color: br.mu, fontWeight: 600, letterSpacing: "1.5px", textTransform: "uppercase", marginBottom: 12 }}>Coming Soon</div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {products.filter(function(pr) { return !pr.active; }).map(function(pr) {
+                  return (
+                    <span key={pr.id} style={{ fontSize: 11, fontFamily: sans, color: br.mu, background: "#fff", border: "1px solid " + br.bd, padding: "5px 12px", borderRadius: 20 }}>
+                      {pr.icon} {pr.name}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </div>
         {footer}
