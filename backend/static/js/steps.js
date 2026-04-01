@@ -544,7 +544,7 @@ var GUIDE_PHASES_STEP4 = [
   },
   {
     id: 's4_generate',
-    message: "Ready to generate your permit-ready blueprints!",
+    message: "Ready to generate your blueprint package!",
     tip: "Click the button below to create your PDF blueprint package.",
     sections: [],
     actions: []
@@ -3287,7 +3287,7 @@ function StepContent(props) {
         }
       }
       if (guidePhase === 's4_generate') {
-        s4Msg = "Ready to generate your permit-ready blueprints!";
+        s4Msg = "Ready to generate your blueprint package!";
         s4Tip = "Click 'Generate Blueprint PDF' below. Your 4-sheet package will be ready in about 30 seconds.";
       }
       return <GuidePanel
@@ -3353,7 +3353,7 @@ function StepContent(props) {
       var statusBg = isReady ? "#e8f5e9" : isWarn ? "#fff3e0" : "#fbe9e7";
       var statusBorder = isReady ? "#a5d6a7" : isWarn ? "#ffcc80" : "#ef9a9a";
       var statusIcon = isReady ? "\u2705" : isWarn ? "\u26A0\uFE0F" : "\u274C";
-      var statusText = isReady ? "PERMIT READY" : isWarn ? "ADVISORIES" : "ISSUES FOUND";
+      var statusText = isReady ? "CHECKS PASSED" : isWarn ? "ADVISORIES" : "ISSUES FOUND";
       var failChecks = (rpt.checks || []).filter(function(ck) { return ck.status === "fail"; });
       var gapChecks = rpt.capability_gaps || [];
       return <div style={{ padding: 14, background: statusBg, borderRadius: 8, border: `1.5px solid ${statusBorder}`, marginBottom: 14 }}>
@@ -3376,6 +3376,9 @@ function StepContent(props) {
         </div>}
         <div style={{ fontSize: 7, color: _br.mu, fontFamily: _mono, fontStyle: "italic" }}>
           Lumber: No. 2 DFL / Hem-Fir / SPF {"\u00B7"} Beam spans per IRC R507.5 {"\u00B7"} Joist spans per IRC R507.6
+        </div>
+        <div style={{ fontSize: 7, color: _br.mu, fontFamily: _mono, fontStyle: "italic", marginTop: 3 }}>
+          This is an automated pre-check, not a guarantee of permit approval. Always verify with your local building department.
         </div>
       </div>;
     })()}

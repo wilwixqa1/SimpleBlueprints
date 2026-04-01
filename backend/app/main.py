@@ -981,8 +981,10 @@ HOW IT WORKS:
 
     ui_map = ui_maps.get(step, "")
 
-    return f"""You are the AI guide for SimpleBlueprints, a tool that helps homeowners create permit-ready deck blueprints. You are currently helping on Step {step}: {step_info['step_name']} - {step_info['step_description']}
+    return f"""You are the AI guide for SimpleBlueprints, a tool that helps homeowners generate deck blueprint packages for permit applications. You are currently helping on Step {step}: {step_info['step_name']} - {step_info['step_description']}
 {f"Current guide phase: {guide_phase}" if guide_phase else ""}
+
+IMPORTANT: SimpleBlueprints generates blueprint packages to support permit applications. We do NOT guarantee permit approval. Structural sizing follows IRC 2021 prescriptive tables, but every jurisdiction has its own requirements. If a user asks whether their plans will pass or be approved, explain that we provide IRC-based calculations and professional-quality drawings to support their application, but the building department makes the final determination. Never say "permit-ready" or "guaranteed to pass".
 
 Your personality: Warm, knowledgeable, concise. You are a friendly building expert helping a non-technical homeowner. Use plain English. Avoid jargon unless asked. Keep responses to 1-3 sentences unless the user asks for detail.
 
@@ -1206,6 +1208,55 @@ async def ai_helper(request: Request):
         })
 
         system_prompt = build_ai_helper_prompt(step, params, extraction_summary, guide_phase, compare_context)
+
+        # S62: Inject structural calc + permit check context
+        try:
+            _ai_params = dict(params)
+            _ai_params["width"] = max(8, min(50, _ai_params.get("width", 20)))
+            _ai_params["depth"] = max(6, min(24, _ai_params.get("depth", 12)))
+            _ai_params["height"] = max(1, min(14, _ai_params.get("height", 4)))
+            _ai_calc = calculate_structure(_ai_params)
+            calc_context = f"""
+CURRENT STRUCTURAL CALCULATIONS (auto-computed from IRC 2021):
+- Joists: {_ai_calc.get('joist_size', '?')} @ {_ai_calc.get('sp', '?')}" spacing
+- Beam: {_ai_calc.get('beam_size', '?')} ({_ai_calc.get('beamType', 'dropped')})
+- Posts: {_ai_calc.get('post_size', '?')} x {_ai_calc.get('nP', '?')}
+- Footings: {_ai_calc.get('footing_diam', '?')}" diameter x {_ai_calc.get('nF', '?')}
+- Design load: {_ai_calc.get('TL', '?')} PSF (LL={_ai_calc.get('LL', '?')}, DL={_ai_calc.get('DL', '?')})
+- Guard height: {_ai_calc.get('rail_height', 36)}"
+- Deck area: {_ai_calc.get('area', '?')} SF
+"""
+            if _ai_calc.get('engineering_required'):
+                calc_context += f"- WARNING: Joist span exceeds IRC prescriptive max. Engineering may be required.\n"
+            if _ai_calc.get('warnings'):
+                calc_context += "- Warnings: " + "; ".join(_ai_calc['warnings']) + "\n"
+            system_prompt += calc_context
+
+            # Permit pre-check
+            _ai_spec = build_permit_spec(_ai_params, _ai_calc)
+            _ai_report = run_checks("deck", _ai_params, _ai_calc, _ai_spec)
+            fail_checks = [c for c in _ai_report.checks if c.status == "fail"]
+            gap_checks = _ai_report.capability_gaps
+            permit_context = f"""
+PERMIT PRE-CHECK ({_ai_report.passed}/{_ai_report.total_applicable} checks passed):
+"""
+            if not fail_checks and not gap_checks:
+                permit_context += "All automated checks passed. No structural or drawing issues detected.\n"
+            if fail_checks:
+                permit_context += "ISSUES that could cause permit rejection:\n"
+                for fc in fail_checks:
+                    permit_context += f"- {fc.message}"
+                    if fc.fix:
+                        permit_context += f" (fix: {fc.fix})"
+                    permit_context += "\n"
+            if gap_checks:
+                permit_context += "ADVISORIES (drawing limitations we have not yet addressed):\n"
+                for gc in gap_checks:
+                    permit_context += f"- {gc.message}\n"
+            permit_context += "\nREMINDER: These are automated pre-checks based on IRC 2021. They do not guarantee permit approval. Always direct the user to verify requirements with their local building department.\n"
+            system_prompt += permit_context
+        except Exception as e:
+            print(f"AI helper calc/permit context error: {e}")
 
         # S56: Add image analysis instructions when image is present
         if has_image:
