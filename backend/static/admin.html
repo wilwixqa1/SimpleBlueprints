@@ -543,6 +543,10 @@ function render() {
 
   html += '</div>'; // end collapsible
 
+  // S62: Project Locations
+  html += '<div class="section-label">Project Locations</div>';
+  html += '<div id="locations-section"><button onclick="loadLocations()" style="padding:8px 16px;border:1px solid var(--border);background:#fff;border-radius:6px;cursor:pointer;font-family:\'DM Mono\',monospace;font-size:11px">Load Location Data</button></div>';
+
   document.getElementById('app').innerHTML = html;
 }
 
@@ -621,6 +625,47 @@ async function generateTestSuite() {
   } catch(e) {
     clearInterval(timer);
     el.innerHTML = origHTML + '<div style="margin-top:8px;color:var(--red);font-size:11px">Error: ' + e.message + '</div>';
+  }
+}
+// S62: Project Location Analytics
+async function loadLocations() {
+  var el = document.getElementById('locations-section');
+  el.innerHTML = '<div style="color:var(--text3);font-size:11px">Loading location data...</div>';
+  try {
+    var r = await fetch('/admin/api/locations', {headers: {'X-Admin-Password': adminPw}});
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    var d = await r.json();
+    var html = '';
+    html += '<div style="font-size:12px;margin-bottom:12px;color:var(--text2)">';
+    html += d.total_projects + ' total projects, ' + d.with_location + ' with location data';
+    html += '</div>';
+    if (d.by_state.length > 0) {
+      html += '<div class="card" style="max-width:100%"><div class="card-title">By State</div>';
+      html += '<table style="width:100%;font-size:11px;border-collapse:collapse">';
+      html += '<tr style="border-bottom:1px solid var(--border)"><th style="text-align:left;padding:4px 8px">State</th><th style="text-align:right;padding:4px 8px">Projects</th></tr>';
+      d.by_state.forEach(function(row) {
+        html += '<tr><td style="padding:4px 8px">' + esc(row.state || '?') + '</td>';
+        html += '<td style="text-align:right;padding:4px 8px;font-weight:700">' + row.count + '</td></tr>';
+      });
+      html += '</table></div>';
+    }
+    if (d.by_city.length > 0) {
+      html += '<div class="card" style="max-width:100%;margin-top:12px"><div class="card-title">By City</div>';
+      html += '<table style="width:100%;font-size:11px;border-collapse:collapse">';
+      html += '<tr style="border-bottom:1px solid var(--border)"><th style="text-align:left;padding:4px 8px">City</th><th style="text-align:left;padding:4px 8px">State</th><th style="text-align:right;padding:4px 8px">Projects</th></tr>';
+      d.by_city.forEach(function(row) {
+        html += '<tr><td style="padding:4px 8px">' + esc(row.city || '?') + '</td>';
+        html += '<td style="padding:4px 8px">' + esc(row.state || '?') + '</td>';
+        html += '<td style="text-align:right;padding:4px 8px;font-weight:700">' + row.count + '</td></tr>';
+      });
+      html += '</table></div>';
+    }
+    if (d.by_state.length === 0) {
+      html += '<div class="empty">No location data yet. Projects will show here once users enter addresses.</div>';
+    }
+    el.innerHTML = html;
+  } catch(e) {
+    el.innerHTML = '<div style="color:var(--red)">Error: ' + e.message + '</div>';
   }
 }
 

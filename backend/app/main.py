@@ -49,7 +49,8 @@ from app.database import (
     link_anonymous_to_user, get_tracking_stats,
     should_generate_insight, get_conversations_for_insight,
     get_event_summary_for_insight, save_insight,
-    create_project, list_projects, get_project, update_project, delete_project
+    create_project, list_projects, get_project, update_project, delete_project,
+    get_project_locations
 )
 from app.auth import (
     get_login_url, exchange_code, sign_session,
@@ -1727,6 +1728,14 @@ async def admin_plan_quality(request: Request):
             for name, report in results
         ]
     }
+
+
+# S62: Project location analytics
+@app.get("/admin/api/locations")
+async def admin_locations(request: Request):
+    """Geographic breakdown of where users are building decks."""
+    _check_admin(request)
+    return get_project_locations()
 
 
 @app.get("/admin/api/generate-test-suite")

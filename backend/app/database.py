@@ -208,6 +208,13 @@ def init_tables():
             )
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_projects_user ON projects(user_id)")
+        # S62: Location columns for geographic analytics
+        for col in ['city', 'state', 'zip']:
+            try:
+                cur.execute(f"ALTER TABLE projects ADD COLUMN IF NOT EXISTS {col} TEXT")
+            except Exception:
+                pass
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_projects_state ON projects(state)")
         # S55: Add stripe_customer_id to users if not exists
         try:
             cur.execute("""
@@ -321,17 +328,34 @@ def mark_emailed(gen_id: int):
 # PROJECT OPERATIONS (S62)
 # ============================================================
 
+def _extract_location(info_json: str) -> dict:
+    """Extract city/state/zip from info_json string."""
+    loc = {}
+    if not info_json:
+        return loc
+    try:
+        info = json.loads(info_json)
+        if info.get("city"): loc["city"] = info["city"].strip()
+        if info.get("state"): loc["state"] = info["state"].strip()
+        if info.get("zip"): loc["zip"] = info["zip"].strip()
+    except Exception:
+        pass
+    return loc
+
+
 def create_project(user_id: int, name: str = "Untitled Deck", params_json: str = None,
                    info_json: str = None, step: int = 0, site_plan_mode: str = "generate",
                    survey_b64: str = None) -> dict:
     """Create a new project. Returns project dict."""
+    loc = _extract_location(info_json)
     with get_db() as conn:
         cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute("""
             INSERT INTO projects (user_id, name, params_json, info_json, step,
-                                  site_plan_mode, survey_b64)
-            VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING *
-        """, (user_id, name, params_json, info_json, step, site_plan_mode, survey_b64))
+                                  site_plan_mode, survey_b64, city, state, zip)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING *
+        """, (user_id, name, params_json, info_json, step, site_plan_mode, survey_b64,
+              loc.get("city"), loc.get("state"), loc.get("zip")))
         row = cur.fetchone()
         return dict(row)
 
@@ -366,6 +390,12 @@ def update_project(project_id: int, user_id: int, **fields) -> dict | None:
     updates = {k: v for k, v in fields.items() if k in allowed}
     if not updates:
         return get_project(project_id, user_id)
+    # S62: Auto-extract location when info_json changes
+    if "info_json" in updates:
+        loc = _extract_location(updates["info_json"])
+        if loc.get("city"): updates["city"] = loc["city"]
+        if loc.get("state"): updates["state"] = loc["state"]
+        if loc.get("zip"): updates["zip"] = loc["zip"]
     set_parts = [f"{k}=%s" for k in updates]
     set_parts.append("updated_at=NOW()")
     vals = list(updates.values()) + [project_id, user_id]
@@ -385,6 +415,37 @@ def delete_project(project_id: int, user_id: int) -> bool:
         cur = conn.cursor()
         cur.execute("DELETE FROM projects WHERE id=%s AND user_id=%s", (project_id, user_id))
         return cur.rowcount > 0
+
+
+def get_project_locations() -> dict:
+    """Get geographic breakdown of all projects for admin analytics."""
+    with get_db() as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        # By state
+        cur.execute("""
+            SELECT state, COUNT(*) as count
+            FROM projects WHERE state IS NOT NULL AND state != ''
+            GROUP BY state ORDER BY count DESC
+        """)
+        by_state = [dict(r) for r in cur.fetchall()]
+        # By city+state
+        cur.execute("""
+            SELECT city, state, COUNT(*) as count
+            FROM projects WHERE city IS NOT NULL AND city != ''
+            GROUP BY city, state ORDER BY count DESC LIMIT 50
+        """)
+        by_city = [dict(r) for r in cur.fetchall()]
+        # Total with location vs without
+        cur.execute("SELECT COUNT(*) as total FROM projects")
+        total = cur.fetchone()["total"]
+        cur.execute("SELECT COUNT(*) as with_loc FROM projects WHERE state IS NOT NULL AND state != ''")
+        with_loc = cur.fetchone()["with_loc"]
+        return {
+            "total_projects": total,
+            "with_location": with_loc,
+            "by_state": by_state,
+            "by_city": by_city,
+        }
 
 
 # ============================================================
