@@ -3,7 +3,7 @@
 // ============================================================
 const { useState: _pvUS, useRef: _pvUR, useMemo: _pvUM } = React;
 
-function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getCorners, setCorner }) {
+function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getCorners, setCorner, updateStair }) {
   const pad = 45;
   const sc = Math.min(420 / Math.max(c.W, 16), 18);
   const hw = p.houseWidth * sc;
@@ -42,11 +42,9 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
 
   const dragRef = _pvUR(null);
   const svgRef = _pvUR(null);
-  const [stairSelected, setStairSelected] = _pvUS(false);
-  const [rotPreview, setRotPreview] = _pvUS(null);
+  const [selectedStairId, setSelectedStairId] = _pvUS(null);
   const [hoverBtn, setHoverBtn] = _pvUS(null);
-  const rotAngleRef = _pvUR(null);
-  const stairGroupRef = _pvUR(null);
+  const stairDragRef = _pvUR(null);
 
 // Existing drag handlers (unchanged)
   // S33: unified drag coordinate conversion (getScreenCTM pattern)
@@ -96,78 +94,28 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
     window.addEventListener("pointerup", onUp);
   };
 
-  const onStairDragStart = (e) => {
+  // S64: Per-stair drag handler -- drags stair along its edge by updating offset
+  const onStairDrag = (e, stairDef, zoneRect) => {
     e.preventDefault(); e.stopPropagation();
-    const pl = window.getStairPlacement(p, c);
+    setSelectedStairId(stairDef.id);
     var startFt = clientToFt(e.clientX, e.clientY);
-    if (!startFt) return;
-    dragRef.current = { type: "stairAnchor",
-      startFtX: startFt.x, startFtY: startFt.y,
-      startAnchorX: pl.anchorX, startAnchorY: pl.anchorY, startAngle: pl.angle };
-    const onMove = (ev) => {
-      if (!dragRef.current || dragRef.current.type !== "stairAnchor") return;
+    if (!startFt || !updateStair) return;
+    var startOffset = stairDef.offset || 0;
+    var loc = stairDef.location || "front";
+    var edgeLen = loc === "front" ? zoneRect.w : zoneRect.d;
+    var maxOff = Math.floor((edgeLen - (stairDef.width || 4)) / 2);
+    stairDragRef.current = { stairId: stairDef.id, startFtX: startFt.x, startFtY: startFt.y, startOffset: startOffset, loc: loc, maxOff: maxOff };
+    var onMove = function(ev) {
+      if (!stairDragRef.current) return;
       var nowFt = clientToFt(ev.clientX, ev.clientY);
       if (!nowFt) return;
-      let newAX = dragRef.current.startAnchorX + (nowFt.x - dragRef.current.startFtX);
-      let newAY = dragRef.current.startAnchorY + (nowFt.y - dragRef.current.startFtY);
-      newAX = Math.max(-0.5, Math.min(c.W + 0.5, newAX));
-      newAY = Math.max(-0.5, Math.min(c.D + 0.5, newAY));
-      const snap = window.snapStairToEdge(newAX, newAY, c.W, c.D, 1.0);
-      u("stairAnchorX", Math.round(snap.anchorX * 2) / 2);
-      u("stairAnchorY", Math.round(snap.anchorY * 2) / 2);
-      u("stairAngle", snap.snapped ? snap.angle : (dragRef.current.startAngle || 0));
+      var delta = loc === "front" ? (nowFt.x - stairDragRef.current.startFtX) : (nowFt.y - stairDragRef.current.startFtY);
+      var newOff = Math.round(Math.max(-maxOff, Math.min(maxOff, stairDragRef.current.startOffset + delta)));
+      updateStair(stairDragRef.current.stairId, "offset", newOff);
     };
-    const onUp = () => { dragRef.current = null; window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp); };
+    var onUp = function() { stairDragRef.current = null; window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp); };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
-  };
-
-  const onRotateDragStart = (e, centerX, centerY) => {
-    e.preventDefault(); e.stopPropagation();
-    const grp = stairGroupRef.current; if (!grp) return;
-    const pl = window.getStairPlacement(p, c);
-    const pivX = dx + pl.anchorX * sc;
-    const pivY = pad + pl.anchorY * sc;
-    const getMouseDeg = (ev) => {
-      var svgPt = clientToSvg(ev.clientX, ev.clientY);
-      if (!svgPt) return null;
-      return Math.atan2(svgPt.y - centerY, svgPt.x - centerX) * 180 / Math.PI;
-    };
-    let prevMouseDeg = getMouseDeg(e);
-    if (prevMouseDeg == null) return;
-    let cumRotation = 0;
-    dragRef.current = { type: "rotate", anchorX: pl.anchorX, anchorY: pl.anchorY, startAngle: pl.angle };
-    const onMove = (ev) => {
-      if (!dragRef.current || dragRef.current.type !== "rotate") return;
-      const curDeg = getMouseDeg(ev);
-      if (curDeg == null) return;
-      let incr = curDeg - prevMouseDeg;
-      if (incr > 180) incr -= 360; if (incr < -180) incr += 360;
-      cumRotation += incr; prevMouseDeg = curDeg;
-      grp.setAttribute("transform", "rotate(" + cumRotation + " " + pivX + " " + pivY + ")");
-      rotAngleRef.current = ((dragRef.current.startAngle + cumRotation) % 360 + 360) % 360;
-    };
-    const onUp = () => {
-      window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp);
-      const dr = dragRef.current;
-      if (dr && dr.type === "rotate") {
-        const raw = rotAngleRef.current != null ? rotAngleRef.current : dr.startAngle;
-        const snaps = [0, 90, 180, 270];
-        let best = 0, bestDist = 999;
-        for (const s of snaps) { let d = Math.abs(raw - s); if (d > 180) d = 360 - d; if (d < bestDist) { bestDist = d; best = s; } }
-        let snapDelta = best - raw; if (snapDelta > 180) snapDelta -= 360; if (snapDelta < -180) snapDelta += 360;
-        const targetCum = cumRotation + snapDelta, startCum = cumRotation, duration = 150, t0 = performance.now();
-        const animate = (now) => {
-          const elapsed = now - t0, progress = Math.min(elapsed / duration, 1), eased = 1 - Math.pow(1 - progress, 3);
-          grp.setAttribute("transform", "rotate(" + (startCum + (targetCum - startCum) * eased) + " " + pivX + " " + pivY + ")");
-          if (progress < 1) requestAnimationFrame(animate);
-          else { grp.removeAttribute("transform"); u("stairAnchorX", dr.anchorX); u("stairAnchorY", dr.anchorY); u("stairAngle", best); }
-        };
-        requestAnimationFrame(animate);
-      } else { grp.removeAttribute("transform"); }
-      rotAngleRef.current = null; dragRef.current = null;
-    };
-    window.addEventListener("pointermove", onMove); window.addEventListener("pointerup", onUp);
   };
 
 // SVG coordinate helpers for zones
@@ -240,7 +188,7 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
 
   return (
     <svg ref={svgRef} viewBox={`0 0 ${svgW} ${svgH}`} style={{ width: "100%", height: "auto" }}
-      onClick={() => { setStairSelected(false); if (zoneMode === "select") u("activeZone", 0); }}>
+      onClick={() => { setSelectedStairId(null); if (zoneMode === "select") u("activeZone", 0); }}>
       <defs>
         <filter id="rotShadow" x="-40%" y="-40%" width="180%" height="180%"><feDropShadow dx="0" dy="1" stdDeviation="1.5" floodColor="#000" floodOpacity="0.15" /></filter>
         <pattern id="cutHatch" width={6} height={6} patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
@@ -422,6 +370,22 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
         const names = { straight:"Straight", lLeft:"L-Left", lRight:"L-Right", switchback:"Switchback", wrapAround:"Wrap-Around", wideLanding:"Platform" };
         const labelPt = txPt(0, stairGeom.bbox.maxY + 2);
         els.push(<text key="stlbl" x={labelPt[0]} y={labelPt[1]} textAnchor="middle" style={{ fontSize: 5.5, fill: "#7a8068", fontFamily: "monospace", fontWeight: 600 }}>{names[stairGeom.template]} {"\u00B7"} {stairGeom.totalRisers} risers {"\u00B7"} {stairGeom.stairWidth}' wide {"\u00B7"} {stairGeom.runs.length} run{stairGeom.runs.length>1?"s":""}</text>);
+        // S64: Per-stair drag handle
+        if (updateStair && mode === "plan" && zoneMode === "select") {
+          var _bb = stairGeom.bbox;
+          var _bbR = txRect({ x: _bb.minX - 0.5, y: _bb.minY - 0.5, w: _bb.w + 1, h: _bb.h + 1 });
+          var _isSel = selectedStairId === stairDef.id;
+          els.push(<rect key="dragZone" x={_bbR.x - 3} y={_bbR.y - 3} width={_bbR.w + 6} height={_bbR.h + 6}
+            fill="transparent" stroke={_isSel ? "#3d5a2e" : "transparent"}
+            strokeWidth={_isSel ? "1.2" : "0"} strokeDasharray={_isSel ? "3,2" : "none"}
+            rx="2" style={{ cursor: "move" }}
+            onPointerDown={function(ev) { ev.stopPropagation(); onStairDrag(ev, stairDef, zr); }}
+            onClick={function(ev) { ev.stopPropagation(); }} />);
+          if (_isSel) {
+            var _lbl = { front: "Front", left: "Left", right: "Right" }[stairDef.location] || "";
+            els.push(<text key="selLbl" x={_bbR.x + _bbR.w / 2} y={_bbR.y - 4} textAnchor="middle" style={{ fontSize: 5, fill: "#3d5a2e", fontFamily: "monospace", fontWeight: 700, pointerEvents: "none" }}>{"Stair " + stairDef.id + " \u00B7 " + _lbl}</text>);
+          }
+        }
         return <g key={"stair_"+stairDef.id}>{els}</g>;
       })}
 
