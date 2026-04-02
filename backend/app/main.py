@@ -1327,9 +1327,12 @@ Describe what you see FIRST in your response text (so the description stays in c
         else:
             messages.append({"role": "user", "content": user_message})
 
+        # S63: Final brevity enforcement (placed last so model sees it last)
+        system_prompt += "\n\nABSOLUTE RULE: Your response must be 1-2 sentences. No exceptions. No preamble, no filler, no sign-offs. If you need the user to choose, use suggest buttons instead of asking in text."
+
         payload = {
             "model": "claude-opus-4-20250514" if has_image else "claude-sonnet-4-6",
-            "max_tokens": 600 if has_image else 400,
+            "max_tokens": 500 if has_image else 250,
             "temperature": 0.3,
             "system": system_prompt,
             "messages": messages,
