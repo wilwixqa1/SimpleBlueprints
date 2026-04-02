@@ -3,7 +3,7 @@
 // ============================================================
 const { useState: _pvUS, useRef: _pvUR, useMemo: _pvUM } = React;
 
-function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getCorners, setCorner, updateStair }) {
+function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getCorners, setCorner, updateStair, updateStairFields }) {
   const pad = 45;
   const sc = Math.min(420 / Math.max(c.W, 16), 18);
   const hw = p.houseWidth * sc;
@@ -94,24 +94,37 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
     window.addEventListener("pointerup", onUp);
   };
 
-  // S64: Per-stair drag handler -- drags stair along its edge by updating offset
+  // S64: Per-stair drag -- free-form, snaps to nearest edge of owning zone
   const onStairDrag = (e, stairDef, zoneRect) => {
     e.preventDefault(); e.stopPropagation();
     setSelectedStairId(stairDef.id);
     var startFt = clientToFt(e.clientX, e.clientY);
     if (!startFt || !updateStair) return;
-    var startOffset = stairDef.offset || 0;
-    var loc = stairDef.location || "front";
-    var edgeLen = loc === "front" ? zoneRect.w : zoneRect.d;
-    var maxOff = Math.floor((edgeLen - (stairDef.width || 4)) / 2);
-    stairDragRef.current = { stairId: stairDef.id, startFtX: startFt.x, startFtY: startFt.y, startOffset: startOffset, loc: loc, maxOff: maxOff };
+    // Current anchor in zone-local coords
+    var curPl = window.getStairPlacementForZone(stairDef, zoneRect);
+    stairDragRef.current = { stairId: stairDef.id, startFtX: startFt.x, startFtY: startFt.y,
+      startAnchorX: curPl.anchorX, startAnchorY: curPl.anchorY, zoneRect: zoneRect };
     var onMove = function(ev) {
       if (!stairDragRef.current) return;
       var nowFt = clientToFt(ev.clientX, ev.clientY);
       if (!nowFt) return;
-      var delta = loc === "front" ? (nowFt.x - stairDragRef.current.startFtX) : (nowFt.y - stairDragRef.current.startFtY);
-      var newOff = Math.round(Math.max(-maxOff, Math.min(maxOff, stairDragRef.current.startOffset + delta)));
-      updateStair(stairDragRef.current.stairId, "offset", newOff);
+      var dr = stairDragRef.current;
+      var newAX = dr.startAnchorX + (nowFt.x - dr.startFtX);
+      var newAY = dr.startAnchorY + (nowFt.y - dr.startFtY);
+      // Clamp to zone bounds
+      newAX = Math.max(-0.5, Math.min(dr.zoneRect.w + 0.5, newAX));
+      newAY = Math.max(-0.5, Math.min(dr.zoneRect.d + 0.5, newAY));
+      // Snap to nearest edge
+      var snap = window.snapStairToEdge(newAX, newAY, dr.zoneRect.w, dr.zoneRect.d, 1.5);
+      if (snap.snapped && snap.edge !== "back") {
+        var loc = snap.edge;
+        var edgeLen = loc === "front" ? dr.zoneRect.w : dr.zoneRect.d;
+        var anchorAlongEdge = loc === "front" ? snap.anchorX : snap.anchorY;
+        var offset = Math.round(anchorAlongEdge - edgeLen / 2);
+        var maxOff = Math.floor((edgeLen - (stairDef.width || 4)) / 2);
+        offset = Math.max(-maxOff, Math.min(maxOff, offset));
+        if (updateStairFields) updateStairFields(dr.stairId, { location: loc, offset: offset });
+      }
     };
     var onUp = function() { stairDragRef.current = null; window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp); };
     window.addEventListener("pointermove", onMove);
