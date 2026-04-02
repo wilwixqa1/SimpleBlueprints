@@ -295,13 +295,13 @@ var GUIDE_PHASES_STEP0 = [
   // --- FIRST QUESTION ---
   {
     id: 'has_survey',
-    message: "Do you have a property survey or plot map?",
-    tip: "This is usually from your closing documents or a surveyor. A plat map from your county works too.",
+    message: "How should we get your property info?",
+    tip: "Address lookup is the fastest option. We pull your lot shape directly from public records.",
     sections: [],
     actions: [
-      { label: 'Yes, I have one', next: 'upload_survey', style: 'primary' },
-      { label: 'No, I will enter manually', next: 'lot_dims', style: 'secondary' },
-      { label: 'Look up by address', next: 'address_lookup', style: 'secondary' }
+      { label: 'Upload a survey', next: 'upload_survey', style: 'secondary' },
+      { label: 'Look up by address', next: 'address_lookup', style: 'primary' },
+      { label: 'Enter manually', next: 'lot_dims', style: 'secondary' }
     ]
   },
   // --- ADDRESS LOOKUP PATH ---
