@@ -766,8 +766,13 @@ const App = function SimpleBlueprints() {
   };
 
   // Create project on first meaningful change (logged-in users only)
+  // S63: Track whether user has made meaningful edits (gates project creation)
+  const userEditedRef = React.useRef(false);
+  const markEdited = () => { userEditedRef.current = true; };
+  window._markProjectEdited = markEdited;
+
   const ensureProject = () => {
-    if (!user || projectIdRef.current) return;
+    if (!user || projectIdRef.current || !userEditedRef.current) return;
     var payload = buildSavePayload();
     if (surveyDirtyRef.current && sitePlanB64) {
       payload.survey_b64 = sitePlanB64;
@@ -805,6 +810,12 @@ const App = function SimpleBlueprints() {
   // Watch for changes that trigger auto-save (only when in wizard)
   useEffect(function() {
     if (page !== "wizard" || !user) return;
+    // S63: Auto-detect meaningful interaction (gates new project creation)
+    if (!userEditedRef.current) {
+      if (step > 0 || p.lotVertices || sitePlanB64 || (p.lotWidth && p.lotWidth !== 80) || (p.lotDepth && p.lotDepth !== 120)) {
+        userEditedRef.current = true;
+      }
+    }
     scheduleSave();
   }, [p, info, step, sitePlanMode, user, page]);
 

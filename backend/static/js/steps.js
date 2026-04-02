@@ -994,6 +994,7 @@ function StepContent(props) {
       if (data.location.lat) u("_parcel_lat", data.location.lat);
       if (data.location.lng) u("_parcel_lng", data.location.lng);
       // Advance guide to verify
+      if (window._markProjectEdited) window._markProjectEdited();
       if (guideActive) setGuidePhase('verify_extracted');
       // Track event
       if (window._trackEvent) window._trackEvent('parcel_lookup', { address: parcelAddress, state: parcelState, lot_width: data.lot.width, lot_depth: data.lot.depth, building_sqft: data.building.sqft });

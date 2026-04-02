@@ -380,7 +380,8 @@ def list_projects(user_id: int) -> list:
                    params_json, info_json, last_generation_id,
                    created_at, updated_at
             FROM projects WHERE user_id=%s
-            ORDER BY updated_at DESC
+            ORDER BY (CASE WHEN name = 'Untitled Deck' THEN 1 ELSE 0 END),
+                     updated_at DESC
         """, (user_id,))
         return [dict(r) for r in cur.fetchall()]
 
