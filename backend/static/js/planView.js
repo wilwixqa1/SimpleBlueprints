@@ -99,7 +99,7 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
     e.preventDefault(); e.stopPropagation();
     setSelectedStairId(stairDef.id);
     var startFt = clientToFt(e.clientX, e.clientY);
-    if (!startFt || !updateStair) return;
+    if (!startFt || !updateStairFields) return;
     // Current anchor in zone-local coords
     var curPl = window.getStairPlacementForZone(stairDef, zoneRect);
     stairDragRef.current = { stairId: stairDef.id, startFtX: startFt.x, startFtY: startFt.y,
@@ -115,7 +115,7 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
       newAX = Math.max(-0.5, Math.min(dr.zoneRect.w + 0.5, newAX));
       newAY = Math.max(-0.5, Math.min(dr.zoneRect.d + 0.5, newAY));
       // Snap to nearest edge
-      var snap = window.snapStairToEdge(newAX, newAY, dr.zoneRect.w, dr.zoneRect.d, 1.5);
+      var snap = window.snapStairToEdge(newAX, newAY, dr.zoneRect.w, dr.zoneRect.d, 9999);
       if (snap.snapped && snap.edge !== "back") {
         var loc = snap.edge;
         var edgeLen = loc === "front" ? dr.zoneRect.w : dr.zoneRect.d;

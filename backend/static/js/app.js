@@ -644,11 +644,15 @@ const App = function SimpleBlueprints() {
         if (toRemove.has(z.attachTo) && !toRemove.has(z.id)) { toRemove.add(z.id); changed = true; }
       });
     }
-    return {
+    var next = {
       ...prev,
       zones: prev.zones.filter(function(z) { return !toRemove.has(z.id); }),
+      // S64: Remove stairs on deleted zones
+      deckStairs: (prev.deckStairs || []).filter(function(s) { return !toRemove.has(s.zoneId); }),
       activeZone: 0
     };
+    _syncFlatStairParams(next);
+    return next;
   });
 
   const updateZone = (zoneId, key, val) => setP(prev => {
