@@ -422,31 +422,7 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
         const names = { straight:"Straight", lLeft:"L-Left", lRight:"L-Right", switchback:"Switchback", wrapAround:"Wrap-Around", wideLanding:"Platform" };
         const labelPt = txPt(0, stairGeom.bbox.maxY + 2);
         els.push(<text key="stlbl" x={labelPt[0]} y={labelPt[1]} textAnchor="middle" style={{ fontSize: 5.5, fill: "#7a8068", fontFamily: "monospace", fontWeight: 600 }}>{names[stairGeom.template]} {"\u00B7"} {stairGeom.totalRisers} risers {"\u00B7"} {stairGeom.stairWidth}' wide {"\u00B7"} {stairGeom.runs.length} run{stairGeom.runs.length>1?"s":""}</text>);
-        // Drag handles only for first stair (backward compat)
-        if (stIdx === 0 && u && mode === "plan" && zoneMode === "select") {
-          const bb = stairGeom.bbox;
-          const bbRect = txRect({ x: bb.minX - 0.5, y: bb.minY - 0.5, w: bb.w + 1, h: bb.h + 1 });
-          const hcx = bbRect.x + bbRect.w / 2, hcy = bbRect.y + bbRect.h / 2;
-          els.push(<rect key="dragZone" x={bbRect.x - 3} y={bbRect.y - 3} width={bbRect.w + 6} height={bbRect.h + 6}
-            fill="transparent" stroke={stairSelected ? "#3d5a2e" : "none"}
-            strokeWidth={stairSelected ? "1.2" : "0"} strokeDasharray={stairSelected ? "3,2" : "none"}
-            rx="2" style={{ cursor: "move" }}
-            onPointerDown={e => { e.stopPropagation(); setStairSelected(true); onStairDragStart(e); }}
-            onClick={e => e.stopPropagation()} />);
-          if (stairSelected) {
-            const curAngle = placement.angle;
-            const dirLabels = { 0: "Front", 90: "Right", 180: "Back", 270: "Left" };
-            const rHx = hcx, stemLen = 10, rHy = bbRect.y - stemLen - 7, hr = 7;
-            els.push(<line key="rotStem" x1={hcx} y1={bbRect.y - 1} x2={rHx} y2={rHy + hr} stroke="#bbb" strokeWidth="0.7" style={{ pointerEvents: "none" }} />);
-            els.push(<g key="rotHandle" style={{ cursor: "grab" }} onPointerDown={e => { e.stopPropagation(); onRotateDragStart(e, hcx, hcy); }}>
-              <circle cx={rHx} cy={rHy} r={hr} fill="white" stroke="#3d5a2e" strokeWidth="1.5" filter="url(#rotShadow)" />
-              <path d={"M " + (rHx - 3) + " " + (rHy + 1) + " A 3.5 3.5 0 1 1 " + (rHx + 1) + " " + (rHy - 3)} fill="none" stroke="#3d5a2e" strokeWidth="1.5" strokeLinecap="round" />
-              <polygon points={(rHx + 1) + "," + (rHy - 5) + " " + (rHx + 3.2) + "," + (rHy - 2.2) + " " + (rHx - 1) + "," + (rHy - 2.2)} fill="#3d5a2e" />
-            </g>);
-            els.push(<text key="rotDir" x={rHx} y={rHy - hr - 2} textAnchor="middle" style={{ fontSize: 4.5, fill: "#666", fontFamily: "monospace", fontWeight: 600, pointerEvents: "none" }}>{dirLabels[curAngle] || ""}</text>);
-          }
-        }
-        return <g key={"stair_"+stairDef.id} ref={stIdx === 0 ? stairGroupRef : null} style={stIdx > 0 ? { pointerEvents: "none" } : undefined}>{els}</g>;
+        return <g key={"stair_"+stairDef.id}>{els}</g>;
       })}
 
 // {/*   Dimension lines   */}
