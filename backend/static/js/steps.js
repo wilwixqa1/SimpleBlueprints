@@ -986,8 +986,9 @@ function StepContent(props) {
       if (data.parcel.zoning) setI("zoning", data.parcel.zoning);
       if (data.location.county) setI("county", data.location.county);
       if (data.building.year_built) setI("yearBuilt", String(data.building.year_built));
-      // Auto-set north angle: our coordinate conversion has Y = true north
-      u("northAngle", 0);
+      // North angle NOT auto-set: we don't know which edge faces the street,
+      // so we can't determine which direction is "up" on the page vs true north.
+      // User sets this manually via the compass dial.
       // Set street name from address
       if (data.location.address) u("streetName", data.location.address);
       // Save lat/lng for vicinity map on PDF
