@@ -1,0 +1,581 @@
+# SimpleBlueprints - Session 64 Context File
+**Date:** April 2026
+**Repo:** `github.com/Wilwixqa1/simpleblueprints`
+**Live site:** `simpleblueprints-production.up.railway.app`
+**Custom domain:** `simpleblueprints.xyz`
+**Stack:** Split React/Babel frontend (11 JS files) + Python FastAPI backend on Railway. GitHub push to `main` auto-deploys in 60-90s. PyMuPDF for PDF page filtering. Realie API for parcel lookup. staticmap + CartoDB tiles for vicinity maps.
+**GitHub PAT:** (user provides each session)
+
+---
+
+## Session Start Protocol
+
+1. **Clone:** `git clone --depth 1 https://<PAT>@github.com/Wilwixqa1/simpleblueprints.git sb_repo` (github.com domain, not api.github.com which is blocked).
+2. **Ask for ALL relevant files** before proposing changes.
+3. **Read uploaded files** before writing code. Five minutes of reading saves an hour of wrong code.
+4. **Declare session scope upfront.** One feature or fix per session.
+5. **Generate PDF Test Suite** from admin page at session start for visual baseline.
+
+---
+
+## Session Rules (consolidated)
+
+- **Verify Before Building:** Read the code. Don't guess. Don't code from the context file alone.
+- **Stepwise Execution:** One change at a time. Push, test, confirm.
+- **Timebox Bugs:** 30 minutes max per bug. Stop and reassess.
+- **PDF First:** The PDF is the deliverable. Frontend preview is secondary.
+- **No False Confirmation:** Never confirm visual fixes from text extraction. Say "I can't verify the visual layout from here -- does it look right to you?"
+- **Root Cause Before Fix:** When same bug persists, stop proposing fixes. Trace actual values.
+- **Understand Before Fixing:** If Claude can't explain the root cause, Claude doesn't understand the problem.
+- **Simplest Fix First:** Find the simplest fix before proposing architecture.
+- **Right Fix Over Bandaid:** Always evaluate whether a fix is a bandaid or the right solution. Prefer limiting tech debt. If it can't account for all cases (e.g. zones, chamfers), it is incomplete.
+- **No Architecture Without Delivery:** Never propose new files/modules unless current session has shipped.
+- **Anti-Scope-Creep:** "Think harder" = think more precisely, not more broadly.
+- **Don't Dismiss User Ideas:** Evaluate on merits. Find the version that works.
+- **Optimize for Best UX:** Non-technical homeowners need minimum friction.
+- **Optimize for Limiting Tech Debt:** Choose the approach that limits tech debt.
+- **Incremental Push:** Large UI changes split into multiple pushes. Test between each.
+- **Check In Frequently:** Report progress during long operations.
+- **Verify IRC Data Against Source:** Never assume structural tables are correct.
+- **Audit Checker Honesty:** Checker must not claim to verify things it doesn't verify.
+- **Phase Tagging:** `SB_PHASE` env var stamps all data. Never delete test data; filter by phase.
+- **Think Before Implementing:** Before coding any feature, think critically as a top-tier PM, architect, engineer, GC, and architect. Make sure the build aligns with goals of compliance, accuracy, and best UX. Even if it requires rethinking current architecture.
+- **Compliance Caution:** Don't add compliance stamps or engineering claims to the PDF until validated with building departments. Frontend warnings are fine; PDF stamps imply everything else is compliant.
+- **No Permit Promises:** We generate blueprints to SUPPORT permit applications. Never say "permit-ready" or "guaranteed to pass" in user-facing UI. The building department makes the final determination.
+- **Multi-Perspective Thinking (S63):** Before building features, think as a top-tier PM, Solutions Architect, Chief of Revenue, Senior SWE, and General Contractor (the user). This catches UX gaps that purely technical thinking misses.
+
+---
+
+## Coordinate System
+
+**Origin:** SW corner of lot = (0, 0), bottom-left at street.
+**X-axis:** Left to right (east). **Y-axis:** Street toward rear (north).
+**House:** `houseOffsetSide` from left edge, `houseDistFromStreet` from front.
+**Deck:** Centered on house rear wall. `deckOffset` shifts left/right.
+**Polygon vertices:** Clockwise from street-side SW corner. Edge 0 = street.
+**Frontend SVG:** `sx(lx)` = lot X to SVG X. `sy(ly)` = lot Y to SVG Y (Y flipped).
+**Backend matplotlib:** Same coordinate system. Y increases upward.
+
+### Parcel Lookup Coordinate Conversion (S63)
+Realie API returns lat/lng GeoJSON polygon. Conversion to local feet: `x = (lng - min_lng) * 364000 * cos(min_lat)`, `y = (lat - min_lat) * 364000`. Origin at min_lat/min_lng vertex (SW-most point of polygon).
+
+**CRITICAL LIMITATION:** We assign edge 0 (first edge in GeoJSON) as the "street" edge, but this may be ANY side of the property. If the actual street is on the north side, our page is flipped -- "up" is south, not north. We do NOT auto-set the north angle for this reason. The user sets it manually via the compass dial.
+
+**House rotation not supported:** The house rectangle is always axis-aligned. Real houses follow the lot's rotation angle. This is a known gap (see S64 roadmap).
+
+---
+
+## Wizard Step Order
+
+| Step | Name | Purpose |
+|------|------|---------|
+| 0 | Site Plan | **Address lookup (primary)**, survey upload, or manual entry. Lot shape, house position, setbacks, site elements, north arrow, slope |
+| 1 | Size & Shape | Deck width/depth/height, zones, chamfers, stairs. House dims pre-filled from extraction/lookup. |
+| 2 | Structure | Joists, beams, posts, attachment, snow/frost. Species hidden (DFL default). |
+| 3 | Finishes | Decking type, railing, guard height, cost breakdown |
+| 4 | Review | Project info, permit readiness card (S60), summary, PDF generation |
+
+---
+
+## Step 0 UX Flow (S63)
+
+### Three paths to set up the lot:
+1. **Address Lookup (primary, highlighted):** User types address + state (+ optional city/zip). Backend calls Realie API, returns parcel polygon + building sqft + property metadata. Frontend auto-populates lot vertices, dimensions, house size/position, property info. User confirms on "verify_extracted" screen.
+2. **Survey Upload:** PDF or photo. AI extracts lot shape, dimensions, house position via Sonnet/Opus. User picks from shape candidates.
+3. **Manual Entry:** User enters lot width, depth, house dimensions via sliders.
+
+### Guided mode is default (S63)
+`guideActive` defaults to `true` (was `null`/choice screen). Users go straight to "How should we get your property info?" with AI helper visible. No clicking "Guided Setup" first. Manual mode accessible via "Switch to manual" link.
+
+---
+
+## Parcel Lookup System (S63)
+
+### Architecture
+`POST /api/parcel-lookup` -> `_realie_lookup()` -> Realie API -> parse + transform -> return
+
+### Data Flow
+```
+Frontend (address + state)
+  -> POST /api/parcel-lookup
+  -> Check parcel_cache (DB) first
+  -> If miss: call Realie API, cache result
+  -> Return: lot polygon (local ft), dims, building sqft, property metadata
+  -> Frontend applies: lotVertices, lotWidth, lotDepth, lotEdges, lotArea,
+     houseWidth, houseDepth, houseOffsetSide, houseDistFromStreet,
+     address, city, state, zip, parcel ID, zoning, county, yearBuilt,
+     _parcel_lat, _parcel_lng, streetName
+```
+
+### Realie API Details
+- Endpoint: `GET https://app.realie.ai/api/public/property/address/?state=XX&address=YY`
+- Auth: `Authorization: <api_key>` header (raw key, not Bearer)
+- Returns: `{ property: { geometry, frontage, depthSize, buildingArea, ... } }`
+- City param requires county (which we don't have), so we only send address + state
+- Free tier: 25 lookups/month, $0. Tier 1: $50/mo, 1,250 lookups.
+- Env var: `REALIE_API_KEY`
+
+### Parcel Cache
+- Table: `parcel_cache` (address, state, response_json, created_at)
+- Unique index on (address, state), upsert on conflict
+- TTL: 30 days
+- Same address never costs more than 1 API call regardless of users
+- Functions: `get_cached_parcel()`, `set_cached_parcel()` in database.py
+
+### House Position Estimation
+Building sqft from Realie. If sqft > 40% of lot area, assume 2-story (divide by 2). Aspect ratio 1.3:1. Centered on lot width, set back 30% of lot depth from street. User adjusts by dragging.
+
+### What Realie Returns vs What We Need
+| Need | Realie provides | Notes |
+|------|----------------|-------|
+| Lot polygon | GeoJSON MultiPolygon | Accurate county records |
+| Lot frontage/depth | `frontage`, `depthSize` fields | Sometimes null, fallback to polygon bbox |
+| Building sqft | `buildingArea` | Total, not just footprint |
+| Building footprint polygon | NOT available | Would need Microsoft Building Footprints or Regrid Enterprise |
+| Year built | `yearBuilt` | Accurate |
+| Zoning | `zoningCode` | Accurate |
+| Owner | `ownerName` | Available but not displayed to user |
+
+### Regrid API (evaluated, not used)
+- Tested with sandbox (7-county limit, no NY coverage)
+- $375/mo minimum for nationwide. Building footprints are Enterprise-only.
+- Token still in Railway as `REGRID_API_TOKEN` (can be removed)
+- Code was replaced with Realie in Push 2
+
+---
+
+## Vicinity Map (S63)
+
+### Architecture
+- Library: `staticmap==0.5.7` (in requirements.txt)
+- Tiles: CartoDB light_all (`https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png`)
+- Renders at PDF generation time in `draw_site_plan.py`
+- Positioned below info box on A-5, extending left for wider footprint
+- Includes red circle marker at property, "SITE" label with arrow, north arrow
+
+### Data Flow
+Lat/lng saved to both `params._parcel_lat/_parcel_lng` and `info.lat/info.lng` from parcel lookup. `draw_site_plan.py` reads from both sources.
+
+### Known Issues
+- Map is below the info box in the right margin area -- better than sidebar but still not matching reference plans which use a dedicated title/info sheet
+- OSM tiles may be blocked on some servers (CartoDB is more permissive)
+- If lat/lng not saved (pre-S63 projects), vicinity map is silently skipped
+- Reference plans (Welborn, Ilaria) have vicinity map ~3"x2.5" on a title sheet -- ours is smaller
+
+---
+
+## IRC 2021 Structural Data
+
+### Joist Spans -- VERIFIED (S59)
+IRC 2021 Table R507.6. All 3 species groups, all 4 load tiers (40/50/60/70 PSF). Design load = `max(40, snow_load)` per footnote a. Values in `IRC_JOIST_SPANS` dict in `calc_engine.py`.
+
+### Beam Spans -- VERIFIED (S60, critical fix end-of-S62)
+IRC 2021 Tables R507.5(1)-(4). Full 4D lookup: `(load_tier, species, beam_size, effective_joist_span) -> max_beam_span`. 8 beam sizes (2-ply 2x6 through 3-ply 2x12), 7 joist span columns (6-18 ft), interpolation permitted. Key functions: `get_beam_max_span()`, `auto_select_beam()`.
+
+**End-of-S62 verification:** Ran systematic check of all 827 IRC values against ICC source. Found critical bug: 70 PSF Southern Pine beam values were copies of DFL (56 values wrong). Fixed in both calc_engine.py and engine.js. Also fixed RW 2x12@12" 50PSF joist span. Final: ~824/827 match. Remaining ~3 discrepancies are within 1 inch and trace to known ICC digital source typos (e.g. "6-22", "5-20", "604"), not our code.
+
+**Effective joist span:** We use actual joist span (factor=1.0, assumes max cantilever). Conservative -- beams may be slightly over-sized for decks without cantilever.
+
+**Beam-aware post auto-selection (S60):** Engine adds posts when beam can't span, preventing LVL fallback.
+
+**Old `IRC_BEAM_CAPACITY` kept as legacy alias.** New code uses `get_beam_max_span()` and `auto_select_beam()`.
+
+### Wood Species -- Design Decision (S60)
+**Species is NOT user-facing.** Default DFL/HF/SPF. Rationale: homeowners can't identify species; wrong selection is liability; DFL is safe conservative default. Backend has all 3 groups for future Professional Mode. PDF states "No. 2 DFL / HEM-FIR / SPF" on A-0, A-1, A-3.
+
+### Per-Zone Structural Sizing (S60, improved S61)
+Each zone gets independent joist, beam, and footing sizing based on its own dimensions. Frontend (`calcAllZones`) and backend (`estimate_zone_materials`) both compute zone-specific members. Zone railing materials also computed (3 exposed sides per zone).
+
+**S61:** Per-zone sizing now computed once in `permit_spec.py` (single source of truth) via `spec["zone_calcs"]`. Drawing files consume from spec, not computed independently. Zone labels on A-1 framing plan show zone-specific joist/beam.
+
+### Post Heights -- VERIFIED (S58)
+IRC Table R507.4: 4x4 max varies by tributary area, 6x6 max 14', 8x8 max 14'.
+
+### Multi-Beam / Deep Decks -- REMOVED FROM ROADMAP (end-of-S62)
+IRC R507 prescriptive tables assume single beam layout. Interior beams see double tributary load and can't be sized from R507.5. Adding intermediate beams goes beyond prescriptive path and requires engineering.
+
+**End-of-S62 decision:** Instead of building multi-beam support, formalized depth cap at IRC prescriptive max for user's specific config. Engine computes exact limit from joist size, spacing, load tier, and species. When exceeded: specific warning ("Your deck depth of X' exceeds the IRC prescriptive limit of Y' for [member] at [spacing]. A licensed engineer is required for this design."). Updated in calc_engine.py (backend), engine.js (frontend), and permit_checker.py. Config 08 (50x24 heavy snow) now correctly shows engineering_required rather than failing.
+
+### What Still Needs Verification (BEFORE BETA)
+1. ~~**Multi-beam lines not supported.**~~ Resolved: depth cap with engineering_required flag.
+2. **DL assumption higher than IRC.** DL=15 composite, DL=12 wood vs IRC DL=10. Conservative.
+3. **Soil bearing hardcoded** at 1500 PSF.
+
+---
+
+## Chamfer System (S61)
+
+### Architecture
+Chamfer awareness lives in the **data layer** (`zone_utils.py`), not the rendering layer.
+
+- `_chamfered_vertices(x, y, w, d, corners)` -- single source of truth for converting rect + corner chamfers to polygon vertices. Lives in `zone_utils.py`.
+- `_get_zone_corners(params, zone_id)` -- looks up chamfer data for any zone (0 = mainCorners, zones 1+ from zone.corners).
+- `get_exposed_edges()` -- builds railing edges from chamfered polygon vertices. Diagonal edges tagged `dir="d"`. Internal junction diagonals (where chamfer cut corner falls inside another zone's rect) are hidden.
+- `_chamfer_perimeter_delta(corners)` -- computes railing length adjustment.
+
+### Rendering
+- **Plan view (A-1):** Zone outlines use `Polygon` from chamfered vertices. Board lines clipped to polygon via `set_clip_path`.
+- **Framing view (A-1):** Zone 0 outline is chamfered polygon. Joists, blocking, hangers, beam, posts, piers all clipped to it. Zone framing outlines also chamfer-aware.
+- **Railing:** Simple loop over `exp_edges` -- edges are correct from data layer, no rendering workarounds needed.
+
+### Railing length
+- `calc_engine.py` adjusts railing for chamfers: each chamfer of size S removes 2S axis-aligned edge, adds S*sqrt(2) diagonal. BL/BR on ledger only loses one side.
+- `engine.js` has frontend parity for mainCorners chamfers.
+
+### Known chamfer gaps
+- **A-2 elevations:** Still rectangular, chamfer not rendered.
+- **A-5 site plan:** Still rectangular.
+- **Cover sheet area:** Chamfer area not subtracted from deck SF.
+- **Zone chamfer railing length in engine.js:** Only mainCorners adjusted, not zone chamfer railing.
+
+---
+
+## Project Persistence (S62, improved S63)
+
+### Architecture
+- `projects` table: id, user_id, name, status (draft/generated), params_json, info_json, step, site_plan_mode, survey_b64, last_generation_id, city, state, zip, created_at, updated_at
+- CRUD: `create_project`, `list_projects`, `get_project`, `update_project`, `delete_project`, `get_project_locations`
+- API: GET/POST `/api/projects`, GET/PUT/DELETE `/api/projects/:id`
+- Location (city/state/zip) auto-extracted from info_json on create/update
+
+### Frontend Auto-Save
+- `projectIdRef` (useRef) tracks active project ID
+- `ensureProject()` creates project on first meaningful change (logged-in users only)
+- **S63: Smart creation gate:** `userEditedRef` must be true before project is created. Auto-detected: lotVertices set, step > 0, survey uploaded, or lot dims changed from defaults. Also set explicitly via `window._markProjectEdited()` on parcel lookup success.
+- `saveProject()` PUTs changed fields, debounced 3s via `scheduleSave()`
+- Survey (sitePlanB64) saved separately only when dirty (large payload)
+- `beforeunload` flushes pending save with `keepalive: true`
+
+### Project Sorting (S63)
+Named projects sort above "Untitled Deck" in My Projects list: `ORDER BY (CASE WHEN name = 'Untitled Deck' THEN 1 ELSE 0 END), updated_at DESC`
+
+### OAuth State Preservation
+- Before OAuth redirect, wizard state saved to localStorage (`sb_auth_state`)
+- On auth success, state restored so user lands back in wizard where they were
+
+### Home Page / Drafts Architecture
+- Landing page (home.js `HomePage`) is the marketing page for all users
+- Logged-in users see "My Projects" button in nav bar
+- Dedicated drafts page (`DraftsPage` component) with list layout
+- `page` state: "home" | "drafts" | "loading" | "wizard"
+
+---
+
+## Deferred Script Loading (S62)
+
+### Architecture
+Landing page only loads 5 files for Babel (engine.js, stairGeometry.js, zoneUtils.js, home.js, app.js = ~127KB). Three.js (600KB) and 6 wizard-only files (planView, elevationView, deck3d, sitePlanView, traceView, steps.js = ~380KB) load lazily via `window._loadWizardDeps()`.
+
+### Lazy Loader
+- `loadScript(url)` -- injects regular `<script>` tag (for Three.js CDN)
+- `loadBabelScript(url)` -- fetches source, `Babel.transform()`, injects result
+- Load order: Three.js first, then views in parallel, then steps.js last
+- Promise-based, cached (only loads once)
+
+---
+
+## AI Helper System (S54-S63)
+
+### Architecture
+Streaming SSE via `/api/ai-helper`. Text queries use Sonnet (~$0.01), image queries use Opus (~$0.05-0.08). System prompt built dynamically per step with settable params, current values, UI maps, site elements context.
+
+### S63 Updates
+- **Address lookup context:** AI knows about all three setup methods (address lookup, survey, manual), recommends address lookup as fastest
+- **Brevity enforcement (critical):**
+  - Personality rules: 1-2 sentences max, no filler, no self-introduction
+  - Banned phrases: "Welcome to SimpleBlueprints", "I'm here to help", "Let me know if", "Check the preview"
+  - ABSOLUTE RULE appended at END of system prompt (recency bias): "Your response must be 1-2 sentences. No exceptions."
+  - max_tokens reduced: 400->250 (text), 600->500 (image)
+  - Greetings: ONE short sentence only
+- **Suggest buttons:** Use `suggest` action for options instead of asking in text
+
+### Action Types
+- `param` -- set a parameter directly
+- `navigate` -- scroll to a UI section
+- `siteElementUpdate/Add/Remove` -- modify site elements
+- `zoneAdd` -- add L-shaped extension
+- `cutoutAdd` -- add notch
+- `chamferSet` -- set corner chamfer
+- `zoneRemove` -- remove zone
+- `suggest` -- render clickable option buttons (S62)
+- `classify` -- tag user message intent (internal)
+
+---
+
+## Permit Spec Layer
+
+`permit_spec.py` is the single source of truth for all data rendered on permit sheets. Every drawing file reads from the spec. Architecture: `params -> calc_engine -> permit_spec -> draw_*`.
+
+Hardware selection tables auto-select based on member sizes (Billy's approved list in S51, codified S57). Loads box includes lumber design basis (S60).
+
+**S61 additions:** `spec["zone_calcs"]` for per-zone structural sizing, `spec["engineering_required"]` flag, `spec["max_depth_for_joists"]`.
+
+---
+
+## Permit Completeness Checker
+
+Registry-based, 25 checks across 3 layers (structural, drawing, capability). Test matrix: 15 configs. Admin endpoint: `GET /admin/api/plan-quality`. PDF test suite: `GET /admin/api/generate-test-suite`.
+
+Current results (S60, updated end-of-S62): Configs 01-03, 05-07, 09-12, 14-15 = OK. Config 04, 13 = UNSUP (freestanding bracing). Config 08 = correctly shows engineering_required (50x24 exceeds IRC prescriptive depth).
+
+---
+
+## Frontend/Backend Parity
+
+### Full parity
+Width/depth/height, attachment, joist spacing/sizing, beam sizing (IRC R507.5, S60), snow load, frost zone, beam type (dropped/flush), decking/rail type, guard height, zones (with per-zone sizing S60), stairs, slope, lumber design basis on PDF, chamfer outlines (S61), engineering_required flag (S61), parcel lookup data on PDF (S63).
+
+### Known gaps
+| Feature | Gap |
+|---------|-----|
+| **Chamfers on A-2/A-5** | Frontend renders 3D chamfers, PDF elevations/site plan still rectangular |
+| **Stair templates** (L/switchback/wrap) | Frontend renders, backend treats all as straight |
+| **Freestanding bracing** | Notes mention it, nothing drawn |
+| **Zone chamfer railing length** | engine.js only adjusts mainCorners, not zone chamfers |
+| **House rotation** | Parcel lookup returns angled lots, house always axis-aligned (S63 gap) |
+| **3D stairs with zones/chamfers** | Stairs render incorrectly when zones present in 3D view (S63 observation) |
+
+---
+
+## PDF Output
+
+| Sheet | Source | Notes |
+|-------|--------|-------|
+| Cover (A-0) | draw_cover.py | Compliance stamp, LUMBER row (S60), ZONING/COUNTY/YEAR BUILT rows (S63) |
+| A-1 Plan & Framing | draw_plan.py | Chamfer-aware outlines+clipping (S61), zone labels with per-zone sizing (S61), decluttered labels (S61), loads box in margin |
+| A-2 Elevations | draw_elevations.py | Guard height from calc |
+| A-3 General Notes | draw_notes.py | Lumber design basis note (S60) |
+| A-4 Structural Details | draw_details.py | Spec-driven |
+| A-5 Site Plan | draw_site_plan.py | Parcel ID + zoning in subtitle (S63), vicinity map below info box (S63) |
+| PPRBD Sheet | jurisdiction_sheet.py | COS only |
+| Materials | draw_materials.py | Per-zone sizing (S60), separate PDF |
+
+### P0 Issues (would cause permit rejection)
+1. **Freestanding deck bracing** -- notes mention but drawings don't show
+2. **Chamfers not on A-2/A-5** -- elevations and site plan show rectangular deck
+3. **Stair templates not on PDF** -- all render as straight
+
+---
+
+## Event Tracking & Analytics
+
+17 event types, 3-ID identity layer, bot detection at module level. Admin dashboard at `/admin` (password-protected). Phase tagging via `SB_PHASE` env var.
+
+**S62 addition:** `GET /admin/api/locations` returns geographic breakdown of projects by state/city for regulatory planning.
+**S63 addition:** `parcel_lookup` event tracks address, state, lot dimensions, building sqft.
+
+---
+
+## Session History
+
+### SESSION 63 (16 pushes)
+**Theme:** Parcel Lookup + Vicinity Map + UX Improvements
+
+Push 1: Backend `POST /api/parcel-lookup` endpoint (Regrid API -- didn't work due to 7-county sandbox).
+Push 2: Switched to Realie API (nationwide, working). Free tier: 25 lookups/month.
+Push 3: Address lookup UI in guided flow (address_lookup + address_verifying phases, _doParcelLookup function).
+Push 4: City/zip fields, north angle auto-set (later removed), street name auto-populate.
+Push 5: Scale bar overlap fix on site plan preview.
+Push 6: AI helper Step 0 context updated with address lookup feature documentation.
+Push 7: Parcel cache table + cache check/write in endpoint. Cover sheet adds ZONING/COUNTY/YEAR BUILT. Site plan subtitle adds zoning.
+Push 8: Vicinity map on A-5 (staticmap + OSM tiles -- later switched to CartoDB).
+Push 9: Smart project creation (userEditedRef gate, no junk projects on page load). Named projects sort above "Untitled Deck".
+Push 10: Reorder guided flow -- address lookup is primary/highlighted option.
+Push 11: Vicinity map fixes (CartoDB tiles, fix pi scope bug, save lat/lng to info fields).
+Push 12: Remove incorrect north angle auto-set (can't detect street edge from parcel data).
+Push 13: Larger vicinity map (600x400px, wider footprint, north arrow, darker border).
+Push 14: Default to guided mode (guideActive=true, skip choice screen). Lot coverage "?" tooltip.
+Push 15: Stronger AI helper brevity rules (banned filler phrases, greeting rules).
+Push 16: Hard brevity enforcement (ABSOLUTE RULE at end of prompt, max_tokens 400->250).
+
+**Key Lessons:**
+- Regrid sandbox is limited to 7 specific counties (likely Detroit area). Not useful for prototyping outside those counties. Realie has no county restrictions on free tier.
+- Realie requires `county` param when `city` is provided, so we only send address + state.
+- Parcel polygon edge 0 is NOT reliably the street edge. Cannot auto-detect north direction from parcel data alone without knowing which edge faces the street.
+- House rotation to match lot angle is a significant feature (touches 3D rendering, plan view, setbacks, deck positioning). Not a quick fix.
+- AI helper brevity requires BOTH early rules AND a final absolute rule at the end of the system prompt (recency bias effect). Also reducing max_tokens physically caps response length.
+- "Default to guided" (skip choice screen) was a bug fix disguised as a feature. Users were skipping the Guided Setup button because the card looked already selected.
+- Parcel cache is critical at 25 lookups/month. Same address should never cost more than 1 API call.
+- Reference permit plans (Welborn Decks, Ilaria Deck by All Things Architecture) are the quality bar for PDF output. They have dedicated title/info sheets with vicinity map, legal description, client info, code summary.
+
+**User Feedback (Kamal, S63):**
+- "I don't know what Lot Coverage means" -- added tooltip (Push 14)
+- Slider dragging is choppy -- needs debounce (S64)
+- Preview text too small, needs fullscreen option (S64)
+- Deck wider than house looks funky -- needs warning (S64)
+- Loves materials estimate
+- Loves permit checker warnings but doesn't understand them -- needs plain English (S64)
+
+### SESSION 62 (12 pushes + end-of-session IRC work)
+**Theme:** Project Persistence + AI Helper Upgrades + Performance + IRC Verification
+(See previous context file for full details)
+
+### SESSION 61 (7 pushes, 6 files modified)
+**Theme:** Zone Member Labels + Chamfer Rendering + Drawing Declutter
+
+### SESSION 60 (7 pushes, 16+ files modified)
+**Theme:** IRC Beam Table Overhaul + Structural Accuracy Sprint
+
+### SESSIONS 43-59 (archived)
+Key milestones: polygon lot system (S44), AI extraction pipeline (S48-52), AI Helper with actions (S54-56), event tracking (S55), permit spec architecture (S57), permit checker + guard height (S58), IRC joist verification + PDF test suite (S59).
+
+---
+
+## File Structure (11 JS files + backend)
+
+| File | Lines | Last Modified |
+|------|-------|---------------|
+| `backend/app/main.py` | ~2145 | S63 |
+| `backend/app/database.py` | ~1221 | S63 |
+| `backend/app/auth.py` | ~95 | S55 |
+| `backend/static/index.html` | ~85 | S63 |
+| `backend/static/admin.html` | ~670 | S62 |
+| `backend/static/js/engine.js` | ~476 | S62 (SP 70PSF fix) |
+| `backend/static/js/steps.js` | ~3764 | S63 |
+| `backend/static/js/app.js` | ~1267 | S63 |
+| `backend/static/js/home.js` | ~206 | S62 |
+| `backend/static/js/tracking.js` | ~149 | S55 |
+| `backend/static/js/traceView.js` | ~576 | S43 |
+| `backend/static/js/sitePlanView.js` | ~635 | S63 |
+| `backend/static/js/elevationView.js` | ~497 | S58 |
+| `backend/static/js/planView.js` | ~502 | S47 |
+| `backend/static/js/deck3d.js` | ~901 | S58 |
+| `backend/static/js/stairGeometry.js` | ~147 | S24 |
+| `backend/static/js/zoneUtils.js` | ~425 | S24 |
+| `backend/drawing/calc_engine.py` | ~628 | S62 (SP 70PSF + depth cap) |
+| `backend/drawing/irc_tables.py` | ~3874 | S62 (NEW) |
+| `backend/drawing/irc_tables_round2.py` | ~204 | S62 (NEW) |
+| `backend/drawing/calc_pergola.py` | ~351 | S62 (NEW, scaffolded) |
+| `backend/drawing/calc_porch.py` | ~176 | S62 (NEW, scaffolded) |
+| `backend/drawing/calc_fence.py` | ~216 | S62 (NEW, complete) |
+| `backend/drawing/calc_shed.py` | ~395 | S62 (NEW, scaffolded) |
+| `backend/drawing/permit_checker.py` | ~1676 | S62 (depth cap messaging) |
+| `backend/drawing/permit_spec.py` | ~422 | S61 |
+| `backend/drawing/draw_plan.py` | ~733 | S61 |
+| `backend/drawing/draw_elevations.py` | ~1129 | S58 |
+| `backend/drawing/draw_notes.py` | ~349 | S60 |
+| `backend/drawing/draw_details.py` | ~310 | S57 |
+| `backend/drawing/draw_materials.py` | ~395 | S60 |
+| `backend/drawing/draw_site_plan.py` | ~891 | S63 |
+| `backend/drawing/draw_cover.py` | ~260 | S63 |
+| `backend/drawing/zone_utils.py` | ~289 | S61 |
+| `backend/drawing/title_block.py` | ~167 | S45 |
+| `backend/drawing/jurisdiction_sheet.py` | ~197 | S50 |
+| `backend/drawing/stair_utils.py` | ~61 | S24 |
+| `tests/test_structural.py` | ~267 | S62 (52 tests) |
+| `tests/test_future_products.py` | ~252 | S62 (50 tests) |
+
+---
+
+## Prioritized Roadmap
+
+### S64: 3D Stair Fix + UX Polish
+1. **3D stair rendering with zones/chamfers** -- stairs misalign when zones are present in 3D view. Needs to work like they do on the standalone deck.
+2. **Preview text size** -- increase font sizes in planView, elevationView, deck3d. Add fullscreen toggle.
+3. **Slider debounce** -- choppy dragging on dimension sliders. Add requestAnimationFrame or debounce.
+4. **Permit checker plain-English explanations** -- users see warnings but don't understand them.
+5. **Deck wider than house warning** -- edge case UX warning.
+
+### S65: Drawing Accuracy
+6. **Chamfer area subtraction** -- deck SF on cover sheet should subtract chamfer triangle areas
+7. **Zone chamfer railing in engine.js** -- frontend only adjusts mainCorners, not zone chamfers
+8. **beam_h in draw_elevations.py** -- 4 TODOs to derive from calc["beam_size"]
+9. **Chamfer on A-2 elevations** -- south/north elevation outline should reflect chamfered front edge
+10. **Chamfer on A-5 site plan** -- site plan deck outline should show chamfers
+
+### S66: Stair Templates + Bracing
+11. **Stair template rendering on PDF** (L-shape, switchback minimum)
+12. **Freestanding deck bracing** drawn on A-1 and A-2
+
+### S67: Aerial Imagery + Site Elements
+13. **Phase 1:** Fetch Google Static Maps aerial image, show as reference overlay in site plan preview for manual element placement
+14. **Phase 2:** AI detection of structures from aerial image (pools, sheds, fences, driveways). Propose elements, user confirms.
+
+### S68: House Rotation
+15. **House rotation to match lot angle** -- compute street edge angle from polygon, rotate house rectangle in frontend preview + backend PDF. Significant: touches collision detection, setback rendering, deck positioning.
+
+### Beta Launch (after S66)
+- Flip `SB_PHASE` to `beta` on Railway
+- Beta is FREE (no Stripe checkout)
+- Submit to 3-5 building departments for validation
+
+### Post-Beta
+- Stripe checkout + regeneration tracking
+- SEO content, example gallery, contractor referrals
+- Dedicated title/info sheet (like reference plans: vicinity map + legal desc + code summary)
+- Wire irc_tables.py rafter/stud data into calc_pergola.py and calc_shed.py (replace TODOs)
+- Future product types: porches, pergolas, sheds, garages (calc engines scaffolded, test suites ready)
+- Parcel lookup upgrade: Realie Tier 1 ($50/mo) when free tier exhausted
+
+---
+
+## Remaining TODOs
+
+### Code TODOs
+- `draw_elevations.py` (4 places): `beam_h = 1.0 # TODO: derive from calc["beam_size"]` -- per-zone calcs now available in spec
+- `deck3d.js:130`: `var zH = H; // TODO Phase 3: per-zone height from zone.h`
+- `main.py:1096`: insight analysis prompt still says "permit-ready" (internal, low priority)
+- `calc_pergola.py`: IRC rafter table values need wiring from irc_tables.py (TODOs throughout)
+- `calc_shed.py`: IRC stud/rafter/floor joist values need wiring from irc_tables.py (TODOs throughout)
+
+### Known Gaps (from context)
+- Zone chamfer railing length in engine.js (only mainCorners adjusted)
+- Chamfer area not subtracted from cover sheet SF
+- Chamfers not rendered on A-2 elevations or A-5 site plan
+- Stair templates not rendered on PDF (all show as straight)
+- Freestanding bracing not drawn
+- House rotation to match lot angle (S63)
+- 3D stairs broken with zones/chamfers (S63)
+- Street edge detection for north angle auto-set (S63)
+- Vicinity map sizing/placement not matching reference plans (S63)
+
+---
+
+## Standing Practices
+
+**Cache busters:** `?v=s63j`. Format: `?v=sXXy`. Bump on any JS push. Lazy-loaded files use cache buster variable in index.html loader.
+**Architecture:** `window.*` export pattern. TRIPWIRE at 12 JS files (currently 11).
+**Encoding:** All drawing files use plain ASCII comments.
+**Visual verification:** Never confirm visual fixes from text extraction.
+**Lumber species:** Default DFL/HF/SPF. NOT user-selectable. Backend supports all 3 groups.
+**Beam lookup:** Use `get_beam_max_span()` and `auto_select_beam()`, not legacy `IRC_BEAM_CAPACITY`.
+**Snow load:** `LL = max(40, snow)`, NOT `40 + snow`.
+**Guard height:** Auto 36" standard, 42" for >8'. Override with 36" IRC floor.
+**Joist span lookup:** Design load `LL = max(40, snow)` as IRC table key.
+**Phase tagging:** `SB_PHASE` env var. Current: `testing`.
+**Bot detection:** Module-level in database.py.
+**Checker architecture:** Registry-based. Adding product types is purely additive.
+**Push workflow:** git clone/push via github.com (not api.github.com).
+**AI Helper cost:** ~$0.01/text (Sonnet), ~$0.05-0.08/image (Opus). Max tokens: 250 text, 500 image.
+**AI Helper brevity:** Must include ABSOLUTE RULE at end of system prompt. Reduce max_tokens to enforce.
+**SimpleBlueprints 3D rendering lesson:** Think in 2D plan view first for stair/deck overlap.
+**Chamfer data flow:** `mainCorners` (zone 0) and `zone.corners` (zones 1+) -> `_chamfered_vertices` in zone_utils.py -> polygon outlines + exposed edges. All drawing files consume from zone_utils, never compute chamfer geometry independently.
+**Zone sizing flow:** Computed once in `permit_spec.py` via `spec["zone_calcs"]`. Consumed by draw_plan.py. Not duplicated in drawing files.
+**Deferred loading:** Three.js + views + steps load lazily via `_loadWizardDeps()`. Engine + stairGeometry + zoneUtils must stay in initial load.
+**Project auto-save:** Debounced 3s, logged-in users only. Anonymous users still lose work on refresh. Projects only created after meaningful interaction (S63).
+**Permit language:** Never say "permit-ready" or "guaranteed to pass" in user-facing UI. Use "blueprint package" and "automated pre-check".
+**Parcel lookup:** Realie API, address + state only (no city, requires county). Cache results in parcel_cache table. 25 free lookups/month.
+**Vicinity map:** staticmap + CartoDB light_all tiles. Renders at PDF generation time. Needs lat/lng from parcel lookup saved in info fields.
+**Guided mode default:** guideActive defaults to true. Users go straight to guided flow, not choice screen.
+**IRC data repository:** `irc_tables.py` (3,874 lines) and `irc_tables_round2.py` (204 lines) contain verified IRC 2021 data. Permanent, no ICC access needed.
+**Test suites:** `tests/test_structural.py` (52 deck tests) + `tests/test_future_products.py` (50 tests). Run with `python -m pytest tests/`. All 102 pass.
+**Future product engines:** calc_fence.py (complete), calc_pergola.py/calc_shed.py/calc_porch.py (scaffolded). Fence calc is wind-based and fully functional.
+**Reference plans:** Welborn Decks + Ilaria Deck (both by All Things Architecture, Richard Rutstein). These are the quality bar for PDF output. Will has them as uploaded files.
+
+---
+
+## ENV VARS
+
+| Variable | Purpose |
+|----------|---------|
+| `ADMIN_PASSWORD` | /admin dashboard |
+| `SB_PHASE` | `testing` -> `beta` -> `production` |
+| `GOOGLE_CLIENT_ID/SECRET` | Google OAuth |
+| `SESSION_SECRET` | Session encryption |
+| `SITE_URL` | Base URL for callbacks |
+| `STRIPE_SECRET_KEY` | Stripe (test mode) |
+| `STRIPE_WEBHOOK_SECRET` | Stripe webhooks |
+| `ANTHROPIC_API_KEY` | Claude API |
+| `DATABASE_URL` | Railway Postgres |
+| `REALIE_API_KEY` | Realie parcel lookup API |
+| `REGRID_API_TOKEN` | Regrid API (unused, can remove) |
