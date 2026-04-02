@@ -300,8 +300,24 @@ var GUIDE_PHASES_STEP0 = [
     sections: [],
     actions: [
       { label: 'Yes, I have one', next: 'upload_survey', style: 'primary' },
-      { label: 'No, I will enter manually', next: 'lot_dims', style: 'secondary' }
+      { label: 'No, I will enter manually', next: 'lot_dims', style: 'secondary' },
+      { label: 'Look up by address', next: 'address_lookup', style: 'secondary' }
     ]
+  },
+  // --- ADDRESS LOOKUP PATH ---
+  {
+    id: 'address_lookup',
+    message: "Enter your property address.",
+    tip: "We will look up your lot shape, dimensions, and house position from public records.",
+    sections: ['addressLookup'],
+    actions: []
+  },
+  {
+    id: 'address_verifying',
+    message: "Looking up your property...",
+    tip: "Searching public parcel records.",
+    sections: ['addressLookup'],
+    actions: []
   },
   // --- SURVEY PATH ---
   {
@@ -898,12 +914,84 @@ function StepContent(props) {
   const [pprbdChecklistAcked, setPprbdChecklistAcked] = _stUS(false);
   const [rankingInProgress, setRankingInProgress] = _stUS(false);
   const [rankingResult, setRankingResult] = _stUS(null);
+  const [parcelLoading, setParcelLoading] = _stUS(false);
+  const [parcelError, setParcelError] = _stUS(null);
+  const [parcelAddress, setParcelAddress] = _stUS("");
+  const [parcelState, setParcelState] = _stUS("");
   const [showSiteElements, setShowSiteElements] = _stUS(false);
   const [showLotShape, setShowLotShape] = _stUS(false);
   const [selectedElId, setSelectedElId] = _stUS(null);
   const [showLotHouse, setShowLotHouse] = _stUS(true);
   var dialDragRef = React.useRef(false);
   _stUE(function() { u("_selectedElId", selectedElId); }, [selectedElId]);
+
+  // S63: Parcel lookup function
+  function _doParcelLookup() {
+    if (!parcelAddress || !parcelState || parcelLoading) return;
+    setParcelLoading(true);
+    setParcelError(null);
+    if (guideActive) setGuidePhase('address_verifying');
+    fetch('/api/parcel-lookup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ address: parcelAddress, state: parcelState })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      setParcelLoading(false);
+      if (data.error) {
+        setParcelError(data.error);
+        if (guideActive) setGuidePhase('address_lookup');
+        return;
+      }
+      // Apply lot vertices
+      var verts = data.lot.vertices;
+      if (verts && verts.length >= 3) {
+        u("lotVertices", verts);
+        u("lotWidth", Math.round(data.lot.width));
+        u("lotDepth", Math.round(data.lot.depth));
+        // Build edges (4 sides, edge 0 = street)
+        var edges = [];
+        for (var ei = 0; ei < verts.length; ei++) {
+          var ni = (ei + 1) % verts.length;
+          var dx = verts[ni][0] - verts[ei][0], dy = verts[ni][1] - verts[ei][1];
+          var elen = Math.round(Math.sqrt(dx * dx + dy * dy));
+          edges.push({ type: ei === 0 ? "street" : "property", label: ei === 0 ? (data.location.address || "") : "", length: elen, setbackType: ei === 0 ? "front" : "side", neighborLabel: "" });
+        }
+        u("lotEdges", edges);
+        u("lotArea", data.lot.area_sqft || Math.round(data.lot.width * data.lot.depth));
+      }
+      // Apply house dimensions
+      if (data.building.estimated_width && data.building.estimated_depth) {
+        u("houseWidth", Math.round(data.building.estimated_width));
+        u("houseDepth", Math.round(data.building.estimated_depth));
+      }
+      // Estimate house position from standard setbacks
+      var lotW = Math.round(data.lot.width);
+      var lotD = Math.round(data.lot.depth);
+      var hw = Math.round(data.building.estimated_width || 40);
+      var hd = Math.round(data.building.estimated_depth || 30);
+      var offsetSide = Math.max(5, Math.round((lotW - hw) / 2));
+      var distFromStreet = Math.min(Math.round(lotD * 0.3), 35);
+      u("houseOffsetSide", offsetSide);
+      u("houseDistFromStreet", distFromStreet);
+      // Apply property info
+      if (data.location.address) setI("address", data.location.address);
+      if (data.location.city) setI("city", data.location.city);
+      if (data.location.state) setI("state", data.location.state);
+      if (data.location.zip) setI("zip", data.location.zip);
+      if (data.parcel.id) setI("lot", data.parcel.id);
+      // Advance guide to verify
+      if (guideActive) setGuidePhase('verify_extracted');
+      // Track event
+      if (window._trackEvent) window._trackEvent('parcel_lookup', { address: parcelAddress, state: parcelState, lot_width: data.lot.width, lot_depth: data.lot.depth, building_sqft: data.building.sqft });
+    })
+    .catch(function(err) {
+      setParcelLoading(false);
+      setParcelError("Network error: " + err.message);
+      if (guideActive) setGuidePhase('address_lookup');
+    });
+  }
 
   // S49: AI Guide state
   // null = choice screen not yet shown, true = guided, false = manual
@@ -2303,6 +2391,33 @@ function StepContent(props) {
           border: "1px solid " + _br.gn + "44", borderRadius: 4, padding: "4px 10px",
           cursor: "pointer", flexShrink: 0, marginLeft: 10, whiteSpace: "nowrap"
         }}>Switch to guided</button>
+      </div>}
+
+      {/* === ADDRESS LOOKUP (S63) === */}
+      {guideSectionShown('addressLookup') && <div data-section="addressLookup" style={{ padding: 14, background: _br.wr, borderRadius: 8, border: "1px solid " + _br.bd, marginBottom: 14 }}>
+        <div style={{ fontSize: 9, fontWeight: 700, color: _br.mu, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 10 }}>Property Address</div>
+        <input type="text" placeholder="Street address (e.g. 123 Main St)" value={parcelAddress}
+          onChange={function(e) { setParcelAddress(e.target.value); setParcelError(null); }}
+          onKeyDown={function(e) { if (e.key === 'Enter' && parcelAddress && parcelState) _doParcelLookup(); }}
+          style={{ width: "100%", padding: "10px 12px", fontSize: 12, fontFamily: _mono, border: "1px solid " + _br.bd, borderRadius: 6, marginBottom: 8, boxSizing: "border-box" }} />
+        <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+          <input type="text" placeholder="State (e.g. NY)" value={parcelState} maxLength={2}
+            onChange={function(e) { setParcelState(e.target.value.toUpperCase()); setParcelError(null); }}
+            onKeyDown={function(e) { if (e.key === 'Enter' && parcelAddress && parcelState) _doParcelLookup(); }}
+            style={{ width: 70, padding: "10px 12px", fontSize: 12, fontFamily: _mono, border: "1px solid " + _br.bd, borderRadius: 6, textTransform: "uppercase", boxSizing: "border-box" }} />
+          <button disabled={!parcelAddress || !parcelState || parcelLoading} onClick={_doParcelLookup}
+            style={{ flex: 1, padding: "10px 16px", fontSize: 12, fontWeight: 700, fontFamily: _mono, color: "#fff",
+              background: (!parcelAddress || !parcelState || parcelLoading) ? _br.mu : _br.gn,
+              border: "none", borderRadius: 6, cursor: (!parcelAddress || !parcelState || parcelLoading) ? "default" : "pointer" }}>
+            {parcelLoading ? "Looking up..." : "Look Up Property"}
+          </button>
+        </div>
+        {parcelError && <div style={{ fontSize: 11, color: "#dc2626", fontFamily: _mono, padding: "8px 10px", background: "#fef2f2", borderRadius: 6, marginBottom: 8 }}>
+          {parcelError}
+        </div>}
+        <div style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, lineHeight: 1.5 }}>
+          We look up your lot shape and house position from public parcel records. You can adjust everything after.
+        </div>
       </div>}
 
       {/* === LOT & HOUSE SLIDERS (collapsible, S31) === */}
