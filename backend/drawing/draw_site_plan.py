@@ -840,26 +840,26 @@ def draw_site_plan(fig, params, calc):
     if _vic_lat and _vic_lng:
         try:
             from staticmap import StaticMap, CircleMarker
-            _map_w_px, _map_h_px = 400, 320
+            _map_w_px, _map_h_px = 600, 400
             sm = StaticMap(_map_w_px, _map_h_px,
                            url_template='https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
                            headers={'User-Agent': 'SimpleBlueprints/1.0 (permit blueprint generator)'})
-            sm.add_marker(CircleMarker((_vic_lng, _vic_lat), 'red', 8))
+            sm.add_marker(CircleMarker((_vic_lng, _vic_lat), 'red', 10))
             map_img = sm.render(zoom=15)
 
-            # Convert PIL image to numpy array for matplotlib
             map_arr = np.array(map_img)
 
-            # Position below the info box
-            _map_fig_left = _box_left + 0.002
-            _map_fig_w = _box_right - _box_left - 0.004
-            _map_fig_h = _map_fig_w * (_map_h_px / _map_w_px)  # maintain aspect ratio
-            _map_fig_bot = _box_bot - 0.025 - _map_fig_h
+            # Position: wider footprint below the info box, extending left
+            _map_fig_right = _box_right
+            _map_fig_w = 0.26
+            _map_fig_left = _map_fig_right - _map_fig_w
+            _map_fig_h = _map_fig_w * (_map_h_px / _map_w_px) * (14.0 / 8.5)  # aspect ratio corrected for fig dims
+            _map_fig_bot = _box_bot - 0.03 - _map_fig_h
 
-            if _map_fig_bot > 0.04:  # only render if there is enough space
-                # Label
-                fig.text(_lx, _map_fig_bot + _map_fig_h + 0.012, "VICINITY MAP",
-                         fontsize=6, fontfamily='monospace', color=_clr, fontweight='bold')
+            if _map_fig_bot > 0.03:
+                # Label above map
+                fig.text(_map_fig_left, _map_fig_bot + _map_fig_h + 0.008, "VICINITY MAP",
+                         fontsize=7, fontfamily='monospace', color=_clr, fontweight='bold')
 
                 # Render map image
                 ax_map = fig.add_axes([_map_fig_left, _map_fig_bot, _map_fig_w, _map_fig_h])
@@ -867,16 +867,24 @@ def draw_site_plan(fig, params, calc):
                 ax_map.set_xticks([])
                 ax_map.set_yticks([])
                 for spine in ax_map.spines.values():
-                    spine.set_edgecolor(BRAND["border"])
-                    spine.set_linewidth(0.8)
+                    spine.set_edgecolor(BRAND["dark"])
+                    spine.set_linewidth(1.0)
 
-                # "SITE" label with arrow
+                # "SITE" label with arrow (offset to upper-left of center)
                 cx_px = _map_w_px // 2
                 cy_px = _map_h_px // 2
-                ax_map.annotate('SITE', xy=(cx_px, cy_px), xytext=(cx_px - 60, cy_px - 50),
-                                fontsize=6, fontfamily='monospace', fontweight='bold', color='#333',
-                                arrowprops=dict(arrowstyle='->', color='#333', lw=1.0),
-                                bbox=dict(boxstyle='round,pad=0.2', fc='white', ec='#333', lw=0.5, alpha=0.9))
+                ax_map.annotate('SITE', xy=(cx_px, cy_px), xytext=(cx_px - 80, cy_px - 60),
+                                fontsize=7, fontfamily='monospace', fontweight='bold', color='#333',
+                                arrowprops=dict(arrowstyle='->', color='#333', lw=1.2),
+                                bbox=dict(boxstyle='round,pad=0.3', fc='white', ec='#333', lw=0.8, alpha=0.9))
+
+                # North arrow on the map
+                _na_x = _map_w_px - 30
+                _na_y = 25
+                ax_map.annotate('', xy=(_na_x, _na_y - 12), xytext=(_na_x, _na_y + 12),
+                                arrowprops=dict(arrowstyle='->', color='#333', lw=1.5))
+                ax_map.text(_na_x, _na_y - 18, 'N', ha='center', fontsize=7,
+                            fontfamily='monospace', fontweight='bold', color='#333')
         except Exception as _vic_err:
             print(f"Vicinity map error: {_vic_err}")
     else:
