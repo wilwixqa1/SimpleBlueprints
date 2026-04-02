@@ -501,9 +501,12 @@ window.buildDeckScene = function(scene, p, c, THREE) {
       outlineCorners[k2] = [cx + e.x2, cz + e.y2];
     });
     Object.keys(outlineCorners).forEach(function(k) {
-      if (!isAtChamferCorner(outlineCorners[k][0], outlineCorners[k][1])) {
-        addRailPost(outlineCorners[k][0], outlineCorners[k][1]);
-      }
+      var pt = outlineCorners[k];
+      if (isAtChamferCorner(pt[0], pt[1])) return;
+      // S64: Skip posts inside stair footprint
+      if (stairWBB && pt[0] > stairWBB.xMin + 0.05 && pt[0] < stairWBB.xMax - 0.05 &&
+          pt[1] > stairWBB.zMin - 0.1 && pt[1] < stairWBB.zMax + 0.1) return;
+      addRailPost(pt[0], pt[1]);
     });
 
   } else {
