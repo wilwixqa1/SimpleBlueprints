@@ -819,3 +819,56 @@ def draw_site_plan(fig, params, calc):
              color=_clr, fontweight='bold')
     fig.text(_vx, _y, f"{coverage_pct:.1f}%", fontsize=6, fontfamily='monospace',
              color=warn_color, fontweight='bold')
+
+    # === VICINITY MAP (S63) ===
+    # Render a small neighborhood map from lat/lng if available from parcel lookup
+    _vic_lat = params.get("_parcel_lat") or 0
+    _vic_lng = params.get("_parcel_lng") or 0
+    if not _vic_lat and sp.get("raw_coords"):
+        rc = sp["raw_coords"]
+        if rc and len(rc) > 0:
+            _vic_lat = sum(c[1] for c in rc) / len(rc)
+            _vic_lng = sum(c[0] for c in rc) / len(rc)
+
+    if _vic_lat and _vic_lng:
+        try:
+            from staticmap import StaticMap, CircleMarker
+            _map_w_px, _map_h_px = 400, 320
+            sm = StaticMap(_map_w_px, _map_h_px,
+                           url_template='https://tile.openstreetmap.org/{z}/{x}/{y}.png')
+            sm.add_marker(CircleMarker((_vic_lng, _vic_lat), 'red', 8))
+            map_img = sm.render(zoom=15)
+
+            # Convert PIL image to numpy array for matplotlib
+            map_arr = np.array(map_img)
+
+            # Position below the info box
+            _map_fig_left = _box_left + 0.002
+            _map_fig_w = _box_right - _box_left - 0.004
+            _map_fig_h = _map_fig_w * (_map_h_px / _map_w_px)  # maintain aspect ratio
+            _map_fig_bot = _box_bot - 0.025 - _map_fig_h
+
+            if _map_fig_bot > 0.04:  # only render if there is enough space
+                # Label
+                fig.text(_lx, _map_fig_bot + _map_fig_h + 0.012, "VICINITY MAP",
+                         fontsize=6, fontfamily='monospace', color=_clr, fontweight='bold')
+
+                # Render map image
+                ax_map = fig.add_axes([_map_fig_left, _map_fig_bot, _map_fig_w, _map_fig_h])
+                ax_map.imshow(map_arr)
+                ax_map.set_xticks([])
+                ax_map.set_yticks([])
+                for spine in ax_map.spines.values():
+                    spine.set_edgecolor(BRAND["border"])
+                    spine.set_linewidth(0.8)
+
+                # "SITE" label with arrow
+                cx_px = _map_w_px // 2
+                cy_px = _map_h_px // 2
+                ax_map.annotate('SITE', xy=(cx_px, cy_px), xytext=(cx_px - 60, cy_px - 50),
+                                fontsize=6, fontfamily='monospace', fontweight='bold', color='#333',
+                                arrowprops=dict(arrowstyle='->', color='#333', lw=1.0),
+                                bbox=dict(boxstyle='round,pad=0.2', fc='white', ec='#333', lw=0.5, alpha=0.9))
+        except Exception as _vic_err:
+            # Tile fetch failed or staticmap not available -- skip silently
+            pass
