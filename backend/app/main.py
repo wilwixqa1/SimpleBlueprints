@@ -909,14 +909,22 @@ Coordinate system: (0,0) is the bottom-left corner at the street. X increases le
         0: """PREVIEW PANEL: Shows the Site Plan - lot boundary, house footprint, proposed deck outline, site elements (garage, shed, etc.), setback lines, north arrow. Everything is visible here.
 
 UI SECTIONS (scrollable/expandable):
-- "upload": Survey upload area. User can upload a PDF or photo of their property survey.
+- "addressLookup": Address Lookup. User enters their street address and state, clicks "Look Up Property". This queries public parcel records and auto-fills the lot shape, dimensions, house size, house position, and property info. Much faster than uploading a survey. Available in guided mode.
+- "upload": Survey upload area. User can upload a PDF or photo of their property survey. Alternative to address lookup.
 - "lotHouse": Lot Dimensions & House Position. Contains sliders for lot width, lot depth, house width, house depth, house offset from left property line, and distance from street. Collapsible section.
 - "siteElements": Site Elements. Add structures like sheds, pools, driveways, garages, fences, trees. Each has type, position, and size. Collapsible section.
 - "northArrow": North Arrow compass dial. Drag or click cardinal directions (N/NE/E/S/W/NW). Also has a degree slider.
 - "slope": Slope settings. Slope percentage slider and direction selector (front-to-back, back-to-front, left-to-right, right-to-left).
 
+THREE WAYS TO SET UP THE LOT (in guided mode):
+1. ADDRESS LOOKUP (fastest): Type address + state, click "Look Up Property". Auto-fills lot polygon, dimensions, house size and position from public records. User confirms and adjusts. No survey needed.
+2. SURVEY UPLOAD: Upload a PDF or photo. AI extracts lot shape, dimensions, and house position. User picks from shape candidates and confirms.
+3. MANUAL ENTRY: User enters lot width, depth, house dimensions, and position using sliders.
+
+The address lookup returns the legal parcel boundary from county records, which is more accurate than AI extraction from a survey image. However, house position is estimated (centered, standard setbacks) since we do not have the building footprint polygon. User can drag the house to reposition.
+
 HOW COMPLEX TASKS WORK:
-- To change lot shape: User uploads a survey (the AI extracts it), OR uses the shape picker in compare mode, OR traces manually on the survey image. Navigate to "upload" section.
+- To change lot shape: User can look up by address (recommended), upload a survey (the AI extracts it), use the shape picker in compare mode, or trace manually on the survey image.
 - To add site elements: Navigate to "siteElements", click to expand, then use the "Add Element" button. Each element has type dropdown, position, and size controls.
 - To set north arrow: Navigate to "northArrow". They can drag the compass, click a cardinal direction button, or use the degree slider.""",
         1: """PREVIEW PANEL: Shows the Deck Plan - just the deck layout, house wall, and stairs. Does NOT show the full lot, garage, shed, or other site elements. Those only appear on the Site Plan in Step 0 and in the final PDF.
