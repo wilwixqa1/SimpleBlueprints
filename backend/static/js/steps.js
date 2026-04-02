@@ -991,8 +991,8 @@ function StepContent(props) {
       // Set street name from address
       if (data.location.address) u("streetName", data.location.address);
       // Save lat/lng for vicinity map on PDF
-      if (data.location.lat) u("_parcel_lat", data.location.lat);
-      if (data.location.lng) u("_parcel_lng", data.location.lng);
+      if (data.location.lat) { u("_parcel_lat", data.location.lat); setI("lat", String(data.location.lat)); }
+      if (data.location.lng) { u("_parcel_lng", data.location.lng); setI("lng", String(data.location.lng)); }
       // Advance guide to verify
       if (window._markProjectEdited) window._markProjectEdited();
       if (guideActive) setGuidePhase('verify_extracted');

@@ -822,20 +822,28 @@ def draw_site_plan(fig, params, calc):
 
     # === VICINITY MAP (S63) ===
     # Render a small neighborhood map from lat/lng if available from parcel lookup
+    _pi = params.get("projectInfo") or {}
     _vic_lat = params.get("_parcel_lat") or 0
     _vic_lng = params.get("_parcel_lng") or 0
-    if not _vic_lat and sp.get("raw_coords"):
-        rc = sp["raw_coords"]
-        if rc and len(rc) > 0:
-            _vic_lat = sum(c[1] for c in rc) / len(rc)
-            _vic_lng = sum(c[0] for c in rc) / len(rc)
+    # Also check project info for lat/lng
+    if not _vic_lat:
+        try:
+            _vic_lat = float(_pi.get("lat") or 0)
+        except (ValueError, TypeError):
+            _vic_lat = 0
+    if not _vic_lng:
+        try:
+            _vic_lng = float(_pi.get("lng") or 0)
+        except (ValueError, TypeError):
+            _vic_lng = 0
 
     if _vic_lat and _vic_lng:
         try:
             from staticmap import StaticMap, CircleMarker
             _map_w_px, _map_h_px = 400, 320
             sm = StaticMap(_map_w_px, _map_h_px,
-                           url_template='https://tile.openstreetmap.org/{z}/{x}/{y}.png')
+                           url_template='https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
+                           headers={'User-Agent': 'SimpleBlueprints/1.0 (permit blueprint generator)'})
             sm.add_marker(CircleMarker((_vic_lng, _vic_lat), 'red', 8))
             map_img = sm.render(zoom=15)
 
@@ -870,5 +878,6 @@ def draw_site_plan(fig, params, calc):
                                 arrowprops=dict(arrowstyle='->', color='#333', lw=1.0),
                                 bbox=dict(boxstyle='round,pad=0.2', fc='white', ec='#333', lw=0.5, alpha=0.9))
         except Exception as _vic_err:
-            # Tile fetch failed or staticmap not available -- skip silently
-            pass
+            print(f"Vicinity map error: {_vic_err}")
+    else:
+        print(f"Vicinity map skipped: lat={_vic_lat}, lng={_vic_lng}, params keys with _parcel: {[k for k in params.keys() if 'parcel' in str(k).lower()]}")
