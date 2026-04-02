@@ -619,7 +619,7 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
       })()
     ) : null,
 
-    React.createElement("g", { transform: "translate(" + ox + "," + (oy + lotPxH + 38) + ")" },
+    React.createElement("g", { transform: "translate(" + ox + "," + (oy + lotPxH + 44) + ")" },
       React.createElement("line", { x1: 0, y1: 0, x2: sbPx, y2: 0, stroke: "#333", strokeWidth: 1 }),
       React.createElement("line", { x1: 0, y1: -3, x2: 0, y2: 3, stroke: "#333", strokeWidth: 1 }),
       React.createElement("line", { x1: sbPx, y1: -3, x2: sbPx, y2: 3, stroke: "#333", strokeWidth: 1 }),
@@ -628,7 +628,7 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
 
     // Drag hint (S32)
     !isDragging ? React.createElement("text", {
-      x: svgW / 2, y: svgH - 6, textAnchor: "middle",
+      x: ox + sbPx + 10, y: oy + lotPxH + 48, textAnchor: "start",
       style: { fontSize: 7, fill: "#aaa", fontFamily: mono, fontStyle: "italic" }
     }, "Drag house or elements to reposition") : null
   );
