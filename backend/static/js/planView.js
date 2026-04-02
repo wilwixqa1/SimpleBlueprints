@@ -115,7 +115,7 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
       newAX = Math.max(-0.5, Math.min(dr.zoneRect.w + 0.5, newAX));
       newAY = Math.max(-0.5, Math.min(dr.zoneRect.d + 0.5, newAY));
       // Snap to nearest edge
-      var snap = window.snapStairToEdge(newAX, newAY, dr.zoneRect.w, dr.zoneRect.d, 9999);
+      var snap = window.snapStairToEdge(newAX, newAY, dr.zoneRect.w, dr.zoneRect.d, 1.5);
       if (snap.snapped && snap.edge !== "back") {
         var loc = snap.edge;
         var edgeLen = loc === "front" ? dr.zoneRect.w : dr.zoneRect.d;
@@ -124,6 +124,13 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
         var maxOff = Math.floor((edgeLen - (stairDef.width || 4)) / 2);
         offset = Math.max(-maxOff, Math.min(maxOff, offset));
         if (updateStairFields) updateStairFields(dr.stairId, { location: loc, offset: offset });
+      } else {
+        // Free positioning -- set manual anchor (keeps current direction)
+        if (updateStairFields) updateStairFields(dr.stairId, {
+          anchorX: Math.round(newAX * 2) / 2,
+          anchorY: Math.round(newAY * 2) / 2,
+          angle: stairDef.angle != null ? stairDef.angle : (stairDef.location === "right" ? 90 : stairDef.location === "left" ? 270 : 0)
+        });
       }
     };
     var onUp = function() { stairDragRef.current = null; window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp); };

@@ -723,7 +723,8 @@ const App = function SimpleBlueprints() {
     var next = { ...prev, deckStairs: (prev.deckStairs || []).map(function(s) {
       if (s.id !== stairId) return s;
       var upd = Object.assign({}, s, fields);
-      upd.anchorX = null; upd.anchorY = null; upd.angle = null;
+      // Clear manual anchor only when setting location/offset (not when setting anchor directly)
+      if (!("anchorX" in fields)) { upd.anchorX = null; upd.anchorY = null; upd.angle = null; }
       return upd;
     })};
     _syncFlatStairParams(next);
