@@ -97,6 +97,17 @@ window.buildDeckScene = function(scene, p, c, THREE) {
   var leftAtEdge = leftGap && leftGap.xMin <= z0wx + 0.1;
   var rightAtEdge = rightGap && rightGap.xMax >= z0wx + W - 0.1;
 
+  // S64: Stair world-space bounding box for gap cutting in ALL zones
+  var stairWBB = null;
+  if (hasSt && stPl && sg) {
+    var _gx = z0wx + stPl.anchorX, _gz = z0wz + stPl.anchorY;
+    var _bb = sg.bbox, _ang = stPl.angle || 0;
+    if (_ang === 0)        stairWBB = { xMin: _gx + _bb.minX, xMax: _gx + _bb.maxX, zMin: _gz + _bb.minY, zMax: _gz + _bb.maxY };
+    else if (_ang === 90)  stairWBB = { xMin: _gx + _bb.minY, xMax: _gx + _bb.maxY, zMin: _gz - _bb.maxX, zMax: _gz - _bb.minX };
+    else if (_ang === 180) stairWBB = { xMin: _gx - _bb.maxX, xMax: _gx - _bb.minX, zMin: _gz - _bb.maxY, zMax: _gz - _bb.minY };
+    else if (_ang === 270) stairWBB = { xMin: _gx - _bb.maxY, xMax: _gx - _bb.minY, zMin: _gz + _bb.minX, zMax: _gz + _bb.maxX };
+  }
+
   // Helper: check if a world-space point is inside zone 0
   function inZone0(wx, wz) {
     return wx >= z0wx - 0.01 && wx <= z0wx + W + 0.01 && wz >= z0wz - 0.01 && wz <= z0wz + D + 0.01;
@@ -347,26 +358,35 @@ window.buildDeckScene = function(scene, p, c, THREE) {
       var bx = crwx + lx;
 
       // Check if this board X falls within zone 0 and has a stair gap
+      var _bZs = crwz, _bZe = crwz + crD;
       if (inZone0(bx, z0wz + D / 2)) {
         if (frontGap && stairClipD > 0.1 && bx > frontGap.min + 0.02 && bx < frontGap.max - 0.02) {
-          addDeckBoard(bx, crwz, frontGap.zMin);
-          addDeckBoard(bx, Math.max(crwz, frontGap.zMax), crwz + crD);
+          addDeckBoard(bx, _bZs, frontGap.zMin);
+          addDeckBoard(bx, Math.max(_bZs, frontGap.zMax), _bZe);
           continue;
         }
         if (leftGap && bx > leftGap.xMin + 0.02 && bx < leftGap.xMax - 0.02) {
-          addDeckBoard(bx, crwz, leftGap.min);
-          addDeckBoard(bx, Math.max(crwz, leftGap.max), crwz + crD);
+          addDeckBoard(bx, _bZs, leftGap.min);
+          addDeckBoard(bx, Math.max(_bZs, leftGap.max), _bZe);
           continue;
         }
         if (rightGap && bx > rightGap.xMin + 0.02 && bx < rightGap.xMax - 0.02) {
-          addDeckBoard(bx, crwz, rightGap.min);
-          addDeckBoard(bx, Math.max(crwz, rightGap.max), crwz + crD);
+          addDeckBoard(bx, _bZs, rightGap.min);
+          addDeckBoard(bx, Math.max(_bZs, rightGap.max), _bZe);
           continue;
         }
       }
 
+      // S64: Check stair world bbox for ALL boards (cuts gaps in zone boards)
+      if (stairWBB && bx > stairWBB.xMin + 0.02 && bx < stairWBB.xMax - 0.02 &&
+          _bZe > stairWBB.zMin + 0.02 && _bZs < stairWBB.zMax - 0.02) {
+        addDeckBoard(bx, _bZs, stairWBB.zMin);
+        addDeckBoard(bx, Math.max(_bZs, stairWBB.zMax), _bZe);
+        continue;
+      }
+
 // No gap   full board for this composite rect
-      addDeckBoard(bx, crwz, crwz + crD);
+      addDeckBoard(bx, _bZs, _bZe);
     }
   });
 
@@ -444,6 +464,26 @@ window.buildDeckScene = function(scene, p, c, THREE) {
           if (ey2 > rightGap.max + 0.05) addRail(ex1, Math.max(ey1, rightGap.max), ex1, ey2);
           if (rightGap.min > ey1 + 0.1) addRailPost(ex1, rightGap.min);
           if (rightGap.max < ey2 - 0.1) addRailPost(ex1, rightGap.max);
+          return;
+        }
+      }
+
+// S64: Check stair world bbox for zone railing edges
+      if (stairWBB) {
+        if (e.dir === "h" && ey1 > stairWBB.zMin - 0.1 && ey1 < stairWBB.zMax + 0.1 &&
+            ex1 < stairWBB.xMax && ex2 > stairWBB.xMin) {
+          if (ex1 < stairWBB.xMin - 0.05) addRail(ex1, ey1, Math.min(ex2, stairWBB.xMin), ey1);
+          if (ex2 > stairWBB.xMax + 0.05) addRail(Math.max(ex1, stairWBB.xMax), ey1, ex2, ey1);
+          if (stairWBB.xMin > ex1 + 0.1) addRailPost(stairWBB.xMin, ey1);
+          if (stairWBB.xMax < ex2 - 0.1) addRailPost(stairWBB.xMax, ey1);
+          return;
+        }
+        if (e.dir === "v" && ex1 > stairWBB.xMin - 0.1 && ex1 < stairWBB.xMax + 0.1 &&
+            ey1 < stairWBB.zMax && ey2 > stairWBB.zMin) {
+          if (ey1 < stairWBB.zMin - 0.05) addRail(ex1, ey1, ex1, Math.min(ey2, stairWBB.zMin));
+          if (ey2 > stairWBB.zMax + 0.05) addRail(ex1, Math.max(ey1, stairWBB.zMax), ex1, ey2);
+          if (stairWBB.zMin > ey1 + 0.1) addRailPost(ex1, stairWBB.zMin);
+          if (stairWBB.zMax < ey2 - 0.1) addRailPost(ex1, stairWBB.zMax);
           return;
         }
       }
