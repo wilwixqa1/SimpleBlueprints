@@ -1647,14 +1647,25 @@ def _regrid_lookup(address: str, state: str, city: str = "", zip_code: str = "")
     try:
         req = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": "SimpleBlueprints/1.0"})
         with urllib.request.urlopen(req, timeout=15) as resp:
-            data = json.loads(resp.read().decode())
+            raw = resp.read().decode()
+            data = json.loads(raw)
+    except urllib.error.HTTPError as e:
+        body = e.read().decode() if e.readable() else ""
+        return {"error": f"Regrid API HTTP {e.code}: {body[:500]}", "url_used": url.replace(token, "***")}
     except Exception as e:
-        return {"error": f"Regrid API error: {str(e)}"}
+        return {"error": f"Regrid API error: {str(e)}", "url_used": url.replace(token, "***")}
 
-    # Extract first result
-    features = data.get("results", data.get("parcels", {}).get("features", []))
+    # v1 returns "results", v2 returns "parcels.features"
+    features = data.get("results", [])
     if not features:
-        return {"error": "No parcel found for this address"}
+        parcels = data.get("parcels", {})
+        if isinstance(parcels, dict):
+            features = parcels.get("features", [])
+
+    if not features:
+        # Return debug info so we can see what Regrid sent back
+        keys = list(data.keys()) if isinstance(data, dict) else str(type(data))
+        return {"error": "No parcel found for this address", "debug_keys": keys, "debug_snippet": str(raw)[:1000], "query_used": query}
 
     feature = features[0]
     geom = feature.get("geometry", {})
@@ -1780,7 +1791,8 @@ async def parcel_lookup(request: Request):
 
     result = _regrid_lookup(address, state, city, zip_code)
     if "error" in result:
-        raise HTTPException(status_code=404, detail=result["error"])
+        # During development, return debug info as 200 so we can see it
+        return JSONResponse(result)
 
     return JSONResponse(result)
 
