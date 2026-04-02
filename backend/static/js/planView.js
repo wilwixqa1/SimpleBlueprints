@@ -350,14 +350,19 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
         <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#444" strokeWidth="3.5" />
       ))}
 
-// {/*   Stairs (unchanged)   */}
-      {p.hasStairs && c.stairs && (() => {
-        const stairGeom = window.computeStairGeometry({ template: p.stairTemplate || "straight", height: p.height, stairWidth: p.stairWidth || 4, numStringers: p.numStringers || 3, runSplit: p.stairRunSplit ? p.stairRunSplit/100 : null, landingDepth: p.stairLandingDepth || null, stairGap: p.stairGap != null ? p.stairGap : 0.5 });
+// {/*   S64: Multi-stair rendering   */}
+      {(p.deckStairs || []).map(function(stairDef, stIdx) {
+        if (p.height <= 0.5) return null;
+        var _pz = Object.assign({}, p, { deckWidth: p.width, deckDepth: p.depth, deckHeight: p.height });
+        var zr = window.getZoneRect ? window.getZoneRect(stairDef.zoneId, _pz) : null;
+        if (!zr && stairDef.zoneId === 0) zr = { x: 0, y: 0, w: c.W, d: c.D };
+        if (!zr) return null;
+        const stairGeom = window.computeStairGeometry({ template: stairDef.template || "straight", height: p.height, stairWidth: stairDef.width || 4, numStringers: stairDef.numStringers || 3, runSplit: stairDef.runSplit ? stairDef.runSplit/100 : null, landingDepth: stairDef.landingDepth || null, stairGap: stairDef.stairGap != null ? stairDef.stairGap : 0.5 });
         if (!stairGeom) return null;
-        const placement = window.getStairPlacement(p, c);
+        const placement = window.getStairPlacementForZone(stairDef, zr);
         const exitSide = placement.angle === 90 ? "right" : placement.angle === 270 ? "left" : placement.angle === 180 ? "back" : "front";
-        const ox = dx + placement.anchorX * sc;
-        const oy = pad + placement.anchorY * sc + (exitSide === "front" ? 1 : exitSide === "back" ? -1 : 0);
+        const ox = dx + (zr.x + placement.anchorX) * sc;
+        const oy = pad + (zr.y + placement.anchorY) * sc + (exitSide === "front" ? 1 : exitSide === "back" ? -1 : 0);
         function txRect(r) {
           if (exitSide === "front") return { x: ox + r.x*sc, y: oy + r.y*sc, w: r.w*sc, h: r.h*sc };
           if (exitSide === "back")  return { x: ox - (r.x+r.w)*sc, y: oy - (r.y+r.h)*sc, w: r.w*sc, h: r.h*sc };
@@ -417,7 +422,8 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
         const names = { straight:"Straight", lLeft:"L-Left", lRight:"L-Right", switchback:"Switchback", wrapAround:"Wrap-Around", wideLanding:"Platform" };
         const labelPt = txPt(0, stairGeom.bbox.maxY + 2);
         els.push(<text key="stlbl" x={labelPt[0]} y={labelPt[1]} textAnchor="middle" style={{ fontSize: 5.5, fill: "#7a8068", fontFamily: "monospace", fontWeight: 600 }}>{names[stairGeom.template]} {"\u00B7"} {stairGeom.totalRisers} risers {"\u00B7"} {stairGeom.stairWidth}' wide {"\u00B7"} {stairGeom.runs.length} run{stairGeom.runs.length>1?"s":""}</text>);
-        if (u && mode === "plan" && zoneMode === "select") {
+        // Drag handles only for first stair (backward compat)
+        if (stIdx === 0 && u && mode === "plan" && zoneMode === "select") {
           const bb = stairGeom.bbox;
           const bbRect = txRect({ x: bb.minX - 0.5, y: bb.minY - 0.5, w: bb.w + 1, h: bb.h + 1 });
           const hcx = bbRect.x + bbRect.w / 2, hcy = bbRect.y + bbRect.h / 2;
@@ -440,8 +446,8 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
             els.push(<text key="rotDir" x={rHx} y={rHy - hr - 2} textAnchor="middle" style={{ fontSize: 4.5, fill: "#666", fontFamily: "monospace", fontWeight: 600, pointerEvents: "none" }}>{dirLabels[curAngle] || ""}</text>);
           }
         }
-        return <g ref={stairGroupRef}>{els}</g>;
-      })()}
+        return <g key={"stair_"+stairDef.id} ref={stIdx === 0 ? stairGroupRef : null}>{els}</g>;
+      })}
 
 // {/*   Dimension lines   */}
       <line x1={dx} y1={pad + sd + 25} x2={dx + sw} y2={pad + sd + 25} stroke="#c62828" strokeWidth="0.6" />
