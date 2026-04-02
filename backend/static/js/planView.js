@@ -10,8 +10,14 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
   const sw = c.W * sc;
   const sd = c.D * sc;
   const bY = sd - 1.5 * sc;
-  const svgW = Math.max(sw + pad * 2 + 40, hw + pad * 2 + 40);
-  const svgH = sd + pad * 2 + 80;
+  // S64: Extend SVG to include all zones (not just main deck)
+  var _zBbox = { x: 0, y: 0, w: c.W, d: c.D };
+  if (p.zones && p.zones.length > 0 && window.getBoundingBox) _zBbox = window.getBoundingBox(pForZones);
+  var _extraRight = Math.max(0, _zBbox.x + _zBbox.w - c.W) * sc;
+  var _extraLeft = Math.max(0, -_zBbox.x) * sc;
+  var _extraDown = Math.max(0, _zBbox.y + _zBbox.d - c.D) * sc;
+  const svgW = Math.max(sw + pad * 2 + 40, hw + pad * 2 + 40) + _extraRight + _extraLeft;
+  const svgH = sd + pad * 2 + 80 + _extraDown;
   const houseCx = svgW / 2;
   const hx = houseCx - hw / 2;
   const deckOff = (p.deckOffset || 0) * sc;
