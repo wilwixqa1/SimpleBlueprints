@@ -446,7 +446,7 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
             els.push(<text key="rotDir" x={rHx} y={rHy - hr - 2} textAnchor="middle" style={{ fontSize: 4.5, fill: "#666", fontFamily: "monospace", fontWeight: 600, pointerEvents: "none" }}>{dirLabels[curAngle] || ""}</text>);
           }
         }
-        return <g key={"stair_"+stairDef.id} ref={stIdx === 0 ? stairGroupRef : null}>{els}</g>;
+        return <g key={"stair_"+stairDef.id} ref={stIdx === 0 ? stairGroupRef : null} style={stIdx > 0 ? { pointerEvents: "none" } : undefined}>{els}</g>;
       })}
 
 // {/*   Dimension lines   */}
