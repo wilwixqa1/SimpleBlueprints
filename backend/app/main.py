@@ -13,6 +13,7 @@ import io
 import zipfile
 import urllib.request
 import urllib.error
+import urllib.parse
 from pathlib import Path
 from typing import Optional
 
@@ -1617,6 +1618,171 @@ async def api_delete_project(project_id: int, request: Request):
     if not deleted:
         raise HTTPException(status_code=404, detail="Project not found")
     return {"ok": True}
+
+
+# ============================================================
+# PARCEL LOOKUP (S63)
+# ============================================================
+
+import math as _math
+
+def _regrid_lookup(address: str, state: str, city: str = "", zip_code: str = ""):
+    """Call Regrid API v1 address search, return parsed parcel data."""
+    token = os.environ.get("REGRID_API_TOKEN", "")
+    if not token:
+        return {"error": "Parcel lookup not configured"}
+
+    # Build query string
+    query_parts = [address]
+    if city:
+        query_parts.append(city)
+    if state:
+        query_parts.append(state)
+    if zip_code:
+        query_parts.append(zip_code)
+    query = ", ".join(query_parts)
+
+    url = f"https://app.regrid.com/api/v1/search.json?query={urllib.parse.quote(query)}&token={token}&limit=1&return_custom=false"
+
+    try:
+        req = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": "SimpleBlueprints/1.0"})
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read().decode())
+    except Exception as e:
+        return {"error": f"Regrid API error: {str(e)}"}
+
+    # Extract first result
+    features = data.get("results", data.get("parcels", {}).get("features", []))
+    if not features:
+        return {"error": "No parcel found for this address"}
+
+    feature = features[0]
+    geom = feature.get("geometry", {})
+    props = feature.get("properties", {})
+    fields = props.get("fields", props)
+
+    # Extract polygon coordinates (GeoJSON is [lng, lat])
+    coords_raw = []
+    if geom.get("type") == "Polygon":
+        coords_raw = geom["coordinates"][0]
+    elif geom.get("type") == "MultiPolygon":
+        # Use largest polygon
+        largest = max(geom["coordinates"], key=lambda p: len(p[0]))
+        coords_raw = largest[0]
+
+    if not coords_raw or len(coords_raw) < 3:
+        return {"error": "No polygon geometry found"}
+
+    # Convert lat/lng to local feet coordinates
+    # Origin at SW corner (min lng, min lat)
+    lats = [c[1] for c in coords_raw]
+    lngs = [c[0] for c in coords_raw]
+    min_lat, min_lng = min(lats), min(lngs)
+
+    # Conversion factors at this latitude
+    ft_per_deg_lat = 364000.0  # approximate
+    ft_per_deg_lng = 364000.0 * _math.cos(_math.radians(min_lat))
+
+    vertices_ft = []
+    for lng, lat in coords_raw:
+        x = (lng - min_lng) * ft_per_deg_lng
+        y = (lat - min_lat) * ft_per_deg_lat
+        vertices_ft.append([round(x, 1), round(y, 1)])
+
+    # Remove closing vertex if same as first (GeoJSON convention)
+    if len(vertices_ft) > 1 and vertices_ft[0] == vertices_ft[-1]:
+        vertices_ft = vertices_ft[:-1]
+
+    # Compute bounding box for lot dims
+    xs = [v[0] for v in vertices_ft]
+    ys = [v[1] for v in vertices_ft]
+    lot_width = round(max(xs) - min(xs), 1)
+    lot_depth = round(max(ys) - min(ys), 1)
+
+    # Extract building info
+    bldg_sqft = None
+    for key in ["ll_bldg_footprint_sqft", "area_building", "recrdareano"]:
+        val = fields.get(key)
+        if val and str(val).strip():
+            try:
+                bldg_sqft = float(val)
+                break
+            except (ValueError, TypeError):
+                pass
+
+    # Estimate house dimensions from building sqft
+    house_width = None
+    house_depth = None
+    if bldg_sqft and bldg_sqft > 0:
+        # If building area > 40% of lot, assume 2-story
+        lot_area = lot_width * lot_depth
+        footprint = bldg_sqft
+        if lot_area > 0 and bldg_sqft > lot_area * 0.4:
+            footprint = bldg_sqft / 2.0
+        # Assume ~1.3:1 aspect ratio (wider than deep)
+        house_depth = round(_math.sqrt(footprint / 1.3), 1)
+        house_width = round(house_depth * 1.3, 1)
+
+    # Extract other useful fields
+    result = {
+        "ok": True,
+        "lot": {
+            "vertices": vertices_ft,
+            "width": lot_width,
+            "depth": lot_depth,
+            "area_sqft": float(fields.get("ll_gissqft") or fields.get("sqft") or 0) or round(lot_width * lot_depth, 0),
+            "acres": float(fields.get("ll_gisacre") or fields.get("gisacre") or fields.get("deeded_acres") or 0),
+        },
+        "building": {
+            "sqft": bldg_sqft,
+            "footprint_sqft": float(fields.get("ll_bldg_footprint_sqft") or 0) or None,
+            "estimated_width": house_width,
+            "estimated_depth": house_depth,
+            "year_built": fields.get("year_built") or None,
+            "bldg_count": int(fields.get("ll_bldg_count") or 0) or None,
+        },
+        "location": {
+            "lat": float(fields.get("lat") or min_lat),
+            "lng": float(fields.get("lon") or min_lng),
+            "address": fields.get("address") or query,
+            "city": fields.get("scity") or city,
+            "state": fields.get("state2") or state,
+            "zip": fields.get("szip") or zip_code,
+            "county": fields.get("county") or "",
+        },
+        "parcel": {
+            "id": fields.get("parcelnumb") or "",
+            "zoning": fields.get("zoning") or fields.get("zoning_id") or "",
+            "owner": fields.get("owner") or "",
+        },
+        "raw_coords": coords_raw,  # original lat/lng for vicinity map later
+    }
+    return result
+
+
+@app.post("/api/parcel-lookup")
+async def parcel_lookup(request: Request):
+    """Look up parcel data by address using Regrid API."""
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+
+    address = body.get("address", "").strip()
+    state = body.get("state", "").strip()
+    city = body.get("city", "").strip()
+    zip_code = body.get("zip", "").strip()
+
+    if not address:
+        raise HTTPException(status_code=400, detail="Address is required")
+    if not state:
+        raise HTTPException(status_code=400, detail="State is required")
+
+    result = _regrid_lookup(address, state, city, zip_code)
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
+
+    return JSONResponse(result)
 
 
 # ============================================================
