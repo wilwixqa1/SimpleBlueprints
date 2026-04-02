@@ -1626,154 +1626,186 @@ async def api_delete_project(project_id: int, request: Request):
 
 import math as _math
 
-def _regrid_lookup(address: str, state: str, city: str = "", zip_code: str = ""):
-    """Call Regrid API v1 address search, return parsed parcel data."""
-    token = os.environ.get("REGRID_API_TOKEN", "")
-    if not token:
-        return {"error": "Parcel lookup not configured"}
-
-    # Build query string
-    query_parts = [address]
-    if city:
-        query_parts.append(city)
-    if state:
-        query_parts.append(state)
-    if zip_code:
-        query_parts.append(zip_code)
-    query = ", ".join(query_parts)
-
-    url = f"https://app.regrid.com/api/v1/search.json?query={urllib.parse.quote(query)}&token={token}&limit=1&return_custom=false"
-
-    try:
-        req = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": "SimpleBlueprints/1.0"})
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            raw = resp.read().decode()
-            data = json.loads(raw)
-    except urllib.error.HTTPError as e:
-        body = e.read().decode() if e.readable() else ""
-        return {"error": f"Regrid API HTTP {e.code}: {body[:500]}", "url_used": url.replace(token, "***")}
-    except Exception as e:
-        return {"error": f"Regrid API error: {str(e)}", "url_used": url.replace(token, "***")}
-
-    # v1 returns "results", v2 returns "parcels.features"
-    features = data.get("results", [])
-    if not features:
-        parcels = data.get("parcels", {})
-        if isinstance(parcels, dict):
-            features = parcels.get("features", [])
-
-    if not features:
-        # Return debug info so we can see what Regrid sent back
-        keys = list(data.keys()) if isinstance(data, dict) else str(type(data))
-        return {"error": "No parcel found for this address", "debug_keys": keys, "debug_snippet": str(raw)[:1000], "query_used": query}
-
-    feature = features[0]
-    geom = feature.get("geometry", {})
-    props = feature.get("properties", {})
-    fields = props.get("fields", props)
-
-    # Extract polygon coordinates (GeoJSON is [lng, lat])
-    coords_raw = []
-    if geom.get("type") == "Polygon":
-        coords_raw = geom["coordinates"][0]
-    elif geom.get("type") == "MultiPolygon":
-        # Use largest polygon
-        largest = max(geom["coordinates"], key=lambda p: len(p[0]))
-        coords_raw = largest[0]
-
+def _coords_to_feet(coords_raw):
+    """Convert GeoJSON lat/lng polygon to local feet coordinates (SW corner origin)."""
     if not coords_raw or len(coords_raw) < 3:
-        return {"error": "No polygon geometry found"}
-
-    # Convert lat/lng to local feet coordinates
-    # Origin at SW corner (min lng, min lat)
+        return None, None, None
     lats = [c[1] for c in coords_raw]
     lngs = [c[0] for c in coords_raw]
     min_lat, min_lng = min(lats), min(lngs)
-
-    # Conversion factors at this latitude
-    ft_per_deg_lat = 364000.0  # approximate
+    ft_per_deg_lat = 364000.0
     ft_per_deg_lng = 364000.0 * _math.cos(_math.radians(min_lat))
-
     vertices_ft = []
     for lng, lat in coords_raw:
         x = (lng - min_lng) * ft_per_deg_lng
         y = (lat - min_lat) * ft_per_deg_lat
         vertices_ft.append([round(x, 1), round(y, 1)])
-
-    # Remove closing vertex if same as first (GeoJSON convention)
     if len(vertices_ft) > 1 and vertices_ft[0] == vertices_ft[-1]:
         vertices_ft = vertices_ft[:-1]
+    return vertices_ft, min_lat, min_lng
 
-    # Compute bounding box for lot dims
+
+def _estimate_house_dims(bldg_sqft, lot_width, lot_depth):
+    """Estimate house width/depth from building sqft."""
+    if not bldg_sqft or bldg_sqft <= 0:
+        return None, None
+    lot_area = lot_width * lot_depth
+    footprint = bldg_sqft
+    if lot_area > 0 and bldg_sqft > lot_area * 0.4:
+        footprint = bldg_sqft / 2.0
+    house_depth = round(_math.sqrt(footprint / 1.3), 1)
+    house_width = round(house_depth * 1.3, 1)
+    return house_width, house_depth
+
+
+def _realie_lookup(address: str, state: str, city: str = "", zip_code: str = ""):
+    """Call Realie API address lookup, return parsed parcel data."""
+    api_key = os.environ.get("REALIE_API_KEY", "")
+    if not api_key:
+        return {"error": "Parcel lookup not configured (REALIE_API_KEY missing)"}
+
+    params = {"state": state, "address": address}
+    if city:
+        params["city"] = city
+    qs = urllib.parse.urlencode(params)
+    url = f"https://app.realie.ai/api/public/property/address/?{qs}"
+
+    try:
+        req = urllib.request.Request(url, headers={
+            "Authorization": api_key,
+            "Accept": "application/json",
+            "User-Agent": "SimpleBlueprints/1.0"
+        })
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            raw = resp.read().decode()
+            data = json.loads(raw)
+    except urllib.error.HTTPError as e:
+        body = ""
+        try:
+            body = e.read().decode()
+        except Exception:
+            pass
+        return {"error": f"Realie API HTTP {e.code}: {body[:500]}"}
+    except Exception as e:
+        return {"error": f"Realie API error: {str(e)}"}
+
+    prop = data.get("property", {})
+    if not prop:
+        keys = list(data.keys()) if isinstance(data, dict) else str(type(data))
+        return {"error": "No parcel found for this address", "debug_keys": keys, "debug_snippet": str(raw)[:1000]}
+
+    # Extract geometry
+    geom = prop.get("geometry", {})
+    coords_raw = []
+    if geom.get("type") == "Polygon":
+        coords_raw = geom.get("coordinates", [[]])[0]
+    elif geom.get("type") == "MultiPolygon":
+        polys = geom.get("coordinates", [])
+        if polys:
+            largest = max(polys, key=lambda p: len(p[0]) if p else 0)
+            coords_raw = largest[0] if largest else []
+
+    vertices_ft, min_lat, min_lng = _coords_to_feet(coords_raw)
+    if not vertices_ft:
+        return {"error": "No polygon geometry found in parcel data", "debug_snippet": str(raw)[:1000]}
+
     xs = [v[0] for v in vertices_ft]
     ys = [v[1] for v in vertices_ft]
     lot_width = round(max(xs) - min(xs), 1)
     lot_depth = round(max(ys) - min(ys), 1)
 
-    # Extract building info
+    # Realie may provide lot dims directly
+    realie_frontage = prop.get("frontage")
+    realie_depth = prop.get("depthSize")
+    if realie_frontage:
+        try:
+            v = float(realie_frontage)
+            if v > 0:
+                lot_width = v
+        except (ValueError, TypeError):
+            pass
+    if realie_depth:
+        try:
+            v = float(realie_depth)
+            if v > 0:
+                lot_depth = v
+        except (ValueError, TypeError):
+            pass
+
+    # Building info
     bldg_sqft = None
-    for key in ["ll_bldg_footprint_sqft", "area_building", "recrdareano"]:
-        val = fields.get(key)
-        if val and str(val).strip():
+    for key in ["buildingArea", "livingArea", "totalArea"]:
+        val = prop.get(key)
+        if val:
             try:
-                bldg_sqft = float(val)
-                break
+                v = float(val)
+                if v > 0:
+                    bldg_sqft = v
+                    break
             except (ValueError, TypeError):
                 pass
 
-    # Estimate house dimensions from building sqft
-    house_width = None
-    house_depth = None
-    if bldg_sqft and bldg_sqft > 0:
-        # If building area > 40% of lot, assume 2-story
-        lot_area = lot_width * lot_depth
-        footprint = bldg_sqft
-        if lot_area > 0 and bldg_sqft > lot_area * 0.4:
-            footprint = bldg_sqft / 2.0
-        # Assume ~1.3:1 aspect ratio (wider than deep)
-        house_depth = round(_math.sqrt(footprint / 1.3), 1)
-        house_width = round(house_depth * 1.3, 1)
+    house_width, house_depth = _estimate_house_dims(bldg_sqft, lot_width, lot_depth)
 
-    # Extract other useful fields
+    lot_area_sqft = 0
+    for key in ["landArea", "lotSize"]:
+        val = prop.get(key)
+        if val:
+            try:
+                v = float(val)
+                if v > 0:
+                    lot_area_sqft = v
+                    break
+            except (ValueError, TypeError):
+                pass
+    if not lot_area_sqft:
+        lot_area_sqft = round(lot_width * lot_depth, 0)
+
+    acres = 0
+    try:
+        acres = float(prop.get("acres") or 0)
+    except (ValueError, TypeError):
+        pass
+    if not acres:
+        acres = lot_area_sqft / 43560.0
+
     result = {
         "ok": True,
         "lot": {
             "vertices": vertices_ft,
             "width": lot_width,
             "depth": lot_depth,
-            "area_sqft": float(fields.get("ll_gissqft") or fields.get("sqft") or 0) or round(lot_width * lot_depth, 0),
-            "acres": float(fields.get("ll_gisacre") or fields.get("gisacre") or fields.get("deeded_acres") or 0),
+            "area_sqft": lot_area_sqft,
+            "acres": round(acres, 3),
         },
         "building": {
             "sqft": bldg_sqft,
-            "footprint_sqft": float(fields.get("ll_bldg_footprint_sqft") or 0) or None,
             "estimated_width": house_width,
             "estimated_depth": house_depth,
-            "year_built": fields.get("year_built") or None,
-            "bldg_count": int(fields.get("ll_bldg_count") or 0) or None,
+            "year_built": prop.get("yearBuilt") or None,
         },
         "location": {
-            "lat": float(fields.get("lat") or min_lat),
-            "lng": float(fields.get("lon") or min_lng),
-            "address": fields.get("address") or query,
-            "city": fields.get("scity") or city,
-            "state": fields.get("state2") or state,
-            "zip": fields.get("szip") or zip_code,
-            "county": fields.get("county") or "",
+            "lat": float(prop.get("latitude") or min_lat or 0),
+            "lng": float(prop.get("longitude") or min_lng or 0),
+            "address": prop.get("fullAddress") or prop.get("address") or address,
+            "city": prop.get("city") or city,
+            "state": prop.get("state") or state,
+            "zip": prop.get("zip") or zip_code,
+            "county": prop.get("county") or "",
         },
         "parcel": {
-            "id": fields.get("parcelnumb") or "",
-            "zoning": fields.get("zoning") or fields.get("zoning_id") or "",
-            "owner": fields.get("owner") or "",
+            "id": prop.get("parcelId") or prop.get("apn") or "",
+            "zoning": prop.get("zoningCode") or "",
+            "owner": prop.get("ownerName") or "",
         },
-        "raw_coords": coords_raw,  # original lat/lng for vicinity map later
+        "raw_coords": coords_raw,
     }
     return result
 
 
 @app.post("/api/parcel-lookup")
 async def parcel_lookup(request: Request):
-    """Look up parcel data by address using Regrid API."""
+    """Look up parcel data by address using Realie API."""
     try:
         body = await request.json()
     except Exception:
@@ -1789,10 +1821,9 @@ async def parcel_lookup(request: Request):
     if not state:
         raise HTTPException(status_code=400, detail="State is required")
 
-    result = _regrid_lookup(address, state, city, zip_code)
+    result = _realie_lookup(address, state, city, zip_code)
     if "error" in result:
-        # During development, return debug info as 200 so we can see it
-        return JSONResponse(result)
+        return JSONResponse(result, status_code=404 if "No parcel" in result.get("error", "") else 200)
 
     return JSONResponse(result)
 
