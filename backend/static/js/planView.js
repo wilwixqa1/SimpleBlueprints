@@ -118,6 +118,28 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
     window.addEventListener("pointerup", onUp);
   };
 
+  // S64: Per-stair rotation -- smooth, snaps to front/left/right like North dial
+  const onStairRotate = (e, stairDef, centerX, centerY) => {
+    e.preventDefault(); e.stopPropagation();
+    if (!updateStair) return;
+    var lastLoc = stairDef.location || "front";
+    var onMove = function(ev) {
+      var svgPt = clientToSvg(ev.clientX, ev.clientY);
+      if (!svgPt) return;
+      var angle = Math.atan2(svgPt.y - centerY, svgPt.x - centerX) * 180 / Math.PI;
+      var loc;
+      if (angle >= 45 && angle < 135) loc = "front";
+      else if (angle >= -45 && angle < 45) loc = "right";
+      else if (angle >= -135 && angle < -45) loc = "back";
+      else loc = "left";
+      if (loc === "back") loc = angle >= -90 ? "right" : "left";
+      if (loc !== lastLoc) { lastLoc = loc; updateStair(stairDef.id, "location", loc); }
+    };
+    var onUp = function() { window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp); };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
+
 // SVG coordinate helpers for zones
   function zx(fx) { return dx + fx * sc; }
   function zy(fy) { return pad + fy * sc; }
@@ -384,6 +406,16 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
           if (_isSel) {
             var _lbl = { front: "Front", left: "Left", right: "Right" }[stairDef.location] || "";
             els.push(<text key="selLbl" x={_bbR.x + _bbR.w / 2} y={_bbR.y - 4} textAnchor="middle" style={{ fontSize: 5, fill: "#3d5a2e", fontFamily: "monospace", fontWeight: 700, pointerEvents: "none" }}>{"Stair " + stairDef.id + " \u00B7 " + _lbl}</text>);
+            // Rotation handle
+            var _rcx = _bbR.x + _bbR.w / 2, _rcy = _bbR.y + _bbR.h / 2;
+            var _rhy = _bbR.y - 14, _hr = 6;
+            els.push(<line key="rotStem" x1={_rcx} y1={_bbR.y - 1} x2={_rcx} y2={_rhy + _hr} stroke="#bbb" strokeWidth="0.7" style={{ pointerEvents: "none" }} />);
+            els.push(<g key="rotHandle" style={{ cursor: "grab" }}
+              onPointerDown={function(ev) { ev.stopPropagation(); onStairRotate(ev, stairDef, _rcx, _rcy); }}>
+              <circle cx={_rcx} cy={_rhy} r={_hr} fill="white" stroke="#3d5a2e" strokeWidth="1.5" />
+              <path d={"M " + (_rcx - 2.5) + " " + (_rhy + 1) + " A 3 3 0 1 1 " + (_rcx + 1) + " " + (_rhy - 2.5)} fill="none" stroke="#3d5a2e" strokeWidth="1.3" strokeLinecap="round" />
+              <polygon points={(_rcx + 1) + "," + (_rhy - 4.5) + " " + (_rcx + 2.8) + "," + (_rhy - 1.8) + " " + (_rcx - 0.8) + "," + (_rhy - 1.8)} fill="#3d5a2e" />
+            </g>);
           }
         }
         return <g key={"stair_"+stairDef.id}>{els}</g>;
