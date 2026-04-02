@@ -1008,8 +1008,10 @@ function StepContent(props) {
   }
 
   // S49: AI Guide state
-  // null = choice screen not yet shown, true = guided, false = manual
-  const [guideActive, setGuideActive] = _stUS(null);
+  // S63: Default to guided mode (was null=choice screen). Users go straight
+  // to "How should we get your property info?" with AI helper visible.
+  // Manual mode still accessible via "Switch to manual" link.
+  const [guideActive, setGuideActive] = _stUS(true);
 
   // S60: Permit readiness check state
   const [permitCheck, setPermitCheck] = _stUS(null);
@@ -3263,7 +3265,7 @@ function StepContent(props) {
       {/* === LOT COVERAGE (always visible) === */}
       <div style={{ padding: 10, background: _br.wr, borderRadius: 8, border: "1px solid " + _br.bd }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontSize: 9, color: _br.mu, fontFamily: _mono }}>Lot Coverage (house + deck)</span>
+          <span style={{ fontSize: 9, color: _br.mu, fontFamily: _mono }}>Lot Coverage (house + deck) <span title="Lot coverage is the percentage of your total lot area that is covered by structures (house, deck, garage, etc.). Most zoning codes limit this to 30-50% to ensure adequate open space, drainage, and setback compliance. Check with your local building department for your specific limit." style={{ cursor: "help", display: "inline-block", width: 13, height: 13, lineHeight: "13px", textAlign: "center", borderRadius: "50%", background: _br.bd, color: _br.mu, fontSize: 8, fontWeight: 700 }}>?</span></span>
           <span style={{ fontSize: 11, fontWeight: 700, color: parseFloat(coveragePct) > 45 ? "#e65100" : _br.gn, fontFamily: _mono }}>{coveragePct}%</span>
         </div>
         <div style={{ height: 4, background: "#e0e0e0", borderRadius: 2, marginTop: 6 }}>
