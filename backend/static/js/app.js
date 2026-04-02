@@ -589,6 +589,19 @@ const App = function SimpleBlueprints() {
     }
     // S64: Sync flat stair params when deckStairs changes
     if (k === "deckStairs") { _syncFlatStairParams(next); }
+    // S64: Reverse sync -- flat stair params -> first zone-0 stair in deckStairs
+    var _stairFieldMap = { stairAnchorX: "anchorX", stairAnchorY: "anchorY", stairAngle: "angle",
+      stairLocation: "location", stairOffset: "offset", stairWidth: "width",
+      stairTemplate: "template", numStringers: "numStringers",
+      stairRunSplit: "runSplit", stairLandingDepth: "landingDepth", stairGap: "stairGap" };
+    if (_stairFieldMap[k] && next.deckStairs && next.deckStairs.length > 0) {
+      var _sf = _stairFieldMap[k], _found = false;
+      next.deckStairs = next.deckStairs.map(function(s) {
+        if (_found || s.zoneId !== 0) return s;
+        _found = true;
+        return Object.assign({}, s, { [_sf]: next[k] });
+      });
+    }
     return next;
   });
 
