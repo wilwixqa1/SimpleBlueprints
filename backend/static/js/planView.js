@@ -44,7 +44,6 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
   const svgRef = _pvUR(null);
   const [selectedStairId, setSelectedStairId] = _pvUS(null);
   const [hoverBtn, setHoverBtn] = _pvUS(null);
-  const stairDragRef = _pvUR(null);
 
 // Existing drag handlers (unchanged)
   // S33: unified drag coordinate conversion (getScreenCTM pattern)
@@ -94,51 +93,49 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
     window.addEventListener("pointerup", onUp);
   };
 
-  // S64: Per-stair drag -- free-form, snaps to nearest edge of owning zone
+  // S64: Per-stair drag -- stair follows cursor directly in zone-local coords
+  // On release: snaps to nearest edge if close, otherwise stays at manual position
   const onStairDrag = (e, stairDef, zoneRect) => {
     e.preventDefault(); e.stopPropagation();
     setSelectedStairId(stairDef.id);
-    var startFt = clientToFt(e.clientX, e.clientY);
-    if (!startFt || !updateStairFields) return;
-    // Current anchor in zone-local coords
-    var curPl = window.getStairPlacementForZone(stairDef, zoneRect);
-    stairDragRef.current = { stairId: stairDef.id, startFtX: startFt.x, startFtY: startFt.y,
-      startAnchorX: curPl.anchorX, startAnchorY: curPl.anchorY, zoneRect: zoneRect };
+    if (!updateStairFields) return;
+    var zrx = zoneRect.x, zry = zoneRect.y, zrw = zoneRect.w, zrd = zoneRect.d;
+    var stW = stairDef.width || 4;
+    var curAngle = stairDef.angle != null ? stairDef.angle
+      : (stairDef.location === "right" ? 90 : stairDef.location === "left" ? 270 : 0);
+
     var onMove = function(ev) {
-      if (!stairDragRef.current) return;
-      var nowFt = clientToFt(ev.clientX, ev.clientY);
-      if (!nowFt) return;
-      var dr = stairDragRef.current;
-      var newAX = dr.startAnchorX + (nowFt.x - dr.startFtX);
-      var newAY = dr.startAnchorY + (nowFt.y - dr.startFtY);
-      // Clamp to zone bounds
-      newAX = Math.max(-0.5, Math.min(dr.zoneRect.w + 0.5, newAX));
-      newAY = Math.max(-0.5, Math.min(dr.zoneRect.d + 0.5, newAY));
-      // Snap to nearest edge
-      var snap = window.snapStairToEdge(newAX, newAY, dr.zoneRect.w, dr.zoneRect.d, 1.5);
+      var ft = clientToFt(ev.clientX, ev.clientY);
+      if (!ft) return;
+      var lx = Math.round(Math.max(0, Math.min(zrw, ft.x - zrx)) * 2) / 2;
+      var ly = Math.round(Math.max(0, Math.min(zrd, ft.y - zry)) * 2) / 2;
+      updateStairFields(stairDef.id, { anchorX: lx, anchorY: ly, angle: curAngle });
+    };
+
+    var onUp = function(ev) {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      var ft = clientToFt(ev.clientX, ev.clientY);
+      if (!ft) return;
+      var lx = Math.max(0, Math.min(zrw, ft.x - zrx));
+      var ly = Math.max(0, Math.min(zrd, ft.y - zry));
+      var snap = window.snapStairToEdge(lx, ly, zrw, zrd, 1.5);
       if (snap.snapped && snap.edge !== "back") {
         var loc = snap.edge;
-        var edgeLen = loc === "front" ? dr.zoneRect.w : dr.zoneRect.d;
-        var anchorAlongEdge = loc === "front" ? snap.anchorX : snap.anchorY;
-        var offset = Math.round(anchorAlongEdge - edgeLen / 2);
-        var maxOff = Math.floor((edgeLen - (stairDef.width || 4)) / 2);
+        var edgeLen = loc === "front" ? zrw : zrd;
+        var anchorAlong = loc === "front" ? snap.anchorX : snap.anchorY;
+        var offset = Math.round(anchorAlong - edgeLen / 2);
+        var maxOff = Math.floor((edgeLen - stW) / 2);
         offset = Math.max(-maxOff, Math.min(maxOff, offset));
-        if (updateStairFields) updateStairFields(dr.stairId, { location: loc, offset: offset });
-      } else {
-        // Free positioning -- set manual anchor (keeps current direction)
-        if (updateStairFields) updateStairFields(dr.stairId, {
-          anchorX: Math.round(newAX * 2) / 2,
-          anchorY: Math.round(newAY * 2) / 2,
-          angle: stairDef.angle != null ? stairDef.angle : (stairDef.location === "right" ? 90 : stairDef.location === "left" ? 270 : 0)
-        });
+        updateStairFields(stairDef.id, { location: loc, offset: offset });
       }
     };
-    var onUp = function() { stairDragRef.current = null; window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp); };
+
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
   };
 
-  // S64: Per-stair rotation -- smooth, snaps to front/left/right like North dial
+  // S64: Per-stair rotation -- smooth, computes direction from mouse angle
   const onStairRotate = (e, stairDef, centerX, centerY) => {
     e.preventDefault(); e.stopPropagation();
     if (!updateStair) return;
