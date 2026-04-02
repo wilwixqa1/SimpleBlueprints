@@ -1665,8 +1665,8 @@ def _realie_lookup(address: str, state: str, city: str = "", zip_code: str = "")
         return {"error": "Parcel lookup not configured (REALIE_API_KEY missing)"}
 
     params = {"state": state, "address": address}
-    if city:
-        params["city"] = city
+    # Note: Realie requires county when city is provided, so we omit city
+    # and let Realie resolve from address + state alone
     qs = urllib.parse.urlencode(params)
     url = f"https://app.realie.ai/api/public/property/address/?{qs}"
 
