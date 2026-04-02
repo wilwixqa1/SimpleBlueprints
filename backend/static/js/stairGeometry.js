@@ -141,7 +141,27 @@ function snapStairToEdge(ax, ay, W, D, threshold) {
   return { anchorX: ax, anchorY: ay, angle: null, snapped: false, edge: null };
 }
 
+// ============================================================
+// STAIR PLACEMENT -- zone-aware (S64)
+// stair = { location, offset, anchorX, anchorY, angle, width, ... }
+// zoneRect = { x, y, w, d } from getZoneRect
+// Returns { anchorX, anchorY, angle } in ZONE-LOCAL coords
+// ============================================================
+function getStairPlacementForZone(stair, zoneRect) {
+  if (stair.anchorX != null && stair.anchorY != null && stair.angle != null) {
+    return { anchorX: stair.anchorX, anchorY: stair.anchorY, angle: stair.angle };
+  }
+  var W = zoneRect.w, D = zoneRect.d;
+  var off = stair.offset || 0;
+  var loc = stair.location || "front";
+  if (loc === "front") return { anchorX: W / 2 + off, anchorY: D, angle: 0 };
+  if (loc === "right") return { anchorX: W, anchorY: D / 2 + off, angle: 90 };
+  if (loc === "left")  return { anchorX: 0, anchorY: D / 2 + off, angle: 270 };
+  return { anchorX: W / 2, anchorY: D, angle: 0 };
+}
+
 // Export to window
 window.computeStairGeometry = computeStairGeometry;
 window.getStairPlacement = getStairPlacement;
+window.getStairPlacementForZone = getStairPlacementForZone;
 window.snapStairToEdge = snapStairToEdge;

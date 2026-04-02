@@ -899,6 +899,7 @@ function StepContent(props) {
     isProduction, feedbackDone, setFeedbackDone, feedback, setFeedback, submitFeedback,
     genStatus, genError, generateBlueprint, user, API, materialsUrl,
     zoneMode, setZoneMode, addZone, addCutout, removeZone, updateZone, setCorner, getCorners, pForZones, zc,
+    addStair, removeStair, updateStair, getStairsForZone,
     traceMode, setTraceMode, traceState, setTraceState, sitePlanB64,
     compareMode, setCompareMode } = props;
 
@@ -1822,48 +1823,64 @@ function StepContent(props) {
       </div>
     </div>}
 
-// {/*   Zone 0 only: house width, attachment, stairs   */}
+// {/*   Zone 0 only: house width, attachment   */}
     {isZone0 && <>
       <Slider label="House width" value={p.houseWidth} min={20} max={80} field="houseWidth" u={u} p={p} />
       <div data-section="attachment">
       <Chips label="Attachment" field="attachment" opts={[["ledger", "Ledger Board"], ["freestanding", "Freestanding"]]} u={u} p={p} />
       </div>
-      <div data-section="stairs">
-      <Chips label="Stairs" field="hasStairs" opts={[[true, "Yes"], [false, "No"]]} u={u} p={p} />
-      {p.hasStairs && <>
-        <Chips label="Stair location" field="stairLocation" opts={[["front", "Front"], ["left", "Left"], ["right", "Right"]]} u={u} p={p} />
-        <Slider label="Stair width" value={p.stairWidth} min={3} max={p.width} step={0.5} fmt={fmtFtIn} field="stairWidth" u={u} p={p} />
-        <Slider label="Number of stringers" value={p.numStringers} min={2} max={5} field="numStringers" unit="" u={u} p={p} />
-        <Chips label="Landing pad" field="hasLanding" opts={[[true, "Yes"], [false, "No"]]} u={u} p={p} />
-      {p.hasStairs && <>
-        <div data-section="stairTemplate" style={{ marginBottom: 16 }}>
-          <Label>Stair Template</Label>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 5 }}>
-            {[
-              ["straight", "Straight", "\u2193"],
-              ["lLeft", "L-Left", "\u2193\u2190"],
-              ["lRight", "L-Right", "\u2193\u2192"],
-              ["switchback", "U-Turn", "\u2193\u2191"],
-              ["wrapAround", "Wrap", "\u2193\u2190\u2191"],
-              ["wideLanding", "Platform", "\u2193\u25A0\u2193"],
-            ].map(([key, name, icon]) => (
-              <button key={key} onClick={() => u("stairTemplate", key)} style={{
-                padding: "10px 4px", borderRadius: 6, cursor: "pointer", textAlign: "center",
-                border: p.stairTemplate === key ? "2px solid " + _br.gn : "1px solid " + _br.bd,
-                background: p.stairTemplate === key ? "#edf5e8" : "#fff",
-                fontFamily: _mono, transition: "all 0.15s",
-              }}>
-                <div style={{ marginBottom: 2 }}>{stairIcon(key)}</div>
-                <div style={{ fontSize: 9, fontWeight: 700, color: p.stairTemplate === key ? _br.gn : _br.tx }}>{name}</div>
-              </button>
-            ))}
-          </div>
-        </div>
-      </>}
+    </>}
 
-      </>}
+// {/*   S64: Per-zone stairs (all zones)   */}
+    {(() => {
+      var azId = p.activeZone || 0;
+      var zoneStairs = (p.deckStairs || []).filter(function(s) { return s.zoneId === azId; });
+      var azRect = window.getZoneRect ? window.getZoneRect(azId, pForZones) : null;
+      if (!azRect && azId === 0) azRect = { x: 0, y: 0, w: p.width, d: p.depth };
+      var zW = azRect ? azRect.w : p.width;
+      var zD = azRect ? azRect.d : p.depth;
 
-      </div>{/* close data-section="stairs" */}
+      return <div data-section="stairs" style={{ marginBottom: 16 }}>
+        <Label>Stairs</Label>
+        {zoneStairs.length === 0 && <div style={{ fontSize: 11, color: _br.mu, fontFamily: _mono, marginBottom: 8 }}>No stairs on this zone</div>}
+        {zoneStairs.map(function(st) {
+          var stU = function(f, v) { updateStair(st.id, f, v); };
+          var maxW = st.location === "front" ? zW : zD;
+          return <div key={st.id} style={{ padding: 12, marginBottom: 8, background: _br.wr, borderRadius: 8, border: "1px solid " + _br.bd }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, fontFamily: _mono, color: _br.tx }}>Stair {st.id}</span>
+              <button onClick={function() { removeStair(st.id); }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 14, color: "#c62828", fontWeight: 700, lineHeight: 1 }}>{"\u00D7"}</button>
+            </div>
+            <Chips label="Location" field="location" opts={[["front", "Front"], ["left", "Left"], ["right", "Right"]]} u={stU} p={st} />
+            <Slider label="Width" value={st.width} min={3} max={maxW} step={0.5} fmt={fmtFtIn} field="width" u={stU} p={st} />
+            <Slider label="Stringers" value={st.numStringers} min={2} max={5} field="numStringers" unit="" u={stU} p={st} />
+            <div style={{ marginBottom: 8 }}>
+              <Label>Template</Label>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 4 }}>
+                {[["straight","Straight"],["lLeft","L-Left"],["lRight","L-Right"],["switchback","U-Turn"],["wrapAround","Wrap"],["wideLanding","Platform"]].map(function(arr) {
+                  var key = arr[0], name = arr[1];
+                  return <button key={key} onClick={function() { stU("template", key); }} style={{
+                    padding: "6px 2px", borderRadius: 5, cursor: "pointer", textAlign: "center", fontSize: 9, fontFamily: _mono,
+                    border: st.template === key ? "2px solid " + _br.gn : "1px solid " + _br.bd,
+                    background: st.template === key ? "#edf5e8" : "#fff",
+                    color: st.template === key ? _br.gn : _br.tx, fontWeight: st.template === key ? 700 : 400
+                  }}>{stairIcon(key)}<div style={{ marginTop: 1 }}>{name}</div></button>;
+                })}
+              </div>
+            </div>
+            {["lLeft","lRight","switchback","wrapAround","wideLanding"].includes(st.template) && <>
+              <Slider label="Run Split" value={st.runSplit != null ? st.runSplit : 55} min={30} max={70} step={5} field="runSplit" unit="%" u={stU} p={st} />
+              <Slider label="Landing Depth" value={st.landingDepth != null ? st.landingDepth : Math.max(st.width || 4, 4)} min={3} max={8} step={0.5} field="landingDepth" fmt={fmtFtIn} u={stU} p={st} />
+            </>}
+            {["switchback","wrapAround"].includes(st.template) &&
+              <Slider label="Gap Between Runs" value={st.stairGap != null ? st.stairGap : 0.5} min={0} max={2} step={0.5} field="stairGap" fmt={fmtFtIn} u={stU} p={st} />
+            }
+            <Slider label="Offset from center" value={st.offset || 0} min={-Math.floor(((st.location === "front" ? zW : zD) - (st.width || 4)) / 2)} max={Math.floor(((st.location === "front" ? zW : zD) - (st.width || 4)) / 2)} field="offset" u={stU} p={st} />
+          </div>;
+        })}
+        <button onClick={function() { addStair(azId); }} style={{ width: "100%", padding: "8px 14px", background: "none", border: "1px dashed " + _br.gn, borderRadius: 6, cursor: "pointer", fontSize: 11, fontFamily: _mono, color: _br.gn, fontWeight: 600 }}>+ Add Stairs</button>
+      </div>;
+    })()}
 
       <div data-section="advanced">
       <button onClick={() => setShowAdvanced(!showAdvanced)} style={{ width: "100%", padding: "8px 14px", marginBottom: 12, background: "none", border: `1px solid ${_br.bd}`, borderRadius: 6, cursor: "pointer", fontSize: 10, fontFamily: _mono, color: _br.mu, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -1872,24 +1889,9 @@ function StepContent(props) {
       </button>
       {showAdvanced && <div style={{ padding: 14, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}`, marginBottom: 12 }}>
         <Slider label="Deck offset from center" value={p.deckOffset} min={-Math.floor(p.houseWidth / 2)} max={Math.floor(p.houseWidth / 2)} field="deckOffset" u={u} p={p} />
-        {p.hasStairs && p.stairAnchorX == null && <Slider label="Stair offset from center" value={p.stairOffset} min={-Math.floor((p.stairLocation === "front" ? (p.width - (p.stairWidth || 4)) : (p.depth - (p.stairWidth || 4))) / 2)} max={Math.floor((p.stairLocation === "front" ? (p.width - (p.stairWidth || 4)) : (p.depth - (p.stairWidth || 4))) / 2)} field="stairOffset" u={u} p={p} />}
-        {p.hasStairs && p.stairAnchorX != null && <>
-          <Slider label="Stair anchor X (from left)" value={p.stairAnchorX} min={0} max={p.width} step={0.5} field="stairAnchorX" fmt={fmtFtIn} u={u} p={p} />
-          <Slider label="Stair anchor Y (from house)" value={p.stairAnchorY} min={0} max={p.depth} step={0.5} field="stairAnchorY" fmt={fmtFtIn} u={u} p={p} />
-          <Slider label="Stair angle" value={p.stairAngle} min={0} max={270} step={90} field="stairAngle" unit={"\u00B0"} u={u} p={p} />
-          <button onClick={() => { u("stairAnchorX", null); u("stairAnchorY", null); u("stairAngle", null); }} style={{ padding: "5px 12px", fontSize: 9, fontFamily: _mono, color: "#c62828", background: "none", border: "1px solid #c62828", borderRadius: 4, cursor: "pointer", marginBottom: 8 }}>Reset to edge mode</button>
-        </>}
-      {["lLeft","lRight","switchback","wrapAround","wideLanding"].includes(p.stairTemplate) && p.hasStairs && (<>
-        <Slider label="Run Split (1st run %)" value={p.stairRunSplit!=null?p.stairRunSplit:55} min={30} max={70} step={5} field="stairRunSplit" unit="%" u={u} p={p} />
-        <Slider label="Landing Depth" value={p.stairLandingDepth!=null?p.stairLandingDepth:Math.max(p.stairWidth||4,4)} min={3} max={8} step={0.5} field="stairLandingDepth" fmt={fmtFtIn} u={u} p={p} />
-      </>)}
-      {["switchback","wrapAround"].includes(p.stairTemplate) && p.hasStairs && (
-        <Slider label="Gap Between Runs" value={p.stairGap!=null?p.stairGap:0.5} min={0} max={2} step={0.5} field="stairGap" fmt={fmtFtIn} u={u} p={p} />
-      )}
       </div>}
       </div>{/* close data-section="advanced" */}
 
-    </>}
   </>;
 
 // Step 0: Site Plan (S28   unified flow, no mode cards)

@@ -47,66 +47,77 @@ window.buildDeckScene = function(scene, p, c, THREE) {
 
   var isLedger = c.attachment === "ledger";
 
-// Stair setup (zone 0 only)
-  var hasSt = p.hasStairs && c.stairs && H > 0.5;
-  var stPl = hasSt ? window.getStairPlacement(p, c) : null;
-  var exitSide = stPl ? (stPl.angle === 90 ? "right" : stPl.angle === 270 ? "left" : stPl.angle === 180 ? "back" : "front") : null;
-  var stW = (p.stairWidth || 4);
-  var frontGap = null, leftGap = null, rightGap = null;
-  var sg = hasSt ? window.computeStairGeometry({
-    template: p.stairTemplate || "straight", height: H,
-    stairWidth: p.stairWidth || 4, numStringers: p.numStringers || 3,
-    runSplit: p.stairRunSplit ? p.stairRunSplit / 100 : null,
-    landingDepth: p.stairLandingDepth || null,
-    stairGap: p.stairGap != null ? p.stairGap : 0.5
-  }) : null;
-
-  // Zone 0 world-space origin for stair gap calculations
+// S64: Multi-stair setup -- resolve all stairs from deckStairs array
   var z0wx = cx + 0, z0wz = cz + 0; // zone 0 rect is at (0,0)
 
+  var resolvedStairs = [];
+  var allStairWBBs = [];
+  (p.deckStairs || []).forEach(function(stairDef) {
+    if (H <= 0.5) return;
+    var zr = window.getZoneRect ? window.getZoneRect(stairDef.zoneId, pForZones) : null;
+    if (!zr && stairDef.zoneId === 0) zr = { x: 0, y: 0, w: W, d: D };
+    if (!zr) return;
+    var _sg = window.computeStairGeometry({
+      template: stairDef.template || "straight", height: H,
+      stairWidth: stairDef.width || 4, numStringers: stairDef.numStringers || 3,
+      runSplit: stairDef.runSplit ? stairDef.runSplit / 100 : null,
+      landingDepth: stairDef.landingDepth || null,
+      stairGap: stairDef.stairGap != null ? stairDef.stairGap : 0.5
+    });
+    if (!_sg) return;
+    var _stPl = window.getStairPlacementForZone(stairDef, zr);
+    var _exit = _stPl.angle === 90 ? "right" : _stPl.angle === 270 ? "left" : _stPl.angle === 180 ? "back" : "front";
+    var _zwx = cx + zr.x, _zwz = cz + zr.y;
+    var _wax = _zwx + _stPl.anchorX, _waz = _zwz + _stPl.anchorY;
+    var _bb = _sg.bbox, _ang = _stPl.angle || 0, _wbb;
+    if (_ang === 0)        _wbb = { xMin: _wax + _bb.minX, xMax: _wax + _bb.maxX, zMin: _waz + _bb.minY, zMax: _waz + _bb.maxY };
+    else if (_ang === 90)  _wbb = { xMin: _wax + _bb.minY, xMax: _wax + _bb.maxY, zMin: _waz - _bb.maxX, zMax: _waz - _bb.minX };
+    else if (_ang === 180) _wbb = { xMin: _wax - _bb.maxX, xMax: _wax - _bb.minX, zMin: _waz - _bb.maxY, zMax: _waz - _bb.minY };
+    else if (_ang === 270) _wbb = { xMin: _wax - _bb.maxY, xMax: _wax - _bb.minY, zMin: _waz + _bb.minX, zMax: _waz + _bb.maxX };
+    allStairWBBs.push(_wbb);
+    resolvedStairs.push({ def: stairDef, zoneRect: zr, sg: _sg, stPl: _stPl, exitSide: _exit,
+      wbb: _wbb, wax: _wax, waz: _waz, zwx: _zwx, zwz: _zwz, stW: stairDef.width || 4 });
+  });
+
+  // Backward compat: zone 0 stair gaps for joist/beam/rim splitting
+  var hasSt = resolvedStairs.length > 0;
+  var exitSide = null;
+  var frontGap = null, leftGap = null, rightGap = null;
   var stairClipD = 0;
-  if (hasSt && stPl && sg && sg.runs.length > 0) {
-    if (exitSide === "front") {
+  resolvedStairs.forEach(function(rs) {
+    if (rs.def.zoneId !== 0) return;
+    if (!exitSide) exitSide = rs.exitSide;
+    var stPl = rs.stPl, stW = rs.stW;
+    if (rs.exitSide === "front" && !frontGap) {
       stairClipD = Math.max(0, (z0wz + D) - (z0wz + stPl.anchorY));
       var gc = z0wx + stPl.anchorX;
       var sxMin = gc - stW / 2, sxMax = gc + stW / 2;
       if (sxMax > z0wx && sxMin < z0wx + W) {
         frontGap = { min: Math.max(sxMin, z0wx), max: Math.min(sxMax, z0wx + W),
-          zMin: z0wz + stPl.anchorY, zMax: Math.min(z0wz + D, z0wz + stPl.anchorY + (sg.bbox ? sg.bbox.h : D)) };
+          zMin: z0wz + stPl.anchorY, zMax: Math.min(z0wz + D, z0wz + stPl.anchorY + (rs.sg.bbox ? rs.sg.bbox.h : D)) };
       }
-    } else if (exitSide === "right") {
+    } else if (rs.exitSide === "right" && !rightGap) {
       stairClipD = Math.max(0, (z0wx + W) - (z0wx + stPl.anchorX));
       var gc = z0wz + stPl.anchorY;
       var szMin = gc - stW / 2, szMax = gc + stW / 2;
       if (szMax > z0wz && szMin < z0wz + D) {
         rightGap = { min: Math.max(szMin, z0wz), max: Math.min(szMax, z0wz + D),
           xMin: z0wx + stPl.anchorX,
-          xMax: Math.min(z0wx + W, z0wx + stPl.anchorX + (sg.bbox ? sg.bbox.h : W)) };
+          xMax: Math.min(z0wx + W, z0wx + stPl.anchorX + (rs.sg.bbox ? rs.sg.bbox.h : W)) };
       }
-    } else if (exitSide === "left") {
+    } else if (rs.exitSide === "left" && !leftGap) {
       stairClipD = Math.max(0, (z0wx + stPl.anchorX) - z0wx);
       var gc = z0wz + stPl.anchorY;
       var szMin = gc - stW / 2, szMax = gc + stW / 2;
       if (szMax > z0wz && szMin < z0wz + D) {
         leftGap = { min: Math.max(szMin, z0wz), max: Math.min(szMax, z0wz + D),
-          xMin: Math.max(z0wx, z0wx + stPl.anchorX - (sg.bbox ? sg.bbox.h : W)),
+          xMin: Math.max(z0wx, z0wx + stPl.anchorX - (rs.sg.bbox ? rs.sg.bbox.h : W)),
           xMax: z0wx + stPl.anchorX };
       }
     }
-  }
+  });
   var leftAtEdge = leftGap && leftGap.xMin <= z0wx + 0.1;
   var rightAtEdge = rightGap && rightGap.xMax >= z0wx + W - 0.1;
-
-  // S64: Stair world-space bounding box for gap cutting in ALL zones
-  var stairWBB = null;
-  if (hasSt && stPl && sg) {
-    var _gx = z0wx + stPl.anchorX, _gz = z0wz + stPl.anchorY;
-    var _bb = sg.bbox, _ang = stPl.angle || 0;
-    if (_ang === 0)        stairWBB = { xMin: _gx + _bb.minX, xMax: _gx + _bb.maxX, zMin: _gz + _bb.minY, zMax: _gz + _bb.maxY };
-    else if (_ang === 90)  stairWBB = { xMin: _gx + _bb.minY, xMax: _gx + _bb.maxY, zMin: _gz - _bb.maxX, zMax: _gz - _bb.minX };
-    else if (_ang === 180) stairWBB = { xMin: _gx - _bb.maxX, xMax: _gx - _bb.minX, zMin: _gz - _bb.maxY, zMax: _gz - _bb.minY };
-    else if (_ang === 270) stairWBB = { xMin: _gx - _bb.maxY, xMax: _gx - _bb.minY, zMin: _gz + _bb.minX, zMax: _gz + _bb.maxX };
-  }
 
   // Helper: check if a world-space point is inside zone 0
   function inZone0(wx, wz) {
@@ -377,13 +388,18 @@ window.buildDeckScene = function(scene, p, c, THREE) {
         }
       }
 
-      // S64: Check stair world bbox for ALL boards (cuts gaps in zone boards)
-      if (stairWBB && bx > stairWBB.xMin + 0.02 && bx < stairWBB.xMax - 0.02 &&
-          _bZe > stairWBB.zMin + 0.02 && _bZs < stairWBB.zMax - 0.02) {
-        addDeckBoard(bx, _bZs, stairWBB.zMin);
-        addDeckBoard(bx, Math.max(_bZs, stairWBB.zMax), _bZe);
-        continue;
+      // S64: Check ALL stair world bboxes for board gaps (handles all zones)
+      var _stairCut = false;
+      for (var _si = 0; _si < allStairWBBs.length; _si++) {
+        var _swb = allStairWBBs[_si];
+        if (bx > _swb.xMin + 0.02 && bx < _swb.xMax - 0.02 &&
+            _bZe > _swb.zMin + 0.02 && _bZs < _swb.zMax - 0.02) {
+          addDeckBoard(bx, _bZs, _swb.zMin);
+          addDeckBoard(bx, Math.max(_bZs, _swb.zMax), _bZe);
+          _stairCut = true; break;
+        }
       }
+      if (_stairCut) continue;
 
 // No gap   full board for this composite rect
       addDeckBoard(bx, _bZs, _bZe);
@@ -468,22 +484,23 @@ window.buildDeckScene = function(scene, p, c, THREE) {
         }
       }
 
-// S64: Check stair world bbox for zone railing edges
-      if (stairWBB) {
-        if (e.dir === "h" && ey1 > stairWBB.zMin - 0.1 && ey1 < stairWBB.zMax + 0.1 &&
-            ex1 < stairWBB.xMax && ex2 > stairWBB.xMin) {
-          if (ex1 < stairWBB.xMin - 0.05) addRail(ex1, ey1, Math.min(ex2, stairWBB.xMin), ey1);
-          if (ex2 > stairWBB.xMax + 0.05) addRail(Math.max(ex1, stairWBB.xMax), ey1, ex2, ey1);
-          if (stairWBB.xMin > ex1 + 0.1) addRailPost(stairWBB.xMin, ey1);
-          if (stairWBB.xMax < ex2 - 0.1) addRailPost(stairWBB.xMax, ey1);
+// S64: Check ALL stair world bboxes for zone railing edges
+      for (var _ri = 0; _ri < allStairWBBs.length; _ri++) {
+        var _swb = allStairWBBs[_ri];
+        if (e.dir === "h" && ey1 > _swb.zMin - 0.1 && ey1 < _swb.zMax + 0.1 &&
+            ex1 < _swb.xMax && ex2 > _swb.xMin) {
+          if (ex1 < _swb.xMin - 0.05) addRail(ex1, ey1, Math.min(ex2, _swb.xMin), ey1);
+          if (ex2 > _swb.xMax + 0.05) addRail(Math.max(ex1, _swb.xMax), ey1, ex2, ey1);
+          if (_swb.xMin > ex1 + 0.1) addRailPost(_swb.xMin, ey1);
+          if (_swb.xMax < ex2 - 0.1) addRailPost(_swb.xMax, ey1);
           return;
         }
-        if (e.dir === "v" && ex1 > stairWBB.xMin - 0.1 && ex1 < stairWBB.xMax + 0.1 &&
-            ey1 < stairWBB.zMax && ey2 > stairWBB.zMin) {
-          if (ey1 < stairWBB.zMin - 0.05) addRail(ex1, ey1, ex1, Math.min(ey2, stairWBB.zMin));
-          if (ey2 > stairWBB.zMax + 0.05) addRail(ex1, Math.max(ey1, stairWBB.zMax), ex1, ey2);
-          if (stairWBB.zMin > ey1 + 0.1) addRailPost(ex1, stairWBB.zMin);
-          if (stairWBB.zMax < ey2 - 0.1) addRailPost(ex1, stairWBB.zMax);
+        if (e.dir === "v" && ex1 > _swb.xMin - 0.1 && ex1 < _swb.xMax + 0.1 &&
+            ey1 < _swb.zMax && ey2 > _swb.zMin) {
+          if (ey1 < _swb.zMin - 0.05) addRail(ex1, ey1, ex1, Math.min(ey2, _swb.zMin));
+          if (ey2 > _swb.zMax + 0.05) addRail(ex1, Math.max(ey1, _swb.zMax), ex1, ey2);
+          if (_swb.zMin > ey1 + 0.1) addRailPost(ex1, _swb.zMin);
+          if (_swb.zMax < ey2 - 0.1) addRailPost(ex1, _swb.zMax);
           return;
         }
       }
@@ -503,9 +520,14 @@ window.buildDeckScene = function(scene, p, c, THREE) {
     Object.keys(outlineCorners).forEach(function(k) {
       var pt = outlineCorners[k];
       if (isAtChamferCorner(pt[0], pt[1])) return;
-      // S64: Skip posts inside stair footprint
-      if (stairWBB && pt[0] > stairWBB.xMin + 0.05 && pt[0] < stairWBB.xMax - 0.05 &&
-          pt[1] > stairWBB.zMin - 0.1 && pt[1] < stairWBB.zMax + 0.1) return;
+      // S64: Skip posts inside any stair footprint
+      var _inStair = false;
+      for (var _si2 = 0; _si2 < allStairWBBs.length; _si2++) {
+        var _sw2 = allStairWBBs[_si2];
+        if (pt[0] > _sw2.xMin + 0.05 && pt[0] < _sw2.xMax - 0.05 &&
+            pt[1] > _sw2.zMin - 0.1 && pt[1] < _sw2.zMax + 0.1) { _inStair = true; break; }
+      }
+      if (_inStair) return;
       addRailPost(pt[0], pt[1]);
     });
 
@@ -556,12 +578,13 @@ window.buildDeckScene = function(scene, p, c, THREE) {
     }
   });
 
-// Stairs 3D (zone 0 only   unchanged)
+// S64: Stairs 3D -- iterate all resolved stairs
   var V_TREAD_RUN = 10.5 / 12;
   var V_STR_W = 0.25;
   var V_STR_H = 0.9;
   var V_RAIL_W = 0.15;
-  if (hasSt && stPl && sg) {
+  resolvedStairs.forEach(function(rs) {
+    var sg = rs.sg, stPl = rs.stPl;
     var stGrp = new THREE.Group();
     var riseFt = sg.riseIn / 12;
     var treadFt = V_TREAD_RUN;
@@ -784,10 +807,10 @@ window.buildDeckScene = function(scene, p, c, THREE) {
     padM.receiveShadow = true;
     stGrp.add(padM);
 
-    stGrp.position.set(z0wx + stPl.anchorX, 0, z0wz + stPl.anchorY);
+    stGrp.position.set(rs.wax, 0, rs.waz);
     stGrp.rotation.y = (stPl.angle || 0) * Math.PI / 180;
     scene.add(stGrp);
-  }
+  }); // end resolvedStairs.forEach
 
   return { exitSide: exitSide };
 };
@@ -857,7 +880,7 @@ function Deck3D({ c, p }) {
 
     // Cleanup
     return () => { cancelAnimationFrame(frameRef.current); cv.removeEventListener("mousedown", onD); cv.removeEventListener("mousemove", onM); cv.removeEventListener("mouseup", onU); cv.removeEventListener("mouseleave", onU); cv.removeEventListener("wheel", onW); cv.removeEventListener("touchstart", onD); cv.removeEventListener("touchmove", onM); cv.removeEventListener("touchend", onU); window._deckOrbit = { theta: orbit.current.theta, phi: orbit.current.phi, dist: orbit.current.dist, drag: false, lx: 0, ly: 0 }; ren.dispose(); };
-  }, [W, D, H, c.nP, c.pp, c.postSize, c.beamSize, c.sp, c.fDiam, p.deckingType, p.hasStairs, p.stairTemplate, p.stairWidth, p.numStringers, p.stairAnchorX, p.stairAnchorY, p.stairAngle, p.stairLocation, p.stairOffset, p.stairRunSplit, p.stairLandingDepth, p.stairGap, p.height, p.deckOffset, p.houseWidth, p.zones, p.slopePercent, p.slopeDirection]);
+  }, [W, D, H, c.nP, c.pp, c.postSize, c.beamSize, c.sp, c.fDiam, p.deckingType, p.deckStairs, p.height, p.deckOffset, p.houseWidth, p.zones, p.slopePercent, p.slopeDirection]);
 
   return <div ref={ref} style={{ width: "100%", height: 380, borderRadius: 6, overflow: "hidden" }} />;
 }

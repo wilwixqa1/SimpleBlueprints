@@ -5,6 +5,46 @@ const { useState, useMemo, useEffect, useRef } = React;
 
 const DEF_CORNERS = { BL: { type: "square", size: 0 }, BR: { type: "square", size: 0 }, FL: { type: "square", size: 0 }, FR: { type: "square", size: 0 } };
 
+// ============================================================
+// S64: Multi-stair data model
+// ============================================================
+function _defaultStair(id, zoneId) {
+  return { id: id, zoneId: zoneId || 0, location: "front", width: 4, template: "straight",
+    offset: 0, anchorX: null, anchorY: null, angle: null,
+    numStringers: 3, runSplit: null, landingDepth: null, stairGap: 0.5 };
+}
+
+// Migrate flat stair params to deckStairs array (called on load)
+function _migrateStairs(p) {
+  if (p.deckStairs) return; // already migrated
+  if (p.hasStairs) {
+    p.deckStairs = [{ id: 1, zoneId: 0, location: p.stairLocation || "front",
+      width: p.stairWidth || 4, template: p.stairTemplate || "straight",
+      offset: p.stairOffset || 0, anchorX: p.stairAnchorX || null,
+      anchorY: p.stairAnchorY || null, angle: p.stairAngle || null,
+      numStringers: p.numStringers || 3, runSplit: p.stairRunSplit || null,
+      landingDepth: p.stairLandingDepth || null, stairGap: p.stairGap != null ? p.stairGap : 0.5 }];
+  } else {
+    p.deckStairs = [];
+  }
+  p._nextStairId = 2;
+}
+
+// Sync flat params from first zone-0 stair (backward compat with backend)
+function _syncFlatStairParams(p) {
+  var z0Stairs = (p.deckStairs || []).filter(function(s) { return s.zoneId === 0; });
+  if (z0Stairs.length > 0) {
+    var s = z0Stairs[0];
+    p.hasStairs = true;
+    p.stairLocation = s.location; p.stairWidth = s.width; p.stairTemplate = s.template;
+    p.stairOffset = s.offset; p.stairAnchorX = s.anchorX; p.stairAnchorY = s.anchorY;
+    p.stairAngle = s.angle; p.numStringers = s.numStringers;
+    p.stairRunSplit = s.runSplit; p.stairLandingDepth = s.landingDepth; p.stairGap = s.stairGap;
+  } else {
+    p.hasStairs = (p.deckStairs || []).length > 0; // has stairs on other zones
+  }
+}
+
 // S36: Polygon lot helpers (rectangle fallback)
 window.computeRectVertices = function(p) {
   var w = p.lotWidth || 80, d = p.lotDepth || 120;
@@ -479,6 +519,8 @@ const App = function SimpleBlueprints() {
     lotVertices: null, lotEdges: null, lotArea: null,
 // Zone system   S19
     zones: [], activeZone: 0, nextZoneId: 1, mainCorners: { BL: { type: "square", size: 0 }, BR: { type: "square", size: 0 }, FL: { type: "square", size: 0 }, FR: { type: "square", size: 0 } },
+// S64: Multi-stair array
+    deckStairs: [_defaultStair(1, 0)], _nextStairId: 2,
 // Site plan   S27 (defaults seeded from existing flat params)
     sitePlan: {
       lotShape: "rectangle", lotWidth: 80, lotDepth: 120,
@@ -545,6 +587,8 @@ const App = function SimpleBlueprints() {
     if (k === "houseDistFromStreet" && v !== null) {
       next.houseDistFromStreet = Math.max(next.setbackFront, v);
     }
+    // S64: Sync flat stair params when deckStairs changes
+    if (k === "deckStairs") { _syncFlatStairParams(next); }
     return next;
   });
 
@@ -630,6 +674,35 @@ const App = function SimpleBlueprints() {
     return (z && z.corners) || DEF_CORNERS;
   };
 
+// S64: Stair management functions
+  const addStair = (zoneId) => setP(prev => {
+    var newId = prev._nextStairId || ((prev.deckStairs || []).reduce(function(mx, s) { return Math.max(mx, s.id); }, 0) + 1);
+    var newStair = _defaultStair(newId, zoneId);
+    var next = { ...prev, deckStairs: (prev.deckStairs || []).concat([newStair]), _nextStairId: newId + 1 };
+    _syncFlatStairParams(next);
+    return next;
+  });
+
+  const removeStair = (stairId) => setP(prev => {
+    var next = { ...prev, deckStairs: (prev.deckStairs || []).filter(function(s) { return s.id !== stairId; }) };
+    _syncFlatStairParams(next);
+    return next;
+  });
+
+  const updateStair = (stairId, field, val) => setP(prev => {
+    var next = { ...prev, deckStairs: (prev.deckStairs || []).map(function(s) {
+      if (s.id !== stairId) return s;
+      var upd = Object.assign({}, s, { [field]: val });
+      // Reset anchor when location changes
+      if (field === "location") { upd.offset = 0; upd.anchorX = null; upd.anchorY = null; upd.angle = null; }
+      return upd;
+    })};
+    _syncFlatStairParams(next);
+    return next;
+  });
+
+  const getStairsForZone = (zoneId) => (p.deckStairs || []).filter(function(s) { return s.zoneId === zoneId; });
+
 // Provide deckWidth/deckDepth aliases for zoneUtils
   // zoneUtils reads p.deckWidth/p.deckDepth, but our flat params use width/depth
   const pForZones = useMemo(() => Object.assign({}, p, { deckWidth: p.width, deckDepth: p.depth, deckHeight: p.height }), [p]);
@@ -642,7 +715,9 @@ const App = function SimpleBlueprints() {
     var totalLen = edges.reduce(function(s, e) {
       return s + (e.dir === "h" ? Math.abs(e.x2 - e.x1) : Math.abs(e.y2 - e.y1));
     }, 0);
-    if (p.hasStairs) totalLen -= (p.stairWidth || 4);
+    if (p.deckStairs && p.deckStairs.length > 0) {
+      p.deckStairs.forEach(function(st) { totalLen -= (st.width || 4); });
+    } else if (p.hasStairs) { totalLen -= (p.stairWidth || 4); }
     return Object.assign({}, c, { railLen: +totalLen.toFixed(1) });
   }, [p, c]);
   const m = useMemo(() => window.estMaterials(p, cAdj), [p, cAdj]);
@@ -841,6 +916,7 @@ const App = function SimpleBlueprints() {
     if (proj.params_json) {
       try {
         var loaded = JSON.parse(proj.params_json);
+        _migrateStairs(loaded); // S64: migrate flat stair params to deckStairs array
         setP(function(prev) { return Object.assign({}, prev, loaded); });
       } catch(e) { console.warn("Bad params_json:", e); }
     }
@@ -877,6 +953,7 @@ const App = function SimpleBlueprints() {
       houseDistFromStreet: null, streetName: "",
       lotVertices: null, lotEdges: null, lotArea: null,
       zones: [], activeZone: 0, nextZoneId: 1, mainCorners: { BL: { type: "square", size: 0 }, BR: { type: "square", size: 0 }, FL: { type: "square", size: 0 }, FR: { type: "square", size: 0 } },
+      deckStairs: [_defaultStair(1, 0)], _nextStairId: 2,
       sitePlan: { lotShape: "rectangle", lotWidth: 80, lotDepth: 120, streetSide: "south", streetName: "", houseWidth: 40, houseDepth: 30, houseOffsetX: 20, houseOffsetY: 25, houseLabel: "Existing Residence", houseShape: "rectangle", setbackFront: 25, setbackRear: 20, setbackLeft: 5, setbackRight: 5, deckAttachSide: "rear", deckOffsetX: 0, elements: [], address: "", parcelId: "", northAngle: 0, lotCoverage: null, deckToPropertyLine: null }
     });
     setInfo({ owner: "", address: "", city: "", state: "", zip: "", lot: "", contractor: "" });
@@ -1072,6 +1149,7 @@ const App = function SimpleBlueprints() {
               zoneMode={zoneMode} setZoneMode={setZoneMode}
               addZone={addZone} addCutout={addCutout} removeZone={removeZone} updateZone={updateZone}
               setCorner={setCorner} getCorners={getCorners} pForZones={pForZones}
+              addStair={addStair} removeStair={removeStair} updateStair={updateStair} getStairsForZone={getStairsForZone}
               traceMode={traceMode} setTraceMode={setTraceMode}
               traceState={traceState} setTraceState={setTraceState}
               compareMode={compareMode} setCompareMode={setCompareMode}
