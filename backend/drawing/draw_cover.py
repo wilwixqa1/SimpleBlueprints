@@ -122,6 +122,9 @@ def draw_cover_sheet(fig, params, calc, project_info=None, cover_image_b64=None,
     zip_code = pi.get("zip", "")
     lot = pi.get("lot", "")
     contractor = pi.get("contractor", "") or "Owner-Builder"
+    zoning = pi.get("zoning", "")
+    county = pi.get("county", "")
+    year_built = pi.get("yearBuilt", "")
 
     city_line = ", ".join(filter(None, [city, state]))
     if zip_code:
@@ -132,6 +135,9 @@ def draw_cover_sheet(fig, params, calc, project_info=None, cover_image_b64=None,
         ("ADDRESS", address.upper() if address != "-" else "-"),
         ("CITY / STATE / ZIP", city_line.upper() if city_line else "-"),
         ("LOT / PARCEL", lot.upper() if lot else "-"),
+        ("ZONING", zoning.upper() if zoning else "-"),
+        ("COUNTY", county.upper() if county else "-"),
+        ("YEAR BUILT", year_built if year_built else "-"),
         ("CONTRACTOR", contractor.upper()),
         ("DATE", today.upper()),
     ]

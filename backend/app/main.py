@@ -51,7 +51,8 @@ from app.database import (
     should_generate_insight, get_conversations_for_insight,
     get_event_summary_for_insight, save_insight,
     create_project, list_projects, get_project, update_project, delete_project,
-    get_project_locations
+    get_project_locations,
+    get_cached_parcel, set_cached_parcel
 )
 from app.auth import (
     get_login_url, exchange_code, sign_session,
@@ -1829,9 +1830,18 @@ async def parcel_lookup(request: Request):
     if not state:
         raise HTTPException(status_code=400, detail="State is required")
 
+    # S63: Check cache first (saves API calls)
+    cached = get_cached_parcel(address, state)
+    if cached:
+        cached["_cached"] = True
+        return JSONResponse(cached)
+
     result = _realie_lookup(address, state, city, zip_code)
     if "error" in result:
         return JSONResponse(result, status_code=404 if "No parcel" in result.get("error", "") else 200)
+
+    # Cache successful result
+    set_cached_parcel(address, state, result)
 
     return JSONResponse(result)
 

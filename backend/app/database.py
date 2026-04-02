@@ -234,6 +234,17 @@ def init_tables():
                 cur.execute(f"UPDATE {tbl} SET phase = 'testing' WHERE phase IS NULL")
             except Exception:
                 pass
+        # S63: Parcel lookup cache
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS parcel_cache (
+                id SERIAL PRIMARY KEY,
+                address TEXT NOT NULL,
+                state TEXT NOT NULL,
+                response_json TEXT NOT NULL,
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+        cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_parcel_cache_addr ON parcel_cache(address, state)")
         cur.close()
 
 
@@ -446,6 +457,44 @@ def get_project_locations() -> dict:
             "by_state": by_state,
             "by_city": by_city,
         }
+
+
+# ============================================================
+# PARCEL CACHE (S63)
+# ============================================================
+
+def get_cached_parcel(address: str, state: str, max_age_days: int = 30):
+    """Return cached parcel lookup result, or None if not cached or too old."""
+    try:
+        with get_db() as conn:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute("""
+                SELECT response_json, created_at FROM parcel_cache
+                WHERE address = %s AND state = %s
+                AND created_at > NOW() - INTERVAL '%s days'
+            """, (address.upper().strip(), state.upper().strip(), max_age_days))
+            row = cur.fetchone()
+            if row:
+                return json.loads(row["response_json"])
+            return None
+    except Exception as e:
+        print(f"Parcel cache read error: {e}")
+        return None
+
+
+def set_cached_parcel(address: str, state: str, response: dict):
+    """Cache a parcel lookup result. Upsert by address+state."""
+    try:
+        with get_db() as conn:
+            cur = conn.cursor()
+            cur.execute("""
+                INSERT INTO parcel_cache (address, state, response_json)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (address, state)
+                DO UPDATE SET response_json = EXCLUDED.response_json, created_at = NOW()
+            """, (address.upper().strip(), state.upper().strip(), json.dumps(response)))
+    except Exception as e:
+        print(f"Parcel cache write error: {e}")
 
 
 # ============================================================

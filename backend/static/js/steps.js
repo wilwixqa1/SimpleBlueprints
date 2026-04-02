@@ -983,6 +983,9 @@ function StepContent(props) {
       if (data.location.state) setI("state", data.location.state);
       if (data.location.zip) setI("zip", data.location.zip);
       if (data.parcel.id) setI("lot", data.parcel.id);
+      if (data.parcel.zoning) setI("zoning", data.parcel.zoning);
+      if (data.location.county) setI("county", data.location.county);
+      if (data.building.year_built) setI("yearBuilt", String(data.building.year_built));
       // Auto-set north angle: our coordinate conversion has Y = true north
       u("northAngle", 0);
       // Set street name from address

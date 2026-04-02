@@ -68,6 +68,8 @@ def _extract_site_params(params, calc):
         "house_label": (sp.get("houseLabel") or "EXISTING SINGLE\nFAMILY RESIDENCE").upper(),
         "address": sp.get("address") or pi.get("address", ""),
         "parcel_id": sp.get("parcelId") or pi.get("lot", ""),
+        "zoning": pi.get("zoning", ""),
+        "county": pi.get("county", ""),
         "street_name": params.get("streetName") or sp.get("streetName", ""),
         "lot_vertices": params.get("lotVertices"),
         "lot_edges": params.get("lotEdges"),
@@ -91,6 +93,8 @@ def draw_site_plan(fig, params, calc):
     house_label = sp["house_label"]
     address = sp["address"]
     parcel_id = sp["parcel_id"]
+    zoning = sp["zoning"]
+    county = sp["county"]
     street_name = sp["street_name"]
 
     deck_w = calc["width"]
@@ -655,6 +659,8 @@ def draw_site_plan(fig, params, calc):
         subtitle_parts.append(address.upper())
     if parcel_id:
         subtitle_parts.append(f"PARCEL: {parcel_id}")
+    if zoning:
+        subtitle_parts.append(f"ZONING: {zoning.upper()}")
     if subtitle_parts:
         fig.text(0.44, 0.92, "  |  ".join(subtitle_parts),
                  ha='center', fontsize=7, fontfamily='monospace', color=BRAND["mute"])
