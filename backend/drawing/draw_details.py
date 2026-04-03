@@ -681,7 +681,8 @@ def draw_hardware_schedule(ax, params, calc, spec=None):
     # Ledger fastener (only for ledger attachment)
     if attachment == "ledger":
         lf = hw.get("ledger_fastener", {})
-        rows.append(("LEDGER FASTENER", f'(2) {lf.get("size", "5\"")} Ledger Locks',
+        lf_size = lf.get("size", '5"')
+        rows.append(("LEDGER FASTENER", f"(2) {lf_size} Ledger Locks",
                      f'@ {lf.get("spacing", 16)}" O.C.'))
 
     # Lateral load (only for ledger)
