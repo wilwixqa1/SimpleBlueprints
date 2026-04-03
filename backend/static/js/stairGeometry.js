@@ -86,7 +86,7 @@ function computeStairGeometry(params) {
     runs.push({ ...run1, rect: { x: gap/2, y: 0, w: sw, h: run1.runFt }, treadAxis: "h", downDir: "+y" });
     const ly = maxRun;
     landings.push({ rect: { x: -sw - gap/2, y: ly, w: totalW, h: lD }, posts: [[-sw-gap/2, ly], [sw+gap/2, ly], [-sw-gap/2, ly+lD], [sw+gap/2, ly+lD]] });
-    runs.push({ ...run2, rect: { x: -sw - gap/2, y: ly + lD - run2.runFt, w: sw, h: run2.runFt }, treadAxis: "h", downDir: "-y" });
+    runs.push({ ...run2, rect: { x: -sw - gap/2, y: ly - run2.runFt, w: sw, h: run2.runFt }, treadAxis: "h", downDir: "-y" });
   }
   else if (template === "wrapAround") {
     const [r1n, r2n, r3n] = splitRisers(3);
@@ -95,8 +95,8 @@ function computeStairGeometry(params) {
     runs.push({ ...run1, rect: { x: gap/2, y: 0, w: sw, h: run1.runFt }, treadAxis: "h", downDir: "+y" });
     const l1y = run1.runFt;
     landings.push({ rect: { x: -sw-gap/2, y: l1y, w: totalW, h: lD }, posts: [[-sw-gap/2, l1y], [sw+gap/2, l1y], [-sw-gap/2, l1y+lD], [sw+gap/2, l1y+lD]] });
-    runs.push({ ...run2, rect: { x: -sw-gap/2, y: l1y + lD - run2.runFt, w: sw, h: run2.runFt }, treadAxis: "h", downDir: "-y" });
-    const l2y = l1y + lD - run2.runFt - lD, l2x = -sw - gap/2 - run3.runFt;
+    runs.push({ ...run2, rect: { x: -sw-gap/2, y: l1y - run2.runFt, w: sw, h: run2.runFt }, treadAxis: "h", downDir: "-y" });
+    const l2y = l1y - run2.runFt - lD, l2x = -sw - gap/2 - run3.runFt;
     landings.push({ rect: { x: l2x, y: l2y, w: sw + run3.runFt + gap/2, h: lD }, posts: [[l2x, l2y], [-gap/2, l2y], [l2x, l2y+lD], [-gap/2, l2y+lD]] });
     runs.push({ ...run3, rect: { x: l2x, y: l2y + (lD-sw)/2, w: run3.runFt, h: sw }, treadAxis: "w", downDir: "-x" });
   }
