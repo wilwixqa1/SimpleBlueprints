@@ -249,19 +249,27 @@ function Label({ children }) {
 function Slider({ label, value, min, max, step: s = 1, field, unit = "'", fmt, u, p, focused }) {
   const [editing, setEditing] = _stUS(false);
   const [draft, setDraft] = _stUS(String(value));
-  // S65: rAF throttle -- buffer slider value, flush once per animation frame
-  var _rafId = React.useRef(null);
-  var _latest = React.useRef(value);
+  // S65: Local state for instant slider feedback; debounced u() for expensive re-renders
+  var [localVal, setLocalVal] = _stUS(value);
+  var _timerRef = React.useRef(null);
+  var _dragging = React.useRef(false);
+  var _latestVal = React.useRef(value);
+  // Sync from parent when not dragging
+  _stUE(function() { if (!_dragging.current) { setLocalVal(value); _latestVal.current = value; } }, [value]);
   var _onSlide = function(e) {
-    _latest.current = Number(e.target.value);
-    if (!_rafId.current) {
-      _rafId.current = requestAnimationFrame(function() {
-        _rafId.current = null;
-        u(field, _latest.current);
-      });
-    }
+    var v = Number(e.target.value);
+    _latestVal.current = v;
+    setLocalVal(v);
+    _dragging.current = true;
+    clearTimeout(_timerRef.current);
+    _timerRef.current = setTimeout(function() { _dragging.current = false; u(field, v); }, 60);
   };
-  _stUE(function() { return function() { if (_rafId.current) cancelAnimationFrame(_rafId.current); }; }, []);
+  var _onRelease = function() {
+    if (_timerRef.current) { clearTimeout(_timerRef.current); _timerRef.current = null; }
+    _dragging.current = false;
+    u(field, _latestVal.current);
+  };
+  _stUE(function() { return function() { clearTimeout(_timerRef.current); }; }, []);
   const commit = () => {
     setEditing(false);
     let v = parseFloat(draft);
@@ -274,12 +282,12 @@ function Slider({ label, value, min, max, step: s = 1, field, unit = "'", fmt, u
   return (
     <div style={{ marginBottom: 16, borderLeft: focused ? ("3px solid " + _br.gn) : "3px solid transparent", paddingLeft: focused ? 10 : 0, transition: "all 0.2s" }}><Label>{label}</Label>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <input type="range" min={min} max={max} step={s} value={value} onChange={_onSlide} style={{ flex: 1, accentColor: _br.gn, height: 6 }} />
+        <input type="range" min={min} max={max} step={s} value={localVal} onChange={_onSlide} onMouseUp={_onRelease} onTouchEnd={_onRelease} style={{ flex: 1, accentColor: _br.gn, height: 6 }} />
         {editing ? (
           <input type="number" min={min} max={max} step={s} value={draft} onChange={e => setDraft(e.target.value)} onBlur={commit} onKeyDown={e => e.key === "Enter" && commit()} autoFocus
             style={{ width: 60, fontFamily: _mono, fontSize: 16, fontWeight: 800, color: _br.tx, textAlign: "right", border: `2px solid ${_br.gn}`, borderRadius: 4, padding: "2px 4px", outline: "none", background: "#fff" }} />
         ) : (
-          <span onClick={() => setEditing(true)} style={{ fontFamily: _mono, fontSize: 18, fontWeight: 800, color: _br.tx, minWidth: 58, textAlign: "center", cursor: "text", background: "#f0ede4", borderRadius: 5, padding: "2px 8px", border: `1px solid ${_br.bd}`, display: "inline-flex", alignItems: "center", gap: 4 }}>{fmt ? fmt(value) : (value + unit)}<span style={{ fontSize: 10, color: _br.mu, opacity: 0.6 }}>{"\u270E"}</span></span>
+          <span onClick={() => setEditing(true)} style={{ fontFamily: _mono, fontSize: 18, fontWeight: 800, color: _br.tx, minWidth: 58, textAlign: "center", cursor: "text", background: "#f0ede4", borderRadius: 5, padding: "2px 8px", border: `1px solid ${_br.bd}`, display: "inline-flex", alignItems: "center", gap: 4 }}>{fmt ? fmt(localVal) : (localVal + unit)}<span style={{ fontSize: 10, color: _br.mu, opacity: 0.6 }}>{"\u270E"}</span></span>
         )}
       </div>
     </div>
