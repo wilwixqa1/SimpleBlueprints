@@ -261,6 +261,18 @@ def estimate_zone_materials(params, calc):
 
         # S60: Zone railing (3 exposed sides)
         z_rail_len = (2 * zw + zd) if edge in ("right", "left") else (2 * zd + zw)
+        # S66: Zone chamfer railing adjustment
+        _zc = z.get("corners")
+        if _zc:
+            _shared_prefix = {"front": "B", "back": "F", "left": "R", "right": "L"}.get(edge, "B")
+            for _ck in ("BL", "BR", "FL", "FR"):
+                _cc = _zc.get(_ck, {})
+                if _cc.get("type") == "chamfer" and _cc.get("size", 0) > 0:
+                    _cs = _cc["size"]
+                    if _shared_prefix in _ck:
+                        z_rail_len += _cs * math.sqrt(2) - _cs
+                    else:
+                        z_rail_len += _cs * math.sqrt(2) - 2 * _cs
         if rail_type == "fortress":
             extra_items.append({"cat": "Railing", "item": f"Fortress Panels ({label})", "qty": math.ceil(z_rail_len / 7), "cost": 80})
             extra_items.append({"cat": "Railing", "item": f"Fortress Posts ({label})", "qty": math.ceil(z_rail_len / 6) + 1, "cost": 45})
@@ -270,6 +282,22 @@ def estimate_zone_materials(params, calc):
     extra_sub = sum(i["qty"] * i["cost"] for i in extra_items)
     base_area = calc.get("area", W * D)
     total_area = round(base_area + add_area - cut_area)
+
+    # S66: Subtract chamfer triangle areas
+    _mc = params.get("mainCorners")
+    if _mc:
+        for _ck in ("BL", "BR", "FL", "FR"):
+            _cc = _mc.get(_ck, {})
+            if _cc.get("type") == "chamfer" and _cc.get("size", 0) > 0:
+                total_area -= _cc["size"] ** 2 / 2
+    for z in zones:
+        _zc = z.get("corners")
+        if _zc:
+            for _ck in ("BL", "BR", "FL", "FR"):
+                _cc = _zc.get(_ck, {})
+                if _cc.get("type") == "chamfer" and _cc.get("size", 0) > 0:
+                    total_area -= _cc["size"] ** 2 / 2
+    total_area = round(total_area)
 
     return {
         "totalArea": total_area,

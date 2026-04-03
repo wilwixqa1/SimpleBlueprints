@@ -1124,7 +1124,7 @@ async def _generate_insight_async():
                 classify = f" [{m.get('classify','')}]" if m.get("classify") else ""
                 conv_text += f"{role}{classify}: {(m['message'] or '')[:300]}\n"
 
-        prompt = f"""You are a product analyst for SimpleBlueprints, a web app that generates permit-ready deck blueprint PDFs.
+        prompt = f"""You are a product analyst for SimpleBlueprints, a web app that generates deck blueprint PDFs to support permit applications.
 
 Analyze these recent AI helper conversations and usage data. Extract actionable product insights.
 

@@ -512,7 +512,30 @@ function calcAllZones(p, baseCalc) {
     }
   }
 
-  return { totalArea: Math.round(baseCalc.area + addArea - cutArea), extraPosts: extraPosts, extraFootings: extraFootings, extraItems: extraItems, extraSub: extraSub, extraTotal: extraSub * 1.13, zoneCalcs: zoneCalcs, extraRailLen: +extraRailLen.toFixed(1) };
+  // S66: Subtract chamfer triangle areas from totalArea
+  var chamferArea = 0;
+  var _mcA = p.mainCorners;
+  if (_mcA) {
+    ["BL","BR","FL","FR"].forEach(function(_ck) {
+      var _cc = _mcA[_ck];
+      if (_cc && _cc.type === "chamfer" && _cc.size > 0) {
+        chamferArea += _cc.size * _cc.size / 2;
+      }
+    });
+  }
+  for (var ci = 0; ci < zones.length; ci++) {
+    var _zcA = zones[ci].corners;
+    if (_zcA) {
+      ["BL","BR","FL","FR"].forEach(function(_ck) {
+        var _cc = _zcA[_ck];
+        if (_cc && _cc.type === "chamfer" && _cc.size > 0) {
+          chamferArea += _cc.size * _cc.size / 2;
+        }
+      });
+    }
+  }
+
+  return { totalArea: Math.round(baseCalc.area + addArea - cutArea - chamferArea), extraPosts: extraPosts, extraFootings: extraFootings, extraItems: extraItems, extraSub: extraSub, extraTotal: extraSub * 1.13, zoneCalcs: zoneCalcs, extraRailLen: +extraRailLen.toFixed(1) };
 }
 // Export to window
 window.JOIST_SPANS = JOIST_SPANS;
