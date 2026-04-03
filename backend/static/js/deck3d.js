@@ -38,7 +38,7 @@ window.buildDeckScene = function(scene, p, c, THREE) {
     rail: new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.3, metalness: 0.7 }),
     house: new THREE.MeshStandardMaterial({ color: 0xd8d4c8, roughness: 0.8 }),
     roof: new THREE.MeshStandardMaterial({ color: 0x666666, roughness: 0.7 }),
-    win: new THREE.MeshStandardMaterial({ color: 0x90bcd4, roughness: 0.2 }),
+    win: new THREE.MeshStandardMaterial({ color: 0x90bcd4, roughness: 0.2, side: THREE.DoubleSide }),
     metal: new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 0.3, metalness: 0.5 }),
     stairTread: new THREE.MeshStandardMaterial({ color: p.deckingType === "composite" ? 0x8B7355 : 0xc4a060, roughness: 0.65 }),
     stairRiser: new THREE.MeshStandardMaterial({ color: 0xd4b87a, roughness: 0.75 }),
@@ -134,8 +134,8 @@ window.buildDeckScene = function(scene, p, c, THREE) {
   var rv = new Float32Array([rx1,ry,rz2,rx2,ry,rz2,rxM,ryP,rz2, rx2,ry,rz1,rx1,ry,rz1,rxM,ryP,rz1, rx1,ry,rz1,rx1,ry,rz2,rxM,ryP,rz2,rx1,ry,rz1,rxM,ryP,rz2,rxM,ryP,rz1, rx2,ry,rz2,rx2,ry,rz1,rxM,ryP,rz1,rx2,ry,rz2,rxM,ryP,rz1,rxM,ryP,rz2, rx1,ry,rz1,rx2,ry,rz1,rx2,ry,rz2,rx1,ry,rz1,rx2,ry,rz2,rx1,ry,rz2]);
   var rg = new THREE.BufferGeometry(); rg.setAttribute('position', new THREE.BufferAttribute(rv, 3)); rg.computeVertexNormals();
   scene.add(new THREE.Mesh(rg, mats.roof));
-  for (var wx = 0.2; wx < 0.9; wx += 0.3) { scene.add(new THREE.Mesh(new THREE.PlaneGeometry(3, 4), mats.win)).position.set(hX + hW * wx, H + 5, hZ + hD + 0.05); }
-  scene.add(new THREE.Mesh(new THREE.PlaneGeometry(4, 6.5), mats.win)).position.set(hX + hW / 2, H - 6.5 / 2 + 6.7, z0wz + 0.05);
+  for (var wx = 0.2; wx < 0.9; wx += 0.3) { scene.add(new THREE.Mesh(new THREE.PlaneGeometry(3, 4), mats.win)).position.set(hX + hW * wx, H + 5, hZ + hD + 0.15); }
+  scene.add(new THREE.Mesh(new THREE.PlaneGeometry(4, 6.5), mats.win)).position.set(hX + hW / 2, H + 6.5 / 2 + 0.2, hZ + hD + 0.15);
 
 // S20: Structure per zone (piers, posts, beams, joists)
   var pR = (fDiam / 12) / 2, pD = postSize === "6x6" ? 5.5 / 12 : 3.5 / 12;
