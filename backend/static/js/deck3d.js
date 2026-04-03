@@ -716,12 +716,21 @@ window.buildDeckScene = function(scene, p, c, THREE) {
     var matStr = mats.stringer;
 
     var cumR = 0;
-    // Helper: check if a point falls inside any landing rect (for tread/riser clipping)
-    function inLanding(x, z) {
+    // Precompute landing elevations for clipping
+    var landingElevs = [];
+    var _lcr = 0;
+    for (var _li = 0; _li < sg.landings.length; _li++) {
+      _lcr += sg.runs[_li].risers;
+      landingElevs.push(H - _lcr * riseFt);
+    }
+    // Helper: check if a tread/riser clips through a landing platform
+    // Only clips if inside the landing rect AND at/above the landing surface elevation
+    function clipsLanding(x, z, y) {
       for (var li2 = 0; li2 < sg.landings.length; li2++) {
         var lr2 = sg.landings[li2].rect;
         if (x > lr2.x + 0.05 && x < lr2.x + lr2.w - 0.05 &&
-            z > lr2.y + 0.05 && z < lr2.y + lr2.h - 0.05) return true;
+            z > lr2.y + 0.05 && z < lr2.y + lr2.h - 0.05 &&
+            y > landingElevs[li2] - treadTh) return true;
       }
       return false;
     }
@@ -745,7 +754,7 @@ window.buildDeckScene = function(scene, p, c, THREE) {
         var tY = topElev - (i + 1) * riseFt;
         var tX = sx + dsx * treadFt * (i + 0.5);
         var tZ = sz + dsz * treadFt * (i + 0.5);
-        if (inLanding(tX, tZ)) continue;
+        if (clipsLanding(tX, tZ, tY)) continue;
         var tw = isHoriz ? span + noseOver * 2 : treadFt + noseOver;
         var td = isHoriz ? treadFt + noseOver : span + noseOver * 2;
         var tm = new THREE.Mesh(new THREE.BoxGeometry(tw, treadTh, td), mats.stairTread);
@@ -760,7 +769,7 @@ window.buildDeckScene = function(scene, p, c, THREE) {
         var rZ = sz + dsz * treadFt * i;
         rX += dsx * (-treadFt * 0.0);
         rZ += dsz * (-treadFt * 0.0);
-        if (inLanding(rX, rZ)) continue;
+        if (clipsLanding(rX, rZ, rY2)) continue;
         var rw = isHoriz ? span : riserTh;
         var rd = isHoriz ? riserTh : span;
         var rm = new THREE.Mesh(new THREE.BoxGeometry(rw, riseFt * 0.92, rd), mats.stairRiser);
