@@ -285,22 +285,191 @@ def draw_post_beam_detail(ax, params, calc, spec=None):
     ax.text(9, 6.5, '1/2" CARRIAGE BOLTS\nW/ NUTS & WASHERS', fontsize=3.5, color=BRAND["mute"])
 
 
+def draw_stair_landing_detail(ax, params, calc, spec=None):
+    """S65: Stair at lower landing detail -- cross section per Billy's reference.
+    Parametric: decking type, rail type, guard height. Everything else is standard."""
+    ax.set_xlim(-4, 20)
+    ax.set_ylim(-4, 16)
+    ax.set_aspect('equal')
+    ax.axis('off')
+    ax.set_facecolor('white')
+
+    ax.text(-3, 15, 'STAIR AT LOWER LANDING DETAIL', fontsize=7.5, fontweight='bold',
+            fontfamily='monospace', color=BRAND["dark"])
+    ax.text(-3, 14.2, 'NOT TO SCALE', fontsize=5, fontfamily='monospace', color=BRAND["mute"])
+
+    rail_height = spec["guardrail"]["height"] if spec else calc.get("rail_height", 36)
+    is_fortress = params.get("railType") == "fortress"
+    is_composite = params.get("deckingType") == "composite"
+
+    # --- Concrete landing pad ---
+    pad_x, pad_y = 1, -2.5
+    pad_w, pad_h = 6, 1.0
+    ax.add_patch(patches.Rectangle((pad_x, pad_y), pad_w, pad_h,
+                 fc=BRAND["concrete"], ec=BRAND["dark"], lw=1))
+    # Gravel/earth hatching below pad
+    for i in np.arange(pad_x - 0.5, pad_x + pad_w + 0.5, 0.3):
+        ax.plot([i, i - 0.15], [pad_y, pad_y - 0.2], color=BRAND["mute"], lw=0.2)
+    ax.text(pad_x + pad_w / 2, pad_y + pad_h / 2, 'MIN. 4" THICK\nCONCRETE PAD',
+            ha='center', va='center', fontsize=3.5, color='#555', fontweight='bold')
+
+    # Landing pad dimensions
+    draw_dimension_h(ax, pad_x, pad_x + pad_w, pad_y, '12" MIN.',
+                     offset=-1.2, color=BRAND["red"], fontsize=4)
+
+    # --- 2x6 PT plate on pad ---
+    plate_y = pad_y + pad_h
+    plate_h = 0.35
+    ax.add_patch(patches.Rectangle((pad_x + 0.3, plate_y), pad_w - 0.6, plate_h,
+                 fc='#a08860', ec=BRAND["dark"], lw=0.6))
+    # Expansion bolts
+    for bx in [pad_x + 1.5, pad_x + 3, pad_x + 4.5]:
+        ax.plot(bx, plate_y + plate_h / 2, 'x', ms=3, color=BRAND["red"], mew=0.8)
+    ax.text(10, plate_y, '2x6 PT W/ 1/2" DIA\nEXPANSION BOLTS @ 16" OC',
+            fontsize=3.5, color=BRAND["dark"], va='center')
+
+    # --- Stringer (angled from plate up to deck) ---
+    stringer_base_x = pad_x + 1.0
+    stringer_base_y = plate_y + plate_h
+    # Stair geometry: 4 treads visible, ~7" rise, 10.5" run
+    n_vis = 4
+    rise_vis = 1.4  # visual rise per step
+    run_vis = 1.8   # visual run per step
+    deck_top_y = stringer_base_y + n_vis * rise_vis + 0.5
+    deck_left_x = stringer_base_x + n_vis * run_vis
+
+    # Stringer outline (angled board)
+    sx1, sy1 = stringer_base_x - 0.3, stringer_base_y
+    sx2, sy2 = deck_left_x + 0.5, deck_top_y - 0.3
+    ax.plot([sx1, sx2], [sy1, sy2], color=BRAND["dark"], lw=1.2)
+    ax.plot([sx1 + 0.6, sx2 + 0.6], [sy1 - 0.4, sy2 - 0.4], color=BRAND["dark"], lw=1.2)
+    # Bottom notch for plate
+    ax.plot([sx1, sx1, sx1 + 0.6], [sy1, sy1 - 0.4, sy1 - 0.4],
+            color=BRAND["dark"], lw=0.8)
+    ax.text(10, stringer_base_y + 1.5, 'NOTCH STRINGER\nFOR PLATE',
+            fontsize=3.5, color=BRAND["dark"])
+
+    # Stringer label
+    ax.text(-2.5, stringer_base_y + 2, '2x12 STRINGER\n@ 16"',
+            fontsize=3.5, color=BRAND["dark"], fontweight='bold')
+    ax.annotate('', xy=(sx1 + 0.3, stringer_base_y + 2), xytext=(-0.5, stringer_base_y + 2.2),
+                arrowprops=dict(arrowstyle='->', color=BRAND["dark"], lw=0.5))
+
+    # --- Treads ---
+    for i in range(n_vis):
+        tx = stringer_base_x + i * run_vis
+        ty = stringer_base_y + (i + 1) * rise_vis
+        # Tread surface
+        ax.add_patch(patches.Rectangle((tx, ty), run_vis + 0.3, 0.25,
+                     fc=BRAND["wood"], ec=BRAND["dark"], lw=0.5))
+        # Riser
+        ax.plot([tx, tx], [ty - rise_vis + 0.25, ty], color=BRAND["dark"], lw=0.5)
+
+    # Rise/run annotation
+    _ann_x = stringer_base_x + 2 * run_vis
+    _ann_y = stringer_base_y + 2 * rise_vis
+    ax.text(12, 7.5, "RISE: 4\" TO 7.75\" MIN.\nRUN: 10.5\"\nTREAD NOSINGS\nBETWEEN .75\" AND 1.25\"\nIF TREADS <11\" WITH\nSOLID RISERS",
+            fontsize=3.5, color=BRAND["dark"], fontfamily='monospace',
+            bbox=dict(boxstyle='square,pad=0.2', fc='#fafaf5', ec=BRAND["border"], lw=0.5))
+
+    # --- Deck surface at top ---
+    deck_vis_w = 5
+    if is_composite:
+        deck_label = '1 X 6 TREX\nCOMPOSITE\nDECKING'
+    else:
+        deck_label = '5/4 X 6 PT\nDECKING'
+    ax.add_patch(patches.Rectangle((deck_left_x - 1, deck_top_y), deck_vis_w, 0.35,
+                 fc='#8B7355', ec=BRAND["dark"], lw=0.8))
+    ax.text(deck_left_x + deck_vis_w + 0.5, deck_top_y, deck_label,
+            fontsize=3.5, color=BRAND["dark"], va='center')
+
+    # Joist under deck
+    ax.add_patch(patches.Rectangle((deck_left_x - 1, deck_top_y - 0.8), deck_vis_w, 0.8,
+                 fc=BRAND["wood"], ec=BRAND["dark"], lw=0.5, alpha=0.5))
+
+    # --- Handrail system ---
+    rail_vis_h = 5.5
+    post_base_x = stringer_base_x + 0.5 * run_vis
+    post_base_y = stringer_base_y + 1.0 * rise_vis + 0.25
+    post_top_y = post_base_y + rail_vis_h
+
+    # Post
+    ax.add_patch(patches.Rectangle((post_base_x - 0.15, post_base_y), 0.3, rail_vis_h,
+                 fc=BRAND["rail"], ec=BRAND["dark"], lw=0.6))
+
+    # Top rail (angled along stair)
+    rail_top_x1 = post_base_x
+    rail_top_y1 = post_top_y
+    rail_top_x2 = deck_left_x + 0.5
+    rail_top_y2 = deck_top_y + rail_vis_h * 0.85
+    ax.plot([rail_top_x1 - 1, rail_top_x2], [rail_top_y1 - 0.3, rail_top_y2],
+            color=BRAND["rail"], lw=2)
+
+    # Rail label
+    if is_fortress:
+        rail_label = "'FORTRESS'\nHANDRAIL SYSTEM"
+    else:
+        rail_label = "WOOD\nHANDRAIL SYSTEM"
+    ax.text(-3, post_top_y + 0.5, rail_label, fontsize=4, fontweight='bold', color=BRAND["dark"])
+    ax.annotate('', xy=(rail_top_x1 - 0.5, post_top_y), xytext=(-0.5, post_top_y + 0.5),
+                arrowprops=dict(arrowstyle='->', color=BRAND["dark"], lw=0.5))
+
+    # 4" sphere test
+    ax.text(-3, post_top_y - 1.2, 'MUST NOT ALLOW\nPASSAGE OF 4" SPHERE',
+            fontsize=3.5, color=BRAND["red"])
+
+    # Balusters (a few representative ones)
+    for bi_idx in range(3):
+        bx = post_base_x + 0.8 + bi_idx * 0.5
+        by_base = post_base_y + 0.3 + bi_idx * 0.3
+        by_top = post_top_y - 0.5 + bi_idx * 0.15
+        ax.plot([bx, bx], [by_base, by_top], color=BRAND["rail"], lw=0.3, alpha=0.6)
+
+    # Guard height dimension
+    draw_dimension_v(ax, -1.5, post_base_y, post_top_y,
+                     f'34" TO 38"\nHANDRAIL\nHEIGHT',
+                     offset=-2, color=BRAND["blue"], fontsize=4)
+
+    # 36" min guard
+    draw_dimension_v(ax, deck_left_x + deck_vis_w + 0.3, deck_top_y, deck_top_y + rail_vis_h * 0.7,
+                     f'{rail_height}" MIN.',
+                     offset=1, color=BRAND["red"], fontsize=4)
+
+    # 5" min at bottom
+    ax.annotate('5" MIN.', xy=(stringer_base_x + 0.3, stringer_base_y + 0.5),
+                fontsize=3.5, fontweight='bold', color=BRAND["dark"],
+                bbox=dict(boxstyle='square,pad=0.1', fc='white', ec='none'))
+
+    # 12" min depth label on landing
+    draw_dimension_v(ax, pad_x + pad_w + 0.3, pad_y, pad_y + pad_h,
+                     '12" MIN.', offset=1, color=BRAND["red"], fontsize=4)
+
+
 # ============================================================
-# SHEET: COMBINED DETAILS
+# SHEET: COMBINED DETAILS (S65: 5-panel layout)
 # ============================================================
 def draw_details_sheet(fig, params, calc, spec=None):
-    """Draw all 4 detail views on one sheet"""
+    """Draw all 5 detail views: 3 top + 2 bottom"""
     if spec is None:
         from .permit_spec import build_permit_spec
         spec = build_permit_spec(params, calc)
 
-    axes = fig.subplots(2, 2)
-    fig.subplots_adjust(left=0.04, right=0.84, top=0.93, bottom=0.06, hspace=0.3, wspace=0.15)
+    import matplotlib.gridspec as gridspec
+    gs = gridspec.GridSpec(2, 3, figure=fig,
+                           left=0.04, right=0.84, top=0.93, bottom=0.06,
+                           hspace=0.3, wspace=0.15)
 
-    draw_ledger_detail(axes[0, 0], params, calc, spec)
-    draw_footing_detail(axes[0, 1], params, calc, spec)
-    draw_guard_rail_detail(axes[1, 0], params, calc, spec)
-    draw_post_beam_detail(axes[1, 1], params, calc, spec)
+    ax_ledger = fig.add_subplot(gs[0, 0])
+    ax_footing = fig.add_subplot(gs[0, 1])
+    ax_stair = fig.add_subplot(gs[0, 2])
+    ax_guard = fig.add_subplot(gs[1, 0])
+    ax_post = fig.add_subplot(gs[1, 1])
+
+    draw_ledger_detail(ax_ledger, params, calc, spec)
+    draw_footing_detail(ax_footing, params, calc, spec)
+    draw_stair_landing_detail(ax_stair, params, calc, spec)
+    draw_guard_rail_detail(ax_guard, params, calc, spec)
+    draw_post_beam_detail(ax_post, params, calc, spec)
 
     # Construction notes at bottom
     fig.text(0.05, 0.03,
