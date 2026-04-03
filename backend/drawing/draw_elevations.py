@@ -950,12 +950,28 @@ def draw_side_elevation(ax, params, calc, direction="east", compact=False, spec=
 
         rail_h = calc["rail_height"] / 12
         rail_top = deck_top + rail_h
-        ax.plot([deck_end_x, deck_start_x], [rail_top, rail_top], color=BRAND["rail"], lw=2)
-        ax.plot([deck_end_x, deck_start_x], [deck_top + 0.25, deck_top + 0.25],
+
+        # S66: Chamfer insets for west (left side sees FL/BL)
+        _mc_w = params.get("mainCorners")
+        _fl_w = 0
+        _bl_w = 0
+        if _mc_w:
+            _flc = _mc_w.get("FL", {})
+            _blc = _mc_w.get("BL", {})
+            if _flc.get("type") == "chamfer" and _flc.get("size", 0) > 0:
+                _fl_w = _flc["size"]
+            if _blc.get("type") == "chamfer" and _blc.get("size", 0) > 0 and attachment != "ledger":
+                _bl_w = _blc["size"]
+
+        _wrl = deck_end_x + _fl_w   # front (left in drawing)
+        _wrr = deck_start_x - _bl_w  # house side (right in drawing)
+
+        ax.plot([_wrl, _wrr], [rail_top, rail_top], color=BRAND["rail"], lw=2)
+        ax.plot([_wrl, _wrr], [deck_top + 0.25, deck_top + 0.25],
                 color=BRAND["rail"], lw=0.8)
-        ax.plot([deck_end_x, deck_end_x], [deck_top, rail_top], color=BRAND["rail"], lw=1.2)
-        ax.plot([deck_start_x, deck_start_x], [deck_top, rail_top], color=BRAND["rail"], lw=1.2)
-        for bx in np.arange(0, D, 3.75 / 12):
+        ax.plot([_wrl, _wrl], [deck_top, rail_top], color=BRAND["rail"], lw=1.2)
+        ax.plot([_wrr, _wrr], [deck_top, rail_top], color=BRAND["rail"], lw=1.2)
+        for bx in np.arange(_fl_w, D - _bl_w, 3.75 / 12):
             ax.plot([deck_end_x + bx, deck_end_x + bx], [deck_top + 0.25, rail_top],
                     color=BRAND["rail"], lw=0.15, alpha=0.5)
 
@@ -1055,12 +1071,28 @@ def draw_side_elevation(ax, params, calc, direction="east", compact=False, spec=
 
         rail_h = calc["rail_height"] / 12
         rail_top = deck_top + rail_h
-        ax.plot([deck_start_x, deck_start_x + D], [rail_top, rail_top], color=BRAND["rail"], lw=2)
-        ax.plot([deck_start_x, deck_start_x + D], [deck_top + 0.25, deck_top + 0.25],
+
+        # S66: Chamfer insets for east (right side sees FR/BR)
+        _mc_e = params.get("mainCorners")
+        _fr_e = 0
+        _br_e = 0
+        if _mc_e:
+            _frc = _mc_e.get("FR", {})
+            _brc = _mc_e.get("BR", {})
+            if _frc.get("type") == "chamfer" and _frc.get("size", 0) > 0:
+                _fr_e = _frc["size"]
+            if _brc.get("type") == "chamfer" and _brc.get("size", 0) > 0 and attachment != "ledger":
+                _br_e = _brc["size"]
+
+        _erl = deck_start_x + _br_e       # house side (left in drawing)
+        _err = deck_start_x + D - _fr_e   # front (right in drawing)
+
+        ax.plot([_erl, _err], [rail_top, rail_top], color=BRAND["rail"], lw=2)
+        ax.plot([_erl, _err], [deck_top + 0.25, deck_top + 0.25],
                 color=BRAND["rail"], lw=0.8)
-        ax.plot([deck_start_x, deck_start_x], [deck_top, rail_top], color=BRAND["rail"], lw=1.2)
-        ax.plot([deck_start_x + D, deck_start_x + D], [deck_top, rail_top], color=BRAND["rail"], lw=1.2)
-        for bx in np.arange(0, D, 3.75 / 12):
+        ax.plot([_erl, _erl], [deck_top, rail_top], color=BRAND["rail"], lw=1.2)
+        ax.plot([_err, _err], [deck_top, rail_top], color=BRAND["rail"], lw=1.2)
+        for bx in np.arange(_br_e, D - _fr_e, 3.75 / 12):
             ax.plot([deck_start_x + bx, deck_start_x + bx], [deck_top + 0.25, rail_top],
                     color=BRAND["rail"], lw=0.15, alpha=0.5)
 
