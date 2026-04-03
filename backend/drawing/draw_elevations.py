@@ -18,7 +18,7 @@ import numpy as np
 
 from .calc_engine import calculate_structure
 from .draw_plan import BRAND, draw_dimension_h, draw_dimension_v, draw_scale_bar, format_feet_inches
-from .stair_utils import get_stair_placement, get_stair_exit_side
+from .stair_utils import get_stair_placement, get_stair_exit_side, resolve_all_stairs
 from .zone_utils import get_additive_rects, get_bounding_box
 
 
@@ -586,49 +586,63 @@ def draw_south_elevation(ax, params, calc, compact=False, spec=None):
     rail_h = calc["rail_height"] / 12
     rail_top = deck_top + rail_h
 
-    _placement = get_stair_placement(params, {"width": W, "depth": D})
-    _exit_side = get_stair_exit_side(_placement["angle"])
-    _svt, _sdir = stair_view_type(_exit_side, "south")
-    has_stairs = params.get("hasStairs") and calc.get("stairs")
+    # S65: Resolve all stairs for multi-stair rendering
+    all_stairs = resolve_all_stairs(params, calc)
 
-    stair_open_l = stair_open_r = None
-    if has_stairs and _svt == "treads":
-        _sw = calc["stairs"].get("width", 4)
-        _stair_cx = z0_x + _placement["anchor_x"]
-        stair_open_l = _stair_cx - _sw / 2
-        stair_open_r = _stair_cx + _sw / 2
+    # Build railing gaps for zone-0 front-facing stairs
+    _z0_gaps = []
+    for rs in all_stairs:
+        if rs["stair"]["zoneId"] == 0:
+            _svt, _sdir = stair_view_type(rs["exit_side"], "south")
+            if _svt == "treads":
+                _sw = rs["stair_info"].get("width", 4)
+                _cx = z0_x + rs["world_anchor_x"]
+                _z0_gaps.append((_cx - _sw / 2, _cx + _sw / 2))
+    _z0_gaps.sort()
 
-    if stair_open_l is not None:
-        ax.plot([z0_x, stair_open_l], [rail_top, rail_top], color=BRAND["rail"], lw=2)
-        ax.plot([stair_open_r, z0_x + W], [rail_top, rail_top], color=BRAND["rail"], lw=2)
-        ax.plot([z0_x, stair_open_l], [deck_top + 0.25, deck_top + 0.25], color=BRAND["rail"], lw=0.8)
-        ax.plot([stair_open_r, z0_x + W], [deck_top + 0.25, deck_top + 0.25], color=BRAND["rail"], lw=0.8)
-    else:
-        ax.plot([z0_x, z0_x + W], [rail_top, rail_top], color=BRAND["rail"], lw=2)
-        ax.plot([z0_x, z0_x + W], [deck_top + 0.25, deck_top + 0.25], color=BRAND["rail"], lw=0.8)
+    # Draw zone-0 railing with gaps
+    def _draw_rail_with_gaps(y_pos, lw_val):
+        if not _z0_gaps:
+            ax.plot([z0_x, z0_x + W], [y_pos, y_pos], color=BRAND["rail"], lw=lw_val)
+            return
+        cursor = z0_x
+        for gl, gr in _z0_gaps:
+            if cursor < gl:
+                ax.plot([cursor, gl], [y_pos, y_pos], color=BRAND["rail"], lw=lw_val)
+            cursor = gr
+        if cursor < z0_x + W:
+            ax.plot([cursor, z0_x + W], [y_pos, y_pos], color=BRAND["rail"], lw=lw_val)
+
+    _draw_rail_with_gaps(rail_top, 2)
+    _draw_rail_with_gaps(deck_top + 0.25, 0.8)
+
+    def _in_any_gap(x_val):
+        for gl, gr in _z0_gaps:
+            if gl < x_val < gr:
+                return True
+        return False
 
     for rpx in np.arange(0, W + 0.1, 4):
         px_abs = z0_x + rpx
-        if stair_open_l is not None and stair_open_l < px_abs < stair_open_r:
+        if _in_any_gap(px_abs):
             continue
         ax.plot([px_abs, px_abs], [deck_top, rail_top], color=BRAND["rail"], lw=1)
 
     for bx in np.arange(0, W, 3.75 / 12):
         bx_abs = z0_x + bx
-        if stair_open_l is not None and stair_open_l < bx_abs < stair_open_r:
+        if _in_any_gap(bx_abs):
             continue
         ax.plot([bx_abs, bx_abs], [deck_top + 0.25, rail_top],
                 color=BRAND["rail"], lw=0.12, alpha=0.5)
 
-    # === ZONE-0 STAIRS ===
-    if has_stairs:
-        stair = calc["stairs"]
+    # === ALL STAIRS (south elevation) ===
+    for rs in all_stairs:
+        _svt, _sdir = stair_view_type(rs["exit_side"], "south")
+        _draw_x = z0_x + rs["world_anchor_x"]
         if _svt == "treads":
-            _draw_stair_treads(ax, z0_x + _placement["anchor_x"],
-                               ground_y, deck_top, stair, rail_h)
+            _draw_stair_treads(ax, _draw_x, ground_y, deck_top, rs["stair_info"], rail_h)
         elif _svt == "profile":
-            _draw_stair_profile(ax, z0_x + _placement["anchor_x"],
-                                ground_y, deck_top, stair, rail_h, _sdir)
+            _draw_stair_profile(ax, _draw_x, ground_y, deck_top, rs["stair_info"], rail_h, _sdir)
 
     # === ZONE WING SECTIONS ===
     for sec in zone_ctx["sections"]:
@@ -750,11 +764,6 @@ def draw_north_elevation(ax, params, calc, compact=False, spec=None):
     rail_h = calc["rail_height"] / 12
     rail_top = deck_top + rail_h
 
-    _placement = get_stair_placement(params, {"width": W, "depth": D})
-    _exit_side = get_stair_exit_side(_placement["angle"])
-    _svt, _sdir = stair_view_type(_exit_side, "north")
-    has_stairs = params.get("hasStairs") and calc.get("stairs")
-
     ax.plot([z0_x, z0_x + W], [rail_top, rail_top],
             color=BRAND["rail"], lw=1.5, alpha=0.5)
     ax.plot([z0_x, z0_x + W], [deck_top + 0.25, deck_top + 0.25],
@@ -763,16 +772,16 @@ def draw_north_elevation(ax, params, calc, compact=False, spec=None):
         ax.plot([z0_x + bx, z0_x + bx], [deck_top + 0.25, rail_top],
                 color=BRAND["rail"], lw=0.08, alpha=0.3)
 
-    # === ZONE-0 STAIRS (mirrored) ===
-    if has_stairs:
-        stair = calc["stairs"]
-        mirrored_ax = W - _placement["anchor_x"]
+    # S65: All stairs (north elevation -- mirrored X)
+    all_stairs = resolve_all_stairs(params, calc)
+    _x_off = zone_ctx["x_off"]
+    for rs in all_stairs:
+        _svt, _sdir = stair_view_type(rs["exit_side"], "north")
+        _draw_x = deck_x + total_w - _x_off - rs["world_anchor_x"]
         if _svt == "treads":
-            _draw_stair_treads(ax, z0_x + mirrored_ax,
-                               ground_y, deck_top, stair, rail_h)
+            _draw_stair_treads(ax, _draw_x, ground_y, deck_top, rs["stair_info"], rail_h)
         elif _svt == "profile":
-            _draw_stair_profile(ax, z0_x + mirrored_ax,
-                                ground_y, deck_top, stair, rail_h, _sdir)
+            _draw_stair_profile(ax, _draw_x, ground_y, deck_top, rs["stair_info"], rail_h, _sdir)
 
     # === ZONE WING SECTIONS (mirrored for north view) ===
     for sec in zone_ctx["sections"]:
@@ -895,19 +904,18 @@ def draw_side_elevation(ax, params, calc, direction="east", compact=False, spec=
             ax.plot([deck_end_x + bx, deck_end_x + bx], [deck_top + 0.25, rail_top],
                     color=BRAND["rail"], lw=0.15, alpha=0.5)
 
-        _placement = get_stair_placement(params, {"width": W, "depth": D})
-        _exit_side = get_stair_exit_side(_placement["angle"])
-        _svt, _sdir = stair_view_type(_exit_side, "west")
-        has_stairs = params.get("hasStairs") and calc.get("stairs")
-
-        if has_stairs:
-            stair = calc["stairs"]
+        # S65: Side elevation stairs -- zone-0 only (west, mirrored depth)
+        all_stairs_w = resolve_all_stairs(params, calc)
+        for rs in all_stairs_w:
+            if rs["stair"]["zoneId"] != 0:
+                continue
+            _svt, _sdir = stair_view_type(rs["exit_side"], "west")
             if _svt == "treads":
-                stair_cx = deck_start_x - _placement["anchor_y"]
-                _draw_stair_treads(ax, stair_cx, ground_y, deck_top, stair, rail_h)
+                _draw_stair_treads(ax, deck_start_x - rs["world_anchor_y"],
+                                   ground_y, deck_top, rs["stair_info"], rail_h)
             elif _svt == "profile":
-                stair_sx = deck_start_x - _placement["anchor_y"]
-                _draw_stair_profile(ax, stair_sx, ground_y, deck_top, stair, rail_h, _sdir)
+                _draw_stair_profile(ax, deck_start_x - rs["world_anchor_y"],
+                                    ground_y, deck_top, rs["stair_info"], rail_h, _sdir)
 
         lbl_x = deck_end_x - 1.5
         lbl_kw = dict(fontsize=fs_lbl, fontfamily='monospace', color=BRAND["dark"], ha='right')
@@ -1001,23 +1009,27 @@ def draw_side_elevation(ax, params, calc, direction="east", compact=False, spec=
             ax.plot([deck_start_x + bx, deck_start_x + bx], [deck_top + 0.25, rail_top],
                     color=BRAND["rail"], lw=0.15, alpha=0.5)
 
-        _placement = get_stair_placement(params, {"width": W, "depth": D})
-        _exit_side = get_stair_exit_side(_placement["angle"])
-        _svt, _sdir = stair_view_type(_exit_side, "east")
-        has_stairs = params.get("hasStairs") and calc.get("stairs")
-
-        if has_stairs:
-            stair = calc["stairs"]
+        # S65: Side elevation stairs -- zone-0 only (zone wings need projection logic)
+        all_stairs = resolve_all_stairs(params, calc)
+        for rs in all_stairs:
+            if rs["stair"]["zoneId"] != 0:
+                continue
+            _svt, _sdir = stair_view_type(rs["exit_side"], direction)
             if _svt == "treads":
-                stair_cx = deck_start_x + _placement["anchor_y"]
-                _draw_stair_treads(ax, stair_cx, ground_y, deck_top, stair, rail_h)
+                _draw_stair_treads(ax, deck_start_x + rs["world_anchor_y"],
+                                   ground_y, deck_top, rs["stair_info"], rail_h)
             elif _svt == "profile":
-                stair_sx = deck_start_x + _placement["anchor_y"]
-                _draw_stair_profile(ax, stair_sx, ground_y, deck_top, stair, rail_h, _sdir)
+                _draw_stair_profile(ax, deck_start_x + rs["world_anchor_y"],
+                                    ground_y, deck_top, rs["stair_info"], rail_h, _sdir)
 
         stair_ext = 0
-        if has_stairs and _svt == "profile" and _sdir == 1:
-            stair_ext = calc["stairs"]["num_treads"] * (calc["stairs"]["tread_depth"] / 12)
+        for rs in all_stairs:
+            if rs["stair"]["zoneId"] != 0:
+                continue
+            _svt2, _sdir2 = stair_view_type(rs["exit_side"], direction)
+            if _svt2 == "profile" and _sdir2 == 1:
+                _se = rs["stair_info"]["num_treads"] * (rs["stair_info"]["tread_depth"] / 12)
+                stair_ext = max(stair_ext, _se)
         lbl_x = deck_start_x + D + max(2, stair_ext + 1.5)
         lbl_kw = dict(fontsize=fs_lbl, fontfamily='monospace', color=BRAND["dark"])
 
