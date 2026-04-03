@@ -289,8 +289,8 @@ def draw_post_beam_detail(ax, params, calc, spec=None):
 def draw_stair_landing_detail(ax, params, calc, spec=None):
     """S65: Stair at lower landing detail -- cross section per Billy's reference.
     Parametric: decking type, rail type, guard height. Everything else is standard."""
-    ax.set_xlim(-6, 22)
-    ax.set_ylim(-5, 18)
+    ax.set_xlim(-6, 24)
+    ax.set_ylim(-5.5, 18)
     ax.set_aspect('equal')
     ax.axis('off')
     ax.set_facecolor('white')
@@ -329,10 +329,10 @@ def draw_stair_landing_detail(ax, params, calc, spec=None):
     for bx in np.arange(pad_x + 1.5, pad_x + pad_w - 1, 1.8):
         ax.plot(bx, plate_top + plate_h / 2, 'x', ms=3.5, color=BRAND["red"], mew=1)
     # Plate label (right side)
-    ax.text(14.5, plate_top - 0.5, '2x6 PT W/ 1/2" DIA\nEXPANSION BOLTS @ 16" OC',
+    ax.text(16, plate_top - 0.5, '2x6 PT W/ 1/2" DIA\nEXPANSION BOLTS @ 16" OC',
             fontsize=4, color=BRAND["dark"], fontfamily='monospace')
     ax.annotate('', xy=(pad_x + pad_w - 1, plate_top + plate_h / 2),
-                xytext=(14.3, plate_top - 0.2),
+                xytext=(15.8, plate_top - 0.2),
                 arrowprops=dict(arrowstyle='->', color=BRAND["dark"], lw=0.5))
 
     # === STAIR GEOMETRY ===
@@ -372,18 +372,18 @@ def draw_stair_landing_detail(ax, params, calc, spec=None):
             [notch_y + 0.3, notch_y - 0.3, notch_y - 0.3],
             color=BRAND["dark"], lw=0.8)
 
-    # Stringer label (bottom-left)
-    ax.text(-5, stringer_base_y + 3, '2x12 STRINGER\n@ 16"',
-            fontsize=4.5, color=BRAND["dark"], fontweight='bold')
-    ax.annotate('', xy=(s_x1 + 1, stringer_base_y + 1.5),
-                xytext=(-2.5, stringer_base_y + 3),
+    # Stringer label (right side with leader)
+    ax.text(16, stringer_base_y + 4, '2x12 STRINGER @ 16"',
+            fontsize=4, color=BRAND["dark"], fontweight='bold', fontfamily='monospace')
+    ax.annotate('', xy=(s_x1 + 3, stringer_base_y + 2.5),
+                xytext=(15.8, stringer_base_y + 4),
                 arrowprops=dict(arrowstyle='->', color=BRAND["dark"], lw=0.5))
 
-    # Notch label
-    ax.text(14.5, stringer_base_y + 2.5, 'NOTCH STRINGER\nFOR PLATE',
+    # Notch label (right side, below stringer label)
+    ax.text(16, stringer_base_y + 1.5, 'NOTCH STRINGER\nFOR PLATE',
             fontsize=4, color=BRAND["dark"], fontfamily='monospace')
-    ax.annotate('', xy=(notch_x + 0.3, notch_y),
-                xytext=(14.3, stringer_base_y + 2.5),
+    ax.annotate('', xy=(notch_x + 0.5, notch_y),
+                xytext=(15.8, stringer_base_y + 1.5),
                 arrowprops=dict(arrowstyle='->', color=BRAND["dark"], lw=0.5))
 
     # === TREADS AND RISERS ===
@@ -415,10 +415,10 @@ def draw_stair_landing_detail(ax, params, calc, spec=None):
     ax.add_patch(patches.Rectangle((deck_left_x - 1.5, deck_top_y - 1.0), deck_w, 1.0,
                  fc=BRAND["wood"], ec=BRAND["dark"], lw=0.5, alpha=0.4))
     # Deck label
-    ax.text(14.5, deck_top_y + 0.8, deck_label,
+    ax.text(16, deck_top_y + 0.8, deck_label,
             fontsize=4, color=BRAND["dark"], fontfamily='monospace')
     ax.annotate('', xy=(deck_left_x + deck_w - 1.5, deck_top_y + 0.2),
-                xytext=(14.3, deck_top_y + 0.8),
+                xytext=(15.8, deck_top_y + 0.8),
                 arrowprops=dict(arrowstyle='->', color=BRAND["dark"], lw=0.5))
 
     # === HANDRAIL SYSTEM ===
@@ -460,46 +460,46 @@ def draw_stair_landing_detail(ax, params, calc, spec=None):
     sph_cy = (sph_y_top + sph_y_bot) / 2
     sph_r = 0.45
     ax.add_patch(plt.Circle((sph_x, sph_cy), sph_r, fc='none', ec=BRAND["red"], lw=0.8, ls='--'))
-    ax.text(sph_x - 0.3, sph_cy + 0.8, '< 4"', fontsize=3.5, color=BRAND["red"], fontweight='bold')
+    ax.text(sph_x + 0.8, sph_cy + 0.3, '< 4"', fontsize=3.5, color=BRAND["red"], fontweight='bold')
 
-    # Rail system label (top-left, with leader)
+    # Rail system label (top-left, above everything)
     if is_fortress:
-        rail_label = "'FORTRESS'\nHANDRAIL SYSTEM"
+        rail_label = "'FORTRESS' HANDRAIL SYSTEM"
     else:
-        rail_label = "WOOD\nHANDRAIL SYSTEM"
-    ax.text(-5, tr_y1 + 1, rail_label, fontsize=4.5, fontweight='bold', color=BRAND["dark"])
-    ax.annotate('', xy=(tr_x1, tr_y1),
-                xytext=(-2.5, tr_y1 + 1),
+        rail_label = "WOOD HANDRAIL SYSTEM"
+    ax.text(-5, 14.5, rail_label, fontsize=4.5, fontweight='bold', color=BRAND["dark"])
+    ax.annotate('', xy=(tr_x1 + 1, tr_y1 - 0.5),
+                xytext=(-2, 14.3),
                 arrowprops=dict(arrowstyle='->', color=BRAND["dark"], lw=0.5))
 
-    # "Must not allow passage of 4" sphere" label
-    ax.text(-5, tr_y1 - 1.2, 'MUST NOT ALLOW\nPASSAGE OF 4" SPHERE',
+    # "Must not allow passage of 4" sphere" (left side, below rail label)
+    ax.text(-5, sph_cy + 0.3, 'MUST NOT ALLOW PASSAGE\nOF 4" SPHERE',
             fontsize=3.5, color=BRAND["red"], fontweight='bold')
-    ax.annotate('', xy=(sph_x - sph_r, sph_cy),
-                xytext=(-2.5, tr_y1 - 1),
+    ax.annotate('', xy=(sph_x - sph_r - 0.2, sph_cy),
+                xytext=(-0.5, sph_cy + 0.3),
                 arrowprops=dict(arrowstyle='->', color=BRAND["red"], lw=0.5))
 
     # === DIMENSIONS ===
-    # Handrail height dimension (left side of stair)
+    # Handrail height dimension (far left, clear of labels)
     _post1_base = stringer_base_y + 1 * rise_vis + tread_thick
     _post1_top = _post1_base + rail_vis_h
-    draw_dimension_v(ax, stringer_base_x - 1.5, _post1_base, _post1_top,
-                     '34" TO 38"\nHANDRAIL HEIGHT',
+    draw_dimension_v(ax, -2, _post1_base, _post1_top,
+                     '34" TO 38"\nHANDRAIL\nHEIGHT',
                      offset=-3.5, color=BRAND["blue"], fontsize=4)
 
     # Guard height at deck (right side)
-    draw_dimension_v(ax, deck_left_x + deck_w - 1, deck_top_y, deck_top_y + rail_vis_h * 0.75,
+    draw_dimension_v(ax, deck_left_x + deck_w - 0.5, deck_top_y, deck_top_y + rail_vis_h * 0.75,
                      f'{rail_height}" MIN.',
-                     offset=1.5, color=BRAND["red"], fontsize=4)
+                     offset=2, color=BRAND["red"], fontsize=4)
 
     # Rise/run annotation box (upper right)
-    ax.text(14.5, 10, "RISE: 4\" TO 7.75\" MIN.\nRUN: 10.5\"\nTREAD NOSINGS\nBETWEEN .75\" AND 1.25\"\nIF TREADS <11\" WITH\nSOLID RISERS",
+    ax.text(16, 13, "RISE: 4\" TO 7.75\" MIN.\nRUN: 10.5\"\nTREAD NOSINGS\nBETWEEN .75\" AND 1.25\"\nIF TREADS <11\" WITH\nSOLID RISERS",
             fontsize=3.5, color=BRAND["dark"], fontfamily='monospace', va='top',
             bbox=dict(boxstyle='square,pad=0.3', fc='#fafaf5', ec=BRAND["border"], lw=0.5))
 
     # 12" min depth label on landing
     draw_dimension_v(ax, pad_x + pad_w + 0.3, pad_y, pad_y + pad_h,
-                     '12" MIN.', offset=1, color=BRAND["red"], fontsize=4)
+                     '12" MIN.', offset=1.2, color=BRAND["red"], fontsize=4)
 
 
 # ============================================================
