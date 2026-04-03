@@ -136,6 +136,8 @@ class DeckParams(BaseModel):
     slopePercent: float = 0
     slopeDirection: str = "front-to-back"
     zones: list = []
+    deckStairs: Optional[list] = None
+    mainCorners: Optional[dict] = None
     jurisdictionChecklist: Optional[dict] = None
 
 
