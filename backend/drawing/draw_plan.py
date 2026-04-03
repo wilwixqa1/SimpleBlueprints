@@ -17,7 +17,7 @@ import math
 
 # Import our calculation engine
 from .calc_engine import calculate_structure
-from .stair_utils import get_stair_placement, get_stair_exit_side
+from .stair_utils import get_stair_placement, get_stair_exit_side, resolve_all_stairs
 from .zone_utils import get_additive_rects, get_cutout_rects, get_exposed_edges, get_bounding_box, _chamfered_vertices
 
 # ============================================================
@@ -239,7 +239,6 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
     D = calc["depth"]
     attachment = calc["attachment"]
     has_stairs = params.get("hasStairs", False)
-    stair_loc = params.get("stairLocation", "front")
     has_zones = len(params.get("zones", [])) > 0
 
     ax1, ax2 = fig.subplots(1, 2)
@@ -535,56 +534,53 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
         for e in exp_edges:
             ax.plot([e["x1"], e["x2"]], [e["y1"], e["y2"]], color=BRAND["rail"], lw=3.5)
 
-        # Stairs (parametric)
-        if has_stairs and calc.get("stairs"):
-            st = calc["stairs"]
+        # S65: Multi-stair rendering -- iterate all stairs from deckStairs
+        all_stairs = resolve_all_stairs(params, calc)
+        for rs in all_stairs:
+            st = rs["stair_info"]
             sw_ft = st.get("width", 4)
-            stair_run = st["total_run_ft"]  # actual total run from calc
+            stair_run = st["total_run_ft"]
             n_treads = st["num_treads"]
             n_stringers = st["num_stringers"]
             has_landing = st.get("has_landing", False)
-            placement = get_stair_placement(params, {"width": W, "depth": D})
-            stair_loc = get_stair_exit_side(placement["angle"])
+            stair_loc = rs["exit_side"]
             landing_depth = 3 if has_landing else 0
             tread_step = stair_run / max(n_treads, 1)
+            # World-space anchor
+            _wax = rs["world_anchor_x"]
+            _way = rs["world_anchor_y"]
 
             if stair_loc == "front":
-                sx = placement["anchor_x"] - sw_ft / 2
-                sy = placement["anchor_y"]
-                # Stringer outlines
+                sx = _wax - sw_ft / 2
+                sy = _way
                 ax.plot([sx, sx], [sy, sy + stair_run], color=BRAND["dark"], lw=1.0)
                 ax.plot([sx + sw_ft, sx + sw_ft], [sy, sy + stair_run], color=BRAND["dark"], lw=1.0)
-                # Tread lines
                 for i in range(n_treads + 1):
                     ty = sy + i * tread_step
                     ax.plot([sx, sx + sw_ft], [ty, ty], color=BRAND["mute"], lw=0.5)
-                # Stringer center lines (dashed)
                 for si in range(n_stringers):
                     ssx = sx + (si) * sw_ft / (n_stringers - 1) if n_stringers > 1 else sx + sw_ft / 2
                     ax.plot([ssx, ssx], [sy, sy + stair_run], color=BRAND["mute"], lw=0.3, ls='--', dashes=(2, 2))
-                # DN arrow
                 mid_x = sx + sw_ft / 2
                 ax.annotate('', xy=(mid_x, sy + stair_run - 0.3), xytext=(mid_x, sy + 0.3),
                             arrowprops=dict(arrowstyle='->', color=BRAND["dark"], lw=0.8))
                 ax.text(mid_x, sy + stair_run / 2, 'DN', ha='center', va='center', fontsize=5,
                         fontweight='bold', color=BRAND["dark"],
                         bbox=dict(boxstyle='square,pad=0.15', fc='white', ec='none', alpha=0.9))
-                # Landing pad
                 if has_landing:
                     ly = sy + stair_run
                     ax.add_patch(patches.Rectangle((sx - 0.5, ly), sw_ft + 1, landing_depth,
                                  fc='#e8e8e0', ec=BRAND["dark"], lw=0.6, ls='--'))
                     ax.text(sx + sw_ft / 2, ly + landing_depth / 2, 'CONC. PAD',
                             ha='center', va='center', fontsize=3.5, color=BRAND["mute"])
-                # Label
                 ax.text(sx + sw_ft + 0.8, sy + stair_run / 2,
                         f'({n_stringers}) 2x12 PT\nSTRINGERS\n{st["actual_rise"]:.1f}" RISE\n{st["tread_depth"]}" RUN',
                         fontsize=3.5, fontfamily='monospace', color=BRAND["dark"], va='center')
 
             elif stair_loc == "left":
-                sx = placement["anchor_x"] - stair_run
-                sy = placement["anchor_y"] - sw_ft / 2
-                deck_edge_x = placement["anchor_x"]
+                sx = _wax - stair_run
+                sy = _way - sw_ft / 2
+                deck_edge_x = _wax
                 ax.plot([sx, deck_edge_x], [sy, sy], color=BRAND["dark"], lw=1.0)
                 ax.plot([sx, deck_edge_x], [sy + sw_ft, sy + sw_ft], color=BRAND["dark"], lw=1.0)
                 for i in range(n_treads + 1):
@@ -609,8 +605,8 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
                         ha='center', fontsize=3.5, fontfamily='monospace', color=BRAND["dark"])
 
             elif stair_loc == "right":
-                sx = placement["anchor_x"]
-                sy = placement["anchor_y"] - sw_ft / 2
+                sx = _wax
+                sy = _way - sw_ft / 2
                 ax.plot([sx, sx + stair_run], [sy, sy], color=BRAND["dark"], lw=1.0)
                 ax.plot([sx, sx + stair_run], [sy + sw_ft, sy + sw_ft], color=BRAND["dark"], lw=1.0)
                 for i in range(n_treads + 1):
@@ -634,28 +630,29 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
                         f'({n_stringers}) 2x12 PT STRINGERS - {st["actual_rise"]:.1f}" RISE - {st["tread_depth"]}" RUN',
                         ha='center', fontsize=3.5, fontfamily='monospace', color=BRAND["dark"])
 
-        # Stair opening width callout on framing plan
-        if is_framing and has_stairs and calc.get("stairs"):
-            st = calc["stairs"]
-            sw_ft = st.get("width", 4)
-            placement = get_stair_placement(params, {"width": W, "depth": D})
-            s_loc = get_stair_exit_side(placement["angle"])
-            if s_loc == "front":
-                sx = placement["anchor_x"] - sw_ft / 2
-                # Opening width dim along front edge
-                draw_dimension_h(ax, sx, sx + sw_ft, D,
-                                 f'{format_feet_inches(sw_ft)} OPENING',
-                                 offset=max(D * 0.08, 1.2), color='#c62828', fontsize=4.5)
-            elif s_loc == "left":
-                sy = placement["anchor_y"] - sw_ft / 2
-                draw_dimension_v(ax, 0, sy, sy + sw_ft,
-                                 f'{format_feet_inches(sw_ft)} OPENING',
-                                 offset=-3.5, color='#c62828', fontsize=4.5)
-            elif s_loc == "right":
-                sy = placement["anchor_y"] - sw_ft / 2
-                draw_dimension_v(ax, W, sy, sy + sw_ft,
-                                 f'{format_feet_inches(sw_ft)} OPENING',
-                                 offset=max(W * 0.08, 3), color='#c62828', fontsize=4.5)
+        # S65: Stair opening width callouts on framing plan (all stairs)
+        if is_framing and all_stairs:
+            for rs in all_stairs:
+                st = rs["stair_info"]
+                sw_ft = st.get("width", 4)
+                _wax = rs["world_anchor_x"]
+                _way = rs["world_anchor_y"]
+                s_loc = rs["exit_side"]
+                if s_loc == "front":
+                    sx = _wax - sw_ft / 2
+                    draw_dimension_h(ax, sx, sx + sw_ft, _way,
+                                     f'{format_feet_inches(sw_ft)} OPENING',
+                                     offset=max(D * 0.08, 1.2), color='#c62828', fontsize=4.5)
+                elif s_loc == "left":
+                    sy = _way - sw_ft / 2
+                    draw_dimension_v(ax, _wax, sy, sy + sw_ft,
+                                     f'{format_feet_inches(sw_ft)} OPENING',
+                                     offset=-3.5, color='#c62828', fontsize=4.5)
+                elif s_loc == "right":
+                    sy = _way - sw_ft / 2
+                    draw_dimension_v(ax, _wax, sy, sy + sw_ft,
+                                     f'{format_feet_inches(sw_ft)} OPENING',
+                                     offset=max(W * 0.08, 3), color='#c62828', fontsize=4.5)
 
         # Dimensions (zone 0 overall)
         draw_dimension_h(ax, 0, W, D, format_feet_inches(W),
