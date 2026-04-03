@@ -638,10 +638,10 @@ def draw_cantilever_detail(ax, params, calc, spec=None):
 
 
 # ============================================================
-# SHEET: COMBINED DETAILS (S66: 6-panel layout)
+# SHEET: COMBINED DETAILS (S66: 5-panel layout, cantilever moved to A-6)
 # ============================================================
 def draw_details_sheet(fig, params, calc, spec=None):
-    """Draw all 6 detail views: 3 top + 3 bottom (full 3x2 grid)"""
+    """Draw all 5 detail views: 3 top + 2 bottom"""
     if spec is None:
         from .permit_spec import build_permit_spec
         spec = build_permit_spec(params, calc)
@@ -656,14 +656,12 @@ def draw_details_sheet(fig, params, calc, spec=None):
     ax_stair = fig.add_subplot(gs[0, 2])
     ax_guard = fig.add_subplot(gs[1, 0])
     ax_post = fig.add_subplot(gs[1, 1])
-    ax_cantilever = fig.add_subplot(gs[1, 2])
 
     draw_ledger_detail(ax_ledger, params, calc, spec)
     draw_footing_detail(ax_footing, params, calc, spec)
     draw_stair_landing_detail(ax_stair, params, calc, spec)
     draw_guard_rail_detail(ax_guard, params, calc, spec)
     draw_post_beam_detail(ax_post, params, calc, spec)
-    draw_cantilever_detail(ax_cantilever, params, calc, spec)
 
     # Construction notes at bottom
     fig.text(0.05, 0.03,
