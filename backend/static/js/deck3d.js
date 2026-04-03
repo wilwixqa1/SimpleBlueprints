@@ -6,6 +6,65 @@
 const { useEffect: _d3UE, useRef: _d3UR } = React;
 
 // ============================================================
+// addHouse   Render house geometry (walls, roof, door)
+// Config-driven for future adjustable house size
+// ============================================================
+function addHouse(scene, cfg, mats, THREE) {
+  var hW = cfg.width;
+  var hD = cfg.depth;
+  var hH = cfg.height;
+  var hX = cfg.x;
+  var hZ = cfg.z;
+  var deckH = cfg.deckHeight;
+
+  // House body
+  var hm = new THREE.Mesh(new THREE.BoxGeometry(hW, hH, hD), mats.house);
+  hm.position.set(hX + hW / 2, hH / 2, hZ + hD / 2);
+  hm.castShadow = true;
+  scene.add(hm);
+
+  // Gable roof
+  var ov = 1.5, rpk = 5;
+  var rx1 = hX - ov, rx2 = hX + hW + ov, rxM = hX + hW / 2;
+  var ry = hH, ryP = hH + rpk;
+  var rz1 = hZ - 1, rz2 = hZ + hD + 1;
+  var rv = new Float32Array([
+    rx1,ry,rz2, rx2,ry,rz2, rxM,ryP,rz2,
+    rx2,ry,rz1, rx1,ry,rz1, rxM,ryP,rz1,
+    rx1,ry,rz1, rx1,ry,rz2, rxM,ryP,rz2, rx1,ry,rz1, rxM,ryP,rz2, rxM,ryP,rz1,
+    rx2,ry,rz2, rx2,ry,rz1, rxM,ryP,rz1, rx2,ry,rz2, rxM,ryP,rz1, rxM,ryP,rz2,
+    rx1,ry,rz1, rx2,ry,rz1, rx2,ry,rz2, rx1,ry,rz1, rx2,ry,rz2, rx1,ry,rz2
+  ]);
+  var rg = new THREE.BufferGeometry();
+  rg.setAttribute('position', new THREE.BufferAttribute(rv, 3));
+  rg.computeVertexNormals();
+  scene.add(new THREE.Mesh(rg, mats.roof));
+
+  // Deck access door (always present: the deck exists because of this door)
+  if (cfg.showDoor !== false) {
+    var doorW = cfg.doorWidth || 4;
+    var doorH = cfg.doorHeight || 6.5;
+    var doorX = cfg.doorX || (hX + hW / 2);
+    // Clamp door within house wall bounds
+    doorX = Math.max(hX + doorW / 2 + 0.2, Math.min(hX + hW - doorW / 2 - 0.2, doorX));
+    var dm = new THREE.Mesh(new THREE.BoxGeometry(doorW, doorH, 0.15), mats.win);
+    dm.position.set(doorX, deckH + doorH / 2 + 0.2, hZ + hD + 0.1);
+    scene.add(dm);
+  }
+
+  // Upper windows (off by default; we don't know actual window positions)
+  if (cfg.showWindows) {
+    var winCount = cfg.windowCount || 3;
+    for (var wi = 0; wi < winCount; wi++) {
+      var wx = (wi + 1) / (winCount + 1);
+      var wm = new THREE.Mesh(new THREE.BoxGeometry(3, 4, 0.15), mats.win);
+      wm.position.set(hX + hW * wx, deckH + 5, hZ + hD + 0.1);
+      scene.add(wm);
+    }
+  }
+}
+
+// ============================================================
 // buildDeckScene   shared scene population for Deck3D + capture3D
 // Adds all deck geometry (house, structure, decking, railing, stairs)
 // to the provided scene. Returns { exitSide } for camera positioning.
@@ -134,25 +193,19 @@ window.buildDeckScene = function(scene, p, c, THREE) {
   }
 
 // House (anchored to zone 0)
-  var hW = p.houseWidth, hD = 14, hH = Math.max(H + 8, 12);
   var dOff = p.deckOffset || 0;
-  var hX = z0wx + (W - hW) / 2 - dOff, hZ = z0wz - hD;
-  var hm = new THREE.Mesh(new THREE.BoxGeometry(hW, hH, hD), mats.house); hm.position.set(hX + hW / 2, hH / 2, hZ + hD / 2); hm.castShadow = true; scene.add(hm);
-  var ov = 1.5, rpk = 5;
-  var rx1 = hX - ov, rx2 = hX + hW + ov, rxM = hX + hW / 2, ry = hH, ryP = hH + rpk, rz1 = hZ - 1, rz2 = hZ + hD + 1;
-  var rv = new Float32Array([rx1,ry,rz2,rx2,ry,rz2,rxM,ryP,rz2, rx2,ry,rz1,rx1,ry,rz1,rxM,ryP,rz1, rx1,ry,rz1,rx1,ry,rz2,rxM,ryP,rz2,rx1,ry,rz1,rxM,ryP,rz2,rxM,ryP,rz1, rx2,ry,rz2,rx2,ry,rz1,rxM,ryP,rz1,rx2,ry,rz2,rxM,ryP,rz1,rxM,ryP,rz2, rx1,ry,rz1,rx2,ry,rz1,rx2,ry,rz2,rx1,ry,rz1,rx2,ry,rz2,rx1,ry,rz2]);
-  var rg = new THREE.BufferGeometry(); rg.setAttribute('position', new THREE.BufferAttribute(rv, 3)); rg.computeVertexNormals();
-  scene.add(new THREE.Mesh(rg, mats.roof));
-  // Upper windows on house deck-side wall
-  for (var wx = 0.2; wx < 0.9; wx += 0.3) {
-    var wm = new THREE.Mesh(new THREE.BoxGeometry(3, 4, 0.15), mats.win);
-    wm.position.set(hX + hW * wx, H + 5, hZ + hD + 0.1);
-    scene.add(wm);
-  }
-  // Sliding door at deck level
-  var dm = new THREE.Mesh(new THREE.BoxGeometry(4, 6.5, 0.15), mats.win);
-  dm.position.set(hX + hW / 2, H + 6.5 / 2 + 0.2, hZ + hD + 0.1);
-  scene.add(dm);
+  var _houseDepth = 14;
+  addHouse(scene, {
+    width: p.houseWidth,
+    depth: _houseDepth,
+    height: Math.max(H + 8, 12),
+    x: z0wx + (W - p.houseWidth) / 2 - dOff,
+    z: z0wz - _houseDepth,
+    deckHeight: H,
+    doorX: z0wx + W / 2,   // center door on deck, not house
+    showDoor: true,
+    showWindows: false
+  }, mats, THREE);
 
 // S20: Structure per zone (piers, posts, beams, joists)
   var pR = (fDiam / 12) / 2, pD = postSize === "6x6" ? 5.5 / 12 : 3.5 / 12;
