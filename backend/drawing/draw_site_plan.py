@@ -18,7 +18,7 @@ import matplotlib.patches as patches
 from matplotlib.lines import Line2D
 from matplotlib.patches import FancyArrowPatch
 import numpy as np
-from .zone_utils import get_additive_rects, get_cutout_rects, get_bounding_box
+from .zone_utils import get_additive_rects, get_cutout_rects, get_bounding_box, _chamfered_vertices, _get_zone_corners
 
 BRAND = {
     "dark": "#1a1f16", "green": "#3d5a2e", "cream": "#faf8f3",
@@ -396,11 +396,27 @@ def draw_site_plan(fig, params, calc):
     for ar in add_rects:
         r = ar["rect"]
         rx, ry = z0_x + r["x"], z0_y + r["y"]
-        rect_patch = patches.Rectangle(
-            (rx, ry), r["w"], r["d"],
-            fc='#d4c4a0', ec=BRAND["green"], lw=2, zorder=3
-        )
-        ax.add_patch(rect_patch)
+        # S66: Use chamfered polygon if zone has chamfers
+        zone_id = ar["id"]
+        corners = _get_zone_corners(params, zone_id)
+        has_chamfer = False
+        if corners:
+            for ck in ("BL", "BR", "FL", "FR"):
+                cc = corners.get(ck, {})
+                if cc.get("type") == "chamfer" and cc.get("size", 0) > 0:
+                    has_chamfer = True
+                    break
+        if has_chamfer:
+            verts = _chamfered_vertices(rx, ry, r["w"], r["d"], corners)
+            poly = plt.Polygon(verts, closed=True,
+                               fc='#d4c4a0', ec=BRAND["green"], lw=2, zorder=3)
+            ax.add_patch(poly)
+        else:
+            rect_patch = patches.Rectangle(
+                (rx, ry), r["w"], r["d"],
+                fc='#d4c4a0', ec=BRAND["green"], lw=2, zorder=3
+            )
+            ax.add_patch(rect_patch)
 
     for cr in cut_rects:
         r = cr["rect"]
@@ -419,6 +435,21 @@ def draw_site_plan(fig, params, calc):
 
     total_area = sum(r["rect"]["w"] * r["rect"]["d"] for r in add_rects)
     total_area -= sum(r["rect"]["w"] * r["rect"]["d"] for r in cut_rects)
+
+    # S66: Subtract chamfer triangle areas (S*S/2 per chamfer)
+    _mc = params.get("mainCorners")
+    if _mc:
+        for _ck in ("BL", "BR", "FL", "FR"):
+            _cc = _mc.get(_ck, {})
+            if _cc.get("type") == "chamfer" and _cc.get("size", 0) > 0:
+                total_area -= _cc["size"] ** 2 / 2
+    for z in params.get("zones", []):
+        _zc = z.get("corners")
+        if _zc:
+            for _ck in ("BL", "BR", "FL", "FR"):
+                _cc = _zc.get(_ck, {})
+                if _cc.get("type") == "chamfer" and _cc.get("size", 0) > 0:
+                    total_area -= _cc["size"] ** 2 / 2
 
     # S44: Simpler label on large lots (dimensions unreadable, show SF instead)
     _deck_area = total_area if total_area > 0 else deck_w * deck_d
