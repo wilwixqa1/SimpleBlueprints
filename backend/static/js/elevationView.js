@@ -157,50 +157,86 @@ function ElevationView({ c, p }) {
     // First floor level: where siding starts, basement/crawlspace below
     var firstFloorY = gnd - (H + 1) * sY;
 
-    const [svt, sdir] = hasSt ? stairViewType(_exitSide, viewDir) : ["hidden", null];
+    // S65: Multi-stair elevation rendering
     const stEls = [];
-    if (hasSt && svt !== "hidden") {
-      const stW = st.width * sX;
-      const risePerR = (gnd - dY) / st.nRisers;
-      const treadPx = (st.tread / 12) * sX;
-      if (svt === "treads") {
-        let cx;
-        if (showWidth) {
-          const ax = isRear ? (W - _pl.anchorX) : _pl.anchorX;
-          cx = z0X + ax * sX; // S24: use z0X
-        } else {
-          const ay = viewDir === "west" ? (D - _pl.anchorY) : _pl.anchorY;
-          cx = dX + ay * sX;
-        }
-        const sl = cx - stW/2, sr = cx + stW/2;
-        stEls.push(<rect key="tb" x={sl} y={dY} width={stW} height={gnd-dY} fill="white" stroke="none" />);
-        for (let i=0;i<=st.nRisers;i++) stEls.push(<line key={"tt"+i} x1={sl} y1={dY+i*risePerR} x2={sr} y2={dY+i*risePerR} stroke="#888" strokeWidth="0.4" />);
-        stEls.push(<line key="tl" x1={sl} y1={dY} x2={sl} y2={gnd} stroke="#444" strokeWidth="0.7" />);
-        stEls.push(<line key="tr" x1={sr} y1={dY} x2={sr} y2={gnd} stroke="#444" strokeWidth="0.7" />);
-        stEls.push(<line key="tb2" x1={sl} y1={gnd} x2={sr} y2={gnd} stroke="#444" strokeWidth="0.5" />);
-      } else if (svt === "profile") {
-        let sx;
-        if (showWidth) {
-          const ax = isRear ? (W - _pl.anchorX) : _pl.anchorX;
-          sx = z0X + ax * sX; // S24: use z0X
-        } else {
-          const ay = viewDir === "west" ? (D - _pl.anchorY) : _pl.anchorY;
-          sx = dX + ay * sX;
-        }
-        const dir = sdir;
-        const pts = [];
-        let rx = sx, ry = dY;
-        pts.push(rx+","+ry);
-        for (let i=0;i<st.nRisers;i++) {
-          const ny = ry + risePerR;
-          pts.push(rx+","+ny);
-          if (i < st.nTreads) { rx += dir * treadPx; pts.push(rx+","+ny); }
-          ry = ny;
-        }
-        stEls.push(<polyline key="prof" points={pts.join(" ")} fill="none" stroke="#444" strokeWidth="0.7" />);
-        stEls.push(<line key="pdiag" x1={sx} y1={dY} x2={rx} y2={gnd} stroke="#888" strokeWidth="0.4" strokeDasharray="2,1.5" />);
-      }
+    var _allStairs = p.deckStairs || [];
+    if (!_allStairs.length && hasSt) {
+      // Backward compat: build single stair from flat params
+      _allStairs = [{ id: 0, zoneId: 0, location: p.stairLocation || "front", width: st.width || 4, numStringers: p.numStringers || 3, offset: p.stairOffset || 0, anchorX: null, anchorY: null, angle: null }];
     }
+    var _nRisers = H > 0.5 ? Math.ceil(H * 12 / 7.5) : 0;
+    var _nTreads = Math.max(_nRisers - 1, 1);
+    var _treadIn = 10.5;
+    _allStairs.forEach(function(_s, _si) {
+      // Get zone rect
+      var _zoneId = _s.zoneId || 0;
+      var _zr;
+      if (_zoneId === 0) {
+        _zr = { x: 0, y: 0, w: W, d: D };
+      } else if (window.getZoneRect) {
+        var _zn = (p.zones || []).find(function(z) { return z.id === _zoneId; });
+        _zr = _zn ? window.getZoneRect(_zn, W, D) : null;
+      }
+      if (!_zr || _nRisers === 0) return;
+
+      // Get placement in zone-local coords
+      var _placement = window.getStairPlacementForZone ? window.getStairPlacementForZone(_s, _zr) : null;
+      if (!_placement) return;
+
+      // World-space anchor
+      var _wax = _zr.x + _placement.anchorX;
+      var _way = _zr.y + _placement.anchorY;
+      var _angle = _placement.angle;
+      var _exitSideS = _angle === 90 ? "right" : _angle === 270 ? "left" : _angle === 180 ? "back" : "front";
+
+      // For side views, only render zone-0 stairs
+      if (!showWidth && _zoneId !== 0) return;
+
+      var [_svt, _sdir] = stairViewType(_exitSideS, viewDir);
+      if (_svt === "hidden") return;
+
+      var _sw = (_s.width || 4) * sX;
+      var _risePerR = (gnd - dY) / _nRisers;
+      var _treadPx = (_treadIn / 12) * sX;
+
+      if (_svt === "treads") {
+        var _cx;
+        if (showWidth) {
+          var _ax = isRear ? (zoneSN.bbW - zoneSN.xOff - _wax) : (zoneSN.xOff + _wax);
+          _cx = dX + _ax * sX;
+        } else {
+          var _ay = viewDir === "west" ? (D - _way) : _way;
+          _cx = dX + _ay * sX;
+        }
+        var _sl = _cx - _sw/2, _sr = _cx + _sw/2;
+        stEls.push(<rect key={"stb"+_si} x={_sl} y={dY} width={_sw} height={gnd-dY} fill="white" stroke="none" />);
+        for (var _i=0;_i<=_nRisers;_i++) stEls.push(<line key={"stt"+_si+"_"+_i} x1={_sl} y1={dY+_i*_risePerR} x2={_sr} y2={dY+_i*_risePerR} stroke="#888" strokeWidth="0.4" />);
+        stEls.push(<line key={"stl"+_si} x1={_sl} y1={dY} x2={_sl} y2={gnd} stroke="#444" strokeWidth="0.7" />);
+        stEls.push(<line key={"str"+_si} x1={_sr} y1={dY} x2={_sr} y2={gnd} stroke="#444" strokeWidth="0.7" />);
+        stEls.push(<line key={"stb2"+_si} x1={_sl} y1={gnd} x2={_sr} y2={gnd} stroke="#444" strokeWidth="0.5" />);
+      } else if (_svt === "profile") {
+        var _sx;
+        if (showWidth) {
+          var _ax2 = isRear ? (zoneSN.bbW - zoneSN.xOff - _wax) : (zoneSN.xOff + _wax);
+          _sx = dX + _ax2 * sX;
+        } else {
+          var _ay2 = viewDir === "west" ? (D - _way) : _way;
+          _sx = dX + _ay2 * sX;
+        }
+        var _dir = _sdir;
+        var _pts = [];
+        var _rx = _sx, _ry = dY;
+        _pts.push(_rx+","+_ry);
+        for (var _j=0;_j<_nRisers;_j++) {
+          var _ny = _ry + _risePerR;
+          _pts.push(_rx+","+_ny);
+          if (_j < _nTreads) { _rx += _dir * _treadPx; _pts.push(_rx+","+_ny); }
+          _ry = _ny;
+        }
+        stEls.push(<polyline key={"sprof"+_si} points={_pts.join(" ")} fill="none" stroke="#444" strokeWidth="0.7" />);
+        stEls.push(<line key={"spdiag"+_si} x1={_sx} y1={dY} x2={_rx} y2={gnd} stroke="#888" strokeWidth="0.4" strokeDasharray="2,1.5" />);
+      }
+    });
 
     // S35: Underground footing helper (draws dotted pier below post)
     var footingDepthPx = (fDepth / 12) * sY; // fDepth is in inches
