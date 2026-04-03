@@ -262,7 +262,7 @@ function Slider({ label, value, min, max, step: s = 1, field, unit = "'", fmt, u
     setLocalVal(v);
     _dragging.current = true;
     clearTimeout(_timerRef.current);
-    _timerRef.current = setTimeout(function() { _dragging.current = false; u(field, v); }, 60);
+    _timerRef.current = setTimeout(function() { _dragging.current = false; u(field, v); }, 30);
   };
   var _onRelease = function() {
     if (_timerRef.current) { clearTimeout(_timerRef.current); _timerRef.current = null; }
