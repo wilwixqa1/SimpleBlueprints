@@ -67,16 +67,16 @@ function computeStairGeometry(params) {
     const [r1n, r2n] = splitRisers(2);
     const run1 = makeRun(r1n), run2 = makeRun(r2n), lD = getLandingDepth();
     runs.push({ ...run1, rect: { x: -sw/2, y: 0, w: sw, h: run1.runFt }, treadAxis: "h", downDir: "+y" });
-    const ly = run1.runFt, landW = sw + run2.runFt, lx = -sw/2 - run2.runFt;
-    landings.push({ rect: { x: lx, y: ly, w: landW, h: lD }, posts: [[lx, ly], [lx+landW, ly], [lx, ly+lD], [lx+landW, ly+lD]] });
-    runs.push({ ...run2, rect: { x: lx, y: ly + (lD-sw)/2, w: run2.runFt, h: sw }, treadAxis: "w", downDir: "-x" });
+    const ly = run1.runFt;
+    landings.push({ rect: { x: -sw/2, y: ly, w: sw, h: lD }, posts: [[-sw/2, ly], [sw/2, ly], [-sw/2, ly+lD], [sw/2, ly+lD]] });
+    runs.push({ ...run2, rect: { x: -sw/2 - run2.runFt, y: ly + (lD-sw)/2, w: run2.runFt, h: sw }, treadAxis: "w", downDir: "-x" });
   }
   else if (template === "lRight") {
     const [r1n, r2n] = splitRisers(2);
     const run1 = makeRun(r1n), run2 = makeRun(r2n), lD = getLandingDepth();
     runs.push({ ...run1, rect: { x: -sw/2, y: 0, w: sw, h: run1.runFt }, treadAxis: "h", downDir: "+y" });
-    const ly = run1.runFt, lx = -sw/2, landW = sw + run2.runFt;
-    landings.push({ rect: { x: lx, y: ly, w: landW, h: lD }, posts: [[lx, ly], [lx+landW, ly], [lx, ly+lD], [lx+landW, ly+lD]] });
+    const ly = run1.runFt;
+    landings.push({ rect: { x: -sw/2, y: ly, w: sw, h: lD }, posts: [[-sw/2, ly], [sw/2, ly], [-sw/2, ly+lD], [sw/2, ly+lD]] });
     runs.push({ ...run2, rect: { x: sw/2, y: ly + (lD-sw)/2, w: run2.runFt, h: sw }, treadAxis: "w", downDir: "+x" });
   }
   else if (template === "switchback") {
