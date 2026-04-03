@@ -487,13 +487,28 @@ function calcAllZones(p, baseCalc) {
     var re = rz.attachEdge || "front";
     var rzw = rz.w || 8, rzd = rz.d || 6;
     if (re === "right" || re === "left") {
-      // Attached along side edge: 2 new short edges (front+back of zone) + 1 far side edge
-      // Main deck loses rz.d from its side railing (net: +2*rzw + rzd - rzd = +2*rzw)
-      // But zone may be shorter than main deck side, so just add the 3 exposed sides
       extraRailLen += 2 * rzw + rzd;
     } else {
-      // Attached along front/back: 2 new side edges + 1 far front/back edge
       extraRailLen += 2 * rzd + rzw;
+    }
+    // S66: Zone chamfer railing adjustment
+    var _zc = rz.corners;
+    if (_zc) {
+      ["BL","BR","FL","FR"].forEach(function(_ck) {
+        var _cc = _zc[_ck];
+        if (_cc && _cc.type === "chamfer" && _cc.size > 0) {
+          var _cs = _cc.size;
+          // Determine if corner touches the shared (non-railing) edge
+          var _sharedEdge = (re === "front") ? "B" : (re === "back") ? "F" : (re === "left") ? "R" : "L";
+          if (_ck.indexOf(_sharedEdge) >= 0) {
+            // One edge is shared (no railing), one is railing
+            extraRailLen += _cs * Math.sqrt(2) - _cs;
+          } else {
+            // Both edges are railing
+            extraRailLen += _cs * Math.sqrt(2) - 2 * _cs;
+          }
+        }
+      });
     }
   }
 
