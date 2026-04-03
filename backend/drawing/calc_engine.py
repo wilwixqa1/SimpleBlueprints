@@ -394,6 +394,14 @@ def calculate_structure(params):
 
     area = width * depth
 
+    # S66: Subtract chamfer triangle areas from reported area
+    _main_corners = params.get("mainCorners")
+    if _main_corners:
+        for _ck in ("BL", "BR", "FL", "FR"):
+            _cc = _main_corners.get(_ck, {})
+            if _cc.get("type") == "chamfer" and _cc.get("size", 0) > 0:
+                area -= _cc["size"] ** 2 / 2
+
     # S38: Lot area (single source of truth, mirrors engine.js)
     _lot_verts = params.get("lotVertices")
     if _lot_verts and len(_lot_verts) >= 3:

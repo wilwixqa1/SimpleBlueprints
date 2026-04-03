@@ -90,7 +90,16 @@ function getBeamMaxSpan(beamSize, joistSpan, designLoad) {
 
 function calcStructure(p) {
   const { width: W, depth: D, height: H, joistSpacing: sp, attachment, snowLoad, frostZone, deckingType } = p;
-  const area = W * D;
+  // S66: Subtract chamfer triangle areas from reported area
+  var _chamfArea = 0;
+  var _mcC = p.mainCorners;
+  if (_mcC) {
+    ["BL","BR","FL","FR"].forEach(function(_ck) {
+      var _cc = _mcC[_ck];
+      if (_cc && _cc.type === "chamfer" && _cc.size > 0) _chamfArea += _cc.size * _cc.size / 2;
+    });
+  }
+  const area = W * D - _chamfArea;
 
   // S38: Lot area (single source of truth for all consumers)
   // Tries lotVertices, then lotEdges via computePolygonVerts, then rectangle fallback
