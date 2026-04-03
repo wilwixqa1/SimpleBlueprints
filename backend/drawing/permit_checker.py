@@ -1205,6 +1205,20 @@ def check_impervious_coverage(params, calc, spec):
         cut_rects = get_cutout_rects(params)
         deck_area = sum(r["rect"]["w"] * r["rect"]["d"] for r in add_rects)
         deck_area -= sum(r["rect"]["w"] * r["rect"]["d"] for r in cut_rects)
+        # S66: Subtract chamfer triangle areas
+        _mc = params.get("mainCorners")
+        if _mc:
+            for _ck in ("BL", "BR", "FL", "FR"):
+                _cc = _mc.get(_ck, {})
+                if _cc.get("type") == "chamfer" and _cc.get("size", 0) > 0:
+                    deck_area -= _cc["size"] ** 2 / 2
+        for _z in params.get("zones", []):
+            _zc = _z.get("corners")
+            if _zc:
+                for _ck in ("BL", "BR", "FL", "FR"):
+                    _cc = _zc.get(_ck, {})
+                    if _cc.get("type") == "chamfer" and _cc.get("size", 0) > 0:
+                        deck_area -= _cc["size"] ** 2 / 2
     except Exception:
         pass
 

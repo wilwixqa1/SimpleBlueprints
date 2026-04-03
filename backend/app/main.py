@@ -41,6 +41,7 @@ from drawing.title_block import draw_title_block
 from drawing.draw_cover import draw_cover_sheet
 from drawing.draw_notes import draw_notes_sheet
 from drawing.draw_site_plan import draw_site_plan
+from drawing.draw_checklist import draw_checklist_sheet
 from drawing.jurisdiction_sheet import is_colorado_springs, append_cos_attachment
 
 from app.database import (
@@ -229,6 +230,12 @@ def generate_blueprint_pdf(params: dict) -> tuple:
         fig5 = plt.figure(figsize=(14,8.5)); fig5.set_facecolor('white')
         draw_site_plan(fig5,params,calc); draw_title_block(fig5,"A-5","SITE PLAN",calc,pi)
         pdf.savefig(fig5,dpi=200); plt.close(fig5)
+
+        # A-6: Compliance checklist (S66)
+        fig6 = plt.figure(figsize=(14,8.5)); fig6.set_facecolor('white')
+        draw_checklist_sheet(fig6,params,calc,spec)
+        draw_title_block(fig6,"A-6","COMPLIANCE CHECKLIST",calc,pi)
+        pdf.savefig(fig6,dpi=200); plt.close(fig6)
 
     # S50: Append jurisdiction-specific sheets (Colorado Springs PPRBD)
     if is_colorado_springs(pi):

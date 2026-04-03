@@ -229,6 +229,10 @@ def draw_notes_sheet(fig, params, calc, spec=None):
             ("Remove siding/cladding at ledger location. Ledger shall bear directly against house "
              "rim board or band joist. Do not attach ledger over siding.",
              "IRC R507.2"),
+            ("Cantilever: Where deck floor extends past foundation, no ledger connection to "
+             "cantilevered portion is allowed. Extend ledger 6\" min. and install (3) lags "
+             "each side of beam connection at ledger. See Cantilever Details on A-4.",
+             "IRC R507.5"),
         ]
         y2 = draw_section(right_col_x, y2, "LEDGER ATTACHMENT", ledger_notes)
     else:
