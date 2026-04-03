@@ -6,6 +6,56 @@
 const { useEffect: _d3UE, useRef: _d3UR } = React;
 
 // ============================================================
+// setupSceneEnv   Shared environment setup (lights, ground, grid, slope)
+// Used by both interactive Deck3D and capture3D to stay in sync
+// ============================================================
+function setupSceneEnv(scene, p, THREE) {
+  // Background + fog
+  scene.background = new THREE.Color(0xf5f2eb);
+  scene.fog = new THREE.Fog(0xf5f2eb, 60, 120);
+
+  // Lights
+  scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+  var sun = new THREE.DirectionalLight(0xfff5e0, 0.8);
+  sun.position.set(20, 30, 15);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(1024, 1024);
+  sun.shadow.camera.left = -40;
+  sun.shadow.camera.right = 40;
+  sun.shadow.camera.top = 40;
+  sun.shadow.camera.bottom = -40;
+  scene.add(sun);
+  var fill = new THREE.DirectionalLight(0xc0d0ff, 0.3);
+  fill.position.set(-10, 15, -10);
+  scene.add(fill);
+
+  // Ground plane
+  var gnd = new THREE.Mesh(
+    new THREE.PlaneGeometry(100, 100),
+    new THREE.MeshStandardMaterial({ color: 0xb8c9a0, roughness: 1 })
+  );
+  gnd.rotation.x = -Math.PI / 2;
+  gnd.receiveShadow = true;
+
+  // S34: Slope tilt (3x exaggerated for visual clarity)
+  var sPct = (p.slopePercent || 0) / 100;
+  var sDir = p.slopeDirection || "front-to-back";
+  if (sPct > 0) {
+    var tilt = Math.atan(sPct) * 3;
+    if (sDir === "front-to-back") gnd.rotation.x += tilt;
+    else if (sDir === "back-to-front") gnd.rotation.x -= tilt;
+    else if (sDir === "left-to-right") gnd.rotation.z -= tilt;
+    else if (sDir === "right-to-left") gnd.rotation.z += tilt;
+  }
+  scene.add(gnd);
+
+  // Grid
+  var grid = new THREE.GridHelper(80, 80, 0xa0b088, 0xa8b890);
+  grid.position.y = sPct > 0 ? -0.3 : 0.01;
+  scene.add(grid);
+}
+
+// ============================================================
 // addHouse   Render house geometry (walls, roof, door)
 // Config-driven for future adjustable house size
 // ============================================================
@@ -902,34 +952,15 @@ function Deck3D({ c, p }) {
     if (cW < 10) return;
 
     // Scene + renderer
-    const scene = new THREE.Scene(); scene.background = new THREE.Color(0xf5f2eb); scene.fog = new THREE.Fog(0xf5f2eb, 60, 120);
+    const scene = new THREE.Scene();
     const cam = new THREE.PerspectiveCamera(45, cW / cH, 0.1, 200);
     if (!window._deckOrbit) orbit.current.dist = Math.max(W, D, H * 2) * 1.8;
     const ren = new THREE.WebGLRenderer({ antialias: true }); ren.setSize(cW, cH); ren.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     ren.shadowMap.enabled = true; ren.shadowMap.type = THREE.PCFSoftShadowMap;
     el.innerHTML = ""; el.appendChild(ren.domElement);
 
-    // Lights
-    scene.add(new THREE.AmbientLight(0xffffff, 0.5));
-    const sun = new THREE.DirectionalLight(0xfff5e0, 0.8); sun.position.set(20, 30, 15); sun.castShadow = true;
-    sun.shadow.mapSize.set(1024, 1024); sun.shadow.camera.left = -40; sun.shadow.camera.right = 40; sun.shadow.camera.top = 40; sun.shadow.camera.bottom = -40;
-    scene.add(sun); const fill = new THREE.DirectionalLight(0xc0d0ff, 0.3); fill.position.set(-10, 15, -10); scene.add(fill);
-
-    // Ground + grid
-    const gnd = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), new THREE.MeshStandardMaterial({ color: 0xb8c9a0, roughness: 1 }));
-    gnd.rotation.x = -Math.PI / 2; gnd.receiveShadow = true;
-    // S34: Tilt ground plane for slope visualization
-    var _sPct = (p.slopePercent || 0) / 100;
-    var _sDir = p.slopeDirection || "front-to-back";
-    if (_sPct > 0) {
-      var _tilt = Math.atan(_sPct) * 3; // 3x exaggerated for visual clarity
-      if (_sDir === "front-to-back") gnd.rotation.x += _tilt;
-      else if (_sDir === "back-to-front") gnd.rotation.x -= _tilt;
-      else if (_sDir === "left-to-right") gnd.rotation.z -= _tilt;
-      else if (_sDir === "right-to-left") gnd.rotation.z += _tilt;
-    }
-    scene.add(gnd);
-    const grid = new THREE.GridHelper(80, 80, 0xa0b088, 0xa8b890); grid.position.y = _sPct > 0 ? -0.3 : 0.01; scene.add(grid);
+    // Shared environment (lights, ground, grid, slope)
+    setupSceneEnv(scene, p, THREE);
 
 // Deck scene   shared builder
     window.buildDeckScene(scene, p, c, THREE);
@@ -970,35 +1001,14 @@ window.capture3D = function(p, c) {
       var W = c.W, D = c.D, H = c.H;
 
       // Offscreen renderer
-      var scene = new THREE.Scene(); scene.background = new THREE.Color(0xf5f2eb);
-      scene.fog = new THREE.Fog(0xf5f2eb, 60, 120);
+      var scene = new THREE.Scene();
       var cam = new THREE.PerspectiveCamera(45, w / h, 0.1, 200);
       var ren = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
       ren.setSize(w, h); ren.setPixelRatio(1);
       ren.shadowMap.enabled = true; ren.shadowMap.type = THREE.PCFSoftShadowMap;
 
-      // Lights
-      scene.add(new THREE.AmbientLight(0xffffff, 0.5));
-      var sun = new THREE.DirectionalLight(0xfff5e0, 0.8); sun.position.set(20, 30, 15); sun.castShadow = true;
-      sun.shadow.mapSize.set(1024, 1024); sun.shadow.camera.left = -40; sun.shadow.camera.right = 40; sun.shadow.camera.top = 40; sun.shadow.camera.bottom = -40;
-      scene.add(sun);
-      var fill = new THREE.DirectionalLight(0xc0d0ff, 0.3); fill.position.set(-10, 15, -10); scene.add(fill);
-
-      // Ground + grid
-      var gnd = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), new THREE.MeshStandardMaterial({ color: 0xb8c9a0, roughness: 1 }));
-      gnd.rotation.x = -Math.PI / 2; gnd.receiveShadow = true;
-      // S34: Tilt ground plane for slope
-      var _sPct2 = (p.slopePercent || 0) / 100;
-      var _sDir2 = p.slopeDirection || "front-to-back";
-      if (_sPct2 > 0) {
-        var _tilt2 = Math.atan(_sPct2) * 3; // 3x exaggerated for visual clarity
-        if (_sDir2 === "front-to-back") gnd.rotation.x += _tilt2;
-        else if (_sDir2 === "back-to-front") gnd.rotation.x -= _tilt2;
-        else if (_sDir2 === "left-to-right") gnd.rotation.z -= _tilt2;
-        else if (_sDir2 === "right-to-left") gnd.rotation.z += _tilt2;
-      }
-      scene.add(gnd);
-      var grid = new THREE.GridHelper(80, 80, 0xa0b088, 0xa8b890); grid.position.y = _sPct2 > 0 ? -0.3 : 0.01; scene.add(grid);
+      // Shared environment (lights, ground, grid, slope)
+      setupSceneEnv(scene, p, THREE);
 
 // Deck scene   shared builder
       var result = window.buildDeckScene(scene, p, c, THREE);
