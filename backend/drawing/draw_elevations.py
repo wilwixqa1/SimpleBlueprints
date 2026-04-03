@@ -603,6 +603,22 @@ def draw_south_elevation(ax, params, calc, compact=False, spec=None):
     rail_h = calc["rail_height"] / 12
     rail_top = deck_top + rail_h
 
+    # S66: Chamfer insets for front edge (south view sees FL/FR)
+    _mc = params.get("mainCorners")
+    _fl_s = 0
+    _fr_s = 0
+    if _mc:
+        _fl = _mc.get("FL", {})
+        _fr = _mc.get("FR", {})
+        if _fl.get("type") == "chamfer" and _fl.get("size", 0) > 0:
+            _fl_s = _fl["size"]
+        if _fr.get("type") == "chamfer" and _fr.get("size", 0) > 0:
+            _fr_s = _fr["size"]
+
+    # Front railing bounds (chamfer-aware)
+    _rail_left = z0_x + _fl_s
+    _rail_right = z0_x + W - _fr_s
+
     # S65: Resolve all stairs for multi-stair rendering
     all_stairs = resolve_all_stairs(params, calc)
 
@@ -617,21 +633,27 @@ def draw_south_elevation(ax, params, calc, compact=False, spec=None):
                 _z0_gaps.append((_cx - _sw / 2, _cx + _sw / 2))
     _z0_gaps.sort()
 
-    # Draw zone-0 railing with gaps
+    # Draw zone-0 railing with gaps (S66: chamfer-aware bounds)
     def _draw_rail_with_gaps(y_pos, lw_val):
         if not _z0_gaps:
-            ax.plot([z0_x, z0_x + W], [y_pos, y_pos], color=BRAND["rail"], lw=lw_val)
+            ax.plot([_rail_left, _rail_right], [y_pos, y_pos], color=BRAND["rail"], lw=lw_val)
             return
-        cursor = z0_x
+        cursor = _rail_left
         for gl, gr in _z0_gaps:
             if cursor < gl:
                 ax.plot([cursor, gl], [y_pos, y_pos], color=BRAND["rail"], lw=lw_val)
             cursor = gr
-        if cursor < z0_x + W:
-            ax.plot([cursor, z0_x + W], [y_pos, y_pos], color=BRAND["rail"], lw=lw_val)
+        if cursor < _rail_right:
+            ax.plot([cursor, _rail_right], [y_pos, y_pos], color=BRAND["rail"], lw=lw_val)
 
     _draw_rail_with_gaps(rail_top, 2)
     _draw_rail_with_gaps(deck_top + 0.25, 0.8)
+
+    # S66: Vertical railing at chamfer boundary (corner posts)
+    if _fl_s > 0:
+        ax.plot([_rail_left, _rail_left], [deck_top, rail_top], color=BRAND["rail"], lw=1.5)
+    if _fr_s > 0:
+        ax.plot([_rail_right, _rail_right], [deck_top, rail_top], color=BRAND["rail"], lw=1.5)
 
     def _in_any_gap(x_val):
         for gl, gr in _z0_gaps:
@@ -639,13 +661,13 @@ def draw_south_elevation(ax, params, calc, compact=False, spec=None):
                 return True
         return False
 
-    for rpx in np.arange(0, W + 0.1, 4):
+    for rpx in np.arange(_fl_s, W - _fr_s + 0.1, 4):
         px_abs = z0_x + rpx
         if _in_any_gap(px_abs):
             continue
         ax.plot([px_abs, px_abs], [deck_top, rail_top], color=BRAND["rail"], lw=1)
 
-    for bx in np.arange(0, W, 3.75 / 12):
+    for bx in np.arange(_fl_s, W - _fr_s, 3.75 / 12):
         bx_abs = z0_x + bx
         if _in_any_gap(bx_abs):
             continue
@@ -781,11 +803,27 @@ def draw_north_elevation(ax, params, calc, compact=False, spec=None):
     rail_h = calc["rail_height"] / 12
     rail_top = deck_top + rail_h
 
-    ax.plot([z0_x, z0_x + W], [rail_top, rail_top],
+    # S66: Chamfer insets for front edge (north view sees FL/FR, mirrored)
+    _mc_n = params.get("mainCorners")
+    _fl_s_n = 0
+    _fr_s_n = 0
+    if _mc_n:
+        _fl_n = _mc_n.get("FL", {})
+        _fr_n = _mc_n.get("FR", {})
+        if _fl_n.get("type") == "chamfer" and _fl_n.get("size", 0) > 0:
+            _fl_s_n = _fl_n["size"]
+        if _fr_n.get("type") == "chamfer" and _fr_n.get("size", 0) > 0:
+            _fr_s_n = _fr_n["size"]
+
+    # Mirrored: FL appears on right, FR appears on left in north view
+    _nrl = z0_x + _fr_s_n
+    _nrr = z0_x + W - _fl_s_n
+
+    ax.plot([_nrl, _nrr], [rail_top, rail_top],
             color=BRAND["rail"], lw=1.5, alpha=0.5)
-    ax.plot([z0_x, z0_x + W], [deck_top + 0.25, deck_top + 0.25],
+    ax.plot([_nrl, _nrr], [deck_top + 0.25, deck_top + 0.25],
             color=BRAND["rail"], lw=0.6, alpha=0.5)
-    for bx in np.arange(0, W, 3.75 / 12):
+    for bx in np.arange(_fr_s_n, W - _fl_s_n, 3.75 / 12):
         ax.plot([z0_x + bx, z0_x + bx], [deck_top + 0.25, rail_top],
                 color=BRAND["rail"], lw=0.08, alpha=0.3)
 
