@@ -45,6 +45,15 @@ window.buildDeckScene = function(scene, p, c, THREE) {
     stringer: new THREE.MeshStandardMaterial({ color: 0x8B6914, roughness: 0.7 }),
   };
 
+  // Helper: create mesh, position it, add to scene (fixes scene.add().position.set() bug)
+  function addM(geo, mat, x, y, z, shadow) {
+    var m = new THREE.Mesh(geo, mat);
+    m.position.set(x, y, z);
+    if (shadow) m.castShadow = true;
+    scene.add(m);
+    return m;
+  }
+
   var isLedger = c.attachment === "ledger";
 
 // S64: Multi-stair setup -- resolve all stairs from deckStairs array
@@ -166,9 +175,9 @@ window.buildDeckScene = function(scene, p, c, THREE) {
       pp.forEach(function(px, _pi) {
         var pH = (c.postHeights && _pi >= 0) ? c.postHeights[_pi] : zH;
         var _gY = H - pH;
-        scene.add(new THREE.Mesh(new THREE.CylinderGeometry(pR, pR, 0.5, 16), mats.concrete)).position.set(z0wx + px, _gY + 0.25, z0wz + D - 1.5);
+        addM(new THREE.CylinderGeometry(pR, pR, 0.5, 16), mats.concrete, z0wx + px, _gY + 0.25, z0wz + D - 1.5);
         var po = new THREE.Mesh(new THREE.BoxGeometry(pD, pH, pD), mats.post); po.position.set(z0wx + px, _gY + pH / 2, z0wz + D - 1.5); po.castShadow = true; scene.add(po);
-        scene.add(new THREE.Mesh(new THREE.BoxGeometry(pD + 0.2, 0.15, pD + 0.2), mats.metal)).position.set(z0wx + px, zH, z0wz + D - 1.5);
+        addM(new THREE.BoxGeometry(pD + 0.2, 0.15, pD + 0.2), mats.metal, z0wx + px, zH, z0wz + D - 1.5);
       });
 
 // Zone 0: Beam (with stair gap split)
@@ -182,7 +191,7 @@ window.buildDeckScene = function(scene, p, c, THREE) {
       }
 
 // Zone 0: Ledger
-      scene.add(new THREE.Mesh(new THREE.BoxGeometry(W, 9.25 / 12, 1.5 / 12), mats.joist)).position.set(z0wx + W / 2, zH - 0.4, z0wz + 0.06);
+      addM(new THREE.BoxGeometry(W, 9.25 / 12, 1.5 / 12), mats.joist, z0wx + W / 2, zH - 0.4, z0wz + 0.06);
 
 // Zone 0: Joists (with stair gap splits)
       var jLen = D - 1.5;
@@ -190,30 +199,30 @@ window.buildDeckScene = function(scene, p, c, THREE) {
         var jx = z0wx + x;
         if (frontGap && stairClipD > 0.5 && jx > frontGap.min + 0.05 && jx < frontGap.max - 0.05) {
           var jSeg1 = frontGap.zMin - z0wz;
-          if (jSeg1 > 0.2) { scene.add(new THREE.Mesh(new THREE.BoxGeometry(jW2, jH2, jSeg1), mats.joist)).position.set(jx, zH - jH2 / 2 - 0.1, z0wz + jSeg1 / 2); }
+          if (jSeg1 > 0.2) { addM(new THREE.BoxGeometry(jW2, jH2, jSeg1), mats.joist, jx, zH - jH2 / 2 - 0.1, z0wz + jSeg1 / 2); }
           var jSeg2 = (z0wz + D - 1.5) - frontGap.zMax;
-          if (jSeg2 > 0.2) { scene.add(new THREE.Mesh(new THREE.BoxGeometry(jW2, jH2, jSeg2), mats.joist)).position.set(jx, zH - jH2 / 2 - 0.1, frontGap.zMax + jSeg2 / 2); }
+          if (jSeg2 > 0.2) { addM(new THREE.BoxGeometry(jW2, jH2, jSeg2), mats.joist, jx, zH - jH2 / 2 - 0.1, frontGap.zMax + jSeg2 / 2); }
           continue;
         }
         if (leftGap && jx > leftGap.xMin + 0.05 && jx < leftGap.xMax - 0.05) {
           var jSeg1 = leftGap.min - z0wz;
-          if (jSeg1 > 0.2) { scene.add(new THREE.Mesh(new THREE.BoxGeometry(jW2, jH2, jSeg1), mats.joist)).position.set(jx, zH - jH2 / 2 - 0.1, z0wz + jSeg1 / 2); }
+          if (jSeg1 > 0.2) { addM(new THREE.BoxGeometry(jW2, jH2, jSeg1), mats.joist, jx, zH - jH2 / 2 - 0.1, z0wz + jSeg1 / 2); }
           var jSeg2 = (z0wz + D - 1.5) - leftGap.max;
-          if (jSeg2 > 0.2) { scene.add(new THREE.Mesh(new THREE.BoxGeometry(jW2, jH2, jSeg2), mats.joist)).position.set(jx, zH - jH2 / 2 - 0.1, leftGap.max + jSeg2 / 2); }
+          if (jSeg2 > 0.2) { addM(new THREE.BoxGeometry(jW2, jH2, jSeg2), mats.joist, jx, zH - jH2 / 2 - 0.1, leftGap.max + jSeg2 / 2); }
           continue;
         }
         if (rightGap && jx > rightGap.xMin + 0.05 && jx < rightGap.xMax - 0.05) {
           var jSeg1 = rightGap.min - z0wz;
-          if (jSeg1 > 0.2) { scene.add(new THREE.Mesh(new THREE.BoxGeometry(jW2, jH2, jSeg1), mats.joist)).position.set(jx, zH - jH2 / 2 - 0.1, z0wz + jSeg1 / 2); }
+          if (jSeg1 > 0.2) { addM(new THREE.BoxGeometry(jW2, jH2, jSeg1), mats.joist, jx, zH - jH2 / 2 - 0.1, z0wz + jSeg1 / 2); }
           var jSeg2 = (z0wz + D - 1.5) - rightGap.max;
-          if (jSeg2 > 0.2) { scene.add(new THREE.Mesh(new THREE.BoxGeometry(jW2, jH2, jSeg2), mats.joist)).position.set(jx, zH - jH2 / 2 - 0.1, rightGap.max + jSeg2 / 2); }
+          if (jSeg2 > 0.2) { addM(new THREE.BoxGeometry(jW2, jH2, jSeg2), mats.joist, jx, zH - jH2 / 2 - 0.1, rightGap.max + jSeg2 / 2); }
           continue;
         }
-        scene.add(new THREE.Mesh(new THREE.BoxGeometry(jW2, jH2, jLen), mats.joist)).position.set(jx, zH - jH2 / 2 - 0.1, z0wz + jLen / 2);
+        addM(new THREE.BoxGeometry(jW2, jH2, jLen), mats.joist, jx, zH - jH2 / 2 - 0.1, z0wz + jLen / 2);
       }
 
 // Zone 0: Rim joists (with stair gaps)
-      function addRimSeg(x, y, z, w, h, d) { scene.add(new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mats.joist)).position.set(x, y, z); }
+      function addRimSeg(x, y, z, w, h, d) { addM(new THREE.BoxGeometry(w, h, d), mats.joist, x, y, z); }
       if (frontGap && frontGap.zMax >= z0wz + D - 0.1) {
         var lw = frontGap.min - z0wx, rw = (z0wx + W) - frontGap.max;
         if (lw > 0.1) addRimSeg(z0wx + lw / 2, zH - jH2 / 2 - 0.1, z0wz + D, lw, jH2, jW2);
@@ -247,9 +256,9 @@ window.buildDeckScene = function(scene, p, c, THREE) {
         zCorners.push([zwx + px2, zwz + zD - zonePostInset]);
       }
       zCorners.forEach(function(pt) {
-        scene.add(new THREE.Mesh(new THREE.CylinderGeometry(pR, pR, 0.5, 16), mats.concrete)).position.set(pt[0], 0.25, pt[1]);
+        addM(new THREE.CylinderGeometry(pR, pR, 0.5, 16), mats.concrete, pt[0], 0.25, pt[1]);
         var po = new THREE.Mesh(new THREE.BoxGeometry(pD, zH, pD), mats.post); po.position.set(pt[0], zH / 2, pt[1]); po.castShadow = true; scene.add(po);
-        scene.add(new THREE.Mesh(new THREE.BoxGeometry(pD + 0.2, 0.15, pD + 0.2), mats.metal)).position.set(pt[0], zH, pt[1]);
+        addM(new THREE.BoxGeometry(pD + 0.2, 0.15, pD + 0.2), mats.metal, pt[0], zH, pt[1]);
       });
 
       // Beam along far edge (front edge of zone, furthest from house)
@@ -263,7 +272,7 @@ window.buildDeckScene = function(scene, p, c, THREE) {
       // Joists spanning depth of zone
       var zJLen = zD - 1;
       for (var zx2 = sp / 12; zx2 < zW; zx2 += sp / 12) {
-        scene.add(new THREE.Mesh(new THREE.BoxGeometry(jW2, jH2, zJLen), mats.joist)).position.set(zwx + zx2, zH - jH2 / 2 - 0.1, zwz + zJLen / 2 + 0.5);
+        addM(new THREE.BoxGeometry(jW2, jH2, zJLen), mats.joist, zwx + zx2, zH - jH2 / 2 - 0.1, zwz + zJLen / 2 + 0.5);
       }
 
       // Rim joists on 3 exposed sides (not the attachment edge which connects to parent)
@@ -271,19 +280,19 @@ window.buildDeckScene = function(scene, p, c, THREE) {
       var attachEdge = zone.attachEdge;
       // Front rim (far from house, high Y)
       if (attachEdge !== "front") {
-        scene.add(new THREE.Mesh(new THREE.BoxGeometry(zW, jH2, jW2), mats.joist)).position.set(zwx + zW / 2, zH - jH2 / 2 - 0.1, zwz + zD);
+        addM(new THREE.BoxGeometry(zW, jH2, jW2), mats.joist, zwx + zW / 2, zH - jH2 / 2 - 0.1, zwz + zD);
       }
 // Back rim (near house, low Y)   usually the attachment edge for front-attached zones
       if (attachEdge !== "back") {
-        scene.add(new THREE.Mesh(new THREE.BoxGeometry(zW, jH2, jW2), mats.joist)).position.set(zwx + zW / 2, zH - jH2 / 2 - 0.1, zwz);
+        addM(new THREE.BoxGeometry(zW, jH2, jW2), mats.joist, zwx + zW / 2, zH - jH2 / 2 - 0.1, zwz);
       }
       // Left rim
       if (attachEdge !== "left") {
-        scene.add(new THREE.Mesh(new THREE.BoxGeometry(jW2, jH2, zD), mats.joist)).position.set(zwx, zH - jH2 / 2 - 0.1, zwz + zD / 2);
+        addM(new THREE.BoxGeometry(jW2, jH2, zD), mats.joist, zwx, zH - jH2 / 2 - 0.1, zwz + zD / 2);
       }
       // Right rim
       if (attachEdge !== "right") {
-        scene.add(new THREE.Mesh(new THREE.BoxGeometry(jW2, jH2, zD), mats.joist)).position.set(zwx + zW, zH - jH2 / 2 - 0.1, zwz + zD / 2);
+        addM(new THREE.BoxGeometry(jW2, jH2, zD), mats.joist, zwx + zW, zH - jH2 / 2 - 0.1, zwz + zD / 2);
       }
     }
   });
