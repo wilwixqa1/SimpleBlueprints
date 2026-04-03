@@ -773,12 +773,43 @@ window.buildDeckScene = function(scene, p, c, THREE) {
 
       var hDist = run.treads * treadFt;
       var vDist = run.risers * riseFt;
-      var sLen = Math.sqrt(hDist * hDist + vDist * vDist);
-      var sAng = Math.atan2(vDist, hDist);
+
+      // Compute landing overlap to clip stringers/railings at landing edge
+      var landingOverlap = 0;
+      for (var _lo = 0; _lo < sg.landings.length; _lo++) {
+        var _lr = sg.landings[_lo].rect;
+        // Check overlap in direction of travel
+        if (isHoriz) {
+          // treadAxis "h" means treads span X, travel is in Z
+          var runZMin = Math.min(sz, sz + dsz * hDist);
+          var runZMax = Math.max(sz, sz + dsz * hDist);
+          var oMin = Math.max(runZMin, _lr.y);
+          var oMax = Math.min(runZMax, _lr.y + _lr.h);
+          if (oMax > oMin && sx > _lr.x + 0.05 && sx < _lr.x + _lr.w - 0.05) {
+            landingOverlap = Math.max(landingOverlap, oMax - oMin);
+          }
+        } else {
+          var runXMin = Math.min(sx, sx + dsx * hDist);
+          var runXMax = Math.max(sx, sx + dsx * hDist);
+          var oMin = Math.max(runXMin, _lr.x);
+          var oMax = Math.min(runXMax, _lr.x + _lr.w);
+          if (oMax > oMin && sz > _lr.y + 0.05 && sz < _lr.y + _lr.h - 0.05) {
+            landingOverlap = Math.max(landingOverlap, oMax - oMin);
+          }
+        }
+      }
+
+      // Effective stringer/railing dimensions (clipped at landing edge)
+      var effHDist = hDist - landingOverlap;
+      var effVDist = vDist * (effHDist / Math.max(hDist, 0.1));
+      var sLen = Math.sqrt(effHDist * effHDist + effVDist * effVDist);
+      var sAng = Math.atan2(vDist, hDist); // angle stays based on full run slope
       var strYClip = strH / 2 * Math.cos(sAng) + 0.08;
-      var midY = topElev - vDist / 2 - strYClip;
-      var midHX = sx + dsx * hDist / 2;
-      var midHZ = sz + dsz * hDist / 2;
+      // Offset midpoint: stringer starts at landing edge, not run start
+      var strStartOffset = landingOverlap;
+      var midY = topElev - (landingOverlap > 0 ? effVDist + vDist * (landingOverlap / hDist) : vDist / 2) - strYClip;
+      var midHX = sx + dsx * (strStartOffset + effHDist / 2);
+      var midHZ = sz + dsz * (strStartOffset + effHDist / 2);
 
       var strPositions = [];
       if (isHoriz) {
@@ -806,7 +837,7 @@ window.buildDeckScene = function(scene, p, c, THREE) {
 
         var stRailH = 3.0;
         var railW2 = V_RAIL_W;
-        var trLen = Math.sqrt(hDist * hDist + vDist * vDist);
+        var trLen = Math.sqrt(effHDist * effHDist + effVDist * effVDist);
         if (ri === 0) trLen = trLen * 0.85;
         var trG = isHoriz
           ? new THREE.BoxGeometry(railW2, railW2, trLen)
