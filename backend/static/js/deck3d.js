@@ -134,8 +134,16 @@ window.buildDeckScene = function(scene, p, c, THREE) {
   var rv = new Float32Array([rx1,ry,rz2,rx2,ry,rz2,rxM,ryP,rz2, rx2,ry,rz1,rx1,ry,rz1,rxM,ryP,rz1, rx1,ry,rz1,rx1,ry,rz2,rxM,ryP,rz2,rx1,ry,rz1,rxM,ryP,rz2,rxM,ryP,rz1, rx2,ry,rz2,rx2,ry,rz1,rxM,ryP,rz1,rx2,ry,rz2,rxM,ryP,rz1,rxM,ryP,rz2, rx1,ry,rz1,rx2,ry,rz1,rx2,ry,rz2,rx1,ry,rz1,rx2,ry,rz2,rx1,ry,rz2]);
   var rg = new THREE.BufferGeometry(); rg.setAttribute('position', new THREE.BufferAttribute(rv, 3)); rg.computeVertexNormals();
   scene.add(new THREE.Mesh(rg, mats.roof));
-  for (var wx = 0.2; wx < 0.9; wx += 0.3) { scene.add(new THREE.Mesh(new THREE.PlaneGeometry(3, 4), mats.win)).position.set(hX + hW * wx, H + 5, hZ + hD + 0.15); }
-  scene.add(new THREE.Mesh(new THREE.PlaneGeometry(4, 6.5), mats.win)).position.set(hX + hW / 2, H + 6.5 / 2 + 0.2, hZ + hD + 0.15);
+  // Upper windows on house deck-side wall
+  for (var wx = 0.2; wx < 0.9; wx += 0.3) {
+    var wm = new THREE.Mesh(new THREE.BoxGeometry(3, 4, 0.15), mats.win);
+    wm.position.set(hX + hW * wx, H + 5, hZ + hD + 0.1);
+    scene.add(wm);
+  }
+  // Sliding door at deck level
+  var dm = new THREE.Mesh(new THREE.BoxGeometry(4, 6.5, 0.15), mats.win);
+  dm.position.set(hX + hW / 2, H + 6.5 / 2 + 0.2, hZ + hD + 0.1);
+  scene.add(dm);
 
 // S20: Structure per zone (piers, posts, beams, joists)
   var pR = (fDiam / 12) / 2, pD = postSize === "6x6" ? 5.5 / 12 : 3.5 / 12;
