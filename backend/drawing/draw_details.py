@@ -506,126 +506,135 @@ def draw_cantilever_detail(ax, params, calc, spec=None):
     """Cantilever detail -- deck extending past foundation line.
     Two stacked views: plan view (top-down) and elevation view (side).
     Standard detail per Billy's reference -- on every application."""
-    ax.set_xlim(-2, 18)
-    ax.set_ylim(-8, 10)
+    ax.set_xlim(-3, 17)
+    ax.set_ylim(-6, 12)
     ax.set_aspect('equal')
     ax.axis('off')
     ax.set_facecolor('white')
 
-    ax.text(-1, 9, 'CANTILEVER DETAILS', fontsize=8, fontweight='bold',
+    ax.text(-2, 11, 'CANTILEVER DETAILS', fontsize=9, fontweight='bold',
             fontfamily='monospace', color=BRAND["dark"])
-    ax.text(-1, 8.2, 'NOT TO SCALE', fontsize=5, fontfamily='monospace', color=BRAND["mute"])
+    ax.text(-2, 10, 'NOT TO SCALE', fontsize=5, fontfamily='monospace', color=BRAND["mute"])
 
-    # === TOP: Ledger extension note ===
-    ax.text(0, 7.2,
-            'Extend ledger 6" and install (3) lags\n(min) each side of beam connection\nat ledger',
-            fontsize=4.5, color=BRAND["dark"], fontfamily='monospace', fontweight='bold',
+    # === LEDGER EXTENSION NOTE (top) ===
+    ax.text(-2, 9,
+            'Extend ledger 6" and install (3) lags (min)\neach side of beam connection at ledger',
+            fontsize=5, color=BRAND["dark"], fontfamily='monospace', fontweight='bold',
             va='top')
 
-    # === PLAN VIEW (top-down) ===
-    plan_y_base = 2.5
+    # === PLAN VIEW (top-down) -- upper half ===
+    plan_y = 3.5
+    plan_h = 4.0
 
-    # Foundation line (dashed)
-    found_x = 6
-    ax.plot([found_x, found_x], [plan_y_base - 0.5, plan_y_base + 3.5],
-            color=BRAND["dark"], lw=1, ls='--')
-    ax.text(found_x + 0.3, plan_y_base + 3.2, 'line of foundation\nbelow',
-            fontsize=3.5, color=BRAND["mute"], fontfamily='monospace', va='top')
+    # House wall (left, full height of plan)
+    wall_x = -1
+    wall_w = 2.0
+    ax.add_patch(patches.Rectangle((wall_x, plan_y), wall_w, plan_h,
+                 fc=BRAND["house"], ec=BRAND["dark"], lw=1))
+    ax.text(wall_x + wall_w / 2, plan_y + plan_h / 2, 'HOUSE\nWALL',
+            ha='center', va='center', fontsize=4.5, color=BRAND["mute"])
 
-    # House wall / ledger side (left)
-    wall_x = 1
-    ax.add_patch(patches.Rectangle((wall_x, plan_y_base), 1.5, 3,
-                 fc=BRAND["house"], ec=BRAND["dark"], lw=0.8))
-    ax.text(wall_x + 0.75, plan_y_base + 1.5, 'WALL', ha='center', va='center',
-            fontsize=3.5, color=BRAND["mute"], rotation=90)
+    # Ledger board (against wall)
+    ledger_x = wall_x + wall_w
+    ax.add_patch(patches.Rectangle((ledger_x, plan_y + 0.3), 0.5, plan_h - 0.6,
+                 fc=BRAND["post"], ec=BRAND["dark"], lw=0.8))
 
-    # Ledger board
-    ax.add_patch(patches.Rectangle((wall_x + 1.5, plan_y_base + 0.3), 0.4, 2.4,
-                 fc=BRAND["post"], ec=BRAND["dark"], lw=0.6))
+    # Foundation line (dashed, vertical, partway across deck)
+    found_x = 7
+    ax.plot([found_x, found_x], [plan_y - 0.3, plan_y + plan_h + 0.3],
+            color=BRAND["dark"], lw=1.2, ls='--')
+    ax.text(found_x, plan_y + plan_h + 0.6, 'Line of foundation below',
+            fontsize=4, color=BRAND["mute"], fontfamily='monospace',
+            fontstyle='italic', ha='center')
 
-    # Deck floor area (from wall to past foundation)
-    deck_end_x = 14
-    ax.add_patch(patches.Rectangle((wall_x + 1.9, plan_y_base + 0.1), deck_end_x - wall_x - 1.9, 2.8,
-                 fc='#f5f0e0', ec=BRAND["dark"], lw=0.6, alpha=0.5))
+    # Deck floor area (full extent from ledger to past foundation)
+    deck_start = ledger_x + 0.5
+    deck_end = 15
+    ax.add_patch(patches.Rectangle((deck_start, plan_y + 0.1), deck_end - deck_start, plan_h - 0.2,
+                 fc='#f5f0e0', ec=BRAND["dark"], lw=0.8))
 
-    # Joists (horizontal lines across deck)
-    for jy in np.arange(plan_y_base + 0.6, plan_y_base + 2.8, 0.55):
-        ax.plot([wall_x + 1.9, deck_end_x], [jy, jy], color=BRAND["wood"], lw=0.4, alpha=0.6)
+    # Joists running perpendicular to ledger (horizontal lines)
+    for jy in np.arange(plan_y + 0.7, plan_y + plan_h - 0.3, 0.7):
+        ax.plot([deck_start, deck_end], [jy, jy], color=BRAND["wood"], lw=0.5, alpha=0.7)
 
-    # Cantilever zone highlight (past foundation)
-    ax.add_patch(patches.Rectangle((found_x, plan_y_base + 0.1), deck_end_x - found_x, 2.8,
-                 fc=BRAND["red"], ec='none', alpha=0.08))
+    # Rim joist at far end
+    ax.add_patch(patches.Rectangle((deck_end, plan_y + 0.1), 0.4, plan_h - 0.2,
+                 fc=BRAND["wood"], ec=BRAND["dark"], lw=0.6))
 
-    # Cantilever label
-    ax.text((found_x + deck_end_x) / 2, plan_y_base + 1.5,
+    # Cantilever zone shading (past foundation line)
+    ax.add_patch(patches.Rectangle((found_x, plan_y + 0.1), deck_end - found_x, plan_h - 0.2,
+                 fc=BRAND["red"], ec='none', alpha=0.07))
+
+    # Cantilever zone label
+    cant_cx = (found_x + deck_end) / 2
+    ax.text(cant_cx, plan_y + plan_h / 2,
             'Cantilever floor\nthat extends past\nfoundation',
-            ha='center', va='center', fontsize=3.5, color=BRAND["dark"],
+            ha='center', va='center', fontsize=4.5, color=BRAND["dark"],
             fontfamily='monospace', fontstyle='italic')
 
-    # "Plan view from the top" label
-    ax.text(0, plan_y_base - 0.8, 'Plan view from the top',
+    # "Plan view from the top" sub-label
+    ax.text(-2, plan_y - 0.6, 'Plan view from the top',
             fontsize=4, color=BRAND["mute"], fontfamily='monospace', fontstyle='italic')
 
-    # === ELEVATION VIEW (bottom) ===
-    elev_y_base = -6.5
+    # === ELEVATION VIEW (side profile) -- lower half ===
+    elev_ground = -3.5
 
-    # Foundation wall
+    # Foundation wall (prominent)
     fw_x = 5.5
-    fw_w = 1.5
-    fw_h = 4.5
-    ax.add_patch(patches.Rectangle((fw_x, elev_y_base), fw_w, fw_h,
-                 fc=BRAND["concrete"], ec=BRAND["dark"], lw=1))
-    # Hatching on foundation
-    for hy in np.arange(elev_y_base + 0.3, elev_y_base + fw_h, 0.4):
-        ax.plot([fw_x + 0.2, fw_x + fw_w - 0.2], [hy, hy - 0.15],
+    fw_w = 2.0
+    fw_h = 5.0
+    ax.add_patch(patches.Rectangle((fw_x, elev_ground), fw_w, fw_h,
+                 fc=BRAND["concrete"], ec=BRAND["dark"], lw=1.2))
+    # Diagonal hatching inside foundation
+    for hy in np.arange(elev_ground + 0.4, elev_ground + fw_h, 0.5):
+        ax.plot([fw_x + 0.2, fw_x + fw_w - 0.2], [hy, hy - 0.25],
                 color=BRAND["mute"], lw=0.3)
+    ax.text(fw_x + fw_w / 2, elev_ground + fw_h * 0.4, 'FOUNDATION\nWALL',
+            ha='center', va='center', fontsize=4, color='#555', fontweight='bold')
 
-    # Deck floor (extends past foundation to the right)
-    deck_elev_y = elev_y_base + fw_h
-    deck_start_x = 2
-    deck_past_x = 14
-    # Joists
-    ax.add_patch(patches.Rectangle((deck_start_x, deck_elev_y), deck_past_x - deck_start_x, 0.8,
-                 fc=BRAND["wood"], ec=BRAND["dark"], lw=0.6))
+    # Deck floor extending from wall past foundation
+    deck_elev_y = elev_ground + fw_h
+    dk_start = 1
+    dk_end = 15.5
+    # Joist depth (full structural member)
+    joist_h = 1.0
+    ax.add_patch(patches.Rectangle((dk_start, deck_elev_y), dk_end - dk_start, joist_h,
+                 fc=BRAND["wood"], ec=BRAND["dark"], lw=0.8))
     # Decking on top
-    ax.add_patch(patches.Rectangle((deck_start_x, deck_elev_y + 0.8), deck_past_x - deck_start_x, 0.25,
-                 fc='#8B7355', ec=BRAND["dark"], lw=0.4))
+    ax.add_patch(patches.Rectangle((dk_start, deck_elev_y + joist_h), dk_end - dk_start, 0.3,
+                 fc='#8B7355', ec=BRAND["dark"], lw=0.5))
 
-    # Ledger at wall (left side)
-    ax.add_patch(patches.Rectangle((deck_start_x - 0.3, deck_elev_y), 0.3, 0.8,
-                 fc=BRAND["post"], ec=BRAND["dark"], lw=0.5))
+    # Ledger at house side
+    ax.add_patch(patches.Rectangle((dk_start - 0.4, deck_elev_y), 0.4, joist_h,
+                 fc=BRAND["post"], ec=BRAND["dark"], lw=0.6))
 
     # Rim joist at cantilever end
-    ax.add_patch(patches.Rectangle((deck_past_x, deck_elev_y), 0.3, 0.8,
-                 fc=BRAND["wood"], ec=BRAND["dark"], lw=0.5))
+    ax.add_patch(patches.Rectangle((dk_end, deck_elev_y), 0.4, joist_h,
+                 fc=BRAND["wood"], ec=BRAND["dark"], lw=0.6))
 
-    # Ground line
-    ax.plot([0, 16], [elev_y_base, elev_y_base], color=BRAND["dark"], lw=0.8)
-    for gi in np.arange(0, 16, 0.3):
-        ax.plot([gi, gi - 0.15], [elev_y_base, elev_y_base - 0.2],
-                color=BRAND["mute"], lw=0.2)
+    # Ground line with hatching
+    ax.plot([-2, 16.5], [elev_ground, elev_ground], color=BRAND["dark"], lw=1)
+    for gi in np.arange(-2, 16.5, 0.35):
+        ax.plot([gi, gi - 0.2], [elev_ground, elev_ground - 0.25],
+                color=BRAND["mute"], lw=0.25)
 
-    # "No ledger connection to cantilever allowed" callout
-    callout_x = 9.5
-    callout_y = elev_y_base + 1.5
+    # "No ledger connection to cantilever allowed" callout (prominent)
+    callout_x = 11.5
+    callout_y = elev_ground + fw_h * 0.35
     ax.text(callout_x, callout_y,
             'No ledger connection\nto cantilever allowed',
-            ha='center', va='center', fontsize=4, color=BRAND["red"],
+            ha='center', va='center', fontsize=4.5, color=BRAND["red"],
             fontweight='bold', fontfamily='monospace',
-            bbox=dict(boxstyle='round,pad=0.3', fc='white', ec=BRAND["red"], lw=0.8))
+            bbox=dict(boxstyle='round,pad=0.4', fc='white', ec=BRAND["red"], lw=1))
 
-    # Arrow from callout to cantilever zone
-    ax.annotate('', xy=(fw_x + fw_w + 1.5, deck_elev_y + 0.4),
-                xytext=(callout_x - 1.5, callout_y),
+    # Arrow pointing to the cantilever zone on the elevation
+    ax.annotate('', xy=(fw_x + fw_w + 1, deck_elev_y + 0.5),
+                xytext=(callout_x - 2, callout_y + 0.5),
                 arrowprops=dict(arrowstyle='->', color=BRAND["red"], lw=0.8))
 
-    # "Elevation view of the ledger connection" label
-    ax.text(0, elev_y_base - 0.8, 'Elevation view of the ledger connection',
+    # "Elevation view" sub-label
+    ax.text(-2, elev_ground - 0.8, 'Elevation view of the ledger connection',
             fontsize=4, color=BRAND["mute"], fontfamily='monospace', fontstyle='italic')
-
-    # Foundation wall label
-    ax.text(fw_x + fw_w / 2, elev_y_base + fw_h / 2, 'FOUND.\nWALL',
-            ha='center', va='center', fontsize=3.5, color='#555')
 
 
 # ============================================================
