@@ -982,12 +982,27 @@ window.buildDeckScene = function(scene, p, c, THREE) {
       });
     });
 
-    var bb = sg.bbox;
+    // Concrete pad at base of stairs (where last run meets ground)
+    var lastRun = sg.runs[sg.runs.length - 1];
+    var lr2 = lastRun.rect;
+    var padDepth = 3;
+    var padW, padD, padX, padZ;
+    if (lastRun.downDir === "+y") {
+      padW = lr2.w + 0.5; padD = padDepth;
+      padX = lr2.x + lr2.w / 2; padZ = lr2.y + lr2.h + padDepth / 2;
+    } else if (lastRun.downDir === "-y") {
+      padW = lr2.w + 0.5; padD = padDepth;
+      padX = lr2.x + lr2.w / 2; padZ = lr2.y - padDepth / 2;
+    } else if (lastRun.downDir === "+x") {
+      padW = padDepth; padD = lr2.h + 0.5;
+      padX = lr2.x + lr2.w + padDepth / 2; padZ = lr2.y + lr2.h / 2;
+    } else {
+      padW = padDepth; padD = lr2.h + 0.5;
+      padX = lr2.x - padDepth / 2; padZ = lr2.y + lr2.h / 2;
+    }
     var padMat = new THREE.MeshStandardMaterial({ color: 0xb0b0b0, roughness: 0.95 });
-    var padM = new THREE.Mesh(
-      new THREE.BoxGeometry(bb.w + 1, 0.25, bb.h + 1), padMat
-    );
-    padM.position.set((bb.minX + bb.maxX) / 2, 0.125, (bb.minY + bb.maxY) / 2);
+    var padM = new THREE.Mesh(new THREE.BoxGeometry(padW, 0.25, padD), padMat);
+    padM.position.set(padX, 0.125, padZ);
     padM.receiveShadow = true;
     stGrp.add(padM);
 
