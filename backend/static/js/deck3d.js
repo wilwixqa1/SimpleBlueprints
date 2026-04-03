@@ -839,6 +839,8 @@ window.buildDeckScene = function(scene, p, c, THREE) {
         var railW2 = V_RAIL_W;
         var trLen = Math.sqrt(effHDist * effHDist + effVDist * effVDist);
         if (ri === 0) trLen = trLen * 0.85;
+
+        // Top rail
         var trG = isHoriz
           ? new THREE.BoxGeometry(railW2, railW2, trLen)
           : new THREE.BoxGeometry(trLen, railW2, railW2);
@@ -852,9 +854,25 @@ window.buildDeckScene = function(scene, p, c, THREE) {
         }
         stGrp.add(trM);
 
+        // Bottom rail
+        var brG = isHoriz
+          ? new THREE.BoxGeometry(railW2 * 0.8, railW2 * 0.8, trLen)
+          : new THREE.BoxGeometry(trLen, railW2 * 0.8, railW2 * 0.8);
+        var brM = new THREE.Mesh(brG, mats.rail);
+        if (isHoriz) {
+          brM.position.set(ePos, midY + 0.3, midHZ);
+          brM.rotation.x = dsz > 0 ? sAng : -sAng;
+        } else {
+          brM.position.set(midHX, midY + 0.3, ePos);
+          brM.rotation.z = dsx > 0 ? -sAng : sAng;
+        }
+        stGrp.add(brM);
+
+        // Posts
         var postSpacing2 = Math.max(1, Math.floor(run.treads / 3));
         for (var pi = 0; pi <= run.treads; pi += postSpacing2) {
           var stepIdx = Math.min(pi, run.treads - 1);
+          if (clipsLanding(sx + dsx * treadFt * (stepIdx + 0.5), sz + dsz * treadFt * (stepIdx + 0.5), topElev - (stepIdx + 1) * riseFt)) continue;
           var postBaseY = topElev - (stepIdx + 1) * riseFt + treadTh;
           var postX = isHoriz ? ePos : sx + dsx * treadFt * (stepIdx + 0.5);
           var postZ = isHoriz ? sz + dsz * treadFt * (stepIdx + 0.5) : ePos;
@@ -863,6 +881,25 @@ window.buildDeckScene = function(scene, p, c, THREE) {
           );
           pm.position.set(postX, postBaseY + stRailH / 2, postZ);
           stGrp.add(pm);
+        }
+
+        // Balusters between top and bottom rail
+        var balSp2 = 0.33;
+        var visibleTreads = [];
+        for (var bi = 0; bi < run.treads; bi++) {
+          var bTX = sx + dsx * treadFt * (bi + 0.5);
+          var bTZ = sz + dsz * treadFt * (bi + 0.5);
+          var bTY = topElev - (bi + 1) * riseFt;
+          if (!clipsLanding(bTX, bTZ, bTY)) visibleTreads.push({ x: bTX, z: bTZ, y: bTY });
+        }
+        for (var bi2 = 0; bi2 < visibleTreads.length; bi2++) {
+          var vt = visibleTreads[bi2];
+          var balX = isHoriz ? ePos : vt.x;
+          var balZ = isHoriz ? vt.z : ePos;
+          var balH = stRailH - 0.5;
+          var balM = new THREE.Mesh(new THREE.BoxGeometry(0.06, balH, 0.06), mats.rail);
+          balM.position.set(balX, vt.y + treadTh + balH / 2 + 0.2, balZ);
+          stGrp.add(balM);
         }
       });
 
