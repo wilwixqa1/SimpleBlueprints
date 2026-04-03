@@ -637,11 +637,124 @@ def draw_cantilever_detail(ax, params, calc, spec=None):
             fontsize=4, color=BRAND["mute"], fontfamily='monospace', fontstyle='italic')
 
 
+def draw_hardware_schedule(ax, params, calc, spec=None):
+    """Hardware schedule table -- consolidated list of all connectors and fasteners."""
+    ax.set_xlim(-1, 16)
+    ax.set_ylim(-2, 12)
+    ax.set_aspect('equal')
+    ax.axis('off')
+    ax.set_facecolor('white')
+
+    ax.text(0, 11, 'HARDWARE SCHEDULE', fontsize=9, fontweight='bold',
+            fontfamily='monospace', color=BRAND["dark"])
+    ax.text(0, 10.1, 'All hardware HDG or stainless steel', fontsize=4.5,
+            fontfamily='monospace', color=BRAND["mute"])
+
+    # Build hardware rows from spec
+    hw = spec["hardware"] if spec else {}
+    attachment = params.get("attachment", "ledger")
+    has_stairs = params.get("hasStairs", False) and calc.get("height", 0) > 0.5
+
+    rows = []
+
+    # Post base
+    pb = hw.get("post_base", {})
+    rows.append(("POST BASE", f'Simpson {pb.get("model", "ABU66Z")}',
+                 f'{calc.get("total_posts", 3)} EA'))
+
+    # Post cap
+    pc = hw.get("post_cap", {})
+    rows.append(("POST CAP", f'Simpson {pc.get("model", "BCS2-3/6")}',
+                 f'{calc.get("total_posts", 3)} EA'))
+
+    # Joist hanger
+    jh = hw.get("joist_hanger", {})
+    n_hangers = calc.get("num_joists", 12) * 2
+    rows.append(("JOIST HANGER", f'Simpson {jh.get("model", "LUS210Z")}',
+                 f'{n_hangers} EA'))
+
+    # Hurricane tie
+    ht = hw.get("hurricane_tie", {})
+    rows.append(("HURRICANE TIE", f'Simpson {ht.get("model", "H2.5AZ")}',
+                 f'{calc.get("num_joists", 12)} EA'))
+
+    # Ledger fastener (only for ledger attachment)
+    if attachment == "ledger":
+        lf = hw.get("ledger_fastener", {})
+        rows.append(("LEDGER FASTENER", f'(2) {lf.get("size", "5\"")} Ledger Locks',
+                     f'@ {lf.get("spacing", 16)}" O.C.'))
+
+    # Lateral load (only for ledger)
+    if attachment == "ledger":
+        ll = hw.get("lateral_load", {})
+        rows.append(("LATERAL LOAD", f'Simpson {ll.get("model", "DTT2Z")}',
+                     f'{ll.get("min_count", 2)} EA (min)'))
+
+    # Beam bolts
+    rows.append(("BEAM BOLTS", '1/2" Carriage Bolts',
+                 'W/ Nuts & Washers'))
+
+    # Stair connectors (if stairs)
+    if has_stairs:
+        st = hw.get("stair_connector_top", {})
+        sb = hw.get("stair_connector_bottom", {})
+        rows.append(("STAIR CONN. (TOP)", f'Simpson {st.get("model", "LSC")}',
+                     'Per stringer'))
+        rows.append(("STAIR CONN. (BTM)", f'Simpson {sb.get("model", "LSSU")}',
+                     'Per stringer'))
+
+    # Draw table
+    table_top = 9.2
+    col1_x = 0
+    col2_x = 4.5
+    col3_x = 11
+    row_h = 0.72
+
+    # Header row
+    y = table_top
+    ax.plot([col1_x, 15], [y, y], color=BRAND["dark"], lw=1)
+    ax.text(col1_x + 0.2, y - row_h / 2, 'CONNECTION', fontsize=4.5,
+            fontweight='bold', fontfamily='monospace', color=BRAND["dark"], va='center')
+    ax.text(col2_x + 0.2, y - row_h / 2, 'HARDWARE', fontsize=4.5,
+            fontweight='bold', fontfamily='monospace', color=BRAND["dark"], va='center')
+    ax.text(col3_x + 0.2, y - row_h / 2, 'QTY / SPEC', fontsize=4.5,
+            fontweight='bold', fontfamily='monospace', color=BRAND["dark"], va='center')
+    y -= row_h
+    ax.plot([col1_x, 15], [y, y], color=BRAND["dark"], lw=0.8)
+
+    # Data rows
+    for i, (conn, hardware, qty) in enumerate(rows):
+        bg = '#fafaf5' if i % 2 == 0 else 'white'
+        ax.add_patch(patches.Rectangle((col1_x, y - row_h), 15, row_h,
+                     fc=bg, ec='none'))
+        ax.text(col1_x + 0.2, y - row_h / 2, conn, fontsize=4,
+                fontfamily='monospace', color=BRAND["dark"], va='center', fontweight='bold')
+        ax.text(col2_x + 0.2, y - row_h / 2, hardware, fontsize=4,
+                fontfamily='monospace', color=BRAND["dark"], va='center')
+        ax.text(col3_x + 0.2, y - row_h / 2, qty, fontsize=4,
+                fontfamily='monospace', color=BRAND.get("blue", "#4a7ab5"), va='center',
+                fontweight='bold')
+        y -= row_h
+        ax.plot([col1_x, 15], [y, y], color=BRAND["border"], lw=0.3)
+
+    # Bottom border
+    ax.plot([col1_x, 15], [y, y], color=BRAND["dark"], lw=0.8)
+
+    # Column dividers
+    ax.plot([col2_x, col2_x], [table_top, y], color=BRAND["border"], lw=0.3)
+    ax.plot([col3_x, col3_x], [table_top, y], color=BRAND["border"], lw=0.3)
+
+    # Note
+    ax.text(0, y - 0.5,
+            'Install per manufacturer specifications.\nVerify all models with supplier before ordering.',
+            fontsize=3.5, fontfamily='monospace', color=BRAND["mute"], fontstyle='italic')
+
+
 # ============================================================
-# SHEET: COMBINED DETAILS (S66: 5-panel layout, cantilever moved to A-6)
+# SHEET: COMBINED DETAILS (S66: 5 details + hardware schedule)
 # ============================================================
 def draw_details_sheet(fig, params, calc, spec=None):
-    """Draw all 5 detail views: 3 top + 2 bottom"""
+    """Draw 5 detail views + hardware schedule (full 3x2 grid)"""
     if spec is None:
         from .permit_spec import build_permit_spec
         spec = build_permit_spec(params, calc)
@@ -656,12 +769,14 @@ def draw_details_sheet(fig, params, calc, spec=None):
     ax_stair = fig.add_subplot(gs[0, 2])
     ax_guard = fig.add_subplot(gs[1, 0])
     ax_post = fig.add_subplot(gs[1, 1])
+    ax_hw = fig.add_subplot(gs[1, 2])
 
     draw_ledger_detail(ax_ledger, params, calc, spec)
     draw_footing_detail(ax_footing, params, calc, spec)
     draw_stair_landing_detail(ax_stair, params, calc, spec)
     draw_guard_rail_detail(ax_guard, params, calc, spec)
     draw_post_beam_detail(ax_post, params, calc, spec)
+    draw_hardware_schedule(ax_hw, params, calc, spec)
 
     # Construction notes at bottom
     fig.text(0.05, 0.03,
