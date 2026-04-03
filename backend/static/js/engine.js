@@ -186,7 +186,13 @@ function calcStructure(p) {
   const fDepth = FROST[frostZone] || 30;
   const nJ = Math.ceil(W / (sp / 12)) + 1;
   let railLen = W + D * 2; if (attachment === "freestanding") railLen += W;
-  if (p.hasStairs) railLen -= 3;
+  // S65: Subtract stair width for ALL stairs on zone 0 (not just flat params)
+  var _ds = p.deckStairs || [];
+  if (_ds.length > 0) {
+    _ds.forEach(function(_s) { if ((_s.zoneId || 0) === 0) railLen -= (_s.width || 4); });
+  } else if (p.hasStairs) {
+    railLen -= (p.stairWidth || 4);
+  }
 
   // S61: Adjust railing length for chamfers
   var _mc = p.mainCorners;
@@ -327,7 +333,35 @@ function estMaterials(p, c) {
   } else {
     items.push({ cat: "Railing", item: "Wood Rail Kit (8')", qty: Math.ceil(c.railLen / 8), cost: 85 });
   }
-  if (c.stairs) {
+  // S65: Multi-stair materials -- iterate deckStairs or fall back to c.stairs
+  var _allDS = p.deckStairs || [];
+  if (_allDS.length > 0) {
+    _allDS.forEach(function(_s, _si) {
+      if (c.H <= 0.5) return;
+      var _sw = _s.width || 4;
+      var _ns = _s.numStringers || 3;
+      var _tmpl = _s.template || "straight";
+      var _geom = window.computeStairGeometry ? window.computeStairGeometry({ template: _tmpl, height: c.H, stairWidth: _sw, numStringers: _ns, runSplit: _s.runSplit ? _s.runSplit/100 : null, landingDepth: _s.landingDepth || null, stairGap: _s.stairGap != null ? _s.stairGap : 0.5 }) : null;
+      var _nR = Math.ceil(c.H * 12 / 7.5);
+      var _nT = _nR - 1;
+      var _totalRun = _nT * 10.5;
+      var _stringerFt = +(Math.sqrt((c.H * 12) ** 2 + _totalRun ** 2) / 12 + 1).toFixed(1);
+      var _totalStringers = _geom ? _geom.totalStringers : _ns;
+      var _numLandings = _geom ? _geom.landings.length : 0;
+      var _totalLandingPosts = _geom ? _geom.totalLandingPosts : 0;
+      var _label = _si === 0 && (_s.zoneId || 0) === 0 ? "" : " (Stair " + (_si + 1) + ")";
+      items.push({ cat: "Stairs", item: "2x12 Stair Stringers " + _stringerFt + "'" + _label, qty: _totalStringers, cost: _stringerFt <= 8 ? 22 : _stringerFt <= 12 ? 35 : 48 });
+      items.push({ cat: "Stairs", item: "5/4x12 PT Treads" + _label, qty: _nT * Math.ceil(_sw / 1), cost: 18 });
+      items.push({ cat: "Stairs", item: "Stair Stringer Brackets" + _label, qty: _totalStringers, cost: 8 });
+      if (_numLandings > 0) {
+        items.push({ cat: "Stairs", item: "Landing Posts " + c.postSize + _label, qty: _totalLandingPosts, cost: c.postSize === "6x6" ? 48 : 24 });
+        items.push({ cat: "Stairs", item: "Landing Post Bases" + _label, qty: _totalLandingPosts, cost: c.postSize === "6x6" ? 42 : 28 });
+        items.push({ cat: "Stairs", item: "Landing Footings " + c.fDiam + '"' + _label, qty: _totalLandingPosts, cost: c.fDiam > 18 ? 28 : 18 });
+        items.push({ cat: "Stairs", item: "Landing Framing Lumber" + _label, qty: _numLandings * 4, cost: 22 });
+        items.push({ cat: "Stairs", item: "Landing Decking" + _label, qty: _numLandings * Math.ceil(_sw + 2), cost: p.deckingType === "composite" ? 28 : 12 });
+      }
+    });
+  } else if (c.stairs) {
     const st = c.stairs;
     items.push({ cat: "Stairs", item: "2x12 Stair Stringers " + st.stringerFt + "'", qty: st.totalStringers, cost: st.stringerFt <= 8 ? 22 : st.stringerFt <= 12 ? 35 : 48 });
     items.push({ cat: "Stairs", item: "5/4x12 PT Treads", qty: st.nTreads * Math.ceil(st.width / 1), cost: 18 });
