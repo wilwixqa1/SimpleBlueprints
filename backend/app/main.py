@@ -234,7 +234,7 @@ def generate_blueprint_pdf(params: dict) -> tuple:
         # A-6: Compliance checklist (S66)
         fig6 = plt.figure(figsize=(14,8.5)); fig6.set_facecolor('white')
         draw_checklist_sheet(fig6,params,calc,spec)
-        draw_title_block(fig6,"A-6","COMPLIANCE CHECKLIST",calc,pi)
+        draw_title_block(fig6,"A-6","DECK ATTACHMENT SHEET",calc,pi)
         pdf.savefig(fig6,dpi=200); plt.close(fig6)
 
     # S50: Append jurisdiction-specific sheets (Colorado Springs PPRBD)
