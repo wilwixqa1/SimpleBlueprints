@@ -249,6 +249,19 @@ function Label({ children }) {
 function Slider({ label, value, min, max, step: s = 1, field, unit = "'", fmt, u, p, focused }) {
   const [editing, setEditing] = _stUS(false);
   const [draft, setDraft] = _stUS(String(value));
+  // S65: rAF throttle -- buffer slider value, flush once per animation frame
+  var _rafId = React.useRef(null);
+  var _latest = React.useRef(value);
+  var _onSlide = function(e) {
+    _latest.current = Number(e.target.value);
+    if (!_rafId.current) {
+      _rafId.current = requestAnimationFrame(function() {
+        _rafId.current = null;
+        u(field, _latest.current);
+      });
+    }
+  };
+  _stUE(function() { return function() { if (_rafId.current) cancelAnimationFrame(_rafId.current); }; }, []);
   const commit = () => {
     setEditing(false);
     let v = parseFloat(draft);
@@ -261,7 +274,7 @@ function Slider({ label, value, min, max, step: s = 1, field, unit = "'", fmt, u
   return (
     <div style={{ marginBottom: 16, borderLeft: focused ? ("3px solid " + _br.gn) : "3px solid transparent", paddingLeft: focused ? 10 : 0, transition: "all 0.2s" }}><Label>{label}</Label>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <input type="range" min={min} max={max} step={s} value={value} onChange={e => u(field, Number(e.target.value))} style={{ flex: 1, accentColor: _br.gn, height: 6 }} />
+        <input type="range" min={min} max={max} step={s} value={value} onChange={_onSlide} style={{ flex: 1, accentColor: _br.gn, height: 6 }} />
         {editing ? (
           <input type="number" min={min} max={max} step={s} value={draft} onChange={e => setDraft(e.target.value)} onBlur={commit} onKeyDown={e => e.key === "Enter" && commit()} autoFocus
             style={{ width: 60, fontFamily: _mono, fontSize: 16, fontWeight: 800, color: _br.tx, textAlign: "right", border: `2px solid ${_br.gn}`, borderRadius: 4, padding: "2px 4px", outline: "none", background: "#fff" }} />
