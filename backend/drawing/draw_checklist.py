@@ -2,7 +2,7 @@
 """
 SimpleBlueprints - Sheet A-6: Deck Attachment Sheet
 S66: Matches Billy's reference format -- blank YES/NO intake form
-for building departments. Auto-fills address if available.
+for building departments. Auto-fills address and project specs.
 """
 
 import matplotlib
@@ -22,20 +22,17 @@ def draw_checklist_sheet(fig, params, calc, spec=None):
     ax.axis('off')
     ax.set_facecolor('white')
 
-    # Border
-    ax.add_patch(patches.Rectangle((0.3, 0.3), 9.4, 9.4,
-                 fc='none', ec=BRAND["dark"], lw=1.5))
+    dk = BRAND["dark"]
+    wd = BRAND.get("wood", "#c8a86e")
+    rl = BRAND.get("rail", "#444")
 
     # === TITLE ===
-    ax.text(5, 9.35, 'DECK ATTACHMENT SHEET',
-            ha='center', fontsize=14, fontweight='bold',
-            fontfamily='monospace', color=BRAND["dark"])
-    ax.text(5, 9.05, 'This document is to remain with your plans at all times',
-            ha='center', fontsize=7, fontfamily='monospace', color=BRAND["dark"],
-            fontstyle='italic')
-
-    # Divider
-    ax.plot([0.5, 9.5], [8.85, 8.85], color=BRAND["dark"], lw=0.8)
+    ax.text(5, 9.55, 'DECK ATTACHMENT SHEET',
+            ha='center', fontsize=13, fontweight='bold',
+            fontfamily='monospace', color=dk)
+    ax.text(5, 9.3, 'This document is to remain with your plans at all times',
+            ha='center', fontsize=6.5, fontfamily='monospace', color=dk)
+    ax.plot([0.4, 9.6], [9.15, 9.15], color=dk, lw=0.8)
 
     # === PROJECT ADDRESS ===
     address = params.get("address", "")
@@ -47,190 +44,219 @@ def draw_checklist_sheet(fig, params, calc, spec=None):
     if state:
         full_addr += f", {state}"
 
-    ax.text(0.6, 8.6, 'PROJECT ADDRESS:', fontsize=8, fontweight='bold',
-            fontfamily='monospace', color=BRAND["dark"])
-    # Address line
-    ax.plot([3.2, 9.3], [8.55, 8.55], color=BRAND["dark"], lw=0.5)
+    ax.text(0.5, 8.95, 'PROJECT ADDRESS:', fontsize=7, fontweight='bold',
+            fontfamily='monospace', color=dk)
+    ax.plot([3.0, 9.5], [8.9, 8.9], color=dk, lw=0.4)
     if full_addr:
-        ax.text(3.3, 8.6, full_addr, fontsize=8, fontfamily='monospace',
-                color=BRAND["dark"])
+        ax.text(3.1, 8.95, full_addr, fontsize=7, fontfamily='monospace', color=dk)
 
     # === YES / NO HEADER ===
-    y = 8.15
-    ax.text(0.7, y, 'YES', fontsize=7, fontweight='bold',
-            fontfamily='monospace', color=BRAND["dark"], ha='center')
-    ax.text(1.3, y, 'NO', fontsize=7, fontweight='bold',
-            fontfamily='monospace', color=BRAND["dark"], ha='center')
+    y = 8.55
+    ax.text(0.65, y, 'YES', fontsize=6.5, fontweight='bold',
+            fontfamily='monospace', color=dk, ha='center')
+    ax.text(1.15, y, 'NO', fontsize=6.5, fontweight='bold',
+            fontfamily='monospace', color=dk, ha='center')
 
     # === CHECKLIST ITEMS ===
     questions = [
-        "DECK DESIGN INCLUDES A SOLID COVER OR PERGOLA STYLE COVER.",
+        ("DECK DESIGN INCLUDES A SOLID COVER OR PERGOLA STYLE COVER.", False),
         ("ELECTRICAL SERVICE AND METER LOCATION MAY BE AFFECTED BY DECK.\n"
-         "RECOMMEND DISCUSSION WITH ELECTRICAL DEPARTMENT IF YES."),
-        "DECK SUPPORTS HOT TUB OR SPA LOADING.",
+         "RECOMMEND DISCUSSION WITH ELECTRICAL DEPARTMENT IF YES.", True),
+        ("DECK SUPPORTS HOT TUB OR SPA LOADING.", False),
         ("DECK IS SUPPORTED BY CANTILEVER AT HOUSE. EXISTING INVERTED HANGER\n"
-         "INSTALLATION WAS VERIFIED OR ENGINEERING WAS PROVIDED."),
-        "WALKING SURFACE LESS THAN 18\" ABOVE GRADE.",
-        "WALKING SURFACE 8' OR MORE ABOVE GRADE.",
-        "DECK IS FREESTANDING AND NOT ATTACHED TO A STRUCTURE (DETACHED).",
-        "PROPOSED EXCAVATION OR VERTICAL PENETRATION GREATER THAN 3'-0\" IN DEPTH.",
+         "INSTALLATION WAS VERIFIED OR ENGINEERING WAS PROVIDED.", True),
+        ("WALKING SURFACE LESS THAN 18\" ABOVE GRADE.", False),
+        ("WALKING SURFACE 8' OR MORE ABOVE GRADE.", False),
+        ("DECK IS FREESTANDING AND NOT ATTACHED TO A STRUCTURE (DETACHED).", False),
+        ("PROPOSED EXCAVATION OR VERTICAL PENETRATION GREATER THAN 3'-0\" IN DEPTH.", False),
     ]
 
-    y = 7.85
-    box_sz = 0.22
+    y = 8.25
+    box_sz = 0.18
 
-    for q in questions:
+    for q_text, is_multi in questions:
         # YES checkbox (blank)
-        ax.add_patch(patches.Rectangle((0.55, y - box_sz / 2 - 0.02), box_sz, box_sz,
-                     fc='white', ec=BRAND["dark"], lw=0.6))
+        ax.add_patch(patches.Rectangle((0.5, y - box_sz / 2), box_sz, box_sz,
+                     fc='white', ec=dk, lw=0.5))
         # NO checkbox (blank)
-        ax.add_patch(patches.Rectangle((1.15, y - box_sz / 2 - 0.02), box_sz, box_sz,
-                     fc='white', ec=BRAND["dark"], lw=0.6))
+        ax.add_patch(patches.Rectangle((1.0, y - box_sz / 2), box_sz, box_sz,
+                     fc='white', ec=dk, lw=0.5))
 
         # Question text
-        lines = q.split('\n')
+        lines = q_text.split('\n')
         for li, line in enumerate(lines):
-            ax.text(1.7, y - li * 0.22, line, fontsize=6, fontfamily='monospace',
-                    color=BRAND["dark"], va='center')
+            ax.text(1.5, y - li * 0.2, line, fontsize=5.5, fontfamily='monospace',
+                    color=dk, va='center')
 
-        # Spacing depends on number of lines
-        y -= 0.55 if len(lines) > 1 else 0.42
+        y -= 0.48 if is_multi else 0.35
 
     # === HARDWARE NOTE ===
-    y -= 0.25
-    ax.plot([0.5, 9.5], [y + 0.15, y + 0.15], color=BRAND["dark"], lw=0.5)
-    ax.text(0.6, y - 0.1,
+    y -= 0.15
+    ax.plot([0.4, 9.6], [y + 0.1, y + 0.1], color=dk, lw=0.5)
+    ax.text(0.5, y - 0.1,
             "USE LISTED JOIST HANGERS TO MATCH JOIST SIZE AND PROVIDE LISTED HARDWARE AT POST CAP AND BASE.",
-            fontsize=5.5, fontfamily='monospace', color=BRAND["dark"], fontweight='bold')
-    ax.text(0.6, y - 0.35,
+            fontsize=5, fontfamily='monospace', color=dk, fontweight='bold')
+    ax.text(0.5, y - 0.3,
             "INSTALL ALL LISTED PRODUCTS PER THE MANUFACTURER'S RECOMMENDATIONS (USP/SIMPSON/ETC.)",
-            fontsize=5.5, fontfamily='monospace', color=BRAND["dark"], fontweight='bold')
+            fontsize=5, fontfamily='monospace', color=dk, fontweight='bold')
 
-    # === DETAIL INDEX (thumbnail drawings matching our A-4 layout) ===
-    y -= 0.75
-    ax.plot([0.5, 9.5], [y + 0.15, y + 0.15], color=BRAND["dark"], lw=0.5)
+    # === DETAIL INDEX GRID ===
+    y -= 0.55
+    ax.plot([0.4, 9.6], [y + 0.1, y + 0.1], color=dk, lw=0.5)
 
-    # 3 columns x 2 rows matching A-4 grid
-    col_w = 2.8
-    row_h = 1.35
-    dk = BRAND["dark"]
-    wd = BRAND.get("wood", "#c8a86e")
-    rl = BRAND.get("rail", "#444")
+    col_w = 3.0
+    row_h = 1.5
+    grid_x0 = 0.5
 
-    def cell_box(ci, row_y):
-        cx = 1.2 + ci * col_w
-        bx = cx - 0.8
-        ax.add_patch(patches.Rectangle((bx, row_y - row_h), col_w - 0.4, row_h,
-                     fc='white', ec=BRAND["border"], lw=0.5))
+    def cell(ci, row_y):
+        bx = grid_x0 + ci * col_w
+        ax.add_patch(patches.Rectangle((bx, row_y - row_h), col_w - 0.1, row_h,
+                     fc='white', ec=dk, lw=0.5))
         return bx, row_y
 
     # --- TOP ROW ---
     # 1. Stair Details
-    bx, ry = cell_box(0, y)
-    sx0, sy0 = bx + 0.3, ry - row_h + 0.2
-    for i in range(4):
-        tx = sx0 + i * 0.35
-        ty = sy0 + i * 0.2
-        ax.plot([tx, tx + 0.35], [ty, ty], color=dk, lw=0.6)
-        ax.plot([tx + 0.35, tx + 0.35], [ty, ty + 0.2], color=dk, lw=0.6)
-    # Stringer line
-    ax.plot([sx0, sx0 + 1.4], [sy0, sy0 + 0.8], color=dk, lw=0.4)
-    # Handrail
-    ax.plot([sx0 + 0.1, sx0 + 1.3], [sy0 + 0.55, sy0 + 1.1], color=rl, lw=0.8)
-    ax.text(bx + (col_w - 0.4) / 2, ry - row_h + 0.08, 'STAIR DETAILS',
-            ha='center', fontsize=4.5, fontfamily='monospace', color=dk, fontweight='bold')
+    bx, ry = cell(0, y)
+    sx, sy = bx + 0.4, ry - row_h + 0.3
+    for i in range(5):
+        tx = sx + i * 0.32
+        ty = sy + i * 0.18
+        ax.plot([tx, tx + 0.32], [ty, ty], color=dk, lw=0.5)
+        ax.plot([tx + 0.32, tx + 0.32], [ty, ty + 0.18], color=dk, lw=0.5)
+    ax.plot([sx, sx + 1.6], [sy, sy + 0.9], color=dk, lw=0.3)
+    ax.plot([sx + 0.1, sx + 1.5], [sy + 0.5, sy + 1.15], color=rl, lw=0.7)
+    # Posts on stair
+    for pi in [1, 3]:
+        ppx = sx + pi * 0.32 + 0.16
+        ppy = sy + pi * 0.18
+        ax.plot([ppx, ppx], [ppy, ppy + 0.65], color=rl, lw=0.5)
+    ax.text(bx + (col_w - 0.1) / 2, ry - row_h + 0.1, 'STAIR DETAILS',
+            ha='center', fontsize=5, fontfamily='monospace', color=dk, fontweight='bold')
 
     # 2. Guard Details
-    bx, ry = cell_box(1, y)
-    gx0, gy0 = bx + 0.4, ry - row_h + 0.25
-    gw = 1.6
-    gh = 0.8
-    # Deck surface
-    ax.plot([gx0, gx0 + gw], [gy0, gy0], color=dk, lw=0.8)
-    # Posts
-    ax.plot([gx0 + 0.1, gx0 + 0.1], [gy0, gy0 + gh], color=rl, lw=0.8)
-    ax.plot([gx0 + gw - 0.1, gx0 + gw - 0.1], [gy0, gy0 + gh], color=rl, lw=0.8)
-    # Top rail
-    ax.plot([gx0, gx0 + gw], [gy0 + gh, gy0 + gh], color=rl, lw=0.8)
-    # Bottom rail
-    ax.plot([gx0, gx0 + gw], [gy0 + 0.1, gy0 + 0.1], color=rl, lw=0.4)
-    # Balusters
-    for bi in range(6):
-        bbx = gx0 + 0.25 + bi * 0.2
-        ax.plot([bbx, bbx], [gy0 + 0.1, gy0 + gh], color=rl, lw=0.2)
-    ax.text(bx + (col_w - 0.4) / 2, ry - row_h + 0.08, 'GUARD DETAILS',
-            ha='center', fontsize=4.5, fontfamily='monospace', color=dk, fontweight='bold')
+    bx, ry = cell(1, y)
+    gx, gy = bx + 0.35, ry - row_h + 0.3
+    gw, gh = 2.0, 0.9
+    ax.plot([gx, gx + gw], [gy, gy], color=dk, lw=0.8)
+    ax.text(gx + gw / 2, gy - 0.12, 'DECK SURFACE', ha='center', fontsize=3, color=BRAND["mute"])
+    ax.plot([gx + 0.1, gx + 0.1], [gy, gy + gh], color=rl, lw=0.7)
+    ax.plot([gx + gw - 0.1, gx + gw - 0.1], [gy, gy + gh], color=rl, lw=0.7)
+    ax.plot([gx, gx + gw], [gy + gh, gy + gh], color=rl, lw=0.8)
+    ax.plot([gx, gx + gw], [gy + 0.12, gy + 0.12], color=rl, lw=0.4)
+    for bi in range(8):
+        bbx = gx + 0.25 + bi * 0.2
+        ax.plot([bbx, bbx], [gy + 0.12, gy + gh], color=rl, lw=0.15)
+    # 4" sphere
+    sph_x = gx + 0.55
+    sph_cy = gy + gh * 0.5
+    ax.add_patch(plt.Circle((sph_x, sph_cy), 0.07, fc='none', ec='#c33', lw=0.4, ls='--'))
+    ax.text(bx + (col_w - 0.1) / 2, ry - row_h + 0.1, 'GUARD DETAILS',
+            ha='center', fontsize=5, fontfamily='monospace', color=dk, fontweight='bold')
 
     # 3. Ledger Details
-    bx, ry = cell_box(2, y)
-    lx0, ly0 = bx + 0.3, ry - row_h + 0.25
-    # Wall
-    ax.add_patch(patches.Rectangle((lx0, ly0), 0.4, 0.9,
-                 fc='#ddd', ec=dk, lw=0.5))
-    # Ledger board
-    ax.add_patch(patches.Rectangle((lx0 + 0.4, ly0 + 0.2), 0.25, 0.5,
-                 fc=wd, ec=dk, lw=0.4))
+    bx, ry = cell(2, y)
+    lx, ly = bx + 0.3, ry - row_h + 0.3
+    # Wall (wider, taller)
+    ax.add_patch(patches.Rectangle((lx, ly), 0.5, 1.0,
+                 fc='#e8e4dc', ec=dk, lw=0.6))
+    ax.text(lx + 0.25, ly + 0.7, 'WALL', ha='center', fontsize=3, color=BRAND["mute"])
+    # Sheathing
+    ax.add_patch(patches.Rectangle((lx + 0.5, ly), 0.12, 1.0,
+                 fc='#ddd4c0', ec=dk, lw=0.3))
+    # Ledger
+    ax.add_patch(patches.Rectangle((lx + 0.62, ly + 0.15), 0.2, 0.6,
+                 fc=wd, ec=dk, lw=0.5))
     # Joist
-    ax.add_patch(patches.Rectangle((lx0 + 0.65, ly0 + 0.25), 0.15, 0.4,
+    ax.add_patch(patches.Rectangle((lx + 0.82, ly + 0.2), 0.12, 0.5,
                  fc=wd, ec=dk, lw=0.3))
-    # Decking on top
-    ax.plot([lx0 + 0.3, lx0 + 1.2], [ly0 + 0.75, ly0 + 0.75], color=dk, lw=0.8)
+    # Decking
+    ax.add_patch(patches.Rectangle((lx + 0.45, ly + 0.8), 1.0, 0.06,
+                 fc='#8B7355', ec=dk, lw=0.3))
+    # Flashing
+    ax.plot([lx + 0.4, lx + 0.62, lx + 0.62, lx + 0.95], [ly + 0.75, ly + 0.75, ly + 0.7, ly + 0.7],
+            color=BRAND.get("blue", "#4a7ab5"), lw=0.6)
     # Bolts
-    for by_pos in [ly0 + 0.35, ly0 + 0.5]:
-        ax.plot(lx0 + 0.52, by_pos, 'o', ms=1.5, color='#c33', mew=0)
-    ax.text(bx + (col_w - 0.4) / 2, ry - row_h + 0.08, 'LEDGER DETAILS',
-            ha='center', fontsize=4.5, fontfamily='monospace', color=dk, fontweight='bold')
+    for by_pos in [ly + 0.35, ly + 0.55]:
+        ax.plot([lx + 0.5, lx + 0.82], [by_pos, by_pos], color='#c33', lw=0.5)
+        ax.plot(lx + 0.82, by_pos, 'o', ms=1.2, color='#c33', mew=0)
+    ax.text(bx + (col_w - 0.1) / 2, ry - row_h + 0.1, 'LEDGER DETAILS',
+            ha='center', fontsize=5, fontfamily='monospace', color=dk, fontweight='bold')
 
     # --- BOTTOM ROW ---
-    y -= row_h + 0.15
+    y -= row_h + 0.1
 
     # 4. Footing Details
-    bx, ry = cell_box(0, y)
-    fx0, fy0 = bx + 0.6, ry - row_h + 0.2
-    # Ground line
-    ax.plot([bx + 0.2, bx + col_w - 0.6], [fy0 + 0.5, fy0 + 0.5], color=dk, lw=0.6)
+    bx, ry = cell(0, y)
+    fx, fy = bx + 0.7, ry - row_h + 0.2
+    # Ground line with hatching
+    gl_y = fy + 0.55
+    ax.plot([bx + 0.2, bx + col_w - 0.3], [gl_y, gl_y], color=dk, lw=0.7)
+    for gi in range(8):
+        gix = bx + 0.3 + gi * 0.3
+        ax.plot([gix, gix - 0.1], [gl_y, gl_y - 0.08], color=BRAND["mute"], lw=0.2)
     # Pier below ground
-    ax.add_patch(patches.Rectangle((fx0, fy0), 0.6, 0.5,
+    ax.add_patch(patches.Rectangle((fx, fy), 0.8, 0.55,
                  fc='#d0d0d0', ec=dk, lw=0.5))
-    # Post above ground
-    ax.add_patch(patches.Rectangle((fx0 + 0.15, fy0 + 0.5), 0.3, 0.5,
-                 fc=wd, ec=dk, lw=0.4))
-    # Post base hardware
-    ax.add_patch(patches.Rectangle((fx0 + 0.05, fy0 + 0.5), 0.5, 0.08,
+    ax.text(fx + 0.4, fy + 0.25, 'CONC.\nPIER', ha='center', va='center', fontsize=2.5, color='#666')
+    # Post base
+    ax.add_patch(patches.Rectangle((fx + 0.1, gl_y), 0.6, 0.08,
                  fc='#888', ec=dk, lw=0.3))
-    ax.text(bx + (col_w - 0.4) / 2, ry - row_h + 0.08, 'FOOTING DETAILS',
-            ha='center', fontsize=4.5, fontfamily='monospace', color=dk, fontweight='bold')
+    # Post above ground
+    ax.add_patch(patches.Rectangle((fx + 0.2, gl_y + 0.08), 0.4, 0.55,
+                 fc=wd, ec=dk, lw=0.5))
+    ax.text(bx + (col_w - 0.1) / 2, ry - row_h + 0.1, 'FOOTING DETAILS\n(posts must be centered)',
+            ha='center', fontsize=5, fontfamily='monospace', color=dk, fontweight='bold',
+            linespacing=0.85)
 
     # 5. Post / Beam Connection
-    bx, ry = cell_box(1, y)
-    px0, py0 = bx + 0.5, ry - row_h + 0.2
+    bx, ry = cell(1, y)
+    px, py = bx + 0.6, ry - row_h + 0.25
     # Post
-    ax.add_patch(patches.Rectangle((px0 + 0.3, py0), 0.3, 0.6,
+    ax.add_patch(patches.Rectangle((px + 0.4, py), 0.4, 0.65,
                  fc=wd, ec=dk, lw=0.5))
     # Post cap
-    ax.add_patch(patches.Rectangle((px0 + 0.15, py0 + 0.6), 0.6, 0.08,
+    ax.add_patch(patches.Rectangle((px + 0.2, py + 0.65), 0.8, 0.08,
                  fc='#888', ec=dk, lw=0.3))
-    # Beam
-    ax.add_patch(patches.Rectangle((px0, py0 + 0.68), 1.4, 0.25,
+    # Beam (multi-ply)
+    ax.add_patch(patches.Rectangle((px, py + 0.73), 1.8, 0.3,
                  fc='#b8962e', ec=dk, lw=0.5))
+    ax.plot([px + 0.6, px + 0.6], [py + 0.73, py + 1.03], color='#9a8030', lw=0.3)
+    ax.plot([px + 1.2, px + 1.2], [py + 0.73, py + 1.03], color='#9a8030', lw=0.3)
     # Joist on top
-    ax.plot([px0, px0 + 1.4], [py0 + 1.0, py0 + 1.0], color=dk, lw=0.6)
-    ax.text(bx + (col_w - 0.4) / 2, ry - row_h + 0.08, 'POST / BEAM\nCONNECTION',
-            ha='center', fontsize=4.5, fontfamily='monospace', color=dk, fontweight='bold',
-            linespacing=0.9)
+    ax.add_patch(patches.Rectangle((px, py + 1.03), 1.8, 0.12,
+                 fc=wd, ec=dk, lw=0.3))
+    # Through bolts
+    for bby in [py + 0.8, py + 0.93]:
+        ax.plot(px + 0.3, bby, 'x', ms=2, color='#c33', mew=0.5)
+        ax.plot(px + 1.5, bby, 'x', ms=2, color='#c33', mew=0.5)
+    ax.text(bx + (col_w - 0.1) / 2, ry - row_h + 0.1, 'POST / BEAM CONNECTION',
+            ha='center', fontsize=5, fontfamily='monospace', color=dk, fontweight='bold')
 
     # 6. Cantilever Details
-    bx, ry = cell_box(2, y)
-    cx0, cy0 = bx + 0.3, ry - row_h + 0.25
+    bx, ry = cell(2, y)
+    cx, cy = bx + 0.3, ry - row_h + 0.25
+    # Ground line
+    ax.plot([cx - 0.1, cx + 2.2], [cy, cy], color=dk, lw=0.6)
+    for gi in range(8):
+        gix = cx + gi * 0.3
+        ax.plot([gix, gix - 0.1], [cy, cy - 0.08], color=BRAND["mute"], lw=0.2)
     # Foundation wall
-    ax.add_patch(patches.Rectangle((cx0 + 0.5, cy0), 0.3, 0.6,
-                 fc='#d0d0d0', ec=dk, lw=0.5))
-    # Deck extending past
-    ax.add_patch(patches.Rectangle((cx0, cy0 + 0.6), 1.6, 0.15,
+    ax.add_patch(patches.Rectangle((cx + 0.6, cy), 0.35, 0.7,
+                 fc='#d0d0d0', ec=dk, lw=0.6))
+    # Hatching
+    for hy in [cy + 0.15, cy + 0.35, cy + 0.55]:
+        ax.plot([cx + 0.65, cx + 0.9], [hy, hy - 0.08], color=BRAND["mute"], lw=0.2)
+    # Deck floor extending past
+    ax.add_patch(patches.Rectangle((cx + 0.1, cy + 0.7), 2.0, 0.15,
                  fc=wd, ec=dk, lw=0.4))
     # Decking on top
-    ax.plot([cx0, cx0 + 1.6], [cy0 + 0.8, cy0 + 0.8], color=dk, lw=0.6)
-    # Ground line
-    ax.plot([cx0 - 0.1, cx0 + 1.8], [cy0, cy0], color=dk, lw=0.5)
-    ax.text(bx + (col_w - 0.4) / 2, ry - row_h + 0.08, 'CANTILEVER DETAILS',
-            ha='center', fontsize=4.5, fontfamily='monospace', color=dk, fontweight='bold')
+    ax.add_patch(patches.Rectangle((cx + 0.1, cy + 0.85), 2.0, 0.06,
+                 fc='#8B7355', ec=dk, lw=0.3))
+    # Rim joist at end
+    ax.add_patch(patches.Rectangle((cx + 2.1, cy + 0.7), 0.06, 0.15,
+                 fc=wd, ec=dk, lw=0.3))
+    # "No ledger" callout
+    ax.text(cx + 1.55, cy + 0.4, 'No ledger\nconnection', ha='center',
+            fontsize=2.8, color='#c33', fontfamily='monospace', fontstyle='italic')
+    ax.text(bx + (col_w - 0.1) / 2, ry - row_h + 0.1, 'CANTILEVER DETAILS',
+            ha='center', fontsize=5, fontfamily='monospace', color=dk, fontweight='bold')
