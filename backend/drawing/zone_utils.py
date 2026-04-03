@@ -90,9 +90,10 @@ def get_zone_rect(zone, parent_w, parent_d):
     d = zone.get("d", 6)
 
     if zone.get("type") == "cutout":
-        if edge == "interior":
-            return {"x": offset, "y": zone.get("interiorY", 0), "w": w, "d": d}
-        return {"x": offset, "y": 0, "w": w, "d": d}
+        # S65: Simple fallback -- use parent zone 0 rect. Full cutout positioning
+        # is handled in get_cutout_rects() via _get_cutout_rect().
+        pr = {"x": 0, "y": 0, "w": parent_w, "d": parent_d}
+        return _get_cutout_rect(zone, pr)
 
     if edge == "front":
         return {"x": offset, "y": parent_d, "w": w, "d": d}
@@ -102,6 +103,38 @@ def get_zone_rect(zone, parent_w, parent_d):
         return {"x": parent_w, "y": offset, "w": w, "d": d}
 
     return {"x": 0, "y": 0, "w": w, "d": d}
+
+
+def _get_cutout_rect(zone, parent_rect):
+    """Compute cutout rectangle relative to parent zone rect.
+    Mirrors frontend getCutoutRect() in zoneUtils.js.
+    """
+    pr = parent_rect
+    cw = zone.get("w", 4)
+    cd = zone.get("d", 4)
+    off = zone.get("attachOffset", 0)
+    edge = zone.get("attachEdge", "back-left")
+
+    if edge == "back-left":
+        return {"x": pr["x"], "y": pr["y"], "w": cw, "d": cd}
+    elif edge == "back-right":
+        return {"x": pr["x"] + pr["w"] - cw, "y": pr["y"], "w": cw, "d": cd}
+    elif edge == "front-left":
+        return {"x": pr["x"], "y": pr["y"] + pr["d"] - cd, "w": cw, "d": cd}
+    elif edge == "front-right":
+        return {"x": pr["x"] + pr["w"] - cw, "y": pr["y"] + pr["d"] - cd, "w": cw, "d": cd}
+    elif edge == "back":
+        return {"x": pr["x"] + off, "y": pr["y"], "w": cw, "d": cd}
+    elif edge == "front":
+        return {"x": pr["x"] + off, "y": pr["y"] + pr["d"] - cd, "w": cw, "d": cd}
+    elif edge == "left":
+        return {"x": pr["x"], "y": pr["y"] + off, "w": cd, "d": cw}
+    elif edge == "right":
+        return {"x": pr["x"] + pr["w"] - cd, "y": pr["y"] + off, "w": cd, "d": cw}
+    elif edge == "interior":
+        return {"x": pr["x"] + off, "y": pr["y"] + zone.get("interiorY", 0), "w": cw, "d": cd}
+
+    return {"x": pr["x"], "y": pr["y"], "w": cw, "d": cd}
 
 
 def get_additive_rects(params):
@@ -122,16 +155,25 @@ def get_additive_rects(params):
 
 
 def get_cutout_rects(params):
-    """Get all cutout zone rects."""
+    """Get all cutout zone rects, positioned relative to their parent zone."""
     w = params.get("width", 20)
     d = params.get("depth", 12)
     zones = params.get("zones", [])
+
+    # S65: Build parent zone rect lookup for cutout positioning
+    add_rects_list = get_additive_rects(params)
+    zone_rect_map = {0: {"x": 0, "y": 0, "w": w, "d": d}}
+    for ar in add_rects_list:
+        if ar["id"] != 0:
+            zone_rect_map[ar["id"]] = ar["rect"]
 
     rects = []
     for z in zones:
         if z.get("type") != "cutout":
             continue
-        rect = get_zone_rect(z, w, d)
+        parent_id = z.get("attachTo", 0)
+        pr = zone_rect_map.get(parent_id, zone_rect_map[0])
+        rect = _get_cutout_rect(z, pr)
         rects.append({"id": z.get("id", 0), "zone": z, "rect": rect})
 
     return rects
