@@ -287,7 +287,7 @@ function Slider({ label, value, min, max, step: s = 1, field, unit = "'", fmt, u
           <input type="number" min={min} max={max} step={s} value={draft} onChange={e => setDraft(e.target.value)} onBlur={commit} onKeyDown={e => e.key === "Enter" && commit()} autoFocus
             style={{ width: 60, fontFamily: _mono, fontSize: 16, fontWeight: 800, color: _br.tx, textAlign: "right", border: `2px solid ${_br.gn}`, borderRadius: 4, padding: "2px 4px", outline: "none", background: "#fff" }} />
         ) : (
-          <span onClick={() => setEditing(true)} style={{ fontFamily: _mono, fontSize: 18, fontWeight: 800, color: _br.tx, minWidth: 58, textAlign: "center", cursor: "text", background: "#f0ede4", borderRadius: 5, padding: "2px 8px", border: `1px solid ${_br.bd}`, display: "inline-flex", alignItems: "center", gap: 4 }}>{fmt ? fmt(localVal) : (localVal + unit)}<span style={{ fontSize: 10, color: _br.mu, opacity: 0.6 }}>{"\u270E"}</span></span>
+          <span onClick={() => setEditing(true)} style={{ fontFamily: _mono, fontSize: 18, fontWeight: 800, color: _br.tx, minWidth: 58, textAlign: "center", cursor: "text", background: "#f0ede4", borderRadius: 5, padding: "2px 8px", border: `1px solid ${_br.bd}`, display: "inline-flex", alignItems: "center", gap: 4 }}>{fmt ? fmt(value) : (value + unit)}<span style={{ fontSize: 10, color: _br.mu, opacity: 0.6 }}>{"\u270E"}</span></span>
         )}
       </div>
     </div>
