@@ -204,7 +204,7 @@ window.buildDeckScene = function(scene, p, c, THREE) {
     deckHeight: H,
     doorX: z0wx + W / 2,   // center door on deck, not house
     showDoor: true,
-    showWindows: false
+    showWindows: true
   }, mats, THREE);
 
 // S20: Structure per zone (piers, posts, beams, joists)
