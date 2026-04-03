@@ -22,6 +22,23 @@ from .stair_utils import get_stair_placement, get_stair_exit_side, resolve_all_s
 from .zone_utils import get_additive_rects, get_bounding_box
 
 
+# Actual lumber depths in feet (nominal -> actual)
+_BEAM_DEPTH_MAP = {
+    "2x6": 5.5 / 12, "2x8": 7.25 / 12, "2x10": 9.25 / 12,
+    "2x12": 11.25 / 12, "1.75x12": 11.875 / 12,
+}
+
+
+def _beam_h_from_calc(calc):
+    """Derive beam visual height (ft) from calc['beam_size'].
+    Parses strings like '2-ply 2x10', '3-ply LVL 1.75x12'."""
+    bs = calc.get("beam_size", "")
+    for key, depth in _BEAM_DEPTH_MAP.items():
+        if key in bs:
+            return depth
+    return 11.25 / 12  # default to 2x12 depth
+
+
 # ============================================================
 # ZONE ELEVATION HELPERS
 # ============================================================
@@ -551,7 +568,7 @@ def draw_south_elevation(ax, params, calc, compact=False, spec=None):
             _hw_callout_done = True
 
     # === ZONE-0 BEAM ===
-    beam_h = 1.0  # TODO: derive from calc["beam_size"] when per-zone calcs land
+    beam_h = _beam_h_from_calc(calc)
     beam_type = calc.get("beam_type", "dropped")
     if beam_type == "flush":
         ax.plot([z0_x + 1, z0_x + W - 1], [deck_top - beam_h, deck_top - beam_h],
@@ -751,7 +768,7 @@ def draw_north_elevation(ax, params, calc, compact=False, spec=None):
         _draw_underground_footing(ax, sx, _ground_at_post, footing_diam, footing_depth)
 
     # === ZONE-0 BEAM (far side) ===
-    beam_h = 1.0  # TODO: derive from calc["beam_size"] when per-zone calcs land
+    beam_h = _beam_h_from_calc(calc)
     beam_type = calc.get("beam_type", "dropped")
     if beam_type == "flush":
         ax.plot([z0_x + 1, z0_x + W - 1], [deck_top - beam_h, deck_top - beam_h],
@@ -876,7 +893,7 @@ def draw_side_elevation(ax, params, calc, direction="east", compact=False, spec=
                                    spec["hardware"]["post_base"]["model"] if spec else 'ABU66Z',
                                    leader_dx=-2.5, leader_dy=-0.5)
 
-        beam_h = 1.0  # TODO: derive from calc["beam_size"] when per-zone calcs land
+        beam_h = _beam_h_from_calc(calc)
         beam_type = calc.get("beam_type", "dropped")
         if beam_type == "flush":
             ax.add_patch(patches.Rectangle((deck_end_x + 0.5, deck_top - beam_h), D - 0.5, beam_h,
@@ -981,7 +998,7 @@ def draw_side_elevation(ax, params, calc, direction="east", compact=False, spec=
                                    spec["hardware"]["post_base"]["model"] if spec else 'ABU66Z',
                                    leader_dx=2.5, leader_dy=-0.5)
 
-        beam_h = 1.0  # TODO: derive from calc["beam_size"] when per-zone calcs land
+        beam_h = _beam_h_from_calc(calc)
         beam_type = calc.get("beam_type", "dropped")
         if beam_type == "flush":
             ax.add_patch(patches.Rectangle((deck_start_x, deck_top - beam_h), D - 0.5, beam_h,

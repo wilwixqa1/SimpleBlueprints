@@ -172,6 +172,24 @@ def draw_cover_sheet(fig, params, calc, project_info=None, cover_image_b64=None,
     add_rects = get_additive_rects(params)
     cut_rects = get_cutout_rects(params)
     total_area = round(sum(r['rect']['w'] * r['rect']['d'] for r in add_rects) - sum(r['rect']['w'] * r['rect']['d'] for r in cut_rects))
+
+    # S66: Subtract chamfer triangle areas (each chamfer size S removes S*S/2)
+    _main_corners = params.get("mainCorners")
+    if _main_corners:
+        for _ck in ("BL", "BR", "FL", "FR"):
+            _cc = _main_corners.get(_ck, {})
+            if _cc.get("type") == "chamfer" and _cc.get("size", 0) > 0:
+                _cs = _cc["size"]
+                total_area -= _cs * _cs / 2
+    for z in zones:
+        _zc = z.get("corners")
+        if _zc:
+            for _ck in ("BL", "BR", "FL", "FR"):
+                _cc = _zc.get(_ck, {})
+                if _cc.get("type") == "chamfer" and _cc.get("size", 0) > 0:
+                    _cs = _cc["size"]
+                    total_area -= _cs * _cs / 2
+    total_area = round(total_area)
     extra_posts = 0
     for z in zones:
         if z.get('type') == 'cutout': continue
