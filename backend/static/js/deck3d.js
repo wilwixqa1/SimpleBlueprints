@@ -845,12 +845,31 @@ window.buildDeckScene = function(scene, p, c, THREE) {
       var lr = landing.rect;
       var lSurf = lElev + treadTh;
 
+      // Landing deck surface (thin, like a tread - not a thick solid box)
       var platM = new THREE.Mesh(
-        new THREE.BoxGeometry(lr.w, treadTh * 2, lr.h), mats.deck
+        new THREE.BoxGeometry(lr.w, treadTh, lr.h), mats.deck
       );
-      platM.position.set(lr.x + lr.w / 2, lElev + treadTh, lr.y + lr.h / 2);
+      platM.position.set(lr.x + lr.w / 2, lElev + treadTh / 2, lr.y + lr.h / 2);
       platM.receiveShadow = true; platM.castShadow = true;
       stGrp.add(platM);
+
+      // Landing rim joists (gives visual structure like a real platform)
+      var rimH = 9.25 / 12, rimW = 1.5 / 12;
+      var rimY = lElev - rimH / 2;
+      // Front and back rims
+      var rimFront = new THREE.Mesh(new THREE.BoxGeometry(lr.w, rimH, rimW), mats.joist);
+      rimFront.position.set(lr.x + lr.w / 2, rimY, lr.y);
+      stGrp.add(rimFront);
+      var rimBack = new THREE.Mesh(new THREE.BoxGeometry(lr.w, rimH, rimW), mats.joist);
+      rimBack.position.set(lr.x + lr.w / 2, rimY, lr.y + lr.h);
+      stGrp.add(rimBack);
+      // Left and right rims
+      var rimLeft = new THREE.Mesh(new THREE.BoxGeometry(rimW, rimH, lr.h), mats.joist);
+      rimLeft.position.set(lr.x, rimY, lr.y + lr.h / 2);
+      stGrp.add(rimLeft);
+      var rimRight = new THREE.Mesh(new THREE.BoxGeometry(rimW, rimH, lr.h), mats.joist);
+      rimRight.position.set(lr.x + lr.w, rimY, lr.y + lr.h / 2);
+      stGrp.add(rimRight);
 
       var lpSz = postSize === "6x6" ? 5.5 / 12 : 3.5 / 12;
       var lCorners = [
