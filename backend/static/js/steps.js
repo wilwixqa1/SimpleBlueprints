@@ -1249,15 +1249,32 @@ function StepContent(props) {
           var lotD2 = Math.round(data.lot.depth);
           var hw2 = Math.round(primary.width);
           var hd2 = Math.round(primary.depth);
-          if (primary.road_setback_ft && lotVerts2 && lotVerts2.length >= 3) {
-            // Setback from road = Y position of house center
-            var setback = primary.road_setback_ft;
-            var newDist = Math.max(5, Math.round(setback - hd2 / 2));
+          // S70: Address point = house position
+          // Realie lat/lng is geocoded to front of house (near mailbox).
+          // Convert to lot coords. House extends inward from that point.
+          var rawC2 = data.raw_coords;
+          var pLotX = null, pLotY = null;
+          if (rawC2 && rawC2.length >= 3 && data.location.lat && data.location.lng) {
+            var mLatR = Infinity, mLngR = Infinity;
+            for (var ci3 = 0; ci3 < rawC2.length; ci3++) {
+              if (rawC2[ci3][1] < mLatR) mLatR = rawC2[ci3][1];
+              if (rawC2[ci3][0] < mLngR) mLngR = rawC2[ci3][0];
+            }
+            pLotX = (data.location.lng - mLngR) * 364000.0 * Math.cos(mLatR * Math.PI / 180);
+            pLotY = (data.location.lat - mLatR) * 364000.0;
+          }
+          if (pLotX !== null && pLotY !== null && lotVerts2 && lotVerts2.length >= 3) {
+            // Y position: address point is at front of house
+            var newDist = Math.round(pLotY);
+            // If house would extend above lot, address is at top (street to north)
+            if (newDist + hd2 > lotD2) {
+              newDist = Math.max(5, Math.round(pLotY - hd2));
+            }
+            newDist = Math.max(5, newDist);
             u("houseDistFromStreet", newDist);
-            // Lateral position: center house horizontally within lot at this Y
-            // road_lateral_frac is unreliable (measures along full road, not lot frontage)
+            // X position: address point ≈ house center X
             var houseCY = newDist + hd2 / 2;
-            var leftX2 = 0, rightX2 = lotW2, minLX = Infinity, maxRX = -Infinity;
+            var leftX2 = 0, minLX = Infinity;
             for (var ei3 = 0; ei3 < lotVerts2.length; ei3++) {
               var a3 = lotVerts2[ei3], b3 = lotVerts2[(ei3 + 1) % lotVerts2.length];
               var yLo3 = Math.min(a3[1], b3[1]), yHi3 = Math.max(a3[1], b3[1]);
@@ -1265,15 +1282,11 @@ function StepContent(props) {
               var t3 = (houseCY - a3[1]) / (b3[1] - a3[1]);
               var xAt3 = a3[0] + t3 * (b3[0] - a3[0]);
               if (xAt3 < minLX) minLX = xAt3;
-              if (xAt3 > maxRX) maxRX = xAt3;
             }
             leftX2 = minLX === Infinity ? 0 : minLX;
-            rightX2 = maxRX === -Infinity ? lotW2 : maxRX;
-            var widthAtY = rightX2 - leftX2;
-            // Center house in available width
-            var newOffset = Math.max(0, Math.round((widthAtY - hw2) / 2));
+            var newOffset = Math.max(0, Math.round(pLotX - hw2 / 2 - leftX2));
             u("houseOffsetSide", newOffset);
-            console.log("House positioned from road-relative: setback=" + setback + "ft widthAtY=" + widthAtY.toFixed(1) + " offset=" + newOffset + " dist=" + newDist);
+            console.log("House positioned from address point: lot(" + pLotX.toFixed(1) + "," + pLotY.toFixed(1) + ") offset=" + newOffset + " dist=" + newDist);
           } else {
             // Fallback: center house with standard setback
             u("houseOffsetSide", Math.max(5, Math.round((lotW2 - hw2) / 2)));
@@ -1287,12 +1300,11 @@ function StepContent(props) {
           var newElements = (p.siteElements || []).slice(); // copy existing
           var addedCount = 0;
           var primaryCF = primary.centroid_ft;
-          // Compute house center in lot coords from the positioning we just did
+          // Compute house center in lot coords from address point
           var hcDistFS = parseInt(p.houseDistFromStreet) || 25;
-          var hcOffS = parseInt(p.houseOffsetSide) || 10;
-          // We need the actual house center X in lot space
-          // houseOffsetSide is relative to left polygon edge, so we need leftEdge
-          // For simplicity, approximate house center Y from dist + depth/2
+          // House center: use address point X, computed dist + depth/2 for Y
+          var houseCX2 = pLotX || (lotW2 / 2);
+          var houseCY2 = hcDistFS + hd2 / 2;
           for (var bi2 = 0; bi2 < bldg.buildings.length; bi2++) {
             var b2 = bldg.buildings[bi2];
             if (b2.osm_id === primary.osm_id) continue; // skip primary
@@ -1311,9 +1323,6 @@ function StepContent(props) {
               continue;
             }
             // Map to lot coords: house center + relative offset
-            // House center in lot: we used centering, so approximate
-            var houseCX2 = (leftX2 || 0) + (widthAtY || lotW2) / 2;
-            var houseCY2 = (newDist || 25) + hd2 / 2;
             var elX = Math.max(0, Math.round(houseCX2 + dx2 - b2.width / 2));
             var elY = Math.max(0, Math.round(houseCY2 + dy2 - b2.depth / 2));
             var elId = "osm_" + b2.osm_id;
