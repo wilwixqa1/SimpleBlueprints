@@ -531,7 +531,7 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
                 # Label
                 ax.text(W / 2, beam_y - 4.5,
                         '2x4 PT DIAGONAL BRACING (TYP.) - SEE ELEVATIONS',
-                        ha='center', fontsize=3.0, fontfamily='monospace',
+                        ha='center', fontsize=3.0, fontfamily='sans-serif',
                         color=BRAND["dark"], fontstyle='italic',
                         bbox=dict(boxstyle='square,pad=0.15', fc='white',
                                   ec=BRAND["border"], lw=0.3, alpha=0.9))
@@ -610,7 +610,7 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
                     ax.plot(wpx, wpy, 's', ms=3, color=BRAND["post"],
                             mec=BRAND["dark"], mew=0.5)
                     # Pier circle at each landing post
-                    pier = plt.Circle((wpx, wpy), calc.get("footing_diam", 24) / 24 * 0.5,
+                    pier = plt.Circle((wpx, wpy), 12 / 24 * 0.5,  # 12" landing piers
                                       fill=False, ec=BRAND["dark"], lw=0.3, ls='--')
                     ax.add_patch(pier)
                 # Landing post/pier callout (only on first landing, only for multi-run)
@@ -620,7 +620,7 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
                     _n_lp = len(landing['posts'])
                     _lp_txt = f'4x4 PT POSTS ({_n_lp}) W/ {calc.get("footing_diam", 12)}" PIERS'
                     ax.text(_lpx, _lpy, _lp_txt, fontsize=3.2,
-                            fontfamily='monospace', color=BRAND["dark"],
+                            fontfamily='sans-serif', color=BRAND["dark"],
                             bbox=dict(boxstyle='square,pad=0.1', fc='white',
                                       ec='none', alpha=0.9))
 
@@ -734,7 +734,7 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
             _cb_ly = (bb["minY"] + bb["maxY"]) / 2
             _cb_wx, _cb_wy = _tp(_cb_lx, _cb_ly)
             ax.text(_cb_wx, _cb_wy, _callout_text, fontsize=3.5,
-                    fontfamily='monospace', color=BRAND["dark"], va='center',
+                    fontfamily='sans-serif', color=BRAND["dark"], va='center',
                     bbox=dict(boxstyle='square,pad=0.2', fc='white', ec=BRAND["border"],
                               lw=0.3, alpha=0.9))
 
@@ -809,7 +809,7 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
             _sn_x = min(bbox["x"], stair_x_min) - margin_x_left + 1.5
             _sn_y = bbox["y"] + bbox["d"] * 0.15
             ax.text(_sn_x, _sn_y, _sn_text, fontsize=3.5,
-                    fontfamily='monospace', color=BRAND["dark"], va='top',
+                    fontfamily='sans-serif', color=BRAND["dark"], va='top',
                     linespacing=1.4,
                     bbox=dict(boxstyle='square,pad=0.3', fc='#fafaf8',
                               ec=BRAND["dark"], lw=0.4))

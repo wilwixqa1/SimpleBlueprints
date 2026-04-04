@@ -1209,7 +1209,7 @@ def draw_side_elevation(ax, params, calc, direction="east", compact=False, spec=
                 _mid_bx = (post_x + _back_post_x) / 2
                 _mid_by = (_brace_bot + _brace_top_y) / 2
                 ax.text(_mid_bx, _mid_by, '2x4 PT\nBRACING', ha='center', va='center',
-                        fontsize=2.5, fontfamily='monospace', color=BRAND["dark"],
+                        fontsize=2.5, fontfamily='sans-serif', color=BRAND["dark"],
                         fontstyle='italic',
                         bbox=dict(boxstyle='square,pad=0.1', fc='white', ec='none', alpha=0.85))
 
@@ -1353,7 +1353,7 @@ def draw_side_elevation(ax, params, calc, direction="east", compact=False, spec=
                 _mid_bx = (post_x + _back_post_x) / 2
                 _mid_by = (_brace_bot + _brace_top_y) / 2
                 ax.text(_mid_bx, _mid_by, '2x4 PT\nBRACING', ha='center', va='center',
-                        fontsize=2.5, fontfamily='monospace', color=BRAND["dark"],
+                        fontsize=2.5, fontfamily='sans-serif', color=BRAND["dark"],
                         fontstyle='italic',
                         bbox=dict(boxstyle='square,pad=0.1', fc='white', ec='none', alpha=0.85))
 
