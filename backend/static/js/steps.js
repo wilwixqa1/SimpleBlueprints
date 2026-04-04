@@ -316,13 +316,11 @@ var GUIDE_PHASES_STEP0 = [
   // --- FIRST QUESTION ---
   {
     id: 'has_survey',
-    message: "How should we get your property info?",
-    tip: "Address lookup is the fastest option. We pull your lot shape directly from public records.",
+    message: "Let's start with your property address.",
+    tip: "We'll pull your lot shape, dimensions, and zoning directly from public records. Need to upload a survey or enter manually? Use 'Switch to manual' below.",
     sections: [],
     actions: [
-      { label: 'Upload a survey', next: 'upload_survey', style: 'secondary' },
-      { label: 'Look up by address', next: 'address_lookup', style: 'primary' },
-      { label: 'Enter manually', next: 'lot_dims', style: 'secondary' }
+      { label: 'Look up by address', next: 'address_lookup', style: 'primary' }
     ]
   },
   // --- ADDRESS LOOKUP PATH ---
@@ -834,8 +832,8 @@ function GuidePanel({ phase, onAction, onBack, history, onToggleOff, message, ti
         border: "none", cursor: "pointer", padding: "2px 0"
       }}>{"\u2190"} Back</button> : <span />}
       <button onClick={onToggleOff} style={{
-        fontSize: 9, fontFamily: _mono, color: _br.mu, background: "none",
-        border: "none", cursor: "pointer", padding: "2px 0", opacity: 0.7
+        fontSize: 10, fontFamily: _mono, color: _br.mu, background: "#fff",
+        border: "1px solid " + _br.bd, borderRadius: 4, cursor: "pointer", padding: "4px 10px", fontWeight: 600
       }}>Switch to manual</button>
     </div>
     {/* S49: Down-arrow connector when sections follow */}
