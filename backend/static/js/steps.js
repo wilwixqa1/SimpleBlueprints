@@ -953,6 +953,7 @@ function StepContent(props) {
   const [showLotShape, setShowLotShape] = _stUS(false);
   const [selectedElId, setSelectedElId] = _stUS(null);
   const [showLotHouse, setShowLotHouse] = _stUS(true);
+  const [showPerFooting, setShowPerFooting] = _stUS(false);
   var dialDragRef = React.useRef(false);
   _stUE(function() { u("_selectedElId", selectedElId); }, [selectedElId]);
 
@@ -3417,6 +3418,42 @@ function StepContent(props) {
           </div>
         </div>
       ); })()}
+
+      {/* Per-footing diameter customizer */}
+      {c.nP > 1 && <div style={{ marginBottom: 8 }}>
+        <button onClick={() => setShowPerFooting(!showPerFooting)} style={{
+          fontSize: 9, fontFamily: _mono, color: _br.mu, background: "none", border: "none", cursor: "pointer",
+          padding: "2px 0", fontWeight: 600, opacity: 0.8
+        }}>{showPerFooting ? "\u25BC" : "\u25B6"} Customize per post ({c.nP} footings)</button>
+        {showPerFooting && <div style={{ marginTop: 6, padding: 8, background: "#fafaf8", borderRadius: 6, border: "1px solid " + _br.bd }}>
+          <div style={{ fontSize: 8, color: _br.mu, fontFamily: _mono, marginBottom: 6 }}>Override individual footing diameters. Unset footings use the global value above.</div>
+          {(c.pp || []).map(function(pos, idx) {
+            var overrides = p.footingOverrides || {};
+            var globalDia = p.overFooting || c.auto.footing || 18;
+            var curVal = overrides[idx] != null ? overrides[idx] : globalDia;
+            var isCustom = overrides[idx] != null;
+            return <div key={idx} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+              <span style={{ fontSize: 9, fontFamily: _mono, color: _br.mu, minWidth: 72 }}>Post {idx + 1} ({window.fmtFtIn(pos)})</span>
+              <select value={isCustom ? curVal : ""} onChange={function(e) {
+                var newOverrides = Object.assign({}, p.footingOverrides || {});
+                if (e.target.value === "") { delete newOverrides[idx]; }
+                else { newOverrides[idx] = parseInt(e.target.value); }
+                u("footingOverrides", Object.keys(newOverrides).length > 0 ? newOverrides : null);
+              }} style={{ fontSize: 9, fontFamily: _mono, padding: "3px 4px", borderRadius: 3, border: "1px solid " + (isCustom ? _br.ac : _br.bd), background: isCustom ? "#fef9e7" : "#fff", color: isCustom ? _br.ac : _br.mu, cursor: "pointer" }}>
+                <option value="">{globalDia}" (default)</option>
+                {[12, 16, 18, 21, 24, 30].map(function(d) {
+                  return <option key={d} value={d}>{d}"</option>;
+                })}
+              </select>
+              {isCustom && <button onClick={function() {
+                var newOverrides = Object.assign({}, p.footingOverrides || {});
+                delete newOverrides[idx];
+                u("footingOverrides", Object.keys(newOverrides).length > 0 ? newOverrides : null);
+              }} style={{ fontSize: 8, fontFamily: _mono, color: "#dc2626", background: "none", border: "none", cursor: "pointer", padding: 0 }}>{"\u2715"}</button>}
+            </div>;
+          })}
+        </div>}
+      </div>}
 
       <div style={{ marginBottom: 8 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
