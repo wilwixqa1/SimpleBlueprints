@@ -1200,9 +1200,8 @@ function StepContent(props) {
             var setback = primary.road_setback_ft;
             var newDist = Math.max(5, Math.round(setback - hd2 / 2));
             u("houseDistFromStreet", newDist);
-            // Lateral position: map road_lateral_frac to lot width
-            var latFrac = primary.road_lateral_frac || 0.5;
-            // Compute lot width at the house Y position
+            // Lateral position: center house horizontally within lot at this Y
+            // road_lateral_frac is unreliable (measures along full road, not lot frontage)
             var houseCY = newDist + hd2 / 2;
             var leftX2 = 0, rightX2 = lotW2, minLX = Infinity, maxRX = -Infinity;
             for (var ei3 = 0; ei3 < lotVerts2.length; ei3++) {
@@ -1217,14 +1216,10 @@ function StepContent(props) {
             leftX2 = minLX === Infinity ? 0 : minLX;
             rightX2 = maxRX === -Infinity ? lotW2 : maxRX;
             var widthAtY = rightX2 - leftX2;
-            // Place house center at lateral fraction of available width
-            var houseCX = leftX2 + widthAtY * latFrac;
-            var newOffset = Math.max(0, Math.round(houseCX - hw2 / 2 - leftX2));
-            // Clamp so house doesn't extend past lot boundaries
-            var maxOffset = Math.max(0, Math.round(widthAtY - hw2));
-            newOffset = Math.min(newOffset, maxOffset);
+            // Center house in available width
+            var newOffset = Math.max(0, Math.round((widthAtY - hw2) / 2));
             u("houseOffsetSide", newOffset);
-            console.log("House positioned from road-relative: setback=" + setback + "ft latFrac=" + latFrac.toFixed(3) + " widthAtY=" + widthAtY.toFixed(1) + " offset=" + newOffset + " dist=" + newDist);
+            console.log("House positioned from road-relative: setback=" + setback + "ft widthAtY=" + widthAtY.toFixed(1) + " offset=" + newOffset + " dist=" + newDist);
           } else {
             // Fallback: center house with standard setback
             u("houseOffsetSide", Math.max(5, Math.round((lotW2 - hw2) / 2)));
