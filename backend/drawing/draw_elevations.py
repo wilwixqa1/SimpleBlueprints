@@ -18,7 +18,7 @@ import numpy as np
 
 from .calc_engine import calculate_structure
 from .draw_plan import BRAND, draw_dimension_h, draw_dimension_v, draw_scale_bar, format_feet_inches
-from .stair_utils import get_stair_placement, get_stair_exit_side, resolve_all_stairs
+from .stair_utils import get_stair_placement, get_stair_exit_side, resolve_all_stairs, transform_stair_point
 from .zone_utils import get_additive_rects, get_bounding_box
 
 
@@ -261,6 +261,190 @@ def _draw_stair_profile(ax, sx, ground_y, deck_top, stair, rail_h_ft, direction)
 
     ax.add_patch(patches.Rectangle((end_x - 0.5, ground_y - 0.12), 1.0, 0.12,
                  fc='#e0ddd8', ec=BRAND["dark"], lw=0.4, zorder=6))
+
+
+# S68: MULTI-RUN STAIR ELEVATION HELPERS
+# ============================================================
+def _draw_multi_run_profile(ax, sx, ground_y, deck_top, sg, rail_h_ft, direction):
+    """Draw a multi-run stair profile for elevation views.
+
+    Shows each run descending with landing platforms between runs.
+    sx: starting X position (deck edge)
+    direction: +1 or -1 for left/right profile direction
+    sg: geometry dict from compute_stair_geometry
+    """
+    rise_in = sg["riseIn"]
+    rise_per = rise_in / 12  # feet per riser
+    tread_run = 10.5 / 12    # feet per tread
+    runs = sg["runs"]
+    landings = sg["landings"]
+
+    # Compute elevation of each landing
+    # Each run descends by (risers * rise_per) from its starting elevation
+    # Run 0 starts at deck_top, subsequent runs start at previous landing elevation
+    run_elevations = []  # (start_y, end_y) for each run
+    current_elev = deck_top
+    for run in runs:
+        descent = run["risers"] * rise_per
+        run_elevations.append((current_elev, current_elev - descent))
+        current_elev = current_elev - descent
+
+    # Draw profile for each run sequentially along the horizontal axis
+    cursor_x = sx
+    for ri, run in enumerate(runs):
+        start_y, end_y = run_elevations[ri]
+        n_treads = run["treads"]
+
+        # Draw treads (step pattern)
+        for i in range(n_treads):
+            tx = cursor_x + direction * i * tread_run
+            ty = start_y - i * rise_per
+            # Horizontal tread
+            ax.plot([tx, tx + direction * tread_run], [ty, ty],
+                    color=BRAND["dark"], lw=0.6, zorder=6)
+            # Vertical riser
+            nty = start_y - (i + 1) * rise_per
+            ax.plot([tx + direction * tread_run, tx + direction * tread_run],
+                    [ty, nty], color=BRAND["dark"], lw=0.6, zorder=6)
+
+        run_end_x = cursor_x + direction * n_treads * tread_run
+
+        # Stringer line (diagonal)
+        ax.plot([cursor_x, run_end_x], [start_y, end_y],
+                color=BRAND["dark"], lw=0.8, zorder=6)
+
+        # Railing line (dashed, parallel to stringer)
+        ax.plot([cursor_x, run_end_x],
+                [start_y + rail_h_ft, end_y + rail_h_ft],
+                color=BRAND["dark"], lw=0.4, ls='--', zorder=6)
+
+        # If there's a landing after this run, draw it and advance cursor
+        if ri < len(landings):
+            landing = landings[ri]
+            lr = landing["rect"]
+            # Landing horizontal extent in profile direction
+            # Use the landing depth as the horizontal extent
+            land_extent = lr["h"] if runs[ri]["treadAxis"] == "h" else lr["w"]
+            land_x1 = run_end_x
+            land_x2 = run_end_x + direction * land_extent
+
+            # Landing platform (thick line at landing elevation)
+            ax.plot([land_x1, land_x2], [end_y, end_y],
+                    color=BRAND["dark"], lw=1.5, zorder=6)
+            # Landing railing
+            ax.plot([land_x1, land_x2], [end_y + rail_h_ft, end_y + rail_h_ft],
+                    color=BRAND["dark"], lw=0.4, ls='--', zorder=6)
+            # Landing posts (at edges)
+            ax.plot([land_x1, land_x1], [end_y, end_y + rail_h_ft],
+                    color=BRAND["rail"], lw=0.8, zorder=6)
+            ax.plot([land_x2, land_x2], [end_y, end_y + rail_h_ft],
+                    color=BRAND["rail"], lw=0.8, zorder=6)
+            # Landing label
+            mid_lx = (land_x1 + land_x2) / 2
+            ax.text(mid_lx, end_y + 0.15, 'LNDG', ha='center', va='bottom',
+                    fontsize=2.5, color=BRAND["mute"], zorder=7)
+
+            cursor_x = land_x2
+        else:
+            cursor_x = run_end_x
+
+    # Concrete pad at bottom of last run
+    last_end_x = cursor_x
+    ax.add_patch(patches.Rectangle(
+        (min(sx, last_end_x) - 0.3, ground_y - 0.12),
+        abs(last_end_x - sx) + 0.6, 0.12,
+        fc='#e0ddd8', ec=BRAND["dark"], lw=0.4, zorder=6))
+
+
+def _draw_multi_run_treads(ax, cx, ground_y, deck_top, sg, rail_h_ft):
+    """Draw multi-run stair treads for elevation face-on views.
+
+    For switchback/wrap: shows parallel runs side by side.
+    For L-shapes: shows only the visible run (run 1).
+    cx: center X position in elevation coords
+    sg: geometry dict from compute_stair_geometry
+    """
+    rise_in = sg["riseIn"]
+    rise_per = rise_in / 12
+    runs = sg["runs"]
+    template = sg["template"]
+    sw = sg["stairWidth"]
+
+    # Determine which runs are visible face-on (treadAxis == "h" for front exit)
+    # For treads view, runs with treadAxis == "h" are visible
+    visible_runs = [(ri, r) for ri, r in enumerate(runs) if r["treadAxis"] == "h"]
+    if not visible_runs:
+        visible_runs = [(0, runs[0])]  # fallback to first run
+
+    # Compute elevation of each run
+    current_elev = deck_top
+    run_tops = {}
+    for ri, run in enumerate(runs):
+        run_tops[ri] = current_elev
+        current_elev -= run["risers"] * rise_per
+
+    # Draw each visible run
+    for ri, run in visible_runs:
+        # X position from the geometry rect
+        rect = run["rect"]
+        rx_offset = rect["x"] + rect["w"] / 2  # center of run in stair-local coords
+        run_cx = cx + rx_offset  # offset from stair center
+
+        run_top = run_tops[ri]
+        n_risers = run["risers"]
+        run_bottom = run_top - n_risers * rise_per
+
+        # White background
+        sx = run_cx - sw / 2
+        ax.add_patch(patches.Rectangle((sx, run_bottom), sw, run_top - run_bottom,
+                     fc='white', ec='none', zorder=5))
+
+        # Tread lines
+        for i in range(n_risers + 1):
+            ty = run_top - i * rise_per
+            ax.plot([sx, sx + sw], [ty, ty], color=BRAND["dark"], lw=0.8, zorder=6)
+
+        # Side lines
+        ax.plot([sx, sx], [run_bottom, run_top], color=BRAND["dark"], lw=1.0, zorder=6)
+        ax.plot([sx + sw, sx + sw], [run_bottom, run_top], color=BRAND["dark"], lw=1.0, zorder=6)
+        ax.plot([sx, sx + sw], [run_bottom, run_bottom], color=BRAND["dark"], lw=0.8, zorder=6)
+
+        # Stair railing
+        ax.plot([sx, sx], [run_bottom + rail_h_ft, run_top + rail_h_ft],
+                color=BRAND["rail"], lw=0.8, zorder=6)
+        ax.plot([sx + sw, sx + sw], [run_bottom + rail_h_ft, run_top + rail_h_ft],
+                color=BRAND["rail"], lw=0.8, zorder=6)
+        ax.plot([sx, sx + sw], [run_top + rail_h_ft, run_top + rail_h_ft],
+                color=BRAND["rail"], lw=1.0, zorder=6)
+
+    # Draw landing platforms
+    for li, landing in enumerate(sg.get("landings", [])):
+        lr = landing["rect"]
+        land_cx = cx + lr["x"] + lr["w"] / 2
+        land_w = lr["w"]
+        # Landing elevation = run_top of the run AFTER the landing
+        # Landing is between run li and run li+1
+        if li + 1 < len(runs):
+            land_elev = run_tops[li + 1]
+        else:
+            land_elev = ground_y
+        # Draw landing platform line
+        lsx = land_cx - land_w / 2
+        ax.plot([lsx, lsx + land_w], [land_elev, land_elev],
+                color=BRAND["dark"], lw=1.5, zorder=6)
+        # Landing railing posts
+        ax.plot([lsx, lsx], [land_elev, land_elev + rail_h_ft],
+                color=BRAND["rail"], lw=0.6, zorder=6)
+        ax.plot([lsx + land_w, lsx + land_w], [land_elev, land_elev + rail_h_ft],
+                color=BRAND["rail"], lw=0.6, zorder=6)
+
+    # Concrete pad at ground
+    all_x_min = min(cx + r["rect"]["x"] for _, r in visible_runs)
+    all_x_max = max(cx + r["rect"]["x"] + r["rect"]["w"] for _, r in visible_runs)
+    ax.add_patch(patches.Rectangle(
+        (all_x_min - 0.2, ground_y - 0.12),
+        (all_x_max - all_x_min) + 0.4, 0.12,
+        fc='#e0ddd8', ec=BRAND["dark"], lw=0.4, zorder=6))
 
 
 # ============================================================
@@ -628,9 +812,15 @@ def draw_south_elevation(ax, params, calc, compact=False, spec=None):
         if rs["stair"]["zoneId"] == 0:
             _svt, _sdir = stair_view_type(rs["exit_side"], "south")
             if _svt == "treads":
-                _sw = rs["stair_info"].get("width", 4)
+                _sg = rs.get("geometry")
                 _cx = z0_x + rs["world_anchor_x"]
-                _z0_gaps.append((_cx - _sw / 2, _cx + _sw / 2))
+                if _sg and _sg["runs"]:
+                    # S68: Use first run rect for accurate gap position
+                    _r0 = _sg["runs"][0]["rect"]
+                    _z0_gaps.append((_cx + _r0["x"], _cx + _r0["x"] + _r0["w"]))
+                else:
+                    _sw = rs["stair_info"].get("width", 4)
+                    _z0_gaps.append((_cx - _sw / 2, _cx + _sw / 2))
     _z0_gaps.sort()
 
     # Draw zone-0 railing with gaps (S66: chamfer-aware bounds)
@@ -674,14 +864,21 @@ def draw_south_elevation(ax, params, calc, compact=False, spec=None):
         ax.plot([bx_abs, bx_abs], [deck_top + 0.25, rail_top],
                 color=BRAND["rail"], lw=0.12, alpha=0.5)
 
-    # === ALL STAIRS (south elevation) ===
+    # === ALL STAIRS (south elevation) === S68: multi-run geometry aware
     for rs in all_stairs:
         _svt, _sdir = stair_view_type(rs["exit_side"], "south")
         _draw_x = z0_x + rs["world_anchor_x"]
-        if _svt == "treads":
-            _draw_stair_treads(ax, _draw_x, ground_y, deck_top, rs["stair_info"], rail_h)
-        elif _svt == "profile":
-            _draw_stair_profile(ax, _draw_x, ground_y, deck_top, rs["stair_info"], rail_h, _sdir)
+        _sg = rs.get("geometry")
+        if _sg and _sg["template"] != "straight":
+            if _svt == "treads":
+                _draw_multi_run_treads(ax, _draw_x, ground_y, deck_top, _sg, rail_h)
+            elif _svt == "profile":
+                _draw_multi_run_profile(ax, _draw_x, ground_y, deck_top, _sg, rail_h, _sdir)
+        else:
+            if _svt == "treads":
+                _draw_stair_treads(ax, _draw_x, ground_y, deck_top, rs["stair_info"], rail_h)
+            elif _svt == "profile":
+                _draw_stair_profile(ax, _draw_x, ground_y, deck_top, rs["stair_info"], rail_h, _sdir)
 
     # === ZONE WING SECTIONS ===
     for sec in zone_ctx["sections"]:
@@ -827,16 +1024,23 @@ def draw_north_elevation(ax, params, calc, compact=False, spec=None):
         ax.plot([z0_x + bx, z0_x + bx], [deck_top + 0.25, rail_top],
                 color=BRAND["rail"], lw=0.08, alpha=0.3)
 
-    # S65: All stairs (north elevation -- mirrored X)
+    # S65/S68: All stairs (north elevation -- mirrored X, multi-run aware)
     all_stairs = resolve_all_stairs(params, calc)
     _x_off = zone_ctx["x_off"]
     for rs in all_stairs:
         _svt, _sdir = stair_view_type(rs["exit_side"], "north")
         _draw_x = deck_x + total_w - _x_off - rs["world_anchor_x"]
-        if _svt == "treads":
-            _draw_stair_treads(ax, _draw_x, ground_y, deck_top, rs["stair_info"], rail_h)
-        elif _svt == "profile":
-            _draw_stair_profile(ax, _draw_x, ground_y, deck_top, rs["stair_info"], rail_h, _sdir)
+        _sg = rs.get("geometry")
+        if _sg and _sg["template"] != "straight":
+            if _svt == "treads":
+                _draw_multi_run_treads(ax, _draw_x, ground_y, deck_top, _sg, rail_h)
+            elif _svt == "profile":
+                _draw_multi_run_profile(ax, _draw_x, ground_y, deck_top, _sg, rail_h, _sdir)
+        else:
+            if _svt == "treads":
+                _draw_stair_treads(ax, _draw_x, ground_y, deck_top, rs["stair_info"], rail_h)
+            elif _svt == "profile":
+                _draw_stair_profile(ax, _draw_x, ground_y, deck_top, rs["stair_info"], rail_h, _sdir)
 
     # === ZONE WING SECTIONS (mirrored for north view) ===
     for sec in zone_ctx["sections"]:
@@ -975,18 +1179,24 @@ def draw_side_elevation(ax, params, calc, direction="east", compact=False, spec=
             ax.plot([deck_end_x + bx, deck_end_x + bx], [deck_top + 0.25, rail_top],
                     color=BRAND["rail"], lw=0.15, alpha=0.5)
 
-        # S65: Side elevation stairs -- zone-0 only (west, mirrored depth)
+        # S65/S68: Side elevation stairs -- zone-0 only (west, mirrored depth, multi-run aware)
         all_stairs_w = resolve_all_stairs(params, calc)
         for rs in all_stairs_w:
             if rs["stair"]["zoneId"] != 0:
                 continue
             _svt, _sdir = stair_view_type(rs["exit_side"], "west")
-            if _svt == "treads":
-                _draw_stair_treads(ax, deck_start_x - rs["world_anchor_y"],
-                                   ground_y, deck_top, rs["stair_info"], rail_h)
-            elif _svt == "profile":
-                _draw_stair_profile(ax, deck_start_x - rs["world_anchor_y"],
-                                    ground_y, deck_top, rs["stair_info"], rail_h, _sdir)
+            _draw_x_w = deck_start_x - rs["world_anchor_y"]
+            _sg = rs.get("geometry")
+            if _sg and _sg["template"] != "straight":
+                if _svt == "treads":
+                    _draw_multi_run_treads(ax, _draw_x_w, ground_y, deck_top, _sg, rail_h)
+                elif _svt == "profile":
+                    _draw_multi_run_profile(ax, _draw_x_w, ground_y, deck_top, _sg, rail_h, _sdir)
+            else:
+                if _svt == "treads":
+                    _draw_stair_treads(ax, _draw_x_w, ground_y, deck_top, rs["stair_info"], rail_h)
+                elif _svt == "profile":
+                    _draw_stair_profile(ax, _draw_x_w, ground_y, deck_top, rs["stair_info"], rail_h, _sdir)
 
         lbl_x = deck_end_x - 1.5
         lbl_kw = dict(fontsize=fs_lbl, fontfamily='monospace', color=BRAND["dark"], ha='right')
@@ -1096,18 +1306,24 @@ def draw_side_elevation(ax, params, calc, direction="east", compact=False, spec=
             ax.plot([deck_start_x + bx, deck_start_x + bx], [deck_top + 0.25, rail_top],
                     color=BRAND["rail"], lw=0.15, alpha=0.5)
 
-        # S65: Side elevation stairs -- zone-0 only (zone wings need projection logic)
+        # S65/S68: Side elevation stairs -- zone-0 only (multi-run aware)
         all_stairs = resolve_all_stairs(params, calc)
         for rs in all_stairs:
             if rs["stair"]["zoneId"] != 0:
                 continue
             _svt, _sdir = stair_view_type(rs["exit_side"], direction)
-            if _svt == "treads":
-                _draw_stair_treads(ax, deck_start_x + rs["world_anchor_y"],
-                                   ground_y, deck_top, rs["stair_info"], rail_h)
-            elif _svt == "profile":
-                _draw_stair_profile(ax, deck_start_x + rs["world_anchor_y"],
-                                    ground_y, deck_top, rs["stair_info"], rail_h, _sdir)
+            _draw_x_e = deck_start_x + rs["world_anchor_y"]
+            _sg = rs.get("geometry")
+            if _sg and _sg["template"] != "straight":
+                if _svt == "treads":
+                    _draw_multi_run_treads(ax, _draw_x_e, ground_y, deck_top, _sg, rail_h)
+                elif _svt == "profile":
+                    _draw_multi_run_profile(ax, _draw_x_e, ground_y, deck_top, _sg, rail_h, _sdir)
+            else:
+                if _svt == "treads":
+                    _draw_stair_treads(ax, _draw_x_e, ground_y, deck_top, rs["stair_info"], rail_h)
+                elif _svt == "profile":
+                    _draw_stair_profile(ax, _draw_x_e, ground_y, deck_top, rs["stair_info"], rail_h, _sdir)
 
         stair_ext = 0
         for rs in all_stairs:
