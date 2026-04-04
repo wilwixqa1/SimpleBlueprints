@@ -459,8 +459,6 @@ def check_footing_frost(params, calc, spec):
             detail=f"{footing_depth}\" deep, frost line at {required}\" ({frost_zone} zone)",
             fix=f"Your footings need to go deeper to prevent frost heave. Set frost depth to at least {required}\" in Step 2.",
             fix_step=2,
-            fix=f"Increase footing depth to at least {required}\" in Step 2.",
-            fix_step=2,
         )
 
     return CheckResult(
@@ -498,13 +496,11 @@ def check_footing_bearing(params, calc, spec):
             category="structural", sheet="A-4", severity="warning",
             status="fail",
             message="Footing may be undersized for soil bearing capacity.",
-            fix="Increase footing diameter in Step 2. Larger footings spread the load over more ground.",
-            fix_step=2,
             detail=(
                 f"{footing_diam}\" dia. = {actual_area:.2f} SF, "
                 f"load requires {required_area:.2f} SF at 1500 PSF"
             ),
-            fix="Increase footing diameter in Step 2.",
+            fix="Increase footing diameter in Step 2. Larger footings spread the load over more ground.",
             fix_step=2,
         )
 
@@ -545,8 +541,6 @@ def check_guard_height(params, calc, spec):
                 + ("8'." if required == 42 else "30\".")
             ),
             fix=f"Go to Step 3 (Finishes) and increase guard height to {required}\".",
-            fix_step=3,
-            fix="Check with your local building department for guard height requirements.",
             fix_step=3,
         )
 
