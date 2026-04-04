@@ -1159,17 +1159,28 @@ function StepContent(props) {
               }
             }
           }
-          if (!bldg.buildings || bldg.buildings.length === 0) return;
-          // Find the primary residence: closest building with area > 500 sqft
-          // (skip small sheds, garages, etc.)
+          if (!bldg.buildings || bldg.buildings.length === 0) {
+            console.log("Building footprint: no OSM buildings found near this location");
+            return;
+          }
+          console.log("Building footprint: " + bldg.buildings.length + " buildings found");
+          for (var bi = 0; bi < Math.min(bldg.buildings.length, 5); bi++) {
+            var b = bldg.buildings[bi];
+            console.log("  #" + bi + ": " + b.width + "x" + b.depth + " area=" + b.area_sqft + "sqft dist=" + b.dist_from_center + "ft angle=" + b.angle + " type=" + b.type);
+          }
+          // Find the primary residence: closest building with area > 400 sqft
+          // and within ~250 ft of property center (search radius is 80m = ~262ft)
           var primary = null;
           for (var bi = 0; bi < bldg.buildings.length; bi++) {
             var b = bldg.buildings[bi];
-            if (b.area_sqft >= 500 && b.dist_from_center < 100) {
+            if (b.area_sqft >= 400 && b.dist_from_center < 250) {
               primary = b; break;
             }
           }
-          if (!primary) return;
+          if (!primary) {
+            console.log("Building footprint: no building passed filter (>= 400sqft, < 250ft)");
+            return;
+          }
           // Apply building footprint data
           u("houseWidth", Math.round(primary.width));
           u("houseDepth", Math.round(primary.depth));

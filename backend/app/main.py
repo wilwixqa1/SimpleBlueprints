@@ -2082,6 +2082,16 @@ out body;>;out skel qt;"""
                 "osm_id": rway["id"],
             }
 
+    # S70: Log results for debugging
+    if buildings:
+        print(f"Building footprint: {len(buildings)} buildings found. Primary: {buildings[0]['width']}x{buildings[0]['depth']} area={buildings[0]['area_sqft']}sqft dist={buildings[0]['dist_from_center']}ft angle={buildings[0]['angle']}deg")
+    else:
+        print(f"Building footprint: 0 buildings found near ({lat},{lng})")
+    if nearest_road:
+        print(f"Nearest road: {nearest_road['name']} dist={nearest_road['dist']}ft bearing={nearest_road['bearing']}deg")
+    else:
+        print(f"Nearest road: none found near ({lat},{lng})")
+
     return {"buildings": buildings, "count": len(buildings), "nearest_road": nearest_road}
 
 
