@@ -2077,39 +2077,39 @@ out body;>;out skel qt;"""
 
     # S70: Process nearby roads for street edge identification
     # Find the nearest road and compute its position relative to the property
+    # Use ref_lat/ref_lng so roads are in same coordinate system as buildings
     nearest_road = None
+    nearest_road_segments = []  # Store road segments for building-to-road calc
     for rway in road_ways:
         rnode_ids = rway.get("nodes", [])
         rcoords = []
         for nid in rnode_ids:
             if nid in nodes:
                 rlon, rlat = nodes[nid]
-                rx = (rlon - lng) * ft_per_deg_lng
-                ry = (rlat - lat) * ft_per_deg_lat
+                rx = (rlon - ref_lng) * ft_per_deg_lng
+                ry = (rlat - ref_lat) * ft_per_deg_lat
                 rcoords.append([round(rx, 1), round(ry, 1)])
         if len(rcoords) < 2:
             continue
-        # Find closest point on road to property center (0,0)
+        # Find closest point on road to property center
         min_dist = float('inf')
         closest_pt = None
         for i in range(len(rcoords) - 1):
-            # Project (0,0) onto segment rcoords[i] -> rcoords[i+1]
             ax_r, ay_r = rcoords[i]
             bx_r, by_r = rcoords[i + 1]
             dx_r, dy_r = bx_r - ax_r, by_r - ay_r
             seg_len_sq = dx_r * dx_r + dy_r * dy_r
             if seg_len_sq < 0.01:
                 continue
-            t = max(0, min(1, (-ax_r * dx_r + -ay_r * dy_r) / seg_len_sq))
+            t = max(0, min(1, ((prop_lot_x - ax_r) * dx_r + (prop_lot_y - ay_r) * dy_r) / seg_len_sq))
             px, py = ax_r + t * dx_r, ay_r + t * dy_r
-            d = _math.sqrt(px * px + py * py)
+            d = _math.sqrt((px - prop_lot_x) ** 2 + (py - prop_lot_y) ** 2)
             if d < min_dist:
                 min_dist = d
                 closest_pt = (px, py)
         if closest_pt and min_dist < (nearest_road["dist"] if nearest_road else float('inf')):
             road_name = rway.get("tags", {}).get("name", "")
-            # Compute bearing from property center to road (degrees from north, clockwise)
-            bearing = _math.degrees(_math.atan2(closest_pt[0], closest_pt[1]))
+            bearing = _math.degrees(_math.atan2(closest_pt[0] - prop_lot_x, closest_pt[1] - prop_lot_y))
             if bearing < 0:
                 bearing += 360
             nearest_road = {
@@ -2119,6 +2119,45 @@ out body;>;out skel qt;"""
                 "closest_point_ft": [round(closest_pt[0], 1), round(closest_pt[1], 1)],
                 "osm_id": rway["id"],
             }
+            nearest_road_segments = rcoords
+
+    # S70: Compute building-to-road relative positioning
+    # For each building, find perpendicular distance to nearest road
+    # and lateral position along the road frontage.
+    # This data is internally consistent (same Overpass dataset).
+    if nearest_road and nearest_road_segments and buildings:
+        for bldg in buildings:
+            bcx, bcy = bldg["centroid_ft"]
+            # Find closest point on road to THIS building's centroid
+            best_d = float('inf')
+            best_t_global = 0.5
+            total_road_len = 0
+            cumulative_len = 0
+            # First pass: compute total road length
+            for i in range(len(nearest_road_segments) - 1):
+                ax_r, ay_r = nearest_road_segments[i]
+                bx_r, by_r = nearest_road_segments[i + 1]
+                total_road_len += _math.sqrt((bx_r - ax_r) ** 2 + (by_r - ay_r) ** 2)
+            # Second pass: find closest point and lateral fraction
+            cumulative_len = 0
+            for i in range(len(nearest_road_segments) - 1):
+                ax_r, ay_r = nearest_road_segments[i]
+                bx_r, by_r = nearest_road_segments[i + 1]
+                dx_r, dy_r = bx_r - ax_r, by_r - ay_r
+                seg_len = _math.sqrt(dx_r * dx_r + dy_r * dy_r)
+                if seg_len < 0.01:
+                    continue
+                seg_len_sq = seg_len * seg_len
+                t = max(0, min(1, ((bcx - ax_r) * dx_r + (bcy - ay_r) * dy_r) / seg_len_sq))
+                px, py = ax_r + t * dx_r, ay_r + t * dy_r
+                d = _math.sqrt((px - bcx) ** 2 + (py - bcy) ** 2)
+                if d < best_d:
+                    best_d = d
+                    if total_road_len > 0:
+                        best_t_global = (cumulative_len + t * seg_len) / total_road_len
+                cumulative_len += seg_len
+            bldg["road_setback_ft"] = round(best_d, 1)
+            bldg["road_lateral_frac"] = round(best_t_global, 3)
 
     # S70: Log results for debugging
     if buildings:

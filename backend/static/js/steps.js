@@ -1185,34 +1185,51 @@ function StepContent(props) {
           u("houseWidth", Math.round(primary.width));
           u("houseDepth", Math.round(primary.depth));
           u("houseAngle", primary.angle);
-          // S70: Position house using centroid_lot (lot coordinates from backend)
-          // Backend computes this precisely using raw GeoJSON coords
+          // S70: Position house using road-relative data (Option B)
+          // road_setback_ft = perpendicular distance from road to building center
+          // road_lateral_frac = where along the road frontage (0-1)
+          // These are internally consistent within the Overpass dataset.
+          // We map them onto the lot polygon's street edge.
           var lotVerts2 = data.lot.vertices;
-          var cLot = primary.centroid_lot || null;
-          if (cLot && lotVerts2 && lotVerts2.length >= 3) {
-            var bldgCX = cLot[0], bldgCY = cLot[1];
-            // houseDistFromStreet = Y of house bottom edge
-            var newDist = Math.max(5, Math.round(bldgCY - primary.depth / 2));
+          var lotW2 = Math.round(data.lot.width);
+          var lotD2 = Math.round(data.lot.depth);
+          var hw2 = Math.round(primary.width);
+          var hd2 = Math.round(primary.depth);
+          if (primary.road_setback_ft && lotVerts2 && lotVerts2.length >= 3) {
+            // Setback from road = Y position of house center
+            var setback = primary.road_setback_ft;
+            var newDist = Math.max(5, Math.round(setback - hd2 / 2));
             u("houseDistFromStreet", newDist);
-            // houseOffsetSide is relative to left polygon edge at house Y
-            var leftX2 = 0, minLX = Infinity;
+            // Lateral position: map road_lateral_frac to lot width
+            var latFrac = primary.road_lateral_frac || 0.5;
+            // Compute lot width at the house Y position
+            var houseCY = newDist + hd2 / 2;
+            var leftX2 = 0, rightX2 = lotW2, minLX = Infinity, maxRX = -Infinity;
             for (var ei3 = 0; ei3 < lotVerts2.length; ei3++) {
               var a3 = lotVerts2[ei3], b3 = lotVerts2[(ei3 + 1) % lotVerts2.length];
               var yLo3 = Math.min(a3[1], b3[1]), yHi3 = Math.max(a3[1], b3[1]);
-              if (bldgCY < yLo3 || bldgCY > yHi3 || yLo3 === yHi3) continue;
-              var t3 = (bldgCY - a3[1]) / (b3[1] - a3[1]);
+              if (houseCY < yLo3 || houseCY > yHi3 || yLo3 === yHi3) continue;
+              var t3 = (houseCY - a3[1]) / (b3[1] - a3[1]);
               var xAt3 = a3[0] + t3 * (b3[0] - a3[0]);
               if (xAt3 < minLX) minLX = xAt3;
+              if (xAt3 > maxRX) maxRX = xAt3;
             }
             leftX2 = minLX === Infinity ? 0 : minLX;
-            var newOffset = Math.max(0, Math.round(bldgCX - primary.width / 2 - leftX2));
+            rightX2 = maxRX === -Infinity ? lotW2 : maxRX;
+            var widthAtY = rightX2 - leftX2;
+            // Place house center at lateral fraction of available width
+            var houseCX = leftX2 + widthAtY * latFrac;
+            var newOffset = Math.max(0, Math.round(houseCX - hw2 / 2 - leftX2));
+            // Clamp so house doesn't extend past lot boundaries
+            var maxOffset = Math.max(0, Math.round(widthAtY - hw2));
+            newOffset = Math.min(newOffset, maxOffset);
             u("houseOffsetSide", newOffset);
-            console.log("House positioned from centroid_lot: (" + bldgCX.toFixed(1) + "," + bldgCY.toFixed(1) + ") offset=" + newOffset + " dist=" + newDist);
+            console.log("House positioned from road-relative: setback=" + setback + "ft latFrac=" + latFrac.toFixed(3) + " widthAtY=" + widthAtY.toFixed(1) + " offset=" + newOffset + " dist=" + newDist);
           } else {
-            // Fallback: center house horizontally
-            var hw2 = Math.round(primary.width);
-            var lotW2 = Math.round(data.lot.width);
+            // Fallback: center house with standard setback
             u("houseOffsetSide", Math.max(5, Math.round((lotW2 - hw2) / 2)));
+            u("houseDistFromStreet", Math.min(Math.round(lotD2 * 0.3), 35));
+            console.log("House positioned from fallback (centered, 30% setback)");
           }
           console.log("Building footprint applied:", primary.width + "x" + primary.depth, "angle=" + primary.angle + "deg", "area=" + primary.area_sqft + "sqft");
           if (window._trackEvent) window._trackEvent('building_footprint', { width: primary.width, depth: primary.depth, angle: primary.angle, area: primary.area_sqft, osm_id: primary.osm_id });
