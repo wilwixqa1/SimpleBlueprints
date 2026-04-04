@@ -17,7 +17,8 @@ import math
 
 # Import our calculation engine
 from .calc_engine import calculate_structure
-from .stair_utils import get_stair_placement, get_stair_exit_side, resolve_all_stairs
+from .stair_utils import (get_stair_placement, get_stair_exit_side, resolve_all_stairs,
+                          transform_stair_point, transform_stair_rect)
 from .zone_utils import get_additive_rects, get_cutout_rects, get_exposed_edges, get_bounding_box, _chamfered_vertices
 
 # ============================================================
@@ -251,20 +252,44 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
     bbox = get_bounding_box(params)
 
     # S22: Adaptive margins - wider multi-zone decks need proportionally more room
-    margin_x_left = max(bbox["w"] * 0.20, 5)
-    margin_x_right = max(bbox["w"] * 0.10, 3)  # tighter for title block strip
-    margin_y = max(bbox["d"] * 0.35, 6)  # S57: increased from 0.30/4 to avoid title overlap
+    # S68: Expand bounds to include stair geometry extents
+    all_stairs_pre = resolve_all_stairs(params, calc)
+    stair_x_min, stair_x_max = bbox["x"], bbox["x"] + bbox["w"]
+    stair_y_min, stair_y_max = bbox["y"], bbox["y"] + bbox["d"]
+    for rs in all_stairs_pre:
+        sg = rs.get("geometry")
+        if not sg:
+            continue
+        _wax, _way, _ang = rs["world_anchor_x"], rs["world_anchor_y"], rs["angle"]
+        sb = sg["bbox"]
+        # Transform all 4 corners of stair bbox to world coords
+        for lx, ly in [(sb["minX"], sb["minY"]), (sb["maxX"], sb["minY"]),
+                        (sb["maxX"], sb["maxY"]), (sb["minX"], sb["maxY"])]:
+            wx, wy = transform_stair_point(lx, ly, _wax, _way, _ang)
+            stair_x_min = min(stair_x_min, wx)
+            stair_x_max = max(stair_x_max, wx)
+            stair_y_min = min(stair_y_min, wy)
+            stair_y_max = max(stair_y_max, wy)
+    # Effective drawing bounds include stairs
+    eff_w = stair_x_max - stair_x_min
+    eff_d = stair_y_max - stair_y_min
+    margin_x_left = max(eff_w * 0.20, 5)
+    margin_x_right = max(eff_w * 0.15, 4)  # tighter for title block strip, but enough for callouts
+    margin_y = max(eff_d * 0.30, 6)  # S57: enough for title and stair extents
     house_depth = min(D * 0.5, 8)
 
     for ax, title, is_framing in [(ax1, "MAIN LEVEL DECK PLAN", False), (ax2, "DECK FRAMING", True)]:
-        ax.set_xlim(bbox["x"] - margin_x_left, bbox["x"] + bbox["w"] + margin_x_right)
-        ax.set_ylim(-house_depth - margin_y * 0.4, bbox["y"] + bbox["d"] + margin_y)
+        ax.set_xlim(min(bbox["x"], stair_x_min) - margin_x_left,
+                   max(bbox["x"] + bbox["w"], stair_x_max) + margin_x_right)
+        ax.set_ylim(-house_depth - margin_y * 0.4,
+                   max(bbox["y"] + bbox["d"], stair_y_max) + margin_y)
         ax.set_aspect('equal')
         ax.axis('off')
         ax.set_facecolor('white')
 
-        # S57: Title positioned with more clearance above deck top
-        title_y = bbox["y"] + bbox["d"] + margin_y - 0.5
+        # S68: Title positioned above all content including stairs
+        _view_top = max(bbox["y"] + bbox["d"], stair_y_max)
+        title_y = _view_top + margin_y - 0.5
         ax.text(bbox["x"], title_y, title, fontsize=10, fontweight='bold',
                 fontfamily='monospace', color=BRAND["dark"])
         _scale_txt = 'SCALE: 1/4" = 1' + "'" + '-0"'
@@ -458,7 +483,7 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
             # S61: Loads box - moved OUTSIDE deck to lower-left margin
             _has_snow = bool(spec["labels"].get("loads_snow"))
             _has_ledger = bool(spec["labels"].get("loads_ledger"))
-            _lb_x = bbox["x"] - margin_x_left + 1
+            _lb_x = min(bbox["x"], stair_x_min) - margin_x_left + 1
             _lb_y = -house_depth + 0.5
             _lb_lines = 4 + (1 if _has_snow else 0) + (1 if _has_ledger else 0)
             _lb_h = 0.5 + _lb_lines * 0.55
@@ -534,123 +559,180 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
         for e in exp_edges:
             ax.plot([e["x1"], e["x2"]], [e["y1"], e["y2"]], color=BRAND["rail"], lw=3.5)
 
-        # S65: Multi-stair rendering -- iterate all stairs from deckStairs
+        # S68: Generic stair rendering from geometry engine (all templates)
         all_stairs = resolve_all_stairs(params, calc)
         for rs in all_stairs:
-            st = rs["stair_info"]
-            sw_ft = st.get("width", 4)
-            stair_run = st["total_run_ft"]
-            n_treads = st["num_treads"]
-            n_stringers = st["num_stringers"]
-            has_landing = st.get("has_landing", False)
-            stair_loc = rs["exit_side"]
-            landing_depth = 3 if has_landing else 0
-            tread_step = stair_run / max(n_treads, 1)
-            # World-space anchor
+            sg = rs.get("geometry")
+            if not sg:
+                continue
             _wax = rs["world_anchor_x"]
             _way = rs["world_anchor_y"]
+            _ang = rs["angle"]
+            st = rs["stair_info"]
 
-            if stair_loc == "front":
-                sx = _wax - sw_ft / 2
-                sy = _way
-                ax.plot([sx, sx], [sy, sy + stair_run], color=BRAND["dark"], lw=1.0)
-                ax.plot([sx + sw_ft, sx + sw_ft], [sy, sy + stair_run], color=BRAND["dark"], lw=1.0)
-                for i in range(n_treads + 1):
-                    ty = sy + i * tread_step
-                    ax.plot([sx, sx + sw_ft], [ty, ty], color=BRAND["mute"], lw=0.5)
-                for si in range(n_stringers):
-                    ssx = sx + (si) * sw_ft / (n_stringers - 1) if n_stringers > 1 else sx + sw_ft / 2
-                    ax.plot([ssx, ssx], [sy, sy + stair_run], color=BRAND["mute"], lw=0.3, ls='--', dashes=(2, 2))
-                mid_x = sx + sw_ft / 2
-                ax.annotate('', xy=(mid_x, sy + stair_run - 0.3), xytext=(mid_x, sy + 0.3),
+            def _tp(lx, ly):
+                return transform_stair_point(lx, ly, _wax, _way, _ang)
+
+            # Draw each landing platform
+            for li, landing in enumerate(sg["landings"]):
+                lr = landing["rect"]
+                lx, ly, lw, lh = lr["x"], lr["y"], lr["w"], lr["h"]
+                corners = [_tp(lx, ly), _tp(lx + lw, ly), _tp(lx + lw, ly + lh), _tp(lx, ly + lh)]
+                poly = Polygon(corners, closed=True, fc='#e8e8e0', ec=BRAND["dark"], lw=0.8)
+                ax.add_patch(poly)
+                cx_l, cy_l = _tp(lx + lw / 2, ly + lh / 2)
+                ax.text(cx_l, cy_l, 'LANDING', ha='center', va='center',
+                        fontsize=3.0, fontweight='bold', color=BRAND["mute"],
+                        bbox=dict(boxstyle='square,pad=0.1', fc='white', ec='none', alpha=0.85))
+                # Landing posts
+                for pp in landing.get("posts", []):
+                    wpx, wpy = _tp(pp[0], pp[1])
+                    ax.plot(wpx, wpy, 's', ms=3, color=BRAND["post"],
+                            mec=BRAND["dark"], mew=0.5)
+
+            # Draw each run
+            for ri, run in enumerate(sg["runs"]):
+                rr = run["rect"]
+                rx, ry, rw, rh = rr["x"], rr["y"], rr["w"], rr["h"]
+
+                # Outline (4 sides)
+                corners = [_tp(rx, ry), _tp(rx + rw, ry), _tp(rx + rw, ry + rh), _tp(rx, ry + rh)]
+                for ci in range(4):
+                    c1, c2 = corners[ci], corners[(ci + 1) % 4]
+                    ax.plot([c1[0], c2[0]], [c1[1], c2[1]], color=BRAND["dark"], lw=1.0)
+
+                # Treads
+                n_treads = run["treads"]
+                axis = run["treadAxis"]
+                if axis == "h":
+                    # Treads are horizontal lines across width
+                    tread_step = rh / max(n_treads, 1)
+                    for ti in range(n_treads + 1):
+                        ty = ry + ti * tread_step
+                        p1, p2 = _tp(rx, ty), _tp(rx + rw, ty)
+                        ax.plot([p1[0], p2[0]], [p1[1], p2[1]], color=BRAND["mute"], lw=0.5)
+                    # Stringers (dashed, along length)
+                    ns = run["nStringers"]
+                    for si in range(ns):
+                        sx_l = rx + si * rw / (ns - 1) if ns > 1 else rx + rw / 2
+                        p1, p2 = _tp(sx_l, ry), _tp(sx_l, ry + rh)
+                        ax.plot([p1[0], p2[0]], [p1[1], p2[1]], color=BRAND["mute"],
+                                lw=0.3, ls='--', dashes=(2, 2))
+                else:
+                    # treadAxis == "w": treads are vertical lines across height
+                    tread_step = rw / max(n_treads, 1)
+                    for ti in range(n_treads + 1):
+                        tx = rx + ti * tread_step
+                        p1, p2 = _tp(tx, ry), _tp(tx, ry + rh)
+                        ax.plot([p1[0], p2[0]], [p1[1], p2[1]], color=BRAND["mute"], lw=0.5)
+                    # Stringers (dashed, along length)
+                    ns = run["nStringers"]
+                    for si in range(ns):
+                        sy_l = ry + si * rh / (ns - 1) if ns > 1 else ry + rh / 2
+                        p1, p2 = _tp(rx, sy_l), _tp(rx + rw, sy_l)
+                        ax.plot([p1[0], p2[0]], [p1[1], p2[1]], color=BRAND["mute"],
+                                lw=0.3, ls='--', dashes=(2, 2))
+
+                # DN arrow (points in downDir direction)
+                ddir = run["downDir"]
+                cx_r, cy_r = rx + rw / 2, ry + rh / 2
+                arrow_len = (rh if axis == "h" else rw) * 0.4
+                if ddir == "+y":
+                    a_from, a_to = _tp(cx_r, ry + 0.3), _tp(cx_r, ry + rh - 0.3)
+                elif ddir == "-y":
+                    a_from, a_to = _tp(cx_r, ry + rh - 0.3), _tp(cx_r, ry + 0.3)
+                elif ddir == "+x":
+                    a_from, a_to = _tp(rx + 0.3, cy_r), _tp(rx + rw - 0.3, cy_r)
+                elif ddir == "-x":
+                    a_from, a_to = _tp(rx + rw - 0.3, cy_r), _tp(rx + 0.3, cy_r)
+                else:
+                    a_from, a_to = _tp(cx_r, ry + 0.3), _tp(cx_r, ry + rh - 0.3)
+                ax.annotate('', xy=a_to, xytext=a_from,
                             arrowprops=dict(arrowstyle='->', color=BRAND["dark"], lw=0.8))
-                ax.text(mid_x, sy + stair_run / 2, 'DN', ha='center', va='center', fontsize=5,
+                dn_cx, dn_cy = _tp(cx_r, cy_r)
+                ax.text(dn_cx, dn_cy, 'DN', ha='center', va='center', fontsize=5,
                         fontweight='bold', color=BRAND["dark"],
                         bbox=dict(boxstyle='square,pad=0.15', fc='white', ec='none', alpha=0.9))
-                if has_landing:
-                    ly = sy + stair_run
-                    ax.add_patch(patches.Rectangle((sx - 0.5, ly), sw_ft + 1, landing_depth,
-                                 fc='#e8e8e0', ec=BRAND["dark"], lw=0.6, ls='--'))
-                    ax.text(sx + sw_ft / 2, ly + landing_depth / 2, 'CONC. PAD',
-                            ha='center', va='center', fontsize=3.5, color=BRAND["mute"])
-                ax.text(sx + sw_ft + 0.8, sy + stair_run / 2,
-                        f'({n_stringers}) 2x12 PT\nSTRINGERS\n{st["actual_rise"]:.1f}" RISE\n{st["tread_depth"]}" RUN',
-                        fontsize=3.5, fontfamily='monospace', color=BRAND["dark"], va='center')
 
-            elif stair_loc == "left":
-                sx = _wax - stair_run
-                sy = _way - sw_ft / 2
-                deck_edge_x = _wax
-                ax.plot([sx, deck_edge_x], [sy, sy], color=BRAND["dark"], lw=1.0)
-                ax.plot([sx, deck_edge_x], [sy + sw_ft, sy + sw_ft], color=BRAND["dark"], lw=1.0)
-                for i in range(n_treads + 1):
-                    tx = deck_edge_x - i * tread_step
-                    ax.plot([tx, tx], [sy, sy + sw_ft], color=BRAND["mute"], lw=0.5)
-                for si in range(n_stringers):
-                    ssy = sy + (si) * sw_ft / (n_stringers - 1) if n_stringers > 1 else sy + sw_ft / 2
-                    ax.plot([sx, deck_edge_x], [ssy, ssy], color=BRAND["mute"], lw=0.3, ls='--', dashes=(2, 2))
-                mid_y = sy + sw_ft / 2
-                ax.annotate('', xy=(sx + 0.3, mid_y), xytext=(deck_edge_x - 0.3, mid_y),
-                            arrowprops=dict(arrowstyle='->', color=BRAND["dark"], lw=0.8))
-                ax.text(sx + stair_run / 2, mid_y, 'DN', ha='center', va='center', fontsize=5,
-                        fontweight='bold', color=BRAND["dark"],
-                        bbox=dict(boxstyle='square,pad=0.15', fc='white', ec='none', alpha=0.9))
-                if has_landing:
-                    ax.add_patch(patches.Rectangle((sx - landing_depth, sy - 0.5), landing_depth, sw_ft + 1,
-                                 fc='#e8e8e0', ec=BRAND["dark"], lw=0.6, ls='--'))
-                    ax.text(sx - landing_depth / 2, sy + sw_ft / 2, 'CONC.\nPAD',
-                            ha='center', va='center', fontsize=3.5, color=BRAND["mute"])
-                ax.text(sx + stair_run / 2, sy - 0.8,
-                        f'({n_stringers}) 2x12 PT STRINGERS - {st["actual_rise"]:.1f}" RISE - {st["tread_depth"]}" RUN',
-                        ha='center', fontsize=3.5, fontfamily='monospace', color=BRAND["dark"])
+            # Concrete pad at base of last run
+            if sg["runs"]:
+                last = sg["runs"][-1]
+                lr = last["rect"]
+                dd = last["downDir"]
+                lx, ly, lw, lh = lr["x"], lr["y"], lr["w"], lr["h"]
+                pad_d = 3.0  # 3ft concrete pad
+                if dd == "+y":
+                    pad_corners = [_tp(lx - 0.25, ly + lh), _tp(lx + lw + 0.25, ly + lh),
+                                   _tp(lx + lw + 0.25, ly + lh + pad_d), _tp(lx - 0.25, ly + lh + pad_d)]
+                elif dd == "-y":
+                    pad_corners = [_tp(lx - 0.25, ly - pad_d), _tp(lx + lw + 0.25, ly - pad_d),
+                                   _tp(lx + lw + 0.25, ly), _tp(lx - 0.25, ly)]
+                elif dd == "+x":
+                    pad_corners = [_tp(lx + lw, ly - 0.25), _tp(lx + lw + pad_d, ly - 0.25),
+                                   _tp(lx + lw + pad_d, ly + lh + 0.25), _tp(lx + lw, ly + lh + 0.25)]
+                elif dd == "-x":
+                    pad_corners = [_tp(lx - pad_d, ly - 0.25), _tp(lx, ly - 0.25),
+                                   _tp(lx, ly + lh + 0.25), _tp(lx - pad_d, ly + lh + 0.25)]
+                else:
+                    pad_corners = None
+                if pad_corners:
+                    poly = Polygon(pad_corners, closed=True, fc='#e8e8e0', ec=BRAND["dark"], lw=0.6, ls='--')
+                    ax.add_patch(poly)
+                    pcx, pcy = sum(c[0] for c in pad_corners) / 4, sum(c[1] for c in pad_corners) / 4
+                    ax.text(pcx, pcy, 'CONC.\nPAD', ha='center', va='center',
+                            fontsize=3.0, color=BRAND["mute"])
 
-            elif stair_loc == "right":
-                sx = _wax
-                sy = _way - sw_ft / 2
-                ax.plot([sx, sx + stair_run], [sy, sy], color=BRAND["dark"], lw=1.0)
-                ax.plot([sx, sx + stair_run], [sy + sw_ft, sy + sw_ft], color=BRAND["dark"], lw=1.0)
-                for i in range(n_treads + 1):
-                    tx = sx + i * tread_step
-                    ax.plot([tx, tx], [sy, sy + sw_ft], color=BRAND["mute"], lw=0.5)
-                for si in range(n_stringers):
-                    ssy = sy + (si) * sw_ft / (n_stringers - 1) if n_stringers > 1 else sy + sw_ft / 2
-                    ax.plot([sx, sx + stair_run], [ssy, ssy], color=BRAND["mute"], lw=0.3, ls='--', dashes=(2, 2))
-                mid_y = sy + sw_ft / 2
-                ax.annotate('', xy=(sx + stair_run - 0.3, mid_y), xytext=(sx + 0.3, mid_y),
-                            arrowprops=dict(arrowstyle='->', color=BRAND["dark"], lw=0.8))
-                ax.text(sx + stair_run / 2, mid_y, 'DN', ha='center', va='center', fontsize=5,
-                        fontweight='bold', color=BRAND["dark"],
-                        bbox=dict(boxstyle='square,pad=0.15', fc='white', ec='none', alpha=0.9))
-                if has_landing:
-                    ax.add_patch(patches.Rectangle((sx + stair_run, sy - 0.5), landing_depth, sw_ft + 1,
-                                 fc='#e8e8e0', ec=BRAND["dark"], lw=0.6, ls='--'))
-                    ax.text(sx + stair_run + landing_depth / 2, sy + sw_ft / 2, 'CONC.\nPAD',
-                            ha='center', va='center', fontsize=3.5, color=BRAND["mute"])
-                ax.text(sx + stair_run / 2, sy - 0.8,
-                        f'({n_stringers}) 2x12 PT STRINGERS - {st["actual_rise"]:.1f}" RISE - {st["tread_depth"]}" RUN',
-                        ha='center', fontsize=3.5, fontfamily='monospace', color=BRAND["dark"])
+            # Stringer/rise/run callout (positioned outside the stair bbox)
+            bb = sg["bbox"]
+            n_total_stringers = sg["totalStringers"]
+            _rise_txt = f'{sg["riseIn"]:.1f}" RISE'
+            _run_txt = '10.5" RUN'
+            _template_name = sg["template"].upper() if sg["template"] != "straight" else ""
+            _callout_lines = []
+            if _template_name:
+                _callout_lines.append(_template_name)
+            _callout_lines.append(f'({n_total_stringers}) 2x12 PT STRINGERS')
+            _callout_lines.append(f'{_rise_txt} / {_run_txt}')
+            if sg["landings"]:
+                _callout_lines.append(f'{len(sg["landings"])} LANDING(S)')
+            _callout_text = '\n'.join(_callout_lines)
+            # Place callout to the right of the stair bbox
+            _cb_lx = bb["maxX"] + 0.5
+            _cb_ly = (bb["minY"] + bb["maxY"]) / 2
+            _cb_wx, _cb_wy = _tp(_cb_lx, _cb_ly)
+            ax.text(_cb_wx, _cb_wy, _callout_text, fontsize=3.5,
+                    fontfamily='monospace', color=BRAND["dark"], va='center',
+                    bbox=dict(boxstyle='square,pad=0.2', fc='white', ec=BRAND["border"],
+                              lw=0.3, alpha=0.9))
 
-        # S65: Stair opening width callouts on framing plan (all stairs)
+        # S68: Stair opening width callouts on framing plan (all stairs)
         if is_framing and all_stairs:
             for rs in all_stairs:
-                st = rs["stair_info"]
-                sw_ft = st.get("width", 4)
+                sg = rs.get("geometry")
+                if not sg or not sg["runs"]:
+                    continue
+                # Opening = first run rect width at deck edge
+                r0 = sg["runs"][0]["rect"]
+                sw_ft = r0["w"] if sg["runs"][0]["treadAxis"] == "h" else r0["h"]
                 _wax = rs["world_anchor_x"]
                 _way = rs["world_anchor_y"]
                 s_loc = rs["exit_side"]
                 if s_loc == "front":
-                    sx = _wax - sw_ft / 2
-                    draw_dimension_h(ax, sx, sx + sw_ft, _way,
+                    p1x, _ = transform_stair_point(r0["x"], 0, _wax, _way, rs["angle"])
+                    p2x, _ = transform_stair_point(r0["x"] + r0["w"], 0, _wax, _way, rs["angle"])
+                    draw_dimension_h(ax, p1x, p2x, _way,
                                      f'{format_feet_inches(sw_ft)} OPENING',
                                      offset=max(D * 0.08, 1.2), color='#c62828', fontsize=4.5)
                 elif s_loc == "left":
-                    sy = _way - sw_ft / 2
-                    draw_dimension_v(ax, _wax, sy, sy + sw_ft,
+                    _, p1y = transform_stair_point(r0["x"], 0, _wax, _way, rs["angle"])
+                    _, p2y = transform_stair_point(r0["x"] + r0["w"], 0, _wax, _way, rs["angle"])
+                    draw_dimension_v(ax, _wax, min(p1y, p2y), max(p1y, p2y),
                                      f'{format_feet_inches(sw_ft)} OPENING',
                                      offset=-3.5, color='#c62828', fontsize=4.5)
                 elif s_loc == "right":
-                    sy = _way - sw_ft / 2
-                    draw_dimension_v(ax, _wax, sy, sy + sw_ft,
+                    _, p1y = transform_stair_point(r0["x"], 0, _wax, _way, rs["angle"])
+                    _, p2y = transform_stair_point(r0["x"] + r0["w"], 0, _wax, _way, rs["angle"])
+                    draw_dimension_v(ax, _wax, min(p1y, p2y), max(p1y, p2y),
                                      f'{format_feet_inches(sw_ft)} OPENING',
                                      offset=max(W * 0.08, 3), color='#c62828', fontsize=4.5)
 
@@ -661,8 +743,8 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
                          offset=max(W * 0.04, 1.2), color=BRAND["blue"], fontsize=7)
 
         # S47: North arrow in upper-left margin, scale bar below house
-        draw_north_arrow(ax, bbox["x"] - margin_x_left + 2,
-                         bbox["y"] + bbox["d"] + margin_y - 2.5,
+        draw_north_arrow(ax, min(bbox["x"], stair_x_min) - margin_x_left + 2,
+                         _view_top + margin_y - 2.5,
                          angle=params.get("northAngle", 0) or 0)
         draw_scale_bar(ax, bbox["x"], -house_depth - margin_y * 0.35)
 
