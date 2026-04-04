@@ -205,24 +205,30 @@ window.buildDeckScene = function(scene, p, c, THREE) {
   resolvedStairs.forEach(function(rs) {
     if (rs.def.zoneId !== 0) return;
     if (!exitSide) exitSide = rs.exitSide;
-    var wbb = rs.wbb;
+    var stPl = rs.stPl, stW = rs.stW, wbb = rs.wbb;
     if (rs.exitSide === "front" && !frontGap) {
       stairClipD = Math.max(0, wbb.zMax - wbb.zMin);
-      if (wbb.xMax > z0wx && wbb.xMin < z0wx + W) {
-        frontGap = { min: Math.max(wbb.xMin, z0wx), max: Math.min(wbb.xMax, z0wx + W),
+      var gc = z0wx + stPl.anchorX;
+      var sxMin = gc - stW / 2, sxMax = gc + stW / 2;
+      if (sxMax > z0wx && sxMin < z0wx + W) {
+        frontGap = { min: Math.max(sxMin, z0wx), max: Math.min(sxMax, z0wx + W),
           zMin: Math.max(wbb.zMin, z0wz), zMax: Math.min(wbb.zMax, z0wz + D) };
       }
     } else if (rs.exitSide === "right" && !rightGap) {
       stairClipD = Math.max(0, wbb.xMax - wbb.xMin);
-      if (wbb.zMax > z0wz && wbb.zMin < z0wz + D) {
-        rightGap = { min: Math.max(wbb.zMin, z0wz), max: Math.min(wbb.zMax, z0wz + D),
+      var gc = z0wz + stPl.anchorY;
+      var szMin = gc - stW / 2, szMax = gc + stW / 2;
+      if (szMax > z0wz && szMin < z0wz + D) {
+        rightGap = { min: Math.max(szMin, z0wz), max: Math.min(szMax, z0wz + D),
           xMin: Math.max(wbb.xMin, z0wx),
           xMax: Math.min(wbb.xMax, z0wx + W) };
       }
     } else if (rs.exitSide === "left" && !leftGap) {
       stairClipD = Math.max(0, wbb.xMax - wbb.xMin);
-      if (wbb.zMax > z0wz && wbb.zMin < z0wz + D) {
-        leftGap = { min: Math.max(wbb.zMin, z0wz), max: Math.min(wbb.zMax, z0wz + D),
+      var gc = z0wz + stPl.anchorY;
+      var szMin = gc - stW / 2, szMax = gc + stW / 2;
+      if (szMax > z0wz && szMin < z0wz + D) {
+        leftGap = { min: Math.max(szMin, z0wz), max: Math.min(szMax, z0wz + D),
           xMin: Math.max(wbb.xMin, z0wx),
           xMax: Math.min(wbb.xMax, z0wx + W) };
       }
