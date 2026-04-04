@@ -2112,6 +2112,10 @@ out body;>;out skel qt;"""
     return {"buildings": buildings, "count": len(buildings), "nearest_road": nearest_road}
 
 
+# S70: In-memory cache for building footprint results
+# Key = rounded lat/lng (4 decimal places ~ 10m), value = result dict
+_building_cache = {}
+
 @app.post("/api/building-footprint")
 async def building_footprint(request: Request):
     """Look up building footprints near a lat/lng using OpenStreetMap."""
@@ -2126,7 +2130,19 @@ async def building_footprint(request: Request):
     if not lat or not lng:
         raise HTTPException(status_code=400, detail="lat and lng required")
 
+    # Check cache first (round to 4 decimal places ~ 10m)
+    cache_key = f"{round(lat, 4)},{round(lng, 4)}"
+    if cache_key in _building_cache:
+        print(f"Building footprint cache hit for {cache_key}", flush=True)
+        return JSONResponse(_building_cache[cache_key])
+
     result = _overpass_building_lookup(lat, lng)
+
+    # Only cache successful results with actual data
+    if result.get("count", 0) > 0 or result.get("nearest_road"):
+        _building_cache[cache_key] = result
+        print(f"Building footprint cached for {cache_key}", flush=True)
+
     return JSONResponse(result)
 
 
