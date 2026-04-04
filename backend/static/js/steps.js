@@ -1748,8 +1748,11 @@ function StepContent(props) {
             padding: "5px 10px", fontSize: 10, fontWeight: 700, borderRadius: 5, fontFamily: _mono, cursor: "pointer",
             border: isActive ? `2px solid ${col}` : `1px solid ${_br.bd}`,
             background: isActive ? (isCut ? "#fef2f2" : "#eff6ff") : "#fff",
-            color: isActive ? col : _br.mu
-          }}>{isCut ? "\u2702 " : ""}{z.label || "Zone " + z.id}</button>;
+            color: isActive ? col : _br.mu, display: "inline-flex", alignItems: "center", gap: 4
+          }}>{isCut ? "\u2702 " : ""}{z.label || "Zone " + z.id}
+            <span onClick={function(e) { e.stopPropagation(); if (confirm("Delete " + (z.label || "Zone " + z.id) + "?")) removeZone(z.id); }} style={{
+              marginLeft: 2, fontSize: 11, lineHeight: "1", color: isCut ? "#fca5a5" : "#93c5fd", cursor: "pointer", fontWeight: 400
+            }} onMouseEnter={function(e) { e.target.style.color = "#ef4444"; }} onMouseLeave={function(e) { e.target.style.color = isCut ? "#fca5a5" : "#93c5fd"; }}>{"\u00D7"}</span></button>;
         })}
       </div>
     </div>}
