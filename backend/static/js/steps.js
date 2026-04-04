@@ -1080,6 +1080,85 @@ function StepContent(props) {
         })
         .then(function(r) { return r.json(); })
         .then(function(bldg) {
+          // S70: Use nearest road to correct street edge identification
+          if (bldg.nearest_road && bldg.nearest_road.bearing !== undefined) {
+            var roadBearing = bldg.nearest_road.bearing; // degrees from north, clockwise
+            var curVerts = p.lotVertices;
+            var curEdges = p.lotEdges;
+            if (curVerts && curEdges && curVerts.length >= 3) {
+              var nv2 = curVerts.length;
+              // Compute lot centroid
+              var cxL = 0, cyL = 0;
+              for (var vi2 = 0; vi2 < nv2; vi2++) { cxL += curVerts[vi2][0]; cyL += curVerts[vi2][1]; }
+              cxL /= nv2; cyL /= nv2;
+              // Find edge whose outward normal is closest to road bearing
+              var bestEdge = -1, bestAngleDiff = 999;
+              for (var ei2 = 0; ei2 < nv2; ei2++) {
+                var ni2 = (ei2 + 1) % nv2;
+                var edx2 = curVerts[ni2][0] - curVerts[ei2][0];
+                var edy2 = curVerts[ni2][1] - curVerts[ei2][1];
+                var elen2 = Math.sqrt(edx2 * edx2 + edy2 * edy2);
+                if (elen2 < 1) continue;
+                // Outward normal: perpendicular to edge, pointing away from centroid
+                var nx2 = -edy2 / elen2, ny2 = edx2 / elen2;
+                var mx2 = (curVerts[ei2][0] + curVerts[ni2][0]) / 2;
+                var my2 = (curVerts[ei2][1] + curVerts[ni2][1]) / 2;
+                if (nx2 * (cxL - mx2) + ny2 * (cyL - my2) > 0) { nx2 = -nx2; ny2 = -ny2; }
+                // Normal bearing (degrees from north=+Y, clockwise)
+                var normalBearing = Math.atan2(nx2, ny2) * 180 / Math.PI;
+                if (normalBearing < 0) normalBearing += 360;
+                // Angular difference (handle wraparound)
+                var diff2 = Math.abs(normalBearing - roadBearing);
+                if (diff2 > 180) diff2 = 360 - diff2;
+                if (diff2 < bestAngleDiff) { bestAngleDiff = diff2; bestEdge = ei2; }
+              }
+              if (bestEdge >= 0 && bestAngleDiff < 60) {
+                // Find rear edge: most opposite to street
+                var rearEdge2 = 0, maxDiff2 = 0;
+                for (var ei2 = 0; ei2 < nv2; ei2++) {
+                  if (ei2 === bestEdge) continue;
+                  var ni2 = (ei2 + 1) % nv2;
+                  var edx2 = curVerts[ni2][0] - curVerts[ei2][0];
+                  var edy2 = curVerts[ni2][1] - curVerts[ei2][1];
+                  var elen2 = Math.sqrt(edx2 * edx2 + edy2 * edy2);
+                  if (elen2 < 1) continue;
+                  var nx2 = -edy2 / elen2, ny2 = edx2 / elen2;
+                  var mx2 = (curVerts[ei2][0] + curVerts[ni2][0]) / 2;
+                  var my2 = (curVerts[ei2][1] + curVerts[ni2][1]) / 2;
+                  if (nx2 * (cxL - mx2) + ny2 * (cyL - my2) > 0) { nx2 = -nx2; ny2 = -ny2; }
+                  var normalBearing2 = Math.atan2(nx2, ny2) * 180 / Math.PI;
+                  if (normalBearing2 < 0) normalBearing2 += 360;
+                  var diff3 = Math.abs(normalBearing2 - roadBearing);
+                  if (diff3 > 180) diff3 = 360 - diff3;
+                  if (diff3 > maxDiff2) { maxDiff2 = diff3; rearEdge2 = ei2; }
+                }
+                // Rebuild edges with correct street assignment
+                var newEdges = [];
+                for (var ei2 = 0; ei2 < nv2; ei2++) {
+                  var ni2 = (ei2 + 1) % nv2;
+                  var edx2 = curVerts[ni2][0] - curVerts[ei2][0];
+                  var edy2 = curVerts[ni2][1] - curVerts[ei2][1];
+                  var elen2 = Math.round(Math.sqrt(edx2 * edx2 + edy2 * edy2));
+                  var isStr = (ei2 === bestEdge);
+                  var isRear = (ei2 === rearEdge2);
+                  var sbT = isStr ? "front" : (isRear ? "rear" : "side");
+                  newEdges.push({
+                    type: isStr ? "street" : "property",
+                    label: isStr ? (bldg.nearest_road.name || data.location.address || "") : "",
+                    length: elen2,
+                    setbackType: sbT,
+                    neighborLabel: ""
+                  });
+                }
+                u("lotEdges", newEdges);
+                // Update street name if we got a road name from OSM
+                if (bldg.nearest_road.name) {
+                  u("streetName", bldg.nearest_road.name);
+                }
+                console.log("Street edge corrected via road data:", bldg.nearest_road.name, "bearing=" + roadBearing + "deg", "edge=" + bestEdge, "angleDiff=" + bestAngleDiff.toFixed(1));
+              }
+            }
+          }
           if (!bldg.buildings || bldg.buildings.length === 0) return;
           // Find the primary residence: closest building with area > 500 sqft
           // (skip small sheds, garages, etc.)

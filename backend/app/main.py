@@ -1900,10 +1900,12 @@ async def parcel_lookup(request: Request):
 # ============================================================
 
 def _overpass_building_lookup(lat, lng, radius_m=80):
-    """Query Overpass API for building footprints near lat/lng.
-    Returns list of building polygons with computed dimensions and angles."""
+    """Query Overpass API for building footprints and nearby roads near lat/lng.
+    Returns list of building polygons with computed dimensions and angles,
+    plus nearest road info for street edge identification."""
     query = f"""[out:json][timeout:10];
-(way["building"](around:{radius_m},{lat},{lng}););
+(way["building"](around:{radius_m},{lat},{lng});
+way["highway"~"residential|tertiary|secondary|primary|unclassified|living_street|service"](around:{radius_m},{lat},{lng}););
 out body;>;out skel qt;"""
     url = "https://overpass-api.de/api/interpreter"
     try:
@@ -1919,17 +1921,22 @@ out body;>;out skel qt;"""
         return {"error": f"Overpass API error: {str(e)}"}
 
     elements = data.get("elements", [])
-    # Separate nodes and ways
+    # Separate nodes, building ways, and road ways
     nodes = {}
     ways = []
+    road_ways = []
     for el in elements:
         if el["type"] == "node":
             nodes[el["id"]] = (el["lon"], el["lat"])
-        elif el["type"] == "way" and "building" in el.get("tags", {}):
-            ways.append(el)
+        elif el["type"] == "way":
+            tags = el.get("tags", {})
+            if "building" in tags:
+                ways.append(el)
+            elif "highway" in tags:
+                road_ways.append(el)
 
-    if not ways:
-        return {"buildings": [], "count": 0}
+    if not ways and not road_ways:
+        return {"buildings": [], "count": 0, "nearest_road": None}
 
     # Convert to local feet coords (same system as parcel)
     ft_per_deg_lat = 364000.0
@@ -2030,7 +2037,52 @@ out body;>;out skel qt;"""
     # Sort by distance from center (closest first)
     buildings.sort(key=lambda b: b["dist_from_center"])
 
-    return {"buildings": buildings, "count": len(buildings)}
+    # S70: Process nearby roads for street edge identification
+    # Find the nearest road and compute its position relative to the property
+    nearest_road = None
+    for rway in road_ways:
+        rnode_ids = rway.get("nodes", [])
+        rcoords = []
+        for nid in rnode_ids:
+            if nid in nodes:
+                rlon, rlat = nodes[nid]
+                rx = (rlon - lng) * ft_per_deg_lng
+                ry = (rlat - lat) * ft_per_deg_lat
+                rcoords.append([round(rx, 1), round(ry, 1)])
+        if len(rcoords) < 2:
+            continue
+        # Find closest point on road to property center (0,0)
+        min_dist = float('inf')
+        closest_pt = None
+        for i in range(len(rcoords) - 1):
+            # Project (0,0) onto segment rcoords[i] -> rcoords[i+1]
+            ax_r, ay_r = rcoords[i]
+            bx_r, by_r = rcoords[i + 1]
+            dx_r, dy_r = bx_r - ax_r, by_r - ay_r
+            seg_len_sq = dx_r * dx_r + dy_r * dy_r
+            if seg_len_sq < 0.01:
+                continue
+            t = max(0, min(1, (-ax_r * dx_r + -ay_r * dy_r) / seg_len_sq))
+            px, py = ax_r + t * dx_r, ay_r + t * dy_r
+            d = _math.sqrt(px * px + py * py)
+            if d < min_dist:
+                min_dist = d
+                closest_pt = (px, py)
+        if closest_pt and min_dist < (nearest_road["dist"] if nearest_road else float('inf')):
+            road_name = rway.get("tags", {}).get("name", "")
+            # Compute bearing from property center to road (degrees from north, clockwise)
+            bearing = _math.degrees(_math.atan2(closest_pt[0], closest_pt[1]))
+            if bearing < 0:
+                bearing += 360
+            nearest_road = {
+                "name": road_name,
+                "dist": round(min_dist, 1),
+                "bearing": round(bearing, 1),
+                "closest_point_ft": [round(closest_pt[0], 1), round(closest_pt[1], 1)],
+                "osm_id": rway["id"],
+            }
+
+    return {"buildings": buildings, "count": len(buildings), "nearest_road": nearest_road}
 
 
 @app.post("/api/building-footprint")
