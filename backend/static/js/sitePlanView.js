@@ -502,6 +502,12 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
 
     React.createElement("rect", { x: 0, y: 0, width: svgW, height: svgH, fill: "#fafaf5", rx: 4 }),
 
+    // S70: Rotate lot content so street faces bottom of drawing
+    // _lotRotation is set from road bearing when Overpass identifies the street
+    React.createElement("g", {
+      transform: (p._lotRotation || 0) !== 0 ? "rotate(" + (p._lotRotation || 0) + "," + (svgW / 2) + "," + (svgH / 2) + ")" : undefined
+    },
+
     setbackPolyPoints ? React.createElement("polygon", {
       points: setbackPolyPoints,
       fill: "none", stroke: "#e53935", strokeWidth: 0.8, strokeDasharray: "6,4", opacity: 0.5
@@ -585,7 +591,8 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
         }
       }
       return React.createElement("g", null, els);
-    })(),
+    })()
+    ), // Close lot rotation group
 
     // S37 Push 6: Street name from lotEdges (first street-type edge, or fallback)
     (() => {

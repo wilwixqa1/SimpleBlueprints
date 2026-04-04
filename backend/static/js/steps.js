@@ -1197,6 +1197,14 @@ function StepContent(props) {
                 if (bldg.nearest_road.name) {
                   u("streetName", bldg.nearest_road.name);
                 }
+                // S70: Set north angle from road bearing
+                // Road bearing = direction from property to street (compass degrees, CW from north)
+                // To orient drawing with street at bottom, rotate by (bearing - 180)
+                // northAngle = how much north has rotated from "up" on the page
+                var drawRotation = (roadBearing - 180 + 360) % 360;
+                u("northAngle", Math.round(drawRotation));
+                u("_lotRotation", Math.round(drawRotation));
+                console.log("North angle set to " + Math.round(drawRotation) + " from road bearing " + roadBearing);
                 console.log("Street edge corrected via road data:", bldg.nearest_road.name, "bearing=" + roadBearing + "deg", "edge=" + bestEdge, "angleDiff=" + bestAngleDiff.toFixed(1));
               } else {
                 console.log("Road bearing didn't match any edge well enough. bestEdge=" + bestEdge + " angleDiff=" + bestAngleDiff.toFixed(1));
