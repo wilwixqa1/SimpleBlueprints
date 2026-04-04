@@ -29,10 +29,10 @@ function setupSceneEnv(scene, p, THREE) {
   fill.position.set(-10, 15, -10);
   scene.add(fill);
 
-  // Ground plane
+  // Ground plane (natural lawn)
   var gnd = new THREE.Mesh(
     new THREE.PlaneGeometry(100, 100),
-    new THREE.MeshStandardMaterial({ color: 0xb8c9a0, roughness: 1 })
+    new THREE.MeshStandardMaterial({ color: 0x6b8f4a, roughness: 0.95 })
   );
   gnd.rotation.x = -Math.PI / 2;
   gnd.receiveShadow = true;
@@ -48,11 +48,6 @@ function setupSceneEnv(scene, p, THREE) {
     else if (sDir === "right-to-left") gnd.rotation.z += tilt;
   }
   scene.add(gnd);
-
-  // Grid
-  var grid = new THREE.GridHelper(80, 80, 0xa0b088, 0xa8b890);
-  grid.position.y = sPct > 0 ? -0.3 : 0.01;
-  scene.add(grid);
 }
 
 // ============================================================
