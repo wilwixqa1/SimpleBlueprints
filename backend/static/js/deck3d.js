@@ -278,7 +278,7 @@ window.buildDeckScene = function(scene, p, c, THREE) {
       pp.forEach(function(px, _pi) {
         var pH = (c.postHeights && _pi >= 0) ? c.postHeights[_pi] : zH;
         var _gY = H - pH;
-        addM(new THREE.CylinderGeometry(pR, pR, 0.5, 16), mats.concrete, z0wx + px, _gY + 0.25, z0wz + D - 1.5);
+        addM(new THREE.CylinderGeometry(pR, pR, 0.5, 16), mats.concrete, z0wx + px, _gY - 0.1, z0wz + D - 1.5);
         var po = new THREE.Mesh(new THREE.BoxGeometry(pD, pH, pD), mats.post); po.position.set(z0wx + px, _gY + pH / 2, z0wz + D - 1.5); po.castShadow = true; scene.add(po);
         addM(new THREE.BoxGeometry(pD + 0.2, 0.15, pD + 0.2), mats.metal, z0wx + px, zH, z0wz + D - 1.5);
       });
@@ -359,7 +359,7 @@ window.buildDeckScene = function(scene, p, c, THREE) {
         zCorners.push([zwx + px2, zwz + zD - zonePostInset]);
       }
       zCorners.forEach(function(pt) {
-        addM(new THREE.CylinderGeometry(pR, pR, 0.5, 16), mats.concrete, pt[0], 0.25, pt[1]);
+        addM(new THREE.CylinderGeometry(pR, pR, 0.5, 16), mats.concrete, pt[0], -0.1, pt[1]);
         var po = new THREE.Mesh(new THREE.BoxGeometry(pD, zH, pD), mats.post); po.position.set(pt[0], zH / 2, pt[1]); po.castShadow = true; scene.add(po);
         addM(new THREE.BoxGeometry(pD + 0.2, 0.15, pD + 0.2), mats.metal, pt[0], zH, pt[1]);
       });
@@ -958,7 +958,7 @@ window.buildDeckScene = function(scene, p, c, THREE) {
         lpm.castShadow = true;
         stGrp.add(lpm);
         var pier = new THREE.Mesh(new THREE.CylinderGeometry(pR, pR, 0.35, 12), mats.concrete);
-        pier.position.set(pt[0], 0.175, pt[1]);
+        pier.position.set(pt[0], -0.025, pt[1]);
         stGrp.add(pier);
       });
 
