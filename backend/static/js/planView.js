@@ -309,18 +309,6 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, remo
         </text>;
       })}
 
-      {/* Zone delete buttons */}
-      {removeZone && hasZones && addRects.filter(function(a) { return a.id > 0; }).concat(cutRects).map(function(a) {
-        var r = a.rect, h = hoverBtn === "del-" + a.id;
-        var bx = zx(r.x) + r.w * sc - 1, by = zy(r.y) + 1;
-        return <g key={"zdel" + a.id} onMouseEnter={function() { setHoverBtn("del-" + a.id); }} onMouseLeave={function() { setHoverBtn(null); }}
-          onClick={function(e) { e.stopPropagation(); if (confirm("Delete " + (a.zone.label || "Zone " + a.id) + "?")) removeZone(a.id); }} style={{ cursor: "pointer" }}>
-          <circle cx={bx} cy={by} r={h ? 8 : 6} fill={h ? "#dc2626" : "white"} stroke="#dc2626" strokeWidth="1.2" style={{ transition: "all 0.12s" }} />
-          <text x={bx} y={by + 1} textAnchor="middle" dominantBaseline="central"
-            fontSize={h ? 10 : 7} fontWeight="800" fill={h ? "white" : "#dc2626"} style={{ userSelect: "none" }}>{"\u00D7"}</text>
-        </g>;
-      })}
-
       {/* Deck drag handle */}
       {u && mode === "plan" && zoneMode === "select" && <g style={{ cursor: "ew-resize" }} onPointerDown={e => onPointerDown(e, "deck")}>
         <rect x={dx + sw / 2 - 15} y={pad - 3} width={30} height={6} rx={3} fill="#3d5a2e" opacity="0.7" />
@@ -465,6 +453,18 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, remo
       <line x1={dx + sw + 17} y1={pad} x2={dx + sw + 23} y2={pad} stroke="#1565c0" strokeWidth="0.6" />
       <line x1={dx + sw + 17} y1={pad + sd} x2={dx + sw + 23} y2={pad + sd} stroke="#1565c0" strokeWidth="0.6" />
       <text x={dx + sw + 32} y={pad + sd / 2 + 3} textAnchor="middle" style={{ fontSize: 12, fill: "#1565c0", fontWeight: 800, fontFamily: "'DM Mono', monospace" }} transform={`rotate(90, ${dx + sw + 32}, ${pad + sd / 2})`}>{window.fmtFtIn(c.D)}</text>
+
+// {/*   Zone delete buttons   */}
+      {removeZone && hasZones && addRects.filter(function(a) { return a.id > 0; }).concat(cutRects).map(function(a) {
+        var r = a.rect, h = hoverBtn === "del-" + a.id;
+        var bx = zx(r.x) + r.w * sc - 1, by = zy(r.y) + 1;
+        return <g key={"zdel" + a.id} onMouseEnter={function() { setHoverBtn("del-" + a.id); }} onMouseLeave={function() { setHoverBtn(null); }}
+          onClick={function(e) { e.stopPropagation(); if (confirm("Delete " + (a.zone.label || "Zone " + a.id) + "?")) removeZone(a.id); }} style={{ cursor: "pointer" }}>
+          <circle cx={bx} cy={by} r={h ? 8 : 6} fill={h ? "#dc2626" : "white"} stroke="#dc2626" strokeWidth="1.2" style={{ transition: "all 0.12s" }} />
+          <text x={bx} y={by + 1} textAnchor="middle" dominantBaseline="central"
+            fontSize={h ? 10 : 7} fontWeight="800" fill={h ? "white" : "#dc2626"} style={{ userSelect: "none" }}>{"\u00D7"}</text>
+        </g>;
+      })}
 
 // {/*   Add zone buttons   */}
       {addBtns.map(function(b) {
