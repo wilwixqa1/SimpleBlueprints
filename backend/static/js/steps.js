@@ -3458,6 +3458,7 @@ function StepContent(props) {
                 delete newOverrides[idx];
                 u("footingOverrides", Object.keys(newOverrides).length > 0 ? newOverrides : null);
               }} style={{ fontSize: 8, fontFamily: _mono, color: "#dc2626", background: "none", border: "none", cursor: "pointer", padding: 0 }}>{"\u2715"}</button>}
+              {isCustom && curVal < c.auto.footing && <span style={{ fontSize: 7, color: "#dc2626", fontFamily: _mono, fontWeight: 600 }}>{"\u26A0"} below {c.auto.footing}" min</span>}
             </div>;
           })}
         </div>}
