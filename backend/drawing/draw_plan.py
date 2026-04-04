@@ -593,6 +593,7 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
                 return transform_stair_point(lx, ly, _wax, _way, _ang)
 
             # Draw each landing platform
+            _is_multi_run = len(sg["runs"]) > 1
             for li, landing in enumerate(sg["landings"]):
                 lr = landing["rect"]
                 lx, ly, lw, lh = lr["x"], lr["y"], lr["w"], lr["h"]
@@ -608,6 +609,21 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
                     wpx, wpy = _tp(pp[0], pp[1])
                     ax.plot(wpx, wpy, 's', ms=3, color=BRAND["post"],
                             mec=BRAND["dark"], mew=0.5)
+                    # Pier circle at each landing post
+                    pier = plt.Circle((wpx, wpy), calc.get("footing_diam", 24) / 24 * 0.5,
+                                      fill=False, ec=BRAND["dark"], lw=0.3, ls='--')
+                    ax.add_patch(pier)
+                # Landing post/pier callout (only on first landing, only for multi-run)
+                if _is_multi_run and li == 0 and landing.get("posts"):
+                    _lp0 = landing["posts"][0]
+                    _lpx, _lpy = _tp(_lp0[0], _lp0[1])
+                    _lp_txt = (f'4x4 PT POSTS W/ SIMPSON\n'
+                               f"'ABU44Z' POST BASE ({len(landing['posts'])}) PLCS\n"
+                               f'{calc.get("footing_diam", 12)}" CONC. PIERS')
+                    ax.text(_lpx - 1.5, _lpy - 0.8, _lp_txt, fontsize=2.5,
+                            fontfamily='monospace', color=BRAND["dark"],
+                            bbox=dict(boxstyle='square,pad=0.15', fc='white',
+                                      ec=BRAND["border"], lw=0.2, alpha=0.9))
 
             # Draw each run
             for ri, run in enumerate(sg["runs"]):
@@ -669,7 +685,7 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
                 ax.annotate('', xy=a_to, xytext=a_from,
                             arrowprops=dict(arrowstyle='->', color=BRAND["dark"], lw=0.8))
                 dn_cx, dn_cy = _tp(cx_r, cy_r)
-                ax.text(dn_cx, dn_cy, 'DN', ha='center', va='center', fontsize=5,
+                ax.text(dn_cx, dn_cy, 'DOWN', ha='center', va='center', fontsize=4,
                         fontweight='bold', color=BRAND["dark"],
                         bbox=dict(boxstyle='square,pad=0.15', fc='white', ec='none', alpha=0.9))
 
@@ -698,22 +714,21 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
                     poly = Polygon(pad_corners, closed=True, fc='#e8e8e0', ec=BRAND["dark"], lw=0.6, ls='--')
                     ax.add_patch(poly)
                     pcx, pcy = sum(c[0] for c in pad_corners) / 4, sum(c[1] for c in pad_corners) / 4
-                    ax.text(pcx, pcy, 'CONC.\nPAD', ha='center', va='center',
-                            fontsize=3.0, color=BRAND["mute"])
+                    ax.text(pcx, pcy, 'CONCRETE\nLANDING', ha='center', va='center',
+                            fontsize=2.5, color=BRAND["mute"])
 
             # Stringer/rise/run callout (positioned outside the stair bbox)
             bb = sg["bbox"]
-            n_total_stringers = sg["totalStringers"]
             _rise_txt = f'{sg["riseIn"]:.1f}" RISE'
             _run_txt = '10.5" RUN'
-            _template_name = sg["template"].upper() if sg["template"] != "straight" else ""
             _callout_lines = []
-            if _template_name:
-                _callout_lines.append(_template_name)
-            _callout_lines.append(f'({n_total_stringers}) 2x12 PT STRINGERS')
+            # Per-run stringer counts (only itemize if multi-run)
+            if _is_multi_run:
+                for ri, run in enumerate(sg["runs"]):
+                    _callout_lines.append(f'RUN {ri + 1}: ({run["nStringers"]}) 2x12 PT STRINGERS')
+            else:
+                _callout_lines.append(f'({sg["totalStringers"]}) 2x12 PT STRINGERS')
             _callout_lines.append(f'{_rise_txt} / {_run_txt}')
-            if sg["landings"]:
-                _callout_lines.append(f'{len(sg["landings"])} LANDING(S)')
             _callout_text = '\n'.join(_callout_lines)
             # Place callout to the right of the stair bbox
             _cb_lx = bb["maxX"] + 0.5
@@ -723,6 +738,45 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
                     fontfamily='monospace', color=BRAND["dark"], va='center',
                     bbox=dict(boxstyle='square,pad=0.2', fc='white', ec=BRAND["border"],
                               lw=0.3, alpha=0.9))
+
+            # S68: Per-run length dimensions (only for multi-run stairs)
+            if _is_multi_run:
+                for ri, run in enumerate(sg["runs"]):
+                    rr = run["rect"]
+                    rx, ry, rw, rh = rr["x"], rr["y"], rr["w"], rr["h"]
+                    axis = run["treadAxis"]
+                    run_len = rh if axis == "h" else rw
+                    # Dimension line along the run length, offset outside
+                    if axis == "h":
+                        # Vertical run: dimension on the left side
+                        p1 = _tp(rx - 0.3, ry)
+                        p2 = _tp(rx - 0.3, ry + rh)
+                        _dim_cx, _dim_cy = _tp(rx - 1.0, ry + rh / 2)
+                        ax.plot([p1[0], p2[0]], [p1[1], p2[1]], color=BRAND["mute"], lw=0.4)
+                        ax.text(_dim_cx, _dim_cy, format_feet_inches(run_len),
+                                ha='center', va='center', fontsize=3.0, color=BRAND["dark"],
+                                rotation=90 if abs(_ang) < 45 else 0,
+                                bbox=dict(boxstyle='square,pad=0.1', fc='white',
+                                          ec='none', alpha=0.85))
+                    else:
+                        # Horizontal run: dimension below
+                        p1 = _tp(rx, ry - 0.3)
+                        p2 = _tp(rx + rw, ry - 0.3)
+                        _dim_cx, _dim_cy = _tp(rx + rw / 2, ry - 1.0)
+                        ax.plot([p1[0], p2[0]], [p1[1], p2[1]], color=BRAND["mute"], lw=0.4)
+                        ax.text(_dim_cx, _dim_cy, format_feet_inches(run_len),
+                                ha='center', va='center', fontsize=3.0, color=BRAND["dark"],
+                                bbox=dict(boxstyle='square,pad=0.1', fc='white',
+                                          ec='none', alpha=0.85))
+                # Landing depth dimensions
+                for li, landing in enumerate(sg["landings"]):
+                    lr = landing["rect"]
+                    _ld_txt = format_feet_inches(lr["h"])
+                    _ld_cx, _ld_cy = _tp(lr["x"] + lr["w"] + 0.8, lr["y"] + lr["h"] / 2)
+                    ax.text(_ld_cx, _ld_cy, f'{_ld_txt}\nLANDING', ha='center', va='center',
+                            fontsize=2.5, color=BRAND["dark"],
+                            bbox=dict(boxstyle='square,pad=0.1', fc='white',
+                                      ec='none', alpha=0.85))
 
         # S68: Stair opening width callouts on framing plan (all stairs)
         if is_framing and all_stairs:
@@ -754,6 +808,34 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
                     draw_dimension_v(ax, _wax, min(p1y, p2y), max(p1y, p2y),
                                      f'{format_feet_inches(sw_ft)} OPENING',
                                      offset=max(W * 0.08, 3), color='#c62828', fontsize=4.5)
+
+        # S68: Stair notes box (plan view only, only when stairs exist)
+        if not is_framing and all_stairs:
+            _sn_lines = [
+                'STAIR NOTES:',
+                'PROVIDE HANDRAIL ON BOTH SIDES OF STAIR,',
+                'HANDRAIL SHALL BE PLACED 34" ABOVE THE',
+                'NOSING OF TREADS.',
+                '',
+                'STAIR TREADS AND RISERS NOTE: STAIRS TO MEET',
+                'THE FOLLOWING REQUIREMENTS OF CURRENT IRC',
+                'MAX STAIR RISER OF 7.75", MINIMUM STAIR',
+                'TREAD DEPTH OF 10"',
+                'TREAD NOSINGS BETWEEN .75" AND 1.25"',
+                'IF TREADS <11" WITH SOLID RISERS',
+                '',
+                '*THE GREATEST RISER HEIGHT AND TREAD DEPTH',
+                'SHALL NOT EXCEED THE SMALLEST BY MORE THAN',
+                '3/8" WITHIN ANY FLIGHT OF STAIRS',
+            ]
+            _sn_text = '\n'.join(_sn_lines)
+            _sn_x = min(bbox["x"], stair_x_min) - margin_x_left + 1.5
+            _sn_y = bbox["y"] + bbox["d"] * 0.15
+            ax.text(_sn_x, _sn_y, _sn_text, fontsize=2.8,
+                    fontfamily='monospace', color=BRAND["dark"], va='top',
+                    linespacing=1.3,
+                    bbox=dict(boxstyle='square,pad=0.3', fc='#fafaf8',
+                              ec=BRAND["dark"], lw=0.4))
 
         # Dimensions (zone 0 overall)
         draw_dimension_h(ax, 0, W, D, format_feet_inches(W),
