@@ -1120,6 +1120,7 @@ function StepContent(props) {
         })
         .then(function(r) { return r.json(); })
         .then(function(bldg) {
+          console.log("Building footprint response:", bldg.count + " buildings, nearest_road:", bldg.nearest_road ? bldg.nearest_road.name + " bearing=" + bldg.nearest_road.bearing + "deg dist=" + bldg.nearest_road.dist + "ft" : "none");
           // S70: Use nearest road to correct street edge identification
           if (bldg.nearest_road && bldg.nearest_road.bearing !== undefined) {
             var roadBearing = bldg.nearest_road.bearing; // degrees from north, clockwise
@@ -1153,6 +1154,7 @@ function StepContent(props) {
                 if (diff2 < bestAngleDiff) { bestAngleDiff = diff2; bestEdge = ei2; }
               }
               if (bestEdge >= 0 && bestAngleDiff < 60) {
+                console.log("Road bearing matched edge " + bestEdge + " (angleDiff=" + bestAngleDiff.toFixed(1) + ")");
                 // Find rear edge: most opposite to street
                 var rearEdge2 = 0, maxDiff2 = 0;
                 for (var ei2 = 0; ei2 < nv2; ei2++) {
@@ -1196,6 +1198,8 @@ function StepContent(props) {
                   u("streetName", bldg.nearest_road.name);
                 }
                 console.log("Street edge corrected via road data:", bldg.nearest_road.name, "bearing=" + roadBearing + "deg", "edge=" + bestEdge, "angleDiff=" + bestAngleDiff.toFixed(1));
+              } else {
+                console.log("Road bearing didn't match any edge well enough. bestEdge=" + bestEdge + " angleDiff=" + bestAngleDiff.toFixed(1));
               }
             }
           }
