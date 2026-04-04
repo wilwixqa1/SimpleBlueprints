@@ -1002,31 +1002,52 @@ function StepContent(props) {
           propLotY = (data.location.lat - minLatR) * ftLat2;
         }
         if (propLotX !== null && propLotY !== null) {
-          // Find edge closest to address point
-          var minEdgeDist = Infinity;
+          // Street edge = the edge hit by a ray from lot centroid through address point
+          // The address point is between the centroid and the street.
+          // So centroid -> address point -> street edge.
+          var lotCx3 = 0, lotCy3 = 0;
+          for (var vi3 = 0; vi3 < nv; vi3++) { lotCx3 += verts[vi3][0]; lotCy3 += verts[vi3][1]; }
+          lotCx3 /= nv; lotCy3 /= nv;
+          // Ray direction: centroid toward address point
+          var rayDx = propLotX - lotCx3, rayDy = propLotY - lotCy3;
+          var rayLen = Math.sqrt(rayDx * rayDx + rayDy * rayDy);
+          if (rayLen > 0.1) {
+            // Find which edge the ray hits
+            var bestT = Infinity;
+            for (var ei = 0; ei < nv; ei++) {
+              var ni = (ei + 1) % nv;
+              var ex = verts[ei][0], ey = verts[ei][1];
+              var fx = verts[ni][0], fy = verts[ni][1];
+              // Ray-segment intersection
+              var sx2 = fx - ex, sy2 = fy - ey;
+              var denom = rayDx * sy2 - rayDy * sx2;
+              if (Math.abs(denom) < 0.001) continue;
+              var t = ((ex - lotCx3) * sy2 - (ey - lotCy3) * sx2) / denom;
+              var u2 = ((ex - lotCx3) * rayDy - (ey - lotCy3) * rayDx) / denom;
+              if (t > 0.01 && u2 >= 0 && u2 <= 1 && t < bestT) {
+                bestT = t;
+                streetIdx = ei;
+              }
+            }
+          }
+          // Rear = edge hit by ray in opposite direction (centroid away from address point)
+          var bestT2 = Infinity;
+          var revDx = -rayDx, revDy = -rayDy;
           for (var ei = 0; ei < nv; ei++) {
             var ni = (ei + 1) % nv;
-            var ax = verts[ei][0], ay = verts[ei][1];
-            var bx = verts[ni][0], by = verts[ni][1];
-            var edx = bx - ax, edy = by - ay;
-            var segLenSq = edx * edx + edy * edy;
-            if (segLenSq < 0.01) continue;
-            var t = Math.max(0, Math.min(1, ((propLotX - ax) * edx + (propLotY - ay) * edy) / segLenSq));
-            var px = ax + t * edx, py = ay + t * edy;
-            var d = Math.sqrt((propLotX - px) * (propLotX - px) + (propLotY - py) * (propLotY - py));
-            if (d < minEdgeDist) { minEdgeDist = d; streetIdx = ei; }
+            var ex = verts[ei][0], ey = verts[ei][1];
+            var fx = verts[ni][0], fy = verts[ni][1];
+            var sx2 = fx - ex, sy2 = fy - ey;
+            var denom = revDx * sy2 - revDy * sx2;
+            if (Math.abs(denom) < 0.001) continue;
+            var t = ((ex - lotCx3) * sy2 - (ey - lotCy3) * sx2) / denom;
+            var u2 = ((ex - lotCx3) * revDy - (ey - lotCy3) * revDx) / denom;
+            if (t > 0.01 && u2 >= 0 && u2 <= 1 && t < bestT2) {
+              bestT2 = t;
+              rearIdx = ei;
+            }
           }
-          // Rear = edge farthest from address point
-          var maxEdgeDist = -Infinity;
-          for (var ei = 0; ei < nv; ei++) {
-            if (ei === streetIdx) continue;
-            var ni = (ei + 1) % nv;
-            var mx = (verts[ei][0] + verts[ni][0]) / 2;
-            var my = (verts[ei][1] + verts[ni][1]) / 2;
-            var d = Math.sqrt((propLotX - mx) * (propLotX - mx) + (propLotY - my) * (propLotY - my));
-            if (d > maxEdgeDist) { maxEdgeDist = d; rearIdx = ei; }
-          }
-          console.log("Street edge " + streetIdx + " detected via address point proximity (" + propLotX.toFixed(1) + "," + propLotY.toFixed(1) + ") dist=" + minEdgeDist.toFixed(1) + "ft");
+          console.log("Street edge " + streetIdx + " detected via centroid->address ray. Centroid(" + lotCx3.toFixed(1) + "," + lotCy3.toFixed(1) + ") Addr(" + propLotX.toFixed(1) + "," + propLotY.toFixed(1) + ")");
         } else {
           // Fallback: lowest average Y (most southern)
           var minAvgY = Infinity, maxAvgY = -Infinity;
