@@ -1903,23 +1903,37 @@ def _overpass_building_lookup(lat, lng, radius_m=80):
     """Query Overpass API for building footprints and nearby roads near lat/lng.
     Returns list of building polygons with computed dimensions and angles,
     plus nearest road info for street edge identification."""
-    query = f"""[out:json][timeout:10];
+    query = f"""[out:json][timeout:15];
 (way["building"](around:{radius_m},{lat},{lng});
 way["highway"~"residential|tertiary|secondary|primary|unclassified|living_street|service"](around:{radius_m},{lat},{lng}););
 out body;>;out skel qt;"""
-    url = "https://overpass-api.de/api/interpreter"
-    try:
-        data_bytes = urllib.parse.urlencode({"data": query}).encode("utf-8")
-        req = urllib.request.Request(url, data=data_bytes, headers={
-            "User-Agent": "SimpleBlueprints/1.0 (permit blueprint generator)",
-            "Content-Type": "application/x-www-form-urlencoded"
-        })
-        with urllib.request.urlopen(req, timeout=12) as resp:
-            raw = resp.read().decode()
-            data = json.loads(raw)
-    except Exception as e:
-        print(f"Overpass API exception: {e}", flush=True)
-        return {"error": f"Overpass API error: {str(e)}", "buildings": [], "count": 0, "nearest_road": None}
+    # S70: Try multiple Overpass servers with retry
+    overpass_servers = [
+        "https://overpass-api.de/api/interpreter",
+        "https://overpass.kumi.systems/api/interpreter",
+    ]
+    data = None
+    last_error = None
+    for server_url in overpass_servers:
+        try:
+            data_bytes = urllib.parse.urlencode({"data": query}).encode("utf-8")
+            req = urllib.request.Request(server_url, data=data_bytes, headers={
+                "User-Agent": "SimpleBlueprints/1.0 (permit blueprint generator)",
+                "Content-Type": "application/x-www-form-urlencoded"
+            })
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                raw = resp.read().decode()
+                data = json.loads(raw)
+            print(f"Overpass OK from {server_url}", flush=True)
+            break
+        except Exception as e:
+            last_error = str(e)
+            print(f"Overpass failed on {server_url}: {e}", flush=True)
+            continue
+
+    if data is None:
+        print(f"All Overpass servers failed: {last_error}", flush=True)
+        return {"error": f"Overpass API error: {last_error}", "buildings": [], "count": 0, "nearest_road": None}
 
     elements = data.get("elements", [])
     print(f"Overpass response: {len(elements)} elements for ({lat},{lng})", flush=True)
