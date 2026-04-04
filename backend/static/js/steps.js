@@ -591,7 +591,7 @@ GUIDE_PHASES_STEP4.forEach(function(ph) { _guidePhaseMap[ph.id] = ph; });
 var _guideStep4Order = GUIDE_PHASES_STEP4.map(function(ph) { return ph.id; });
 
 // GuidePanel: embedded guide at top of wizard step
-function GuidePanel({ phase, onAction, onBack, history, onToggleOff, message, tip, chatMessages, chatLoading, onSendMessage }) {
+function GuidePanel({ phase, onAction, onBack, history, onToggleOff, message, tip, chatMessages, chatLoading, onSendMessage, onApplyActions }) {
   var ph = _guidePhaseMap[phase];
   if (!ph) return null;
 
@@ -729,7 +729,14 @@ function GuidePanel({ phase, onAction, onBack, history, onToggleOff, message, ti
               var isDismissed = msg.appliedSuggestion != null && msg.appliedSuggestion !== si;
               return <button key={si} disabled={msg.appliedSuggestion != null}
                 onClick={function() {
-                  _applyActions(sug.actions || []);
+                  var hasRecognized = sug.actions && sug.actions.length > 0 && sug.actions.some(function(a) {
+                    return a.param || a.navigate || a.siteElementUpdate || a.siteElementAdd || a.siteElementRemove || a.zoneAdd || a.cutoutAdd || a.chamferSet || a.zoneRemove;
+                  });
+                  if (hasRecognized && onApplyActions) {
+                    onApplyActions(sug.actions);
+                  } else if (onSendMessage) {
+                    onSendMessage(sug.label);
+                  }
                   setChatMessages(function(prev) {
                     var updated = prev.slice();
                     var target = Object.assign({}, updated[mi]);
@@ -1727,7 +1734,7 @@ function StepContent(props) {
         onToggleOff={function() { setGuideActive(false); }}
         message={s1Msg}
         tip={s1Tip}
-        chatMessages={chatMessages} chatLoading={chatLoading} onSendMessage={sendChatMessage}
+        chatMessages={chatMessages} chatLoading={chatLoading} onSendMessage={sendChatMessage} onApplyActions={_applyActions}
       />;
     })()}
 // {/*   Zone selector bar   */}
@@ -2421,7 +2428,7 @@ function StepContent(props) {
           onToggleOff={function() { setGuideActive(false); }}
           message={s0Msg}
           tip={s0Tip}
-          chatMessages={chatMessages} chatLoading={chatLoading} onSendMessage={sendChatMessage}
+          chatMessages={chatMessages} chatLoading={chatLoading} onSendMessage={sendChatMessage} onApplyActions={_applyActions}
         />;
       })()}
 
@@ -3311,7 +3318,7 @@ function StepContent(props) {
       onBack={guideBack}
       history={guideHistory}
       onToggleOff={function() { setGuideActive(false); }}
-      chatMessages={chatMessages} chatLoading={chatLoading} onSendMessage={sendChatMessage}
+      chatMessages={chatMessages} chatLoading={chatLoading} onSendMessage={sendChatMessage} onApplyActions={_applyActions}
     />}
     <div data-section="structure">
     <Chips label="Joist spacing" field="joistSpacing" opts={[[12, '12" O.C.'], [16, '16" O.C.'], [24, '24" O.C.']]} u={u} p={p} />
@@ -3443,7 +3450,7 @@ function StepContent(props) {
         history={guideHistory}
         onToggleOff={function() { setGuideActive(false); }}
         message={s3Msg}
-        chatMessages={chatMessages} chatLoading={chatLoading} onSendMessage={sendChatMessage}
+        chatMessages={chatMessages} chatLoading={chatLoading} onSendMessage={sendChatMessage} onApplyActions={_applyActions}
       />;
     })()}
     <div data-section="materials">
@@ -3501,7 +3508,7 @@ function StepContent(props) {
         onToggleOff={function() { setGuideActive(false); }}
         message={s4Msg}
         tip={s4Tip}
-        chatMessages={chatMessages} chatLoading={chatLoading} onSendMessage={sendChatMessage}
+        chatMessages={chatMessages} chatLoading={chatLoading} onSendMessage={sendChatMessage} onApplyActions={_applyActions}
       />;
     })()}
     <div style={{ marginBottom: 14 }}>
