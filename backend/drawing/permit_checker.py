@@ -484,21 +484,36 @@ def check_footing_bearing(params, calc, spec):
     depth = calc.get("depth", 12)
     num_posts = calc.get("num_posts", 3)
     TL = calc.get("TL", 55)
-
-    trib_area = (width / max(num_posts - 1, 1)) * depth
-    footing_load = trib_area * TL
-    required_area = footing_load / 1500  # sq ft at 1500 PSF soil bearing
-    actual_area = math.pi * (footing_diam / 24) ** 2  # diam in -> ft radius -> area
-
-    # S70: Check per-footing overrides
+    post_positions = calc.get("post_positions", [])
     footing_overrides = params.get("footingOverrides") or {}
+
+    # Compute per-post tributary widths based on position
+    # End posts carry half a bay, interior posts carry a full bay
+    beam_span = width / max(num_posts - 1, 1)
+    per_post_trib = []
+    for i in range(num_posts):
+        if num_posts == 1:
+            tw = width
+        elif i == 0 or i == num_posts - 1:
+            tw = beam_span / 2  # end post: half bay
+        else:
+            tw = beam_span  # interior post: full bay
+        per_post_trib.append(tw)
+
+    # Check each footing (global or overridden) against its specific load
     undersized_posts = []
-    for idx_str, override_diam in footing_overrides.items():
-        if override_diam is not None:
-            override_area = math.pi * (override_diam / 24) ** 2
-            if override_area < required_area * 0.9:
-                idx = int(idx_str)
-                undersized_posts.append(f"Post {idx + 1} ({override_diam}\")")
+    for i in range(num_posts):
+        idx_str = str(i)
+        diam = footing_overrides.get(idx_str, footing_overrides.get(i, footing_diam))
+        if diam is None:
+            diam = footing_diam
+        trib_area = per_post_trib[i] * depth
+        footing_load = trib_area * TL
+        required_area = footing_load / 1500  # sq ft at 1500 PSF
+        actual_area = math.pi * (diam / 24) ** 2
+        if actual_area < required_area * 0.9:
+            pos_label = f"{post_positions[i]:.0f}'" if i < len(post_positions) else f"#{i+1}"
+            undersized_posts.append(f"Post {i + 1} at {pos_label} ({diam}\" needs {math.ceil(math.sqrt(required_area / math.pi) * 24)}\")")
 
     if undersized_posts:
         return CheckResult(
@@ -506,34 +521,22 @@ def check_footing_bearing(params, calc, spec):
             category="structural", sheet="A-4", severity="warning",
             status="fail",
             message="One or more footings are undersized for soil bearing capacity.",
-            detail=(
-                f"Undersized: {', '.join(undersized_posts)}. "
-                f"Load requires {required_area:.2f} SF at 1500 PSF"
-            ),
-            fix=f"Increase undersized footing diameters to at least {footing_diam}\" in Step 2 (Customize per post).",
+            detail=f"Undersized: {'; '.join(undersized_posts)} (1500 PSF soil bearing)",
+            fix="Increase undersized footing diameters in Step 2 (Customize per post). End posts carry less load and can use smaller footings than interior posts.",
             fix_step=2,
         )
 
-    if actual_area < required_area * 0.9:
-        return CheckResult(
-            id="IRC_FOOTING_BEARING",
-            category="structural", sheet="A-4", severity="warning",
-            status="fail",
-            message="Footing may be undersized for soil bearing capacity.",
-            detail=(
-                f"{footing_diam}\" dia. = {actual_area:.2f} SF, "
-                f"load requires {required_area:.2f} SF at 1500 PSF"
-            ),
-            fix="Increase footing diameter in Step 2. Larger footings spread the load over more ground.",
-            fix_step=2,
-        )
+    # Global check for display
+    trib_area_max = beam_span * depth  # worst case (interior post)
+    required_area = trib_area_max * TL / 1500
+    actual_area = math.pi * (footing_diam / 24) ** 2
 
     return CheckResult(
         id="IRC_FOOTING_BEARING",
         category="structural", sheet="A-4", severity="warning",
         status="pass",
         message="Footing area sufficient for soil bearing.",
-        detail=f"{footing_diam}\" dia. = {actual_area:.2f} SF (need {required_area:.2f} SF)",
+        detail=f"{footing_diam}\" dia. = {actual_area:.2f} SF (need {required_area:.2f} SF for interior posts)",
     )
 
 
