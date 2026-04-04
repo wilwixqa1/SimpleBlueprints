@@ -1185,10 +1185,43 @@ function StepContent(props) {
           u("houseWidth", Math.round(primary.width));
           u("houseDepth", Math.round(primary.depth));
           u("houseAngle", primary.angle);
-          // Recompute house position with new dimensions
-          var hw2 = Math.round(primary.width);
-          var lotW2 = Math.round(data.lot.width);
-          u("houseOffsetSide", Math.max(5, Math.round((lotW2 - hw2) / 2)));
+          // S70: Use building centroid to position house on lot
+          // centroid_ft is relative to property lat/lng.
+          // Lot polygon centroid ~ property lat/lng in lot coords.
+          var lotVerts2 = data.lot.vertices;
+          if (lotVerts2 && lotVerts2.length >= 3 && primary.centroid_ft) {
+            var lotCX2 = 0, lotCY2 = 0;
+            for (var vi2 = 0; vi2 < lotVerts2.length; vi2++) {
+              lotCX2 += lotVerts2[vi2][0]; lotCY2 += lotVerts2[vi2][1];
+            }
+            lotCX2 /= lotVerts2.length; lotCY2 /= lotVerts2.length;
+            // Building center in lot coordinates
+            var bldgCX = lotCX2 + primary.centroid_ft[0];
+            var bldgCY = lotCY2 + primary.centroid_ft[1];
+            // houseDistFromStreet = Y of house bottom edge
+            var newDist = Math.max(5, Math.round(bldgCY - primary.depth / 2));
+            u("houseDistFromStreet", newDist);
+            // houseOffsetSide is relative to left polygon edge at house Y
+            // Find left edge at building center Y
+            var leftX2 = 0, minLX = Infinity;
+            for (var ei3 = 0; ei3 < lotVerts2.length; ei3++) {
+              var a3 = lotVerts2[ei3], b3 = lotVerts2[(ei3 + 1) % lotVerts2.length];
+              var yLo3 = Math.min(a3[1], b3[1]), yHi3 = Math.max(a3[1], b3[1]);
+              if (bldgCY < yLo3 || bldgCY > yHi3 || yLo3 === yHi3) continue;
+              var t3 = (bldgCY - a3[1]) / (b3[1] - a3[1]);
+              var xAt3 = a3[0] + t3 * (b3[0] - a3[0]);
+              if (xAt3 < minLX) minLX = xAt3;
+            }
+            leftX2 = minLX === Infinity ? 0 : minLX;
+            var newOffset = Math.max(0, Math.round(bldgCX - primary.width / 2 - leftX2));
+            u("houseOffsetSide", newOffset);
+            console.log("House positioned from OSM centroid: lot(" + bldgCX.toFixed(1) + "," + bldgCY.toFixed(1) + ") offset=" + newOffset + " dist=" + newDist);
+          } else {
+            // Fallback: center house horizontally
+            var hw2 = Math.round(primary.width);
+            var lotW2 = Math.round(data.lot.width);
+            u("houseOffsetSide", Math.max(5, Math.round((lotW2 - hw2) / 2)));
+          }
           console.log("Building footprint applied:", primary.width + "x" + primary.depth, "angle=" + primary.angle + "deg", "area=" + primary.area_sqft + "sqft");
           if (window._trackEvent) window._trackEvent('building_footprint', { width: primary.width, depth: primary.depth, angle: primary.angle, area: primary.area_sqft, osm_id: primary.osm_id });
         })
