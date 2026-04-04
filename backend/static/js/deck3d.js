@@ -187,7 +187,7 @@ window.buildDeckScene = function(scene, p, c, THREE) {
     else if (_ang === 90)  _wbb = { xMin: _wax + _bb.minY, xMax: _wax + _bb.maxY, zMin: _waz - _bb.maxX, zMax: _waz - _bb.minX };
     else if (_ang === 180) _wbb = { xMin: _wax - _bb.maxX, xMax: _wax - _bb.minX, zMin: _waz - _bb.maxY, zMax: _waz - _bb.minY };
     else if (_ang === 270) _wbb = { xMin: _wax - _bb.maxY, xMax: _wax - _bb.minY, zMin: _waz + _bb.minX, zMax: _waz + _bb.maxX };
-    allStairWBBs.push(_wbb);
+    allStairWBBs.push({ xMin: _wbb.xMin, xMax: _wbb.xMax, zMin: _wbb.zMin, zMax: _wbb.zMax, zoneId: stairDef.zoneId });
     resolvedStairs.push({ def: stairDef, zoneRect: zr, sg: _sg, stPl: _stPl, exitSide: _exit,
       wbb: _wbb, wax: _wax, waz: _waz, zwx: _zwx, zwz: _zwz, stW: stairDef.width || 4 });
   });
@@ -501,10 +501,11 @@ window.buildDeckScene = function(scene, p, c, THREE) {
         }
       }
 
-      // S64: Check ALL stair world bboxes for board gaps (handles all zones)
+      // S64: Check ALL stair world bboxes for board gaps (handles non-zone-0 stairs)
       var _stairCut = false;
       for (var _si = 0; _si < allStairWBBs.length; _si++) {
         var _swb = allStairWBBs[_si];
+        if (_swb.zoneId === 0) continue; // zone 0 handled by frontGap/leftGap/rightGap
         if (bx > _swb.xMin + 0.02 && bx < _swb.xMax - 0.02 &&
             _bZe > _swb.zMin + 0.02 && _bZs < _swb.zMax - 0.02) {
           addDeckBoard(bx, _bZs, _swb.zMin);
