@@ -1124,9 +1124,9 @@ function StepContent(props) {
           // S70: Use nearest road to correct street edge identification
           if (bldg.nearest_road && bldg.nearest_road.bearing !== undefined) {
             var roadBearing = bldg.nearest_road.bearing; // degrees from north, clockwise
-            var curVerts = p.lotVertices;
-            var curEdges = p.lotEdges;
-            if (curVerts && curEdges && curVerts.length >= 3) {
+            // Use 'verts' from parcel closure, not p.lotVertices (stale React state)
+            var curVerts = verts;
+            if (curVerts && curVerts.length >= 3) {
               var nv2 = curVerts.length;
               // Compute lot centroid
               var cxL = 0, cyL = 0;
