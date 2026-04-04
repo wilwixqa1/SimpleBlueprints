@@ -1227,6 +1227,55 @@ function StepContent(props) {
             console.log("House positioned from fallback (centered, 30% setback)");
           }
           console.log("Building footprint applied:", primary.width + "x" + primary.depth, "angle=" + primary.angle + "deg", "area=" + primary.area_sqft + "sqft");
+          // S70: Auto-add secondary structures (sheds, garages) as site elements
+          // Use position relative to primary building (internally consistent in Overpass)
+          var osmTypeMap = { "shed": "shed", "garage": "garage", "garages": "garage", "carport": "garage" };
+          var newElements = (p.siteElements || []).slice(); // copy existing
+          var addedCount = 0;
+          var primaryCF = primary.centroid_ft;
+          // Compute house center in lot coords from the positioning we just did
+          var hcDistFS = parseInt(p.houseDistFromStreet) || 25;
+          var hcOffS = parseInt(p.houseOffsetSide) || 10;
+          // We need the actual house center X in lot space
+          // houseOffsetSide is relative to left polygon edge, so we need leftEdge
+          // For simplicity, approximate house center Y from dist + depth/2
+          for (var bi2 = 0; bi2 < bldg.buildings.length; bi2++) {
+            var b2 = bldg.buildings[bi2];
+            if (b2.osm_id === primary.osm_id) continue; // skip primary
+            var mappedType = osmTypeMap[b2.type];
+            if (!mappedType && b2.area_sqft < 300 && b2.type !== "detached" && b2.type !== "house" && b2.type !== "residential") {
+              mappedType = "shed"; // small unlabeled structure = likely shed
+            }
+            if (!mappedType) continue;
+            if (b2.area_sqft < 20 || b2.area_sqft > 2000) continue; // skip tiny or huge
+            // Position relative to primary building
+            var dx2 = b2.centroid_ft[0] - primaryCF[0];
+            var dy2 = b2.centroid_ft[1] - primaryCF[1];
+            // Map to lot coords: house center + relative offset
+            // House center in lot: we used centering, so approximate
+            var houseCX2 = (leftX2 || 0) + (widthAtY || lotW2) / 2;
+            var houseCY2 = (newDist || 25) + hd2 / 2;
+            var elX = Math.max(0, Math.round(houseCX2 + dx2 - b2.width / 2));
+            var elY = Math.max(0, Math.round(houseCY2 + dy2 - b2.depth / 2));
+            var elId = "osm_" + b2.osm_id;
+            // Don't add duplicates
+            if (newElements.some(function(e) { return e.id === elId; })) continue;
+            newElements.push({
+              id: elId,
+              type: mappedType,
+              label: mappedType.toUpperCase(),
+              x: elX,
+              y: elY,
+              w: Math.round(b2.width),
+              d: Math.round(b2.depth)
+            });
+            addedCount++;
+            console.log("Auto-added " + mappedType + ": " + b2.width + "x" + b2.depth + " at (" + elX + "," + elY + ") from OSM " + b2.osm_id);
+          }
+          if (addedCount > 0) {
+            u("siteElements", newElements);
+            console.log("Added " + addedCount + " site elements from OSM building data");
+          }
           if (window._trackEvent) window._trackEvent('building_footprint', { width: primary.width, depth: primary.depth, angle: primary.angle, area: primary.area_sqft, osm_id: primary.osm_id });
         })
         .catch(function(err) {
