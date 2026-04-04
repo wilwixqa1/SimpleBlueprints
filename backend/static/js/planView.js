@@ -249,7 +249,7 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
 
       {/* House */}
       <rect x={hx} y={pad - 50} width={hw} height={50} fill="#e8e6e0" stroke="#444" strokeWidth="1.2" rx="1" />
-      <text x={houseCx} y={pad - 25} textAnchor="middle" style={{ fontSize: 8, fill: "#999", fontFamily: "monospace", fontWeight: 600, letterSpacing: "1px" }}>EXISTING HOUSE</text>
+      <text x={houseCx} y={pad - 25} textAnchor="middle" style={{ fontSize: 11, fill: "#999", fontFamily: "monospace", fontWeight: 600, letterSpacing: "1px" }}>EXISTING HOUSE</text>
 
 // {/*   Composite deck surface   */}
       {composite.map(function(r, i) {
@@ -296,7 +296,7 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
           <rect x={zx(r.x)} y={zy(r.y)} width={r.w * sc} height={r.d * sc}
             fill="none" stroke={isActive ? "#dc2626" : "#e88"} strokeWidth={isActive ? 2 : 1.2} strokeDasharray={isActive ? "none" : "3,2"} />
           <text x={zx(r.x) + r.w * sc / 2} y={zy(r.y) + r.d * sc / 2 + 2} textAnchor="middle"
-            style={{ fontSize: 5, fill: "#dc2626", fontFamily: "monospace", fontWeight: 700 }}>{a.zone.label || "CUT"}</text>
+            style={{ fontSize: 7, fill: "#dc2626", fontFamily: "monospace", fontWeight: 700 }}>{a.zone.label || "CUT"}</text>
         </g>;
       })}
 
@@ -304,7 +304,7 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
       {hasZones && addRects.filter(function(a) { return a.id > 0; }).map(function(a) {
         var r = a.rect, isActive = a.id === p.activeZone;
         return <text key={"zlbl" + a.id} x={zx(r.x) + 4} y={zy(r.y) + 10}
-          style={{ fontSize: 5.5, fill: isActive ? "#2563eb" : "#888", fontFamily: "monospace", fontWeight: 700 }}>
+          style={{ fontSize: 7, fill: isActive ? "#2563eb" : "#888", fontFamily: "monospace", fontWeight: 700 }}>
           {a.zone.label || "Zone " + a.id}
         </text>;
       })}
@@ -312,7 +312,7 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
       {/* Deck drag handle */}
       {u && mode === "plan" && zoneMode === "select" && <g style={{ cursor: "ew-resize" }} onPointerDown={e => onPointerDown(e, "deck")}>
         <rect x={dx + sw / 2 - 15} y={pad - 3} width={30} height={6} rx={3} fill="#3d5a2e" opacity="0.7" />
-        <text x={dx + sw / 2} y={pad + 1} textAnchor="middle" style={{ fontSize: 4, fill: "#fff", fontFamily: "monospace", fontWeight: 700, pointerEvents: "none" }}>{"\u25C4"} DRAG {"\u25BA"}</text>
+        <text x={dx + sw / 2} y={pad + 1} textAnchor="middle" style={{ fontSize: 5.5, fill: "#fff", fontFamily: "monospace", fontWeight: 700, pointerEvents: "none" }}>{"\u25C4"} DRAG {"\u25BA"}</text>
       </g>}
 
       {/* Decking lines (clipped to composite) */}
@@ -324,19 +324,19 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
 
       {/* Ledger */}
       {c.attachment === "ledger" && <><line x1={dx} y1={pad} x2={dx + sw} y2={pad} stroke="#2e7d32" strokeWidth="3.5" style={{ pointerEvents: "none" }} />
-        <text x={dx + sw / 2} y={pad - 5} textAnchor="middle" style={{ fontSize: 5, fill: "#2e7d32", fontWeight: 700, fontFamily: "monospace", pointerEvents: "none" }}>LEDGER</text></>}
+        <text x={dx + sw / 2} y={pad - 5} textAnchor="middle" style={{ fontSize: 7, fill: "#2e7d32", fontWeight: 700, fontFamily: "monospace", pointerEvents: "none" }}>LEDGER</text></>}
 
       {/* Framing (zone 0 only for now) */}
       {mode === "framing" && <>
         {jLines.map((x, i) => <line key={i} x1={dx + x} y1={pad + 1} x2={dx + x} y2={pad + bY} stroke="#bbb" strokeWidth="0.4" />)}
         <line x1={dx + 1 * sc} y1={pad + bY} x2={dx + sw - 1 * sc} y2={pad + bY} stroke="#c4960a" strokeWidth="4" strokeLinecap="round" />
-        <text x={dx + sw / 2} y={pad + bY - 6} textAnchor="middle" style={{ fontSize: 5.5, fill: "#9a7a00", fontWeight: 700, fontFamily: "monospace" }}>{c.beamSize.toUpperCase()}</text>
-        <text x={dx + sw / 2} y={pad + sd / 2 - 4} textAnchor="middle" style={{ fontSize: 7, fill: "#888", fontFamily: "monospace" }}>{c.joistSize} @ {c.sp}" O.C.</text>
-        {c.pp.map(function(px, i) { var _ph = (c.postHeights || [])[i]; var _showPh = (p.slopePercent || 0) > 0 && _ph !== undefined; return <g key={i}><circle cx={dx + px * sc} cy={pad + bY} r={4.5} fill="#c4a060" stroke="#444" strokeWidth="1" /><circle cx={dx + px * sc} cy={pad + bY} r={9} fill="none" stroke="#444" strokeWidth="0.4" strokeDasharray="2,2" />{_showPh && <><rect x={dx + px * sc - 14} y={pad + bY + 12} width={28} height={10} rx={2} fill="#f5e6c8" stroke="#c4960a" strokeWidth="0.5" /><text x={dx + px * sc} y={pad + bY + 19} textAnchor="middle" style={{fontSize:5.5,fill:"#8b6914",fontFamily:"monospace",fontWeight:700}}>{window.fmtFtIn(_ph)}</text></>}</g>; })}
+        <text x={dx + sw / 2} y={pad + bY - 6} textAnchor="middle" style={{ fontSize: 7.5, fill: "#9a7a00", fontWeight: 700, fontFamily: "monospace" }}>{c.beamSize.toUpperCase()}</text>
+        <text x={dx + sw / 2} y={pad + sd / 2 - 4} textAnchor="middle" style={{ fontSize: 9, fill: "#888", fontFamily: "monospace" }}>{c.joistSize} @ {c.sp}" O.C.</text>
+        {c.pp.map(function(px, i) { var _ph = (c.postHeights || [])[i]; var _showPh = (p.slopePercent || 0) > 0 && _ph !== undefined; return <g key={i}><circle cx={dx + px * sc} cy={pad + bY} r={4.5} fill="#c4a060" stroke="#444" strokeWidth="1" /><circle cx={dx + px * sc} cy={pad + bY} r={9} fill="none" stroke="#444" strokeWidth="0.4" strokeDasharray="2,2" />{_showPh && <><rect x={dx + px * sc - 14} y={pad + bY + 12} width={28} height={10} rx={2} fill="#f5e6c8" stroke="#c4960a" strokeWidth="0.5" /><text x={dx + px * sc} y={pad + bY + 19} textAnchor="middle" style={{fontSize:7,fill:"#8b6914",fontFamily:"monospace",fontWeight:700}}>{window.fmtFtIn(_ph)}</text></>}</g>; })}
       </>}
 
       {/* Area label */}
-      {mode === "plan" && <text x={dx + sw / 2} y={pad + sd / 2 + 3} textAnchor="middle" style={{ fontSize: 10, fill: "#666", fontFamily: "monospace", fontWeight: 700 }}>{totalArea} S.F.</text>}
+      {mode === "plan" && <text x={dx + sw / 2} y={pad + sd / 2 + 3} textAnchor="middle" style={{ fontSize: 13, fill: "#666", fontFamily: "monospace", fontWeight: 700 }}>{totalArea} S.F.</text>}
 
       {/* Rim joist outlines (zone 0 edges) */}
       {[[dx, pad, dx, pad + sd], [dx, pad + sd, dx + sw, pad + sd], [dx + sw, pad, dx + sw, pad + sd]].map(([x1, y1, x2, y2], i) => (
@@ -395,7 +395,7 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
             for (let si = 0; si < run.nStringers; si++) { const f = run.nStringers>1?si/(run.nStringers-1):0.5; els.push(<line key={"s"+ri+"_"+si} x1={tr.x} y1={tr.y+f*tr.h} x2={tr.x+tr.w} y2={tr.y+f*tr.h} stroke="#999" strokeWidth="0.3" strokeDasharray="2,2" />); }
           }
           const cx2=tr.x+tr.w/2, cy2=tr.y+tr.h/2;
-          els.push(<text key={"dn"+ri} x={cx2} y={cy2-1} textAnchor="middle" style={{ fontSize: 5.5, fill: "#444", fontFamily: "monospace", fontWeight: 700 }}>DN</text>);
+          els.push(<text key={"dn"+ri} x={cx2} y={cy2-1} textAnchor="middle" style={{ fontSize: 7, fill: "#444", fontFamily: "monospace", fontWeight: 700 }}>DOWN</text>);
           const dd = transformDir(run.downDir), as2 = 3, ay2 = cy2 + 4;
           if (dd==="+y") els.push(<polygon key={"ar"+ri} points={(cx2-as2)+","+ay2+" "+cx2+","+(ay2+as2)+" "+(cx2+as2)+","+ay2} fill="#666" />);
           else if (dd==="-y") els.push(<polygon key={"ar"+ri} points={(cx2-as2)+","+ay2+" "+cx2+","+(ay2-as2)+" "+(cx2+as2)+","+ay2} fill="#666" />);
@@ -405,7 +405,7 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
         stairGeom.landings.forEach((landing, li) => {
           const tr = txRect(landing.rect);
           els.push(<rect key={"land"+li} x={tr.x} y={tr.y} width={tr.w} height={tr.h} fill="#e8e6d8" stroke="#444" strokeWidth="1" strokeDasharray="4,2" />);
-          els.push(<text key={"ltxt"+li} x={tr.x+tr.w/2} y={tr.y+tr.h/2+2} textAnchor="middle" style={{ fontSize: 5, fill: "#666", fontFamily: "monospace", fontWeight: 600 }}>LANDING</text>);
+          els.push(<text key={"ltxt"+li} x={tr.x+tr.w/2} y={tr.y+tr.h/2+2} textAnchor="middle" style={{ fontSize: 7, fill: "#666", fontFamily: "monospace", fontWeight: 600 }}>LANDING</text>);
           landing.posts.forEach((pt, pi) => {
             const [px2, py2] = txPt(pt[0], pt[1]);
             els.push(<circle key={"lp"+li+"_"+pi} cx={px2} cy={py2} r={2.5} fill="#c4a060" stroke="#444" strokeWidth="0.6" />);
@@ -414,7 +414,7 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
         });
         const names = { straight:"Straight", lLeft:"L-Left", lRight:"L-Right", switchback:"Switchback", wrapAround:"Wrap-Around", wideLanding:"Platform" };
         const labelPt = txPt(0, stairGeom.bbox.maxY + 2);
-        els.push(<text key="stlbl" x={labelPt[0]} y={labelPt[1]} textAnchor="middle" style={{ fontSize: 5.5, fill: "#7a8068", fontFamily: "monospace", fontWeight: 600 }}>{names[stairGeom.template]} {"\u00B7"} {stairGeom.totalRisers} risers {"\u00B7"} {stairGeom.stairWidth}' wide {"\u00B7"} {stairGeom.runs.length} run{stairGeom.runs.length>1?"s":""}</text>);
+        els.push(<text key="stlbl" x={labelPt[0]} y={labelPt[1]} textAnchor="middle" style={{ fontSize: 7, fill: "#7a8068", fontFamily: "monospace", fontWeight: 600 }}>{names[stairGeom.template]} {"\u00B7"} {stairGeom.totalRisers} risers {"\u00B7"} {stairGeom.stairWidth}' wide {"\u00B7"} {stairGeom.runs.length} run{stairGeom.runs.length>1?"s":""}</text>);
         // S64: Per-stair drag handle
         if (updateStair && mode === "plan" && zoneMode === "select") {
           var _bb = stairGeom.bbox;
@@ -428,7 +428,7 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
             onClick={function(ev) { ev.stopPropagation(); }} />);
           if (_isSel) {
             var _lbl = { front: "Front", left: "Left", right: "Right" }[stairDef.location] || "";
-            els.push(<text key="selLbl" x={_bbR.x + _bbR.w / 2} y={_bbR.y - 4} textAnchor="middle" style={{ fontSize: 5, fill: "#3d5a2e", fontFamily: "monospace", fontWeight: 700, pointerEvents: "none" }}>{"Stair " + stairDef.id + " \u00B7 " + _lbl}</text>);
+            els.push(<text key="selLbl" x={_bbR.x + _bbR.w / 2} y={_bbR.y - 4} textAnchor="middle" style={{ fontSize: 7, fill: "#3d5a2e", fontFamily: "monospace", fontWeight: 700, pointerEvents: "none" }}>{"Stair " + stairDef.id + " \u00B7 " + _lbl}</text>);
             // Rotation handle
             var _rcx = _bbR.x + _bbR.w / 2, _rcy = _bbR.y + _bbR.h / 2;
             var _rhy = _bbR.y - 14, _hr = 6;
@@ -448,11 +448,11 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
       <line x1={dx} y1={pad + sd + 25} x2={dx + sw} y2={pad + sd + 25} stroke="#c62828" strokeWidth="0.6" />
       <line x1={dx} y1={pad + sd + 22} x2={dx} y2={pad + sd + 28} stroke="#c62828" strokeWidth="0.6" />
       <line x1={dx + sw} y1={pad + sd + 22} x2={dx + sw} y2={pad + sd + 28} stroke="#c62828" strokeWidth="0.6" />
-      <text x={dx + sw / 2} y={pad + sd + 37} textAnchor="middle" style={{ fontSize: 9, fill: "#c62828", fontWeight: 800, fontFamily: "'DM Mono', monospace" }}>{window.fmtFtIn(c.W)}</text>
+      <text x={dx + sw / 2} y={pad + sd + 37} textAnchor="middle" style={{ fontSize: 12, fill: "#c62828", fontWeight: 800, fontFamily: "'DM Mono', monospace" }}>{window.fmtFtIn(c.W)}</text>
       <line x1={dx + sw + 20} y1={pad} x2={dx + sw + 20} y2={pad + sd} stroke="#1565c0" strokeWidth="0.6" />
       <line x1={dx + sw + 17} y1={pad} x2={dx + sw + 23} y2={pad} stroke="#1565c0" strokeWidth="0.6" />
       <line x1={dx + sw + 17} y1={pad + sd} x2={dx + sw + 23} y2={pad + sd} stroke="#1565c0" strokeWidth="0.6" />
-      <text x={dx + sw + 32} y={pad + sd / 2 + 3} textAnchor="middle" style={{ fontSize: 9, fill: "#1565c0", fontWeight: 800, fontFamily: "'DM Mono', monospace" }} transform={`rotate(90, ${dx + sw + 32}, ${pad + sd / 2})`}>{window.fmtFtIn(c.D)}</text>
+      <text x={dx + sw + 32} y={pad + sd / 2 + 3} textAnchor="middle" style={{ fontSize: 12, fill: "#1565c0", fontWeight: 800, fontFamily: "'DM Mono', monospace" }} transform={`rotate(90, ${dx + sw + 32}, ${pad + sd / 2})`}>{window.fmtFtIn(c.D)}</text>
 
 // {/*   Add zone buttons   */}
       {addBtns.map(function(b) {
@@ -495,7 +495,7 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
       })}
 
       {/* Compass */}
-      <g transform={`translate(${svgW - 28}, 25) rotate(${p.northAngle || 0}, 0, 7)`}><line x1="0" y1="14" x2="0" y2="0" stroke="#444" strokeWidth="1.5" /><polygon points="-3.5,4 0,0 3.5,4" fill="#444" /><text x="0" y="-4" textAnchor="middle" style={{ fontSize: 7, fontWeight: 800, fill: "#444" }}>N</text></g>
+      <g transform={`translate(${svgW - 28}, 25) rotate(${p.northAngle || 0}, 0, 7)`}><line x1="0" y1="14" x2="0" y2="0" stroke="#444" strokeWidth="1.5" /><polygon points="-3.5,4 0,0 3.5,4" fill="#444" /><text x="0" y="-4" textAnchor="middle" style={{ fontSize: 9, fontWeight: 800, fill: "#444" }}>N</text></g>
     </svg>
   );
 }

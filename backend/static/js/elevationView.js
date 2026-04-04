@@ -86,7 +86,7 @@ function ElevationView({ c, p }) {
     return (
       <g opacity="0.5">
         <rect x={hcx} y={hcy} width={hw} height={hh} fill="#e8e6e0" stroke="#999" strokeWidth="0.3" />
-        <text x={hcx + hw/2} y={hcy + hh/2 + 1.2} textAnchor="middle" style={{ fontSize: 2.5, fill: "#aaa", fontFamily: "monospace" }}>H</text>
+        <text x={hcx + hw/2} y={hcy + hh/2 + 1.2} textAnchor="middle" style={{ fontSize: 3.5, fill: "#aaa", fontFamily: "monospace" }}>H</text>
         <rect x={dcx} y={dcy} width={dw} height={dd} fill="none" stroke="#666" strokeWidth="0.4" />
         <line x1={hlX1} y1={hlY1} x2={hlX2} y2={hlY2} stroke="#c62828" strokeWidth="1.2" />
         <line x1={ax1} y1={ay1} x2={ax2} y2={ay2} stroke="#c62828" strokeWidth="0.6" />
@@ -343,12 +343,12 @@ function ElevationView({ c, p }) {
     if (!isSide && !isRear) {
       // South view: show ABU66Z at first post, beam connector type
       var firstPx = z0X + (pp[0] || 1.5) * sX;
-      hwEls.push(<text key="hw1" x={firstPx - 8} y={gnd + 8} textAnchor="end" style={{fontSize:3,fill:"#666",fontFamily:"monospace"}}>ABU66Z</text>);
+      hwEls.push(<text key="hw1" x={firstPx - 8} y={gnd + 8} textAnchor="end" style={{fontSize:4.5,fill:"#666",fontFamily:"monospace"}}>ABU66Z</text>);
       hwEls.push(<line key="hw1l" x1={firstPx - 7} y1={gnd + 7} x2={firstPx - 1} y2={gnd + 1} stroke="#999" strokeWidth="0.3" />);
       // Beam connector
       var beamLabel = p.beamType === "flush" ? "LUS210 (TYP)" : "H2.5A (TYP)";
       var bmLblX = z0X + z0W * 0.35;
-      hwEls.push(<text key="hw2" x={bmLblX + 12} y={dY + bH + 5} textAnchor="start" style={{fontSize:3,fill:"#666",fontFamily:"monospace"}}>{beamLabel}</text>);
+      hwEls.push(<text key="hw2" x={bmLblX + 12} y={dY + bH + 5} textAnchor="start" style={{fontSize:4.5,fill:"#666",fontFamily:"monospace"}}>{beamLabel}</text>);
       hwEls.push(<line key="hw2l" x1={bmLblX + 11} y1={dY + bH + 4} x2={bmLblX + 2} y2={dY + bH * 0.5 + 1} stroke="#999" strokeWidth="0.3" />);
     }
 
@@ -381,7 +381,7 @@ function ElevationView({ c, p }) {
             return <line key={"gl"+si} x1={seg[0]} y1={gradeYatX(seg[0])} x2={seg[1]} y2={gradeYatX(seg[1])} stroke="#444" strokeWidth="0.8" />;
           })}
           {Array.from({length:Math.ceil((svgW-20)/2.5)},function(_,i){var hx=pad-10+i*2.5;if(hx>=houseL&&hx<=houseR)return null;var gy=gradeYatX(hx);return <line key={i} x1={hx} y1={gy} x2={hx-2} y2={gy+1.5} stroke="#888" strokeWidth="0.25" />;})}
-          {slopePct > 0 && gradeSign !== 0 ? <text x={gradeLineX2-5} y={gradeRY-3} textAnchor="end" style={{fontSize:4,fill:"#666",fontFamily:"monospace",fontWeight:600}}>APPROX. {(slopePct*100).toFixed(1)}% GRADE</text> : <text x={gradeLineX2-5} y={gradeRY-3} textAnchor="end" style={{fontSize:3.5,fill:"#999",fontFamily:"monospace",fontStyle:"italic"}}>APPROX. GRADE</text>}
+          {slopePct > 0 && gradeSign !== 0 ? <text x={gradeLineX2-5} y={gradeRY-3} textAnchor="end" style={{fontSize:5.5,fill:"#666",fontFamily:"monospace",fontWeight:600}}>APPROX. {(slopePct*100).toFixed(1)}% GRADE</text> : <text x={gradeLineX2-5} y={gradeRY-3} textAnchor="end" style={{fontSize:5,fill:"#999",fontFamily:"monospace",fontStyle:"italic"}}>APPROX. GRADE</text>}
 
           {/* === LAYER 3: House (ON TOP of earth, foundation polygon follows grade) === */}
           {(() => {
@@ -428,7 +428,7 @@ function ElevationView({ c, p }) {
             els.push(<polygon key="hroof" points={`${hX-overhang},${hTop} ${hX+hW/2},${hTop-roofPk} ${hX+hW+overhang},${hTop}`} fill="#888" stroke="#444" strokeWidth="0.8" />);
 
             // 3g. Label
-            els.push(<text key="hlabel" x={hX+hW/2} y={hTop + sidingH*0.4} textAnchor="middle" style={{fontSize: showWidth ? 4 : 3.5, fill:"#aaa", fontFamily:"monospace"}}>EXISTING HOUSE</text>);
+            els.push(<text key="hlabel" x={hX+hW/2} y={hTop + sidingH*0.4} textAnchor="middle" style={{fontSize: showWidth ? 5.5 : 5, fill:"#aaa", fontFamily:"monospace"}}>EXISTING HOUSE</text>);
 
             return els;
           })()}
@@ -451,7 +451,7 @@ function ElevationView({ c, p }) {
           {isRear && isLedger && <>
             <line x1={z0X} y1={dY} x2={z0X+z0W} y2={dY} stroke="#2e7d32" strokeWidth="2" />
             <line x1={z0X} y1={dY+bH*0.7} x2={z0X+z0W} y2={dY+bH*0.7} stroke="#2e7d32" strokeWidth="1" strokeOpacity="0.5" />
-            <text x={z0X+z0W/2} y={dY+bH*0.4} textAnchor="middle" style={{ fontSize: 3.5, fill: "#2e7d32", fontFamily: "monospace", fontWeight: 700 }}>LEDGER</text>
+            <text x={z0X+z0W/2} y={dY+bH*0.4} textAnchor="middle" style={{ fontSize: 5, fill: "#2e7d32", fontFamily: "monospace", fontWeight: 700 }}>LEDGER</text>
           </>}
           {isSide && isLedger && (() => {
             const lx = viewDir === "east" ? dX : dX + dSW;
@@ -479,17 +479,17 @@ function ElevationView({ c, p }) {
           <line x1={dX-8} y1={gnd} x2={dX-8} y2={dY} stroke="#1565c0" strokeWidth="0.4" />
           <line x1={dX-10} y1={gnd} x2={dX-6} y2={gnd} stroke="#1565c0" strokeWidth="0.4" />
           <line x1={dX-10} y1={dY} x2={dX-6} y2={dY} stroke="#1565c0" strokeWidth="0.4" />
-          <text x={dX-12} y={(gnd+dY)/2+2} textAnchor="middle" transform={`rotate(-90,${dX-12},${(gnd+dY)/2})`} style={{ fontSize: 5.5, fill: "#1565c0", fontWeight: 700, fontFamily: "monospace" }}>{window.fmtFtIn(H)}</text>
+          <text x={dX-12} y={(gnd+dY)/2+2} textAnchor="middle" transform={`rotate(-90,${dX-12},${(gnd+dY)/2})`} style={{ fontSize: 7.5, fill: "#1565c0", fontWeight: 700, fontFamily: "monospace" }}>{window.fmtFtIn(H)}</text>
 
           {/* Width dimension - uses dX/dSW (spans full bounding box) */}
           <line x1={dX} y1={rTop-6} x2={dX+dSW} y2={rTop-6} stroke="#c62828" strokeWidth="0.4" />
           <line x1={dX} y1={rTop-8} x2={dX} y2={rTop-4} stroke="#c62828" strokeWidth="0.4" />
           <line x1={dX+dSW} y1={rTop-8} x2={dX+dSW} y2={rTop-4} stroke="#c62828" strokeWidth="0.4" />
-          <text x={dX+dSW/2} y={rTop-9} textAnchor="middle" style={{ fontSize: 5.5, fill: "#c62828", fontWeight: 700, fontFamily: "monospace" }}>{window.fmtFtIn(spanFt)}</text>
+          <text x={dX+dSW/2} y={rTop-9} textAnchor="middle" style={{ fontSize: 7.5, fill: "#c62828", fontWeight: 700, fontFamily: "monospace" }}>{window.fmtFtIn(spanFt)}</text>
 
           {/* Architectural label + compass direction */}
-          <text x={svgW/2} y={svgH-10} textAnchor="middle" style={{ fontSize: 5.5, fill: "#333", fontFamily: "monospace", fontWeight: 800, letterSpacing: 0.8 }}>{label}</text>
-          <text x={svgW/2} y={svgH-3} textAnchor="middle" style={{ fontSize: 3.5, fill: "#999", fontFamily: "monospace", letterSpacing: 0.5 }}>({viewDir.toUpperCase()})</text>
+          <text x={svgW/2} y={svgH-10} textAnchor="middle" style={{ fontSize: 7.5, fill: "#333", fontFamily: "monospace", fontWeight: 800, letterSpacing: 0.8 }}>{label}</text>
+          <text x={svgW/2} y={svgH-3} textAnchor="middle" style={{ fontSize: 5, fill: "#999", fontFamily: "monospace", letterSpacing: 0.5 }}>({viewDir.toUpperCase()})</text>
         </svg>
       </div>
     );
