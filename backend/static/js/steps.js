@@ -1059,41 +1059,6 @@ function StepContent(props) {
           }
           console.log("Street edge " + streetIdx + " detected via lowest-Y fallback");
         }
-        // If Realie provides frontage length, validate against detected edge
-        var realieFrontage = data.lot.frontage || 0;
-        if (realieFrontage > 0) {
-          var streetNi = (streetIdx + 1) % nv;
-          var streetEdx = verts[streetNi][0] - verts[streetIdx][0];
-          var streetEdy = verts[streetNi][1] - verts[streetIdx][1];
-          var streetLen = Math.sqrt(streetEdx * streetEdx + streetEdy * streetEdy);
-          // If detected street edge length is way off from frontage, try to find better match
-          if (Math.abs(streetLen - realieFrontage) > 10) {
-            var bestMatch = -1, bestDiff = Infinity;
-            for (var ei = 0; ei < nv; ei++) {
-              var ni = (ei + 1) % nv;
-              var edx = verts[ni][0] - verts[ei][0], edy = verts[ni][1] - verts[ei][1];
-              var elen = Math.sqrt(edx * edx + edy * edy);
-              var diff = Math.abs(elen - realieFrontage);
-              if (diff < bestDiff) { bestDiff = diff; bestMatch = ei; }
-            }
-            if (bestMatch >= 0 && bestDiff < 5) {
-              streetIdx = bestMatch;
-              rearIdx = 0; maxEdgeDist = -Infinity;
-              for (var ei = 0; ei < nv; ei++) {
-                if (ei === streetIdx) continue;
-                var ni = (ei + 1) % nv;
-                var mx = (verts[ei][0] + verts[ni][0]) / 2;
-                var my = (verts[ei][1] + verts[ni][1]) / 2;
-                var lotCx = 0, lotCy = 0;
-                for (var vi3 = 0; vi3 < nv; vi3++) { lotCx += verts[vi3][0]; lotCy += verts[vi3][1]; }
-                lotCx /= nv; lotCy /= nv;
-                var d = Math.sqrt((lotCx - mx) * (lotCx - mx) + (lotCy - my) * (lotCy - my));
-                if (d > maxEdgeDist) { maxEdgeDist = d; rearIdx = ei; }
-              }
-              console.log("Street edge corrected to " + streetIdx + " via frontage match (" + realieFrontage + "ft)");
-            }
-          }
-        }
         var edges = [];
         for (var ei = 0; ei < nv; ei++) {
           var ni = (ei + 1) % nv;
