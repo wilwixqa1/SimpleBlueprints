@@ -395,7 +395,7 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
             for (let si = 0; si < run.nStringers; si++) { const f = run.nStringers>1?si/(run.nStringers-1):0.5; els.push(<line key={"s"+ri+"_"+si} x1={tr.x} y1={tr.y+f*tr.h} x2={tr.x+tr.w} y2={tr.y+f*tr.h} stroke="#999" strokeWidth="0.3" strokeDasharray="2,2" />); }
           }
           const cx2=tr.x+tr.w/2, cy2=tr.y+tr.h/2;
-          els.push(<text key={"dn"+ri} x={cx2} y={cy2-1} textAnchor="middle" style={{ fontSize: 7, fill: "#444", fontFamily: "monospace", fontWeight: 700 }}>DOWN</text>);
+          els.push(<text key={"dn"+ri} x={cx2} y={cy2-4} textAnchor="middle" style={{ fontSize: 6, fill: "#444", fontFamily: "monospace", fontWeight: 700 }}>DN</text>);
           const dd = transformDir(run.downDir), as2 = 3, ay2 = cy2 + 4;
           if (dd==="+y") els.push(<polygon key={"ar"+ri} points={(cx2-as2)+","+ay2+" "+cx2+","+(ay2+as2)+" "+(cx2+as2)+","+ay2} fill="#666" />);
           else if (dd==="-y") els.push(<polygon key={"ar"+ri} points={(cx2-as2)+","+ay2+" "+cx2+","+(ay2-as2)+" "+(cx2+as2)+","+ay2} fill="#666" />);
@@ -448,7 +448,7 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
       <line x1={dx} y1={pad + sd + 25} x2={dx + sw} y2={pad + sd + 25} stroke="#c62828" strokeWidth="0.6" />
       <line x1={dx} y1={pad + sd + 22} x2={dx} y2={pad + sd + 28} stroke="#c62828" strokeWidth="0.6" />
       <line x1={dx + sw} y1={pad + sd + 22} x2={dx + sw} y2={pad + sd + 28} stroke="#c62828" strokeWidth="0.6" />
-      <text x={dx + sw / 2} y={pad + sd + 37} textAnchor="middle" style={{ fontSize: 12, fill: "#c62828", fontWeight: 800, fontFamily: "'DM Mono', monospace" }}>{window.fmtFtIn(c.W)}</text>
+      <text x={dx + sw / 2} y={pad + sd + 52} textAnchor="middle" style={{ fontSize: 12, fill: "#c62828", fontWeight: 800, fontFamily: "'DM Mono', monospace" }}>{window.fmtFtIn(c.W)}</text>
       <line x1={dx + sw + 20} y1={pad} x2={dx + sw + 20} y2={pad + sd} stroke="#1565c0" strokeWidth="0.6" />
       <line x1={dx + sw + 17} y1={pad} x2={dx + sw + 23} y2={pad} stroke="#1565c0" strokeWidth="0.6" />
       <line x1={dx + sw + 17} y1={pad + sd} x2={dx + sw + 23} y2={pad + sd} stroke="#1565c0" strokeWidth="0.6" />
