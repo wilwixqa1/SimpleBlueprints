@@ -1336,7 +1336,7 @@ const App = function SimpleBlueprints() {
                 </div>
                 <PlanView p={p} c={c} mode={planMode} u={u}
                   zoneMode={zoneMode} pForZones={pForZones}
-                  addZone={addZone} addCutout={addCutout}
+                  addZone={addZone} addCutout={addCutout} removeZone={removeZone}
                   getCorners={getCorners} setCorner={setCorner} updateStair={updateStair} updateStairFields={updateStairFields} />
                 {planMode === "plan" && <div style={{ textAlign: "center", fontSize: 9, color: br.mu, fontFamily: mono, marginTop: 4, opacity: 0.7 }}>
 // {zoneMode === "select" && <>Drag the <span style={{ color: "#3d5a2e", fontWeight: 700 }}>green</span> handle to slide the deck   Click <span style={{ color: "#c62828", fontWeight: 700 }}>stairs</span> to select, drag to move, grab <span style={{ color: "#3d5a2e", fontWeight: 700 }}>{"\u21BB"}</span> to rotate</>}

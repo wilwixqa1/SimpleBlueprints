@@ -3,7 +3,7 @@
 // ============================================================
 const { useState: _pvUS, useRef: _pvUR, useMemo: _pvUM } = React;
 
-function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getCorners, setCorner, updateStair, updateStairFields }) {
+function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, removeZone, getCorners, setCorner, updateStair, updateStairFields }) {
   const pad = 45;
   const sc = Math.min(420 / Math.max(c.W, 16), 18);
   const hw = p.houseWidth * sc;
@@ -307,6 +307,18 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
           style={{ fontSize: 7, fill: isActive ? "#2563eb" : "#888", fontFamily: "monospace", fontWeight: 700 }}>
           {a.zone.label || "Zone " + a.id}
         </text>;
+      })}
+
+      {/* Zone delete buttons */}
+      {removeZone && hasZones && addRects.filter(function(a) { return a.id > 0; }).concat(cutRects).map(function(a) {
+        var r = a.rect, h = hoverBtn === "del-" + a.id;
+        var bx = zx(r.x) + r.w * sc - 1, by = zy(r.y) + 1;
+        return <g key={"zdel" + a.id} onMouseEnter={function() { setHoverBtn("del-" + a.id); }} onMouseLeave={function() { setHoverBtn(null); }}
+          onClick={function(e) { e.stopPropagation(); if (confirm("Delete " + (a.zone.label || "Zone " + a.id) + "?")) removeZone(a.id); }} style={{ cursor: "pointer" }}>
+          <circle cx={bx} cy={by} r={h ? 8 : 6} fill={h ? "#dc2626" : "white"} stroke="#dc2626" strokeWidth="1.2" style={{ transition: "all 0.12s" }} />
+          <text x={bx} y={by + 1} textAnchor="middle" dominantBaseline="central"
+            fontSize={h ? 10 : 7} fontWeight="800" fill={h ? "white" : "#dc2626"} style={{ userSelect: "none" }}>{"\u00D7"}</text>
+        </g>;
       })}
 
       {/* Deck drag handle */}
