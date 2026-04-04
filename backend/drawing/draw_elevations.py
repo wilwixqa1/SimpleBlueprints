@@ -774,6 +774,32 @@ def draw_south_elevation(ax, params, calc, compact=False, spec=None):
             _draw_hardware_callout(ax, _bm_cx, deck_top - beam_h * 0.5, 'LUS210 (TYP)',
                                    leader_dx=3, leader_dy=0.4)
 
+    # S68: FREESTANDING DIAGONAL BRACING
+    attachment = calc["attachment"]
+    if attachment != "ledger" and H >= 2 and len(calc["post_positions"]) >= 2:
+        _pp = calc["post_positions"]
+        _brace_top = deck_top - beam_h - 0.1  # beam bottom
+        for _bi in range(len(_pp) - 1):
+            _p1x = z0_x + _pp[_bi]
+            _p2x = z0_x + _pp[_bi + 1]
+            _ph1 = _post_heights[_bi] if _bi < len(_post_heights) else H
+            _ph2 = _post_heights[_bi + 1] if _bi + 1 < len(_post_heights) else H
+            _g1 = deck_top - _ph1 + 0.3  # slightly above post base
+            _g2 = deck_top - _ph2 + 0.3
+            # X-brace pattern: two diagonals between adjacent posts
+            ax.plot([_p1x, _p2x], [_g1, _brace_top], color=BRAND["dark"],
+                    lw=0.8, ls='--', dashes=(4, 3), zorder=3)
+            ax.plot([_p1x, _p2x], [_brace_top, _g2], color=BRAND["dark"],
+                    lw=0.8, ls='--', dashes=(4, 3), zorder=3)
+        # Label
+        _mid_px = z0_x + (_pp[0] + _pp[-1]) / 2
+        _mid_py = (ground_y + _brace_top) / 2
+        if not compact:
+            ax.text(_mid_px, _mid_py, '2x4 PT DIAGONAL\nBRACING (TYP.)',
+                    ha='center', va='center', fontsize=3.0, fontfamily='monospace',
+                    color=BRAND["dark"], fontstyle='italic',
+                    bbox=dict(boxstyle='square,pad=0.15', fc='white', ec='none', alpha=0.85))
+
     # === ZONE-0 JOISTS ===
     joist_sp = calc["joist_spacing"] / 12
     for jx in np.arange(0, W, joist_sp):
@@ -996,6 +1022,23 @@ def draw_north_elevation(ax, params, calc, compact=False, spec=None):
         ax.add_patch(patches.Rectangle((z0_x + 1, deck_top - beam_h - 0.1), W - 2, beam_h,
                      fc=BRAND["beam"], ec=BRAND["dark"], lw=0.5, alpha=0.3))
 
+    # S68: FREESTANDING DIAGONAL BRACING (far side, lighter)
+    attachment = calc["attachment"]
+    if attachment != "ledger" and H >= 2 and len(calc["post_positions"]) >= 2:
+        _pp = calc["post_positions"]
+        _brace_top = deck_top - beam_h - 0.1
+        for _bi in range(len(_pp) - 1):
+            _p1x = z0_x + (W - _pp[_bi])  # mirrored
+            _p2x = z0_x + (W - _pp[_bi + 1])
+            _ph1 = _post_heights[_bi] if _bi < len(_post_heights) else H
+            _ph2 = _post_heights[_bi + 1] if _bi + 1 < len(_post_heights) else H
+            _g1 = deck_top - _ph1 + 0.3
+            _g2 = deck_top - _ph2 + 0.3
+            ax.plot([_p1x, _p2x], [_g1, _brace_top], color=BRAND["dark"],
+                    lw=0.5, ls='--', dashes=(4, 3), alpha=0.4, zorder=3)
+            ax.plot([_p1x, _p2x], [_brace_top, _g2], color=BRAND["dark"],
+                    lw=0.5, ls='--', dashes=(4, 3), alpha=0.4, zorder=3)
+
     # === ZONE-0 RAILING (far side, lighter) ===
     rail_h = calc["rail_height"] / 12
     rail_top = deck_top + rail_h
@@ -1152,6 +1195,24 @@ def draw_side_elevation(ax, params, calc, direction="east", compact=False, spec=
 
         ax.plot([deck_end_x, deck_start_x], [deck_top, deck_top], color='#6B5340', lw=2.5)
 
+        # S68: Freestanding diagonal bracing (side view)
+        if attachment != "ledger" and H >= 2:
+            _back_post_x = deck_start_x - 1.5
+            _brace_bot = _ground_at_post + 0.3
+            _brace_top_y = deck_top - beam_h - 0.1
+            # X-brace between front and back posts
+            ax.plot([post_x, _back_post_x], [_brace_bot, _brace_top_y],
+                    color=BRAND["dark"], lw=0.8, ls='--', dashes=(4, 3), zorder=3)
+            ax.plot([post_x, _back_post_x], [_brace_top_y, _brace_bot],
+                    color=BRAND["dark"], lw=0.8, ls='--', dashes=(4, 3), zorder=3)
+            if not compact:
+                _mid_bx = (post_x + _back_post_x) / 2
+                _mid_by = (_brace_bot + _brace_top_y) / 2
+                ax.text(_mid_bx, _mid_by, '2x4 PT\nBRACING', ha='center', va='center',
+                        fontsize=2.5, fontfamily='monospace', color=BRAND["dark"],
+                        fontstyle='italic',
+                        bbox=dict(boxstyle='square,pad=0.1', fc='white', ec='none', alpha=0.85))
+
         rail_h = calc["rail_height"] / 12
         rail_top = deck_top + rail_h
 
@@ -1278,6 +1339,23 @@ def draw_side_elevation(ax, params, calc, direction="east", compact=False, spec=
                     fontsize=3.5, color=BRAND["ledger_green"], rotation=90, va='center')
 
         ax.plot([deck_start_x, deck_start_x + D], [deck_top, deck_top], color='#6B5340', lw=2.5)
+
+        # S68: Freestanding diagonal bracing (side view, east)
+        if attachment != "ledger" and H >= 2:
+            _back_post_x = deck_start_x + 1.5
+            _brace_bot = _ground_at_post + 0.3
+            _brace_top_y = deck_top - beam_h - 0.1
+            ax.plot([post_x, _back_post_x], [_brace_bot, _brace_top_y],
+                    color=BRAND["dark"], lw=0.8, ls='--', dashes=(4, 3), zorder=3)
+            ax.plot([post_x, _back_post_x], [_brace_top_y, _brace_bot],
+                    color=BRAND["dark"], lw=0.8, ls='--', dashes=(4, 3), zorder=3)
+            if not compact:
+                _mid_bx = (post_x + _back_post_x) / 2
+                _mid_by = (_brace_bot + _brace_top_y) / 2
+                ax.text(_mid_bx, _mid_by, '2x4 PT\nBRACING', ha='center', va='center',
+                        fontsize=2.5, fontfamily='monospace', color=BRAND["dark"],
+                        fontstyle='italic',
+                        bbox=dict(boxstyle='square,pad=0.1', fc='white', ec='none', alpha=0.85))
 
         rail_h = calc["rail_height"] / 12
         rail_top = deck_top + rail_h

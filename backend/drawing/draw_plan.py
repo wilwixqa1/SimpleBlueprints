@@ -517,6 +517,25 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
 
 
 
+            # S68: FREESTANDING DIAGONAL BRACING on framing plan
+            if attachment != "ledger" and len(calc["post_positions"]) >= 2:
+                _pp_brace = calc["post_positions"]
+                for _bi in range(len(_pp_brace) - 1):
+                    _bx1 = _pp_brace[_bi]
+                    _bx2 = _pp_brace[_bi + 1]
+                    # X-brace between adjacent posts (plan view shows as diagonals)
+                    ax.plot([_bx1, _bx2], [beam_y, beam_y - 3],
+                            color=BRAND["dark"], lw=0.6, ls='--', dashes=(3, 2))
+                    ax.plot([_bx1, _bx2], [beam_y - 3, beam_y],
+                            color=BRAND["dark"], lw=0.6, ls='--', dashes=(3, 2))
+                # Label
+                ax.text(W / 2, beam_y - 4.5,
+                        '2x4 PT DIAGONAL BRACING (TYP.) - SEE ELEVATIONS',
+                        ha='center', fontsize=3.0, fontfamily='monospace',
+                        color=BRAND["dark"], fontstyle='italic',
+                        bbox=dict(boxstyle='square,pad=0.15', fc='white',
+                                  ec=BRAND["border"], lw=0.3, alpha=0.9))
+
             # === BUILDER DIMENSION CALLOUTS (S17) ===
             beam_setback = 1.5  # beam is 1.5ft from front edge
             pp = calc["post_positions"]
