@@ -1069,6 +1069,43 @@ function StepContent(props) {
       // Save lat/lng for vicinity map on PDF
       if (data.location.lat) { u("_parcel_lat", data.location.lat); setI("lat", String(data.location.lat)); }
       if (data.location.lng) { u("_parcel_lng", data.location.lng); setI("lng", String(data.location.lng)); }
+      // S70: Async building footprint lookup (non-blocking enhancement)
+      // Queries OpenStreetMap for actual building footprint to get
+      // accurate house dimensions, orientation angle, and position.
+      if (data.location.lat && data.location.lng) {
+        fetch('/api/building-footprint', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lat: data.location.lat, lng: data.location.lng })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(bldg) {
+          if (!bldg.buildings || bldg.buildings.length === 0) return;
+          // Find the primary residence: closest building with area > 500 sqft
+          // (skip small sheds, garages, etc.)
+          var primary = null;
+          for (var bi = 0; bi < bldg.buildings.length; bi++) {
+            var b = bldg.buildings[bi];
+            if (b.area_sqft >= 500 && b.dist_from_center < 100) {
+              primary = b; break;
+            }
+          }
+          if (!primary) return;
+          // Apply building footprint data
+          u("houseWidth", Math.round(primary.width));
+          u("houseDepth", Math.round(primary.depth));
+          u("houseAngle", primary.angle);
+          // Recompute house position with new dimensions
+          var hw2 = Math.round(primary.width);
+          var lotW2 = Math.round(data.lot.width);
+          u("houseOffsetSide", Math.max(5, Math.round((lotW2 - hw2) / 2)));
+          console.log("Building footprint applied:", primary.width + "x" + primary.depth, "angle=" + primary.angle + "deg", "area=" + primary.area_sqft + "sqft");
+          if (window._trackEvent) window._trackEvent('building_footprint', { width: primary.width, depth: primary.depth, angle: primary.angle, area: primary.area_sqft, osm_id: primary.osm_id });
+        })
+        .catch(function(err) {
+          console.log("Building footprint lookup failed (non-critical):", err.message);
+        });
+      }
       // Advance guide to verify
       if (window._markProjectEdited) window._markProjectEdited();
       if (guideActive) setGuidePhase('verify_extracted');

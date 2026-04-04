@@ -126,6 +126,7 @@ class DeckParams(BaseModel):
     overFooting: Optional[int] = None; overGuardHeight: Optional[int] = None
     footingOverrides: Optional[dict] = None
     houseDistFromStreet: Optional[float] = None
+    houseAngle: Optional[float] = None
     streetName: Optional[str] = None
     projectInfo: Optional[dict] = None; coverImage: Optional[str] = None
     beamType: str = "dropped"
@@ -1889,6 +1890,164 @@ async def parcel_lookup(request: Request):
     # Cache successful result
     set_cached_parcel(address, state, result)
 
+    return JSONResponse(result)
+
+
+# ============================================================
+# BUILDING FOOTPRINT LOOKUP (S70)
+# Queries OpenStreetMap Overpass API for building footprints
+# near a lat/lng to get actual house dimensions and orientation.
+# ============================================================
+
+def _overpass_building_lookup(lat, lng, radius_m=80):
+    """Query Overpass API for building footprints near lat/lng.
+    Returns list of building polygons with computed dimensions and angles."""
+    query = f"""[out:json][timeout:10];
+(way["building"](around:{radius_m},{lat},{lng}););
+out body;>;out skel qt;"""
+    url = "https://overpass-api.de/api/interpreter"
+    try:
+        data_bytes = urllib.parse.urlencode({"data": query}).encode("utf-8")
+        req = urllib.request.Request(url, data=data_bytes, headers={
+            "User-Agent": "SimpleBlueprints/1.0 (permit blueprint generator)",
+            "Content-Type": "application/x-www-form-urlencoded"
+        })
+        with urllib.request.urlopen(req, timeout=12) as resp:
+            raw = resp.read().decode()
+            data = json.loads(raw)
+    except Exception as e:
+        return {"error": f"Overpass API error: {str(e)}"}
+
+    elements = data.get("elements", [])
+    # Separate nodes and ways
+    nodes = {}
+    ways = []
+    for el in elements:
+        if el["type"] == "node":
+            nodes[el["id"]] = (el["lon"], el["lat"])
+        elif el["type"] == "way" and "building" in el.get("tags", {}):
+            ways.append(el)
+
+    if not ways:
+        return {"buildings": [], "count": 0}
+
+    # Convert to local feet coords (same system as parcel)
+    ft_per_deg_lat = 364000.0
+    ft_per_deg_lng = 364000.0 * _math.cos(_math.radians(lat))
+    center_x = 0  # We'll measure relative to property center
+    center_y = 0
+
+    buildings = []
+    for way in ways:
+        node_ids = way.get("nodes", [])
+        coords_ll = []
+        for nid in node_ids:
+            if nid in nodes:
+                coords_ll.append(nodes[nid])
+        if len(coords_ll) < 3:
+            continue
+        # Remove closing duplicate
+        if coords_ll[0] == coords_ll[-1]:
+            coords_ll = coords_ll[:-1]
+        if len(coords_ll) < 3:
+            continue
+
+        # Convert to feet relative to property lat/lng
+        poly_ft = []
+        for lon, la in coords_ll:
+            x = (lon - lng) * ft_per_deg_lng
+            y = (la - lat) * ft_per_deg_lat
+            poly_ft.append([round(x, 1), round(y, 1)])
+
+        # Compute centroid
+        cx = sum(p[0] for p in poly_ft) / len(poly_ft)
+        cy = sum(p[1] for p in poly_ft) / len(poly_ft)
+
+        # Distance from property center (0,0 = the lat/lng we searched)
+        dist = _math.sqrt(cx * cx + cy * cy)
+
+        # Compute area (shoelace formula)
+        n = len(poly_ft)
+        area = 0
+        for i in range(n):
+            j = (i + 1) % n
+            area += poly_ft[i][0] * poly_ft[j][1]
+            area -= poly_ft[j][0] * poly_ft[i][1]
+        area = abs(area) / 2
+
+        # Find the longest edge to determine orientation angle
+        max_edge_len = 0
+        angle_deg = 0
+        for i in range(n):
+            j = (i + 1) % n
+            edx = poly_ft[j][0] - poly_ft[i][0]
+            edy = poly_ft[j][1] - poly_ft[i][1]
+            elen = _math.sqrt(edx * edx + edy * edy)
+            if elen > max_edge_len:
+                max_edge_len = elen
+                angle_deg = _math.degrees(_math.atan2(edy, edx))
+
+        # Normalize angle to 0-180 range (building orientation is symmetric)
+        while angle_deg < 0:
+            angle_deg += 180
+        while angle_deg >= 180:
+            angle_deg -= 180
+
+        # Compute oriented bounding box dimensions (width along longest edge, depth perpendicular)
+        angle_rad = _math.radians(angle_deg)
+        cos_a = _math.cos(angle_rad)
+        sin_a = _math.sin(angle_rad)
+        # Rotate all points to align longest edge with X axis
+        rotated = []
+        for p in poly_ft:
+            rx = p[0] * cos_a + p[1] * sin_a
+            ry = -p[0] * sin_a + p[1] * cos_a
+            rotated.append((rx, ry))
+        rx_vals = [r[0] for r in rotated]
+        ry_vals = [r[1] for r in rotated]
+        width = round(max(rx_vals) - min(rx_vals), 1)
+        depth = round(max(ry_vals) - min(ry_vals), 1)
+
+        # Ensure width >= depth (width is along the longest edge)
+        if depth > width:
+            width, depth = depth, width
+            angle_deg = (angle_deg + 90) % 180
+
+        bldg_type = way.get("tags", {}).get("building", "yes")
+        buildings.append({
+            "osm_id": way["id"],
+            "type": bldg_type,
+            "polygon_ft": poly_ft,
+            "centroid_ft": [round(cx, 1), round(cy, 1)],
+            "dist_from_center": round(dist, 1),
+            "area_sqft": round(area, 0),
+            "width": width,
+            "depth": depth,
+            "angle": round(angle_deg, 1),
+            "num_vertices": n,
+        })
+
+    # Sort by distance from center (closest first)
+    buildings.sort(key=lambda b: b["dist_from_center"])
+
+    return {"buildings": buildings, "count": len(buildings)}
+
+
+@app.post("/api/building-footprint")
+async def building_footprint(request: Request):
+    """Look up building footprints near a lat/lng using OpenStreetMap."""
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+
+    lat = float(body.get("lat", 0))
+    lng = float(body.get("lng", 0))
+
+    if not lat or not lng:
+        raise HTTPException(status_code=400, detail="lat and lng required")
+
+    result = _overpass_building_lookup(lat, lng)
     return JSONResponse(result)
 
 
