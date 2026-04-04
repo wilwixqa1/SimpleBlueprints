@@ -1918,9 +1918,11 @@ out body;>;out skel qt;"""
             raw = resp.read().decode()
             data = json.loads(raw)
     except Exception as e:
-        return {"error": f"Overpass API error: {str(e)}"}
+        print(f"Overpass API exception: {e}", flush=True)
+        return {"error": f"Overpass API error: {str(e)}", "buildings": [], "count": 0, "nearest_road": None}
 
     elements = data.get("elements", [])
+    print(f"Overpass response: {len(elements)} elements for ({lat},{lng})", flush=True)
     # Separate nodes, building ways, and road ways
     nodes = {}
     ways = []
@@ -1935,6 +1937,7 @@ out body;>;out skel qt;"""
             elif "highway" in tags:
                 road_ways.append(el)
 
+    print(f"Overpass parsed: {len(ways)} buildings, {len(road_ways)} roads, {len(nodes)} nodes", flush=True)
     if not ways and not road_ways:
         return {"buildings": [], "count": 0, "nearest_road": None}
 
@@ -2084,13 +2087,13 @@ out body;>;out skel qt;"""
 
     # S70: Log results for debugging
     if buildings:
-        print(f"Building footprint: {len(buildings)} buildings found. Primary: {buildings[0]['width']}x{buildings[0]['depth']} area={buildings[0]['area_sqft']}sqft dist={buildings[0]['dist_from_center']}ft angle={buildings[0]['angle']}deg")
+        print(f"Building footprint: {len(buildings)} buildings found. Primary: {buildings[0]['width']}x{buildings[0]['depth']} area={buildings[0]['area_sqft']}sqft dist={buildings[0]['dist_from_center']}ft angle={buildings[0]['angle']}deg", flush=True)
     else:
-        print(f"Building footprint: 0 buildings found near ({lat},{lng})")
+        print(f"Building footprint: 0 buildings found near ({lat},{lng})", flush=True)
     if nearest_road:
-        print(f"Nearest road: {nearest_road['name']} dist={nearest_road['dist']}ft bearing={nearest_road['bearing']}deg")
+        print(f"Nearest road: {nearest_road['name']} dist={nearest_road['dist']}ft bearing={nearest_road['bearing']}deg", flush=True)
     else:
-        print(f"Nearest road: none found near ({lat},{lng})")
+        print(f"Nearest road: none found near ({lat},{lng})", flush=True)
 
     return {"buildings": buildings, "count": len(buildings), "nearest_road": nearest_road}
 

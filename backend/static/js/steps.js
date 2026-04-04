@@ -1160,7 +1160,7 @@ function StepContent(props) {
             }
           }
           if (!bldg.buildings || bldg.buildings.length === 0) {
-            console.log("Building footprint: no OSM buildings found near this location");
+            console.log("Building footprint: no OSM buildings found near this location" + (bldg.error ? " (error: " + bldg.error + ")" : ""));
             return;
           }
           console.log("Building footprint: " + bldg.buildings.length + " buildings found");
