@@ -981,16 +981,65 @@ function StepContent(props) {
         u("lotVertices", verts);
         u("lotWidth", Math.round(data.lot.width));
         u("lotDepth", Math.round(data.lot.depth));
-        // Build edges (4 sides, edge 0 = street)
+        // S70: Smart street edge identification
+        // Coords are lat/lng converted to feet (Y=north, X=east).
+        // Find street edge = edge with lowest average Y (most southern,
+        // typically closest to the street). Find rear = highest avg Y.
+        var nv = verts.length;
+        var streetIdx = 0, rearIdx = 0;
+        var minAvgY = Infinity, maxAvgY = -Infinity;
+        for (var ei = 0; ei < nv; ei++) {
+          var ni = (ei + 1) % nv;
+          var avgY = (verts[ei][1] + verts[ni][1]) / 2;
+          if (avgY < minAvgY) { minAvgY = avgY; streetIdx = ei; }
+          if (avgY > maxAvgY) { maxAvgY = avgY; rearIdx = ei; }
+        }
+        // If Realie provides frontage length, try to match it to an edge
+        // for more accurate street identification
+        var realieFrontage = data.lot.frontage || 0;
+        if (realieFrontage > 0) {
+          var bestMatch = -1, bestDiff = Infinity;
+          for (var ei = 0; ei < nv; ei++) {
+            var ni = (ei + 1) % nv;
+            var edx = verts[ni][0] - verts[ei][0], edy = verts[ni][1] - verts[ei][1];
+            var elen = Math.sqrt(edx * edx + edy * edy);
+            var diff = Math.abs(elen - realieFrontage);
+            if (diff < bestDiff) { bestDiff = diff; bestMatch = ei; }
+          }
+          // Use frontage match if within 5ft tolerance
+          if (bestMatch >= 0 && bestDiff < 5) {
+            streetIdx = bestMatch;
+            // Recalculate rear as edge with highest avg Y that isn't the street
+            rearIdx = 0; maxAvgY = -Infinity;
+            for (var ei = 0; ei < nv; ei++) {
+              if (ei === streetIdx) continue;
+              var ni = (ei + 1) % nv;
+              var avgY = (verts[ei][1] + verts[ni][1]) / 2;
+              if (avgY > maxAvgY) { maxAvgY = avgY; rearIdx = ei; }
+            }
+          }
+        }
         var edges = [];
-        for (var ei = 0; ei < verts.length; ei++) {
-          var ni = (ei + 1) % verts.length;
-          var dx = verts[ni][0] - verts[ei][0], dy = verts[ni][1] - verts[ei][1];
-          var elen = Math.round(Math.sqrt(dx * dx + dy * dy));
-          edges.push({ type: ei === 0 ? "street" : "property", label: ei === 0 ? (data.location.address || "") : "", length: elen, setbackType: ei === 0 ? "front" : "side", neighborLabel: "" });
+        for (var ei = 0; ei < nv; ei++) {
+          var ni = (ei + 1) % nv;
+          var edx = verts[ni][0] - verts[ei][0], edy = verts[ni][1] - verts[ei][1];
+          var elen = Math.round(Math.sqrt(edx * edx + edy * edy));
+          var isStreet = (ei === streetIdx);
+          var isRear = (ei === rearIdx);
+          var sbType = isStreet ? "front" : (isRear ? "rear" : "side");
+          edges.push({
+            type: isStreet ? "street" : "property",
+            label: isStreet ? (data.location.address || "") : "",
+            length: elen,
+            setbackType: sbType,
+            neighborLabel: ""
+          });
         }
         u("lotEdges", edges);
         u("lotArea", data.lot.area_sqft || Math.round(data.lot.width * data.lot.depth));
+        // S70: Auto-set north angle. Parcel coords are lat/lng-based,
+        // so Y=geographic north. North points up on the page = 0 degrees.
+        u("northAngle", 0);
       }
       // Apply house dimensions
       if (data.building.estimated_width && data.building.estimated_depth) {
@@ -1015,9 +1064,6 @@ function StepContent(props) {
       if (data.parcel.zoning) setI("zoning", data.parcel.zoning);
       if (data.location.county) setI("county", data.location.county);
       if (data.building.year_built) setI("yearBuilt", String(data.building.year_built));
-      // North angle NOT auto-set: we don't know which edge faces the street,
-      // so we can't determine which direction is "up" on the page vs true north.
-      // User sets this manually via the compass dial.
       // Set street name from address
       if (data.location.address) u("streetName", data.location.address);
       // Save lat/lng for vicinity map on PDF

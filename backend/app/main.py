@@ -1803,6 +1803,23 @@ def _realie_lookup(address: str, state: str, city: str = "", zip_code: str = "")
     if not acres:
         acres = lot_area_sqft / 43560.0
 
+    # S70: Parse frontage value for street edge identification
+    frontage_ft = 0
+    if realie_frontage:
+        try:
+            frontage_ft = float(realie_frontage)
+        except (ValueError, TypeError):
+            pass
+
+    # S70: Extract existing structure indicators from Realie
+    has_pool = bool(prop.get("hasPool") or prop.get("pool"))
+    has_garage = bool(prop.get("hasGarage") or prop.get("garage"))
+    stories = None
+    try:
+        stories = int(prop.get("stories") or 0) or None
+    except (ValueError, TypeError):
+        pass
+
     result = {
         "ok": True,
         "lot": {
@@ -1811,12 +1828,16 @@ def _realie_lookup(address: str, state: str, city: str = "", zip_code: str = "")
             "depth": lot_depth,
             "area_sqft": lot_area_sqft,
             "acres": round(acres, 3),
+            "frontage": frontage_ft,
         },
         "building": {
             "sqft": bldg_sqft,
             "estimated_width": house_width,
             "estimated_depth": house_depth,
             "year_built": prop.get("yearBuilt") or None,
+            "stories": stories,
+            "has_pool": has_pool,
+            "has_garage": has_garage,
         },
         "location": {
             "lat": float(prop.get("latitude") or min_lat or 0),
