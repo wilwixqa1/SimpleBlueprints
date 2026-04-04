@@ -589,7 +589,7 @@ GUIDE_PHASES_STEP4.forEach(function(ph) { _guidePhaseMap[ph.id] = ph; });
 var _guideStep4Order = GUIDE_PHASES_STEP4.map(function(ph) { return ph.id; });
 
 // GuidePanel: embedded guide at top of wizard step
-function GuidePanel({ phase, onAction, onBack, history, onToggleOff, message, tip, chatMessages, chatLoading, onSendMessage, onApplyActions }) {
+function GuidePanel({ phase, onAction, onBack, history, onToggleOff, message, tip, chatMessages, chatLoading, onSendMessage, onApplyActions, setChatMessages }) {
   var ph = _guidePhaseMap[phase];
   if (!ph) return null;
 
@@ -1733,7 +1733,7 @@ function StepContent(props) {
         onToggleOff={function() { setGuideActive(false); }}
         message={s1Msg}
         tip={s1Tip}
-        chatMessages={chatMessages} chatLoading={chatLoading} onSendMessage={sendChatMessage} onApplyActions={_applyActions}
+        chatMessages={chatMessages} chatLoading={chatLoading} onSendMessage={sendChatMessage} onApplyActions={_applyActions} setChatMessages={setChatMessages}
       />;
     })()}
 // {/*   Zone selector bar   */}
@@ -2427,7 +2427,7 @@ function StepContent(props) {
           onToggleOff={function() { setGuideActive(false); }}
           message={s0Msg}
           tip={s0Tip}
-          chatMessages={chatMessages} chatLoading={chatLoading} onSendMessage={sendChatMessage} onApplyActions={_applyActions}
+          chatMessages={chatMessages} chatLoading={chatLoading} onSendMessage={sendChatMessage} onApplyActions={_applyActions} setChatMessages={setChatMessages}
         />;
       })()}
 
@@ -3317,7 +3317,7 @@ function StepContent(props) {
       onBack={guideBack}
       history={guideHistory}
       onToggleOff={function() { setGuideActive(false); }}
-      chatMessages={chatMessages} chatLoading={chatLoading} onSendMessage={sendChatMessage} onApplyActions={_applyActions}
+      chatMessages={chatMessages} chatLoading={chatLoading} onSendMessage={sendChatMessage} onApplyActions={_applyActions} setChatMessages={setChatMessages}
     />}
     <div data-section="structure">
     <Chips label="Joist spacing" field="joistSpacing" opts={[[12, '12" O.C.'], [16, '16" O.C.'], [24, '24" O.C.']]} u={u} p={p} />
@@ -3485,7 +3485,7 @@ function StepContent(props) {
         history={guideHistory}
         onToggleOff={function() { setGuideActive(false); }}
         message={s3Msg}
-        chatMessages={chatMessages} chatLoading={chatLoading} onSendMessage={sendChatMessage} onApplyActions={_applyActions}
+        chatMessages={chatMessages} chatLoading={chatLoading} onSendMessage={sendChatMessage} onApplyActions={_applyActions} setChatMessages={setChatMessages}
       />;
     })()}
     <div data-section="materials">
@@ -3543,7 +3543,7 @@ function StepContent(props) {
         onToggleOff={function() { setGuideActive(false); }}
         message={s4Msg}
         tip={s4Tip}
-        chatMessages={chatMessages} chatLoading={chatLoading} onSendMessage={sendChatMessage} onApplyActions={_applyActions}
+        chatMessages={chatMessages} chatLoading={chatLoading} onSendMessage={sendChatMessage} onApplyActions={_applyActions} setChatMessages={setChatMessages}
       />;
     })()}
     <div style={{ marginBottom: 14 }}>
