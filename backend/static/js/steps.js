@@ -981,41 +981,95 @@ function StepContent(props) {
         u("lotVertices", verts);
         u("lotWidth", Math.round(data.lot.width));
         u("lotDepth", Math.round(data.lot.depth));
-        // S70: Smart street edge identification
-        // Coords are lat/lng converted to feet (Y=north, X=east).
-        // Find street edge = edge with lowest average Y (most southern,
-        // typically closest to the street). Find rear = highest avg Y.
+        // S70: Street edge identification using address point proximity
+        // The Realie lat/lng is the geocoded address point, typically near
+        // the front of the property (near the street/mailbox). The lot edge
+        // closest to this point is the street edge.
         var nv = verts.length;
         var streetIdx = 0, rearIdx = 0;
-        var minAvgY = Infinity, maxAvgY = -Infinity;
-        for (var ei = 0; ei < nv; ei++) {
-          var ni = (ei + 1) % nv;
-          var avgY = (verts[ei][1] + verts[ni][1]) / 2;
-          if (avgY < minAvgY) { minAvgY = avgY; streetIdx = ei; }
-          if (avgY > maxAvgY) { maxAvgY = avgY; rearIdx = ei; }
+        // Convert Realie lat/lng to lot coordinates using raw GeoJSON
+        var rawC = data.raw_coords;
+        var propLotX = null, propLotY = null;
+        if (rawC && rawC.length >= 3 && data.location.lat && data.location.lng) {
+          var minLatR = Infinity, minLngR = Infinity;
+          for (var ci2 = 0; ci2 < rawC.length; ci2++) {
+            if (rawC[ci2][1] < minLatR) minLatR = rawC[ci2][1];
+            if (rawC[ci2][0] < minLngR) minLngR = rawC[ci2][0];
+          }
+          var ftLat2 = 364000.0;
+          var ftLng2 = 364000.0 * Math.cos(minLatR * Math.PI / 180);
+          propLotX = (data.location.lng - minLngR) * ftLng2;
+          propLotY = (data.location.lat - minLatR) * ftLat2;
         }
-        // If Realie provides frontage length, try to match it to an edge
-        // for more accurate street identification
-        var realieFrontage = data.lot.frontage || 0;
-        if (realieFrontage > 0) {
-          var bestMatch = -1, bestDiff = Infinity;
+        if (propLotX !== null && propLotY !== null) {
+          // Find edge closest to address point
+          var minEdgeDist = Infinity;
           for (var ei = 0; ei < nv; ei++) {
             var ni = (ei + 1) % nv;
-            var edx = verts[ni][0] - verts[ei][0], edy = verts[ni][1] - verts[ei][1];
-            var elen = Math.sqrt(edx * edx + edy * edy);
-            var diff = Math.abs(elen - realieFrontage);
-            if (diff < bestDiff) { bestDiff = diff; bestMatch = ei; }
+            var ax = verts[ei][0], ay = verts[ei][1];
+            var bx = verts[ni][0], by = verts[ni][1];
+            var edx = bx - ax, edy = by - ay;
+            var segLenSq = edx * edx + edy * edy;
+            if (segLenSq < 0.01) continue;
+            var t = Math.max(0, Math.min(1, ((propLotX - ax) * edx + (propLotY - ay) * edy) / segLenSq));
+            var px = ax + t * edx, py = ay + t * edy;
+            var d = Math.sqrt((propLotX - px) * (propLotX - px) + (propLotY - py) * (propLotY - py));
+            if (d < minEdgeDist) { minEdgeDist = d; streetIdx = ei; }
           }
-          // Use frontage match if within 5ft tolerance
-          if (bestMatch >= 0 && bestDiff < 5) {
-            streetIdx = bestMatch;
-            // Recalculate rear as edge with highest avg Y that isn't the street
-            rearIdx = 0; maxAvgY = -Infinity;
+          // Rear = edge farthest from address point
+          var maxEdgeDist = -Infinity;
+          for (var ei = 0; ei < nv; ei++) {
+            if (ei === streetIdx) continue;
+            var ni = (ei + 1) % nv;
+            var mx = (verts[ei][0] + verts[ni][0]) / 2;
+            var my = (verts[ei][1] + verts[ni][1]) / 2;
+            var d = Math.sqrt((propLotX - mx) * (propLotX - mx) + (propLotY - my) * (propLotY - my));
+            if (d > maxEdgeDist) { maxEdgeDist = d; rearIdx = ei; }
+          }
+          console.log("Street edge " + streetIdx + " detected via address point proximity (" + propLotX.toFixed(1) + "," + propLotY.toFixed(1) + ") dist=" + minEdgeDist.toFixed(1) + "ft");
+        } else {
+          // Fallback: lowest average Y (most southern)
+          var minAvgY = Infinity, maxAvgY = -Infinity;
+          for (var ei = 0; ei < nv; ei++) {
+            var ni = (ei + 1) % nv;
+            var avgY = (verts[ei][1] + verts[ni][1]) / 2;
+            if (avgY < minAvgY) { minAvgY = avgY; streetIdx = ei; }
+            if (avgY > maxAvgY) { maxAvgY = avgY; rearIdx = ei; }
+          }
+          console.log("Street edge " + streetIdx + " detected via lowest-Y fallback");
+        }
+        // If Realie provides frontage length, validate against detected edge
+        var realieFrontage = data.lot.frontage || 0;
+        if (realieFrontage > 0) {
+          var streetNi = (streetIdx + 1) % nv;
+          var streetEdx = verts[streetNi][0] - verts[streetIdx][0];
+          var streetEdy = verts[streetNi][1] - verts[streetIdx][1];
+          var streetLen = Math.sqrt(streetEdx * streetEdx + streetEdy * streetEdy);
+          // If detected street edge length is way off from frontage, try to find better match
+          if (Math.abs(streetLen - realieFrontage) > 10) {
+            var bestMatch = -1, bestDiff = Infinity;
             for (var ei = 0; ei < nv; ei++) {
-              if (ei === streetIdx) continue;
               var ni = (ei + 1) % nv;
-              var avgY = (verts[ei][1] + verts[ni][1]) / 2;
-              if (avgY > maxAvgY) { maxAvgY = avgY; rearIdx = ei; }
+              var edx = verts[ni][0] - verts[ei][0], edy = verts[ni][1] - verts[ei][1];
+              var elen = Math.sqrt(edx * edx + edy * edy);
+              var diff = Math.abs(elen - realieFrontage);
+              if (diff < bestDiff) { bestDiff = diff; bestMatch = ei; }
+            }
+            if (bestMatch >= 0 && bestDiff < 5) {
+              streetIdx = bestMatch;
+              rearIdx = 0; maxEdgeDist = -Infinity;
+              for (var ei = 0; ei < nv; ei++) {
+                if (ei === streetIdx) continue;
+                var ni = (ei + 1) % nv;
+                var mx = (verts[ei][0] + verts[ni][0]) / 2;
+                var my = (verts[ei][1] + verts[ni][1]) / 2;
+                var lotCx = 0, lotCy = 0;
+                for (var vi3 = 0; vi3 < nv; vi3++) { lotCx += verts[vi3][0]; lotCy += verts[vi3][1]; }
+                lotCx /= nv; lotCy /= nv;
+                var d = Math.sqrt((lotCx - mx) * (lotCx - mx) + (lotCy - my) * (lotCy - my));
+                if (d > maxEdgeDist) { maxEdgeDist = d; rearIdx = ei; }
+              }
+              console.log("Street edge corrected to " + streetIdx + " via frontage match (" + realieFrontage + "ft)");
             }
           }
         }
