@@ -1,4 +1,4 @@
-# SimpleBlueprints - Session 71 Context File
+# SimpleBlueprints - Session 70 Context File
 **Date:** April 2026
 **Repo:** `github.com/Wilwixqa1/simpleblueprints`
 **Live site:** `simpleblueprints-production.up.railway.app`
@@ -398,7 +398,7 @@ IRC 2021 Tables R507.5(1)-(4). Full 4D lookup. ~824/827 match ICC source.
 
 ## Prioritized Roadmap
 
-### S71: House Rotation on Site Plan
+### S70: House Rotation on Site Plan
 **Problem:** Parcel lookup returns angled lot polygons, but house always renders axis-aligned. This is visually incorrect on the site plan.
 **Scope assessment:** Significant. Touches:
 - Site plan rendering (frontend sitePlanView.js + backend draw_site_plan.py): Rotate house rectangle to match lot front edge angle
@@ -438,7 +438,7 @@ IRC 2021 Tables R507.5(1)-(4). Full 4D lookup. ~824/827 match ICC source.
 
 ### Billy's Feedback (from S70, not yet addressed)
 - **Zones at different levels:** Per-zone height support
-- **House orientation on site plan:** See "S71: House Rotation" in roadmap
+- **House orientation on site plan:** See "S70: House Rotation" in roadmap
 
 ### Code TODOs
 - `deck3d.js:170`: `var zH = H; // TODO Phase 3: per-zone height from zone.h`
