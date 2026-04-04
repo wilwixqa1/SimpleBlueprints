@@ -1899,10 +1899,14 @@ async def parcel_lookup(request: Request):
 # near a lat/lng to get actual house dimensions and orientation.
 # ============================================================
 
-def _overpass_building_lookup(lat, lng, radius_m=80):
+def _overpass_building_lookup(lat, lng, radius_m=80, lot_origin=None):
     """Query Overpass API for building footprints and nearby roads near lat/lng.
     Returns list of building polygons with computed dimensions and angles,
-    plus nearest road info for street edge identification."""
+    plus nearest road info for street edge identification.
+    
+    lot_origin: optional (min_lat, min_lng) tuple. When provided, building
+    polygons and centroids are computed in lot coordinates (same origin as
+    _coords_to_feet). This eliminates coordinate system bridging errors."""
     query = f"""[out:json][timeout:15];
 (way["building"](around:{radius_m},{lat},{lng});
 way["highway"~"residential|tertiary|secondary|primary|unclassified|living_street|service"](around:{radius_m},{lat},{lng}););
@@ -1955,11 +1959,23 @@ out body;>;out skel qt;"""
     if not ways and not road_ways:
         return {"buildings": [], "count": 0, "nearest_road": None}
 
-    # Convert to local feet coords (same system as parcel)
-    ft_per_deg_lat = 364000.0
-    ft_per_deg_lng = 364000.0 * _math.cos(_math.radians(lat))
-    center_x = 0  # We'll measure relative to property center
-    center_y = 0
+    # Convert to local feet coords
+    # When lot_origin is provided, use it as origin (same as _coords_to_feet).
+    # This puts buildings directly in lot coordinates. No bridging needed.
+    # When lot_origin is None, use property lat/lng as origin (legacy behavior).
+    if lot_origin:
+        ref_lat, ref_lng = lot_origin
+        ft_per_deg_lat = 364000.0
+        ft_per_deg_lng = 364000.0 * _math.cos(_math.radians(ref_lat))
+        # Also compute property position in lot coords for distance calc
+        prop_lot_x = (lng - ref_lng) * ft_per_deg_lng
+        prop_lot_y = (lat - ref_lat) * ft_per_deg_lat
+        print(f"Using lot_origin ({ref_lat:.4f},{ref_lng:.4f}), prop at lot({prop_lot_x:.1f},{prop_lot_y:.1f})", flush=True)
+    else:
+        ref_lat, ref_lng = lat, lng
+        ft_per_deg_lat = 364000.0
+        ft_per_deg_lng = 364000.0 * _math.cos(_math.radians(lat))
+        prop_lot_x, prop_lot_y = 0.0, 0.0
 
     buildings = []
     for way in ways:
@@ -1976,19 +1992,19 @@ out body;>;out skel qt;"""
         if len(coords_ll) < 3:
             continue
 
-        # Convert to feet relative to property lat/lng
+        # Convert to feet relative to ref origin
         poly_ft = []
         for lon, la in coords_ll:
-            x = (lon - lng) * ft_per_deg_lng
-            y = (la - lat) * ft_per_deg_lat
+            x = (lon - ref_lng) * ft_per_deg_lng
+            y = (la - ref_lat) * ft_per_deg_lat
             poly_ft.append([round(x, 1), round(y, 1)])
 
         # Compute centroid
         cx = sum(p[0] for p in poly_ft) / len(poly_ft)
         cy = sum(p[1] for p in poly_ft) / len(poly_ft)
 
-        # Distance from property center (0,0 = the lat/lng we searched)
-        dist = _math.sqrt(cx * cx + cy * cy)
+        # Distance from PROPERTY center (for filtering, always relative to search point)
+        dist = _math.sqrt((cx - prop_lot_x) ** 2 + (cy - prop_lot_y) ** 2)
 
         # Compute area (shoelace formula)
         n = len(poly_ft)
@@ -2038,7 +2054,7 @@ out body;>;out skel qt;"""
             angle_deg = (angle_deg + 90) % 180
 
         bldg_type = way.get("tags", {}).get("building", "yes")
-        buildings.append({
+        bldg_entry = {
             "osm_id": way["id"],
             "type": bldg_type,
             "polygon_ft": poly_ft,
@@ -2049,7 +2065,12 @@ out body;>;out skel qt;"""
             "depth": depth,
             "angle": round(angle_deg, 1),
             "num_vertices": n,
-        })
+        }
+        # When lot_origin is used, centroid_ft IS in lot coords.
+        # Add explicit centroid_lot so frontend knows it can use directly.
+        if lot_origin:
+            bldg_entry["centroid_lot"] = [round(cx, 1), round(cy, 1)]
+        buildings.append(bldg_entry)
 
     # Sort by distance from center (closest first)
     buildings.sort(key=lambda b: b["dist_from_center"])
@@ -2126,7 +2147,7 @@ async def building_footprint(request: Request):
 
     lat = float(body.get("lat", 0))
     lng = float(body.get("lng", 0))
-    raw_coords = body.get("raw_coords")  # S70: GeoJSON coords for lot-coord conversion
+    raw_coords = body.get("raw_coords")  # GeoJSON coords for lot-coord origin
 
     if not lat or not lng:
         raise HTTPException(status_code=400, detail="lat and lng required")
@@ -2137,27 +2158,17 @@ async def building_footprint(request: Request):
         print(f"Building footprint cache hit for {cache_key}", flush=True)
         return JSONResponse(_building_cache[cache_key])
 
-    result = _overpass_building_lookup(lat, lng)
-
-    # S70: Convert building centroids to lot coordinates
-    # centroid_ft is relative to (lat, lng). Lot coords have origin at (min_lat, min_lng).
-    # Compute the offset so frontend gets positions directly in lot space.
-    if raw_coords and len(raw_coords) >= 3 and result.get("buildings"):
+    # S70: Compute lot_origin from raw GeoJSON coords.
+    # This is the same (min_lat, min_lng) used by _coords_to_feet for the parcel.
+    # Passing it to the Overpass function puts buildings in lot coordinates directly.
+    lot_origin = None
+    if raw_coords and len(raw_coords) >= 3:
         min_lat_rc = min(c[1] for c in raw_coords)
         min_lng_rc = min(c[0] for c in raw_coords)
-        ft_lat = 364000.0
-        ft_lng = 364000.0 * _math.cos(_math.radians(min_lat_rc))
-        # Property lat/lng position in lot coordinates
-        prop_lot_x = (lng - min_lng_rc) * ft_lng
-        prop_lot_y = (lat - min_lat_rc) * ft_lat
-        for bldg in result["buildings"]:
-            cf = bldg.get("centroid_ft", [0, 0])
-            bldg["centroid_lot"] = [
-                round(prop_lot_x + cf[0], 1),
-                round(prop_lot_y + cf[1], 1)
-            ]
-        result["prop_lot"] = [round(prop_lot_x, 1), round(prop_lot_y, 1)]
-        print(f"Lot-coord conversion: prop at ({prop_lot_x:.1f},{prop_lot_y:.1f}) in lot space", flush=True)
+        lot_origin = (min_lat_rc, min_lng_rc)
+        print(f"Lot origin from raw_coords: ({min_lat_rc:.6f},{min_lng_rc:.6f})", flush=True)
+
+    result = _overpass_building_lookup(lat, lng, lot_origin=lot_origin)
 
     # Only cache successful results with actual data
     if result.get("count", 0) > 0 or result.get("nearest_road"):
