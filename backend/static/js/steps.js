@@ -3560,17 +3560,18 @@ function StepContent(props) {
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
           <span style={{ fontSize: 16 }}>{statusIcon}</span>
           <div>
-            <div style={{ fontSize: 10, fontWeight: 700, color: statusColor, fontFamily: _mono, letterSpacing: "1px" }}>{statusText}</div>
-            <div style={{ fontSize: 8, color: _br.mu, fontFamily: _mono }}>{rpt.passed}/{rpt.total_applicable} checks passed {"\u00B7"} IRC 2021</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: statusColor, fontFamily: _mono, letterSpacing: "1px" }}>{statusText}</div>
+            <div style={{ fontSize: 10, color: _br.mu, fontFamily: _sans }}>{rpt.passed}/{rpt.total_applicable} checks passed {"\u00B7"} IRC 2021</div>
           </div>
         </div>
         {failChecks.length > 0 && <div style={{ marginBottom: 6 }}>
-          {failChecks.map(function(ck, i) { return <div key={i} style={{ fontSize: 8, fontFamily: _mono, color: "#c62828", padding: "3px 0", borderTop: i > 0 ? "1px solid " + statusBorder : "none" }}>
-            {"\u2022"} {ck.message}{ck.fix ? <span style={{ color: _br.mu }}> {"\u2014"} {ck.fix}</span> : null}
+          {failChecks.map(function(ck, i) { return <div key={i} style={{ fontSize: 10, fontFamily: _sans, color: "#c62828", padding: "5px 0", borderTop: i > 0 ? "1px solid " + statusBorder : "none" }}>
+            {"\u2022"} <strong>{ck.message}</strong>
+            {ck.fix ? <div style={{ fontSize: 9, color: "#555", marginTop: 2, marginLeft: 12 }}>{"\u2192"} {ck.fix}{ck.fix_step != null ? <button onClick={function(){window._wizStep && window._wizStep(ck.fix_step)}} style={{marginLeft:6,fontSize:8,padding:"1px 6px",border:"1px solid #ccc",borderRadius:3,background:"#fff",cursor:"pointer",color:"#2563eb"}}>Go to Step {ck.fix_step + 1}</button> : null}</div> : null}
           </div>; })}
         </div>}
         {gapChecks.length > 0 && failChecks.length === 0 && <div style={{ marginBottom: 6 }}>
-          {gapChecks.map(function(ck, i) { return <div key={i} style={{ fontSize: 8, fontFamily: _mono, color: "#e65100", padding: "3px 0" }}>
+          {gapChecks.map(function(ck, i) { return <div key={i} style={{ fontSize: 10, fontFamily: _sans, color: "#e65100", padding: "5px 0" }}>
             {"\u2022"} {ck.message}
           </div>; })}
         </div>}

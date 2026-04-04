@@ -497,6 +497,7 @@ const App = function SimpleBlueprints() {
   const { br, mono, sans } = window.SB;
   const [page, setPage] = useState("home");
   const [step, setStep] = useState(0);
+  window._wizStep = setStep; // S69: expose for permit check fix navigation
   // S55: Track step changes with timing
   const _stepEnteredAt = React.useRef(Date.now());
   const _prevStep = React.useRef(0);
