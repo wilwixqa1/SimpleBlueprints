@@ -3257,7 +3257,7 @@ function StepContent(props) {
       </div>}
 
       {/* === PROPERTY INFO (prints on site plan + title block) === */}
-      <div style={{ padding: 14, background: _br.wr, borderRadius: 8, border: "1px solid " + _br.bd, marginBottom: 14 }}>
+      {(!guideActive || (guidePhase !== 'has_survey' && guidePhase !== 'address_lookup' && guidePhase !== 'address_verifying')) && <div style={{ padding: 14, background: _br.wr, borderRadius: 8, border: "1px solid " + _br.bd, marginBottom: 14 }}>
         <div style={{ fontSize: 9, fontWeight: 700, color: _br.gn, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 8 }}>Property Information</div>
         <div style={{ marginBottom: 8 }}>
           <label style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, display: "block", marginBottom: 2 }}>Property Address</label>
@@ -3285,7 +3285,7 @@ function StepContent(props) {
         </div>
         <div style={{ fontSize: 8, color: _br.mu, fontFamily: _mono, marginTop: 6, fontStyle: "italic" }}>This prints on your site plan sheet and title block. You can also edit in the Review step.</div>
         {(() => { var miss = []; if (!info.address) miss.push("Address"); if (!info.city) miss.push("City"); if (!info.state) miss.push("State"); if (!info.zip) miss.push("ZIP"); return miss.length > 0 ? <div style={{ marginTop: 8, padding: "6px 10px", background: "#fff8e1", borderRadius: 4, border: "1px solid #ffe082", borderLeft: "3px solid #f59e0b" }}><span style={{ fontSize: 9, fontFamily: _mono, color: "#d97706", fontWeight: 600 }}>{"\u26A0\uFE0F"} Permit offices typically require: {miss.join(", ")}</span></div> : null; })()}
-      </div>
+      </div>}
 
       {/* === SETBACK WARNINGS (always visible) === */}
       {spWarnings.length > 0 && <div style={{ padding: 12, background: "#fff8e1", borderRadius: 8, border: "1px solid #ffe082", marginBottom: 14 }}>
