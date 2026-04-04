@@ -296,26 +296,59 @@ def draw_site_plan(fig, params, calc):
     house_mid_y = house_y + house_d / 2
     house_x = left_edge_at_y(house_mid_y) + house_x  # house_x was houseOffsetSide
 
+    # S70: House rotation from building footprint angle
+    house_angle = params.get("houseAngle", 0) or 0
+    house_cx = house_x + house_w / 2
+    house_cy = house_y + house_d / 2
+
     house_rect = patches.Rectangle(
         (house_x, house_y), house_w, house_d,
         fc='#e8e6e0', ec=BRAND["dark"], lw=1.5, hatch='///', zorder=3
     )
+    if house_angle:
+        import matplotlib.transforms as mtransforms
+        _rot = mtransforms.Affine2D().rotate_deg_around(house_cx, house_cy, house_angle)
+        house_rect.set_transform(_rot + ax.transData)
     ax.add_patch(house_rect)
+
     # S44: Simpler label on large lots where house rect is tiny
     _house_label = "EXISTING\nRESIDENCE" if _is_large else house_label
-    ax.text(house_x + house_w / 2, house_y + house_d / 2,
+    # Text angle for readability: normalize to -90..90
+    _text_angle = house_angle
+    while _text_angle > 90: _text_angle -= 180
+    while _text_angle < -90: _text_angle += 180
+    ax.text(house_cx, house_cy,
             _house_label,
             ha='center', va='center', fontsize=7, fontweight='bold',
-            fontfamily='monospace', color=BRAND["dark"], zorder=4)
+            fontfamily='monospace', color=BRAND["dark"], zorder=4,
+            rotation=_text_angle)
 
     # S44: Skip house dimension labels on large lots (unreadable, cluttery)
     if not _is_large:
-        ax.text(house_x + house_w / 2, house_y - 2.5, f"{house_w}'",
-                ha='center', fontsize=6, fontfamily='monospace', color=BRAND["mute"],
-                fontweight='bold')
-        ax.text(house_x - 3, house_y + house_d / 2, f"{house_d}'",
-                ha='center', fontsize=6, fontfamily='monospace', color=BRAND["mute"],
-                fontweight='bold', rotation=90)
+        # S70: Position dimension labels relative to rotated house
+        if house_angle:
+            _a_rad = math.radians(house_angle)
+            _cos_a = math.cos(_a_rad)
+            _sin_a = math.sin(_a_rad)
+            # Width label: centered along the front edge (below house), offset perpendicular
+            _wlx = house_cx - _sin_a * (house_d / 2 + 3)
+            _wly = house_cy + _cos_a * (house_d / 2 + 3) * -1
+            ax.text(_wlx, _wly, f"{house_w}'",
+                    ha='center', fontsize=6, fontfamily='monospace', color=BRAND["mute"],
+                    fontweight='bold', rotation=_text_angle)
+            # Depth label: centered along the left edge, offset perpendicular
+            _dlx = house_cx - _cos_a * (house_w / 2 + 4)
+            _dly = house_cy - _sin_a * (house_w / 2 + 4)
+            ax.text(_dlx, _dly, f"{house_d}'",
+                    ha='center', fontsize=6, fontfamily='monospace', color=BRAND["mute"],
+                    fontweight='bold', rotation=_text_angle + 90)
+        else:
+            ax.text(house_cx, house_y - 2.5, f"{house_w}'",
+                    ha='center', fontsize=6, fontfamily='monospace', color=BRAND["mute"],
+                    fontweight='bold')
+            ax.text(house_x - 3, house_cy, f"{house_d}'",
+                    ha='center', fontsize=6, fontfamily='monospace', color=BRAND["mute"],
+                    fontweight='bold', rotation=90)
 
     # === SITE ELEMENTS (S32) ===
     site_elements = params.get("siteElements") or []
