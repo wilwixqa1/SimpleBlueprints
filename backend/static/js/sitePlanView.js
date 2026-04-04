@@ -527,9 +527,15 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
 
     React.createElement("g", null, siteEls),
 
-    React.createElement("g", null, deckEls),
+    // S70: Deck rotates with house when houseAngle is set
+    React.createElement("g", {
+      transform: (p.houseAngle || 0) !== 0 ? "rotate(" + (-(p.houseAngle || 0)).toFixed(1) + "," + sx(hx + hw / 2).toFixed(1) + "," + sy(hy + hd / 2).toFixed(1) + ")" : undefined
+    }, deckEls),
 
-    React.createElement("g", null, stairEls),
+    // S70: Stairs rotate with house when houseAngle is set
+    React.createElement("g", {
+      transform: (p.houseAngle || 0) !== 0 ? "rotate(" + (-(p.houseAngle || 0)).toFixed(1) + "," + sx(hx + hw / 2).toFixed(1) + "," + sy(hy + hd / 2).toFixed(1) + ")" : undefined
+    }, stairEls),
 
     !_isLarge && rearGap > 0 ? React.createElement(DimLine, { x1: sx(bbLx + bbW / 2), y1: sy(bbLy + bbD), x2: sx(bbLx + bbW / 2), y2: sy(lotD), label: rearGap.toFixed(1) + "'", color: rearWarn ? "#e53935" : "#1565c0" }) : null,
     !_isLarge && leftGap > 0 && sw(leftGap) > 12 ? React.createElement(DimLine, { x1: sx(0), y1: sy(bbLy + bbD / 2), x2: sx(bbLx), y2: sy(bbLy + bbD / 2), label: leftGap.toFixed(1) + "'", color: leftWarn ? "#e53935" : "#1565c0", side: "above" }) : null,

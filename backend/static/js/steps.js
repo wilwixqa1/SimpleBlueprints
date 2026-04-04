@@ -1248,9 +1248,14 @@ function StepContent(props) {
             }
             if (!mappedType) continue;
             if (b2.area_sqft < 20 || b2.area_sqft > 2000) continue; // skip tiny or huge
-            // Position relative to primary building
+            // Filter: only structures within 60ft of primary building (skip neighbors)
             var dx2 = b2.centroid_ft[0] - primaryCF[0];
             var dy2 = b2.centroid_ft[1] - primaryCF[1];
+            var distFromPrimary = Math.sqrt(dx2 * dx2 + dy2 * dy2);
+            if (distFromPrimary > 60) {
+              console.log("Skipped " + (mappedType || b2.type) + " " + b2.osm_id + ": " + distFromPrimary.toFixed(0) + "ft from house (too far, likely neighbor)");
+              continue;
+            }
             // Map to lot coords: house center + relative offset
             // House center in lot: we used centering, so approximate
             var houseCX2 = (leftX2 || 0) + (widthAtY || lotW2) / 2;
