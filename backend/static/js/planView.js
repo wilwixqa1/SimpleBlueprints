@@ -395,7 +395,7 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, getC
             for (let si = 0; si < run.nStringers; si++) { const f = run.nStringers>1?si/(run.nStringers-1):0.5; els.push(<line key={"s"+ri+"_"+si} x1={tr.x} y1={tr.y+f*tr.h} x2={tr.x+tr.w} y2={tr.y+f*tr.h} stroke="#999" strokeWidth="0.3" strokeDasharray="2,2" />); }
           }
           const cx2=tr.x+tr.w/2, cy2=tr.y+tr.h/2;
-          els.push(<text key={"dn"+ri} x={cx2} y={cy2-4} textAnchor="middle" style={{ fontSize: 6, fill: "#444", fontFamily: "monospace", fontWeight: 700 }}>DN</text>);
+          els.push(<text key={"dn"+ri} x={cx2} y={cy2-4} textAnchor="middle" style={{ fontSize: 6, fill: "#444", fontFamily: "monospace", fontWeight: 700 }}>DOWN</text>);
           const dd = transformDir(run.downDir), as2 = 3, ay2 = cy2 + 4;
           if (dd==="+y") els.push(<polygon key={"ar"+ri} points={(cx2-as2)+","+ay2+" "+cx2+","+(ay2+as2)+" "+(cx2+as2)+","+ay2} fill="#666" />);
           else if (dd==="-y") els.push(<polygon key={"ar"+ri} points={(cx2-as2)+","+ay2+" "+cx2+","+(ay2-as2)+" "+(cx2+as2)+","+ay2} fill="#666" />);
