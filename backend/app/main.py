@@ -2126,6 +2126,7 @@ async def building_footprint(request: Request):
 
     lat = float(body.get("lat", 0))
     lng = float(body.get("lng", 0))
+    raw_coords = body.get("raw_coords")  # S70: GeoJSON coords for lot-coord conversion
 
     if not lat or not lng:
         raise HTTPException(status_code=400, detail="lat and lng required")
@@ -2137,6 +2138,26 @@ async def building_footprint(request: Request):
         return JSONResponse(_building_cache[cache_key])
 
     result = _overpass_building_lookup(lat, lng)
+
+    # S70: Convert building centroids to lot coordinates
+    # centroid_ft is relative to (lat, lng). Lot coords have origin at (min_lat, min_lng).
+    # Compute the offset so frontend gets positions directly in lot space.
+    if raw_coords and len(raw_coords) >= 3 and result.get("buildings"):
+        min_lat_rc = min(c[1] for c in raw_coords)
+        min_lng_rc = min(c[0] for c in raw_coords)
+        ft_lat = 364000.0
+        ft_lng = 364000.0 * _math.cos(_math.radians(min_lat_rc))
+        # Property lat/lng position in lot coordinates
+        prop_lot_x = (lng - min_lng_rc) * ft_lng
+        prop_lot_y = (lat - min_lat_rc) * ft_lat
+        for bldg in result["buildings"]:
+            cf = bldg.get("centroid_ft", [0, 0])
+            bldg["centroid_lot"] = [
+                round(prop_lot_x + cf[0], 1),
+                round(prop_lot_y + cf[1], 1)
+            ]
+        result["prop_lot"] = [round(prop_lot_x, 1), round(prop_lot_y, 1)]
+        print(f"Lot-coord conversion: prop at ({prop_lot_x:.1f},{prop_lot_y:.1f}) in lot space", flush=True)
 
     # Only cache successful results with actual data
     if result.get("count", 0) > 0 or result.get("nearest_road"):

@@ -1076,7 +1076,7 @@ function StepContent(props) {
         fetch('/api/building-footprint', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ lat: data.location.lat, lng: data.location.lng })
+          body: JSON.stringify({ lat: data.location.lat, lng: data.location.lng, raw_coords: data.raw_coords })
         })
         .then(function(r) { return r.json(); })
         .then(function(bldg) {
@@ -1185,24 +1185,16 @@ function StepContent(props) {
           u("houseWidth", Math.round(primary.width));
           u("houseDepth", Math.round(primary.depth));
           u("houseAngle", primary.angle);
-          // S70: Use building centroid to position house on lot
-          // centroid_ft is relative to property lat/lng.
-          // Lot polygon centroid ~ property lat/lng in lot coords.
+          // S70: Position house using centroid_lot (lot coordinates from backend)
+          // Backend computes this precisely using raw GeoJSON coords
           var lotVerts2 = data.lot.vertices;
-          if (lotVerts2 && lotVerts2.length >= 3 && primary.centroid_ft) {
-            var lotCX2 = 0, lotCY2 = 0;
-            for (var vi2 = 0; vi2 < lotVerts2.length; vi2++) {
-              lotCX2 += lotVerts2[vi2][0]; lotCY2 += lotVerts2[vi2][1];
-            }
-            lotCX2 /= lotVerts2.length; lotCY2 /= lotVerts2.length;
-            // Building center in lot coordinates
-            var bldgCX = lotCX2 + primary.centroid_ft[0];
-            var bldgCY = lotCY2 + primary.centroid_ft[1];
+          var cLot = primary.centroid_lot || null;
+          if (cLot && lotVerts2 && lotVerts2.length >= 3) {
+            var bldgCX = cLot[0], bldgCY = cLot[1];
             // houseDistFromStreet = Y of house bottom edge
             var newDist = Math.max(5, Math.round(bldgCY - primary.depth / 2));
             u("houseDistFromStreet", newDist);
             // houseOffsetSide is relative to left polygon edge at house Y
-            // Find left edge at building center Y
             var leftX2 = 0, minLX = Infinity;
             for (var ei3 = 0; ei3 < lotVerts2.length; ei3++) {
               var a3 = lotVerts2[ei3], b3 = lotVerts2[(ei3 + 1) % lotVerts2.length];
@@ -1215,7 +1207,7 @@ function StepContent(props) {
             leftX2 = minLX === Infinity ? 0 : minLX;
             var newOffset = Math.max(0, Math.round(bldgCX - primary.width / 2 - leftX2));
             u("houseOffsetSide", newOffset);
-            console.log("House positioned from OSM centroid: lot(" + bldgCX.toFixed(1) + "," + bldgCY.toFixed(1) + ") offset=" + newOffset + " dist=" + newDist);
+            console.log("House positioned from centroid_lot: (" + bldgCX.toFixed(1) + "," + bldgCY.toFixed(1) + ") offset=" + newOffset + " dist=" + newDist);
           } else {
             // Fallback: center house horizontally
             var hw2 = Math.round(primary.width);
