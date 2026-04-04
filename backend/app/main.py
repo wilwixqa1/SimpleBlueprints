@@ -124,6 +124,7 @@ class DeckParams(BaseModel):
     overJoist: Optional[str] = None; overBeam: Optional[str] = None
     overPostSize: Optional[str] = None; overPostCount: Optional[int] = None
     overFooting: Optional[int] = None; overGuardHeight: Optional[int] = None
+    footingOverrides: Optional[dict] = None
     houseDistFromStreet: Optional[float] = None
     streetName: Optional[str] = None
     projectInfo: Optional[dict] = None; coverImage: Optional[str] = None

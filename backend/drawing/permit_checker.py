@@ -490,6 +490,30 @@ def check_footing_bearing(params, calc, spec):
     required_area = footing_load / 1500  # sq ft at 1500 PSF soil bearing
     actual_area = math.pi * (footing_diam / 24) ** 2  # diam in -> ft radius -> area
 
+    # S70: Check per-footing overrides
+    footing_overrides = params.get("footingOverrides") or {}
+    undersized_posts = []
+    for idx_str, override_diam in footing_overrides.items():
+        if override_diam is not None:
+            override_area = math.pi * (override_diam / 24) ** 2
+            if override_area < required_area * 0.9:
+                idx = int(idx_str)
+                undersized_posts.append(f"Post {idx + 1} ({override_diam}\")")
+
+    if undersized_posts:
+        return CheckResult(
+            id="IRC_FOOTING_BEARING",
+            category="structural", sheet="A-4", severity="warning",
+            status="fail",
+            message="One or more footings are undersized for soil bearing capacity.",
+            detail=(
+                f"Undersized: {', '.join(undersized_posts)}. "
+                f"Load requires {required_area:.2f} SF at 1500 PSF"
+            ),
+            fix=f"Increase undersized footing diameters to at least {footing_diam}\" in Step 2 (Customize per post).",
+            fix_step=2,
+        )
+
     if actual_area < required_area * 0.9:
         return CheckResult(
             id="IRC_FOOTING_BEARING",
