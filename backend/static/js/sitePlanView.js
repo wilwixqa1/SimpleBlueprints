@@ -270,7 +270,10 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
   var deckCX = hx + hw / 2 + (p.deckOffset || 0);
   var dw = p.width || 20, dd = p.depth || 12;
   var dx = deckCX - dw / 2;
-  var dy = hy + hd;
+  // S70: Deck goes on opposite side from street.
+  // When _lotRotation is 90-270, street was originally at top, deck goes below house.
+  var _streetAtTop = (p._lotRotation || 0) > 90 && (p._lotRotation || 0) < 270;
+  var dy = _streetAtTop ? (hy - dd) : (hy + hd);
 
   // === ZONE-AWARE DECK (S30) ===
   var pz = Object.assign({}, p, { deckWidth: dw, deckDepth: dd, deckHeight: p.height || 4 });
@@ -431,7 +434,8 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
     deckEls.push(React.createElement("rect", { key: "d0", x: sx(dx), y: sy(dy + dd), width: sw(dw), height: sh(dd), fill: "#d4e6c3", stroke: "#3d5a2e", strokeWidth: 1.5 }));
   }
   if (p.attachment === "ledger") {
-    deckEls.push(React.createElement("line", { key: "ldg", x1: sx(dx), y1: sy(dy), x2: sx(dx + dw), y2: sy(dy), stroke: "#2e7d32", strokeWidth: 2.5 }));
+    var ledgerY = _streetAtTop ? hy : dy; // ledger at house-deck boundary
+    deckEls.push(React.createElement("line", { key: "ldg", x1: sx(dx), y1: sy(ledgerY), x2: sx(dx + dw), y2: sy(ledgerY), stroke: "#2e7d32", strokeWidth: 2.5 }));
   }
   if (sh(bbD) > 16) {
     deckEls.push(React.createElement("text", { key: "dlbl", x: sx(bbLx + bbW / 2), y: sy(bbLy + bbD / 2) + 3, textAnchor: "middle", style: { fontSize: 8, fill: "#3d5a2e", fontFamily: mono, fontWeight: 700 } }, "PROPOSED DECK"));
