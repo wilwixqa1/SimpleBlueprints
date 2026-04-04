@@ -823,14 +823,17 @@ AI_HELPER_PARAMS = {
             "joistSize": {"desc": "Joist lumber size", "type": "choice", "options": ["2x6", "2x8", "2x10", "2x12"]},
             "joistSpacing": {"desc": "Joist spacing in inches", "type": "choice", "options": [12, 16]},
             "attachment": {"desc": "Ledger (bolted to house) or freestanding (own posts)", "type": "choice", "options": ["ledger", "freestanding"]},
+            "snowLoad": {"desc": "Snow load level (affects joist/beam sizing)", "type": "choice", "options": ["none", "light", "moderate", "heavy"]},
+            "frostZone": {"desc": "Frost zone for footing depth", "type": "choice", "options": ["warm", "moderate", "cold", "severe"]},
+            "beamType": {"desc": "Beam position relative to joists", "type": "choice", "options": ["dropped", "flush"]},
         }
     },
     3: {
         "step_name": "Finishes",
         "step_description": "Choosing decking material, railing style, and reviewing cost estimates.",
         "params": {
-            "deckingType": {"desc": "Decking board material", "type": "choice", "options": ["pt_wood", "cedar", "composite"]},
-            "railingType": {"desc": "Railing style", "type": "choice", "options": ["wood", "composite", "aluminum", "cable", "glass", "none"]},
+            "deckingType": {"desc": "Decking board material", "type": "choice", "options": ["composite", "pt_lumber"]},
+            "railType": {"desc": "Railing style", "type": "choice", "options": ["fortress", "wood"]},
         }
     },
     4: {
@@ -971,6 +974,7 @@ HOW COMPLEX TASKS WORK:
 - To add angled corners (chamfers): Use a chamferSet action. Corners are BL (back-left), BR (back-right), FL (front-left), FR (front-right). Example: {{"chamferSet":{{"corner":"FR","enabled":true,"size":4}}}} adds a 4-foot 45-degree chamfer on the front-right corner.
 - To cut a notch in the deck: Use a cutoutAdd action. Example: {{"cutoutAdd":{{"edge":"front","width":4,"depth":4}}}} cuts a 4x4 notch from the front edge.
 - To remove a zone or cutout: Use {{"zoneRemove":{{"zoneId":1}}}} with the zone's ID number.
+- To resize an existing zone: Use {{"zoneUpdate":{{"zoneId":1,"width":12,"depth":8}}}}. You can also set label: {{"zoneUpdate":{{"zoneId":1,"label":"Dining Area"}}}}.
 - To reposition the deck: Set deckOffset param directly (negative=left, positive=right). Or navigate to "advanced" to show the slider.
 - To toggle landing pad on/off: Set hasLanding directly (true/false). This is a simple toggle, no need to navigate.""",
         2: """PREVIEW PANEL: Shows the Deck Plan with structural members (joists, beams, posts) overlaid.

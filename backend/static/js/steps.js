@@ -708,6 +708,7 @@ function GuidePanel({ phase, onAction, onBack, history, onToggleOff, message, ti
               else if (act.cutoutAdd) chipText = "Added cutout (" + (act.cutoutAdd.edge || "front") + ")";
               else if (act.chamferSet) chipText = (act.chamferSet.enabled ? "Chamfer " : "Removed chamfer ") + (act.chamferSet.corner || "");
               else if (act.zoneRemove) chipText = "Removed zone";
+              else if (act.zoneUpdate) chipText = "Updated zone " + (act.zoneUpdate.zoneId || "");
               else return null;
               return <span key={ai} style={{
                 fontSize: 9, fontFamily: _mono, color: _br.gn, fontWeight: 700,
@@ -728,7 +729,7 @@ function GuidePanel({ phase, onAction, onBack, history, onToggleOff, message, ti
               return <button key={si} disabled={msg.appliedSuggestion != null}
                 onClick={function() {
                   var hasRecognized = sug.actions && sug.actions.length > 0 && sug.actions.some(function(a) {
-                    return a.param || a.navigate || a.siteElementUpdate || a.siteElementAdd || a.siteElementRemove || a.zoneAdd || a.cutoutAdd || a.chamferSet || a.zoneRemove;
+                    return a.param || a.navigate || a.siteElementUpdate || a.siteElementAdd || a.siteElementRemove || a.zoneAdd || a.cutoutAdd || a.chamferSet || a.zoneRemove || a.zoneUpdate;
                   });
                   if (hasRecognized && onApplyActions) {
                     onApplyActions(sug.actions);
@@ -1136,6 +1137,15 @@ function StepContent(props) {
       // S56: Zone remove action
       if (act.zoneRemove) {
         removeZone(act.zoneRemove.zoneId || act.zoneRemove);
+      }
+      // S70: Zone update action - resize existing zones
+      if (act.zoneUpdate) {
+        var zu = act.zoneUpdate;
+        if (zu.zoneId != null) {
+          if (zu.width) updateZone(zu.zoneId, "w", zu.width);
+          if (zu.depth) updateZone(zu.zoneId, "d", zu.depth);
+          if (zu.label) updateZone(zu.zoneId, "label", zu.label);
+        }
       }
     });
   }
