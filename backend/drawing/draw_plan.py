@@ -615,11 +615,11 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
                     ax.add_patch(pier)
                 # Landing post/pier callout (only on first landing, only for multi-run)
                 if _is_multi_run and li == 0 and landing.get("posts"):
-                    _lp0 = landing["posts"][0]
-                    _lpx, _lpy = _tp(_lp0[0], _lp0[1])
+                    _lp0 = landing["posts"][-1]  # use last post (bottom corner)
+                    _lpx, _lpy = _tp(_lp0[0] - 1.0, _lp0[1] + 0.5)
                     _n_lp = len(landing['posts'])
                     _lp_txt = f'4x4 PT POSTS ({_n_lp}) W/ {calc.get("footing_diam", 12)}" PIERS'
-                    ax.text(_lpx - 1.0, _lpy - 0.6, _lp_txt, fontsize=3.0,
+                    ax.text(_lpx, _lpy, _lp_txt, fontsize=3.2,
                             fontfamily='monospace', color=BRAND["dark"],
                             bbox=dict(boxstyle='square,pad=0.1', fc='white',
                                       ec='none', alpha=0.9))
@@ -738,44 +738,32 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
                     bbox=dict(boxstyle='square,pad=0.2', fc='white', ec=BRAND["border"],
                               lw=0.3, alpha=0.9))
 
-            # S68: Per-run length dimensions (only for multi-run stairs)
+            # S68: Per-run stringer callout uses dimension lines for multi-run (not floating text)
+            # For multi-run stairs, add dimension lines for each run length
             if _is_multi_run:
                 for ri, run in enumerate(sg["runs"]):
                     rr = run["rect"]
                     rx, ry, rw, rh = rr["x"], rr["y"], rr["w"], rr["h"]
                     axis = run["treadAxis"]
                     run_len = rh if axis == "h" else rw
-                    # Dimension line along the run length, offset outside
+                    # Use proper dimension lines offset from the run
                     if axis == "h":
-                        # Vertical run: dimension on the left side
-                        p1 = _tp(rx - 0.3, ry)
-                        p2 = _tp(rx - 0.3, ry + rh)
-                        _dim_cx, _dim_cy = _tp(rx - 1.0, ry + rh / 2)
-                        ax.plot([p1[0], p2[0]], [p1[1], p2[1]], color=BRAND["mute"], lw=0.4)
+                        p1 = _tp(rx - 0.5, ry)
+                        p2 = _tp(rx - 0.5, ry + rh)
+                        ax.plot([p1[0], p2[0]], [p1[1], p2[1]],
+                                color=BRAND["mute"], lw=0.5, zorder=2)
+                        # Tick marks at ends
+                        for px, py in [p1, p2]:
+                            t1 = _tp(rx - 0.3, ry if (px, py) == p1 else ry + rh)
+                            t2 = _tp(rx - 0.7, ry if (px, py) == p1 else ry + rh)
+                            ax.plot([t1[0], t2[0]], [t1[1], t2[1]],
+                                    color=BRAND["mute"], lw=0.4)
+                        _dim_cx, _dim_cy = _tp(rx - 1.2, ry + rh / 2)
                         ax.text(_dim_cx, _dim_cy, format_feet_inches(run_len),
                                 ha='center', va='center', fontsize=3.5, color=BRAND["dark"],
                                 rotation=90 if abs(_ang) < 45 else 0,
-                                bbox=dict(boxstyle='square,pad=0.1', fc='white',
-                                          ec='none', alpha=0.85))
-                    else:
-                        # Horizontal run: dimension below
-                        p1 = _tp(rx, ry - 0.3)
-                        p2 = _tp(rx + rw, ry - 0.3)
-                        _dim_cx, _dim_cy = _tp(rx + rw / 2, ry - 1.0)
-                        ax.plot([p1[0], p2[0]], [p1[1], p2[1]], color=BRAND["mute"], lw=0.4)
-                        ax.text(_dim_cx, _dim_cy, format_feet_inches(run_len),
-                                ha='center', va='center', fontsize=3.5, color=BRAND["dark"],
-                                bbox=dict(boxstyle='square,pad=0.1', fc='white',
-                                          ec='none', alpha=0.85))
-                # Landing depth dimensions
-                for li, landing in enumerate(sg["landings"]):
-                    lr = landing["rect"]
-                    _ld_txt = format_feet_inches(lr["h"])
-                    _ld_cx, _ld_cy = _tp(lr["x"] + lr["w"] + 0.8, lr["y"] + lr["h"] / 2)
-                    ax.text(_ld_cx, _ld_cy, f'{_ld_txt}\nLANDING', ha='center', va='center',
-                            fontsize=3.5, color=BRAND["dark"],
-                            bbox=dict(boxstyle='square,pad=0.1', fc='white',
-                                      ec='none', alpha=0.85))
+                                bbox=dict(boxstyle='square,pad=0.08', fc='white',
+                                          ec='none', alpha=0.9))
 
         # S68: Stair opening width callouts on framing plan (all stairs)
         if is_framing and all_stairs:
