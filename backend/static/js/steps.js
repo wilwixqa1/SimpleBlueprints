@@ -951,6 +951,7 @@ function StepContent(props) {
   const [rankingResult, setRankingResult] = _stUS(null);
   const [parcelLoading, setParcelLoading] = _stUS(false);
   const [parcelError, setParcelError] = _stUS(null);
+  const [footprintFailed, setFootprintFailed] = _stUS(false);
   const [parcelAddress, setParcelAddress] = _stUS("");
   const [parcelState, setParcelState] = _stUS("");
   const [parcelCity, setParcelCity] = _stUS("");
@@ -1120,13 +1121,18 @@ function StepContent(props) {
       // S70: Async building footprint lookup (non-blocking enhancement)
       // Queries OpenStreetMap for actual building footprint to get
       // accurate house dimensions, orientation angle, and position.
+      // S73: Auto-retry once on failure, show warning if both attempts fail.
       if (data.location.lat && data.location.lng) {
-        fetch('/api/building-footprint', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ lat: data.location.lat, lng: data.location.lng, raw_coords: data.raw_coords })
-        })
-        .then(function(r) { return r.json(); })
+        var _fpLat = data.location.lat, _fpLng = data.location.lng, _fpRaw = data.raw_coords;
+        var _doFootprintLookup = function(attempt) {
+          setFootprintFailed(false);
+          if (guideActive && attempt > 1) setGuidePhase('footprint_loading');
+          fetch('/api/building-footprint', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ lat: _fpLat, lng: _fpLng, raw_coords: _fpRaw })
+          })
+          .then(function(r) { return r.json(); })
         .then(function(bldg) {
           console.log("Building footprint response:", bldg.count + " buildings, nearest_road:", bldg.nearest_road ? bldg.nearest_road.name + " bearing=" + bldg.nearest_road.bearing + "deg dist=" + bldg.nearest_road.dist + "ft" : "none");
           // S70: Use nearest road to correct street edge identification
@@ -1460,9 +1466,19 @@ function StepContent(props) {
           if (guideActive) setGuidePhase('verify_extracted');
         })
         .catch(function(err) {
-          console.log("Building footprint lookup failed (non-critical):", err.message);
-          if (guideActive) setGuidePhase('verify_extracted');
+          console.log("Building footprint lookup failed (attempt " + attempt + "):", err.message);
+          if (attempt < 2) {
+            console.log("Retrying building footprint lookup...");
+            setTimeout(function() { _doFootprintLookup(attempt + 1); }, 2000);
+          } else {
+            setFootprintFailed(true);
+            if (guideActive) setGuidePhase('verify_extracted');
+          }
         });
+        };
+        _doFootprintLookup(1);
+        // S73: Expose retry function for manual retry button
+        window._retryFootprint = function() { _doFootprintLookup(1); };
       }
       // Advance guide to verify
       if (window._markProjectEdited) window._markProjectEdited();
@@ -2881,6 +2897,16 @@ function StepContent(props) {
           chatMessages={chatMessages} chatLoading={chatLoading} onSendMessage={sendChatMessage} onApplyActions={_applyActions} setChatMessages={setChatMessages}
         />;
       })()}
+
+      {/* S73: Footprint detection failure warning */}
+      {footprintFailed && guideActive && guidePhase === 'verify_extracted' && <div style={{ padding: "10px 14px", background: "#fefce8", borderRadius: 8, border: "1px solid #fde68a", marginBottom: 14 }}>
+        <div style={{ fontSize: 11, fontFamily: _sans, color: "#92400e", fontWeight: 600, marginBottom: 4 }}>{"\u26A0"} House detection unavailable</div>
+        <div style={{ fontSize: 10, fontFamily: _sans, color: "#92400e", lineHeight: 1.5, marginBottom: 8 }}>We could not detect your house from satellite data. The lot shape is correct, but house size and position may need manual adjustment.</div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={function() { if (window._retryFootprint) { setFootprintFailed(false); window._retryFootprint(); } }} style={{ fontSize: 10, fontFamily: _mono, color: "#fff", background: _br.gn, border: "none", borderRadius: 4, padding: "5px 12px", cursor: "pointer", fontWeight: 600 }}>Retry Detection</button>
+          <button onClick={function() { setFootprintFailed(false); }} style={{ fontSize: 10, fontFamily: _mono, color: _br.mu, background: "none", border: "1px solid " + _br.bd, borderRadius: 4, padding: "5px 12px", cursor: "pointer" }}>Dismiss</button>
+        </div>
+      </div>}
 
       {/* S49: Intro text (manual mode or after choosing) */}
       {(guideActive === false) && <div style={{ fontSize: 11, color: _br.tx, fontFamily: _sans, lineHeight: 1.7, marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
