@@ -952,6 +952,7 @@ function StepContent(props) {
   const [showLotShape, setShowLotShape] = _stUS(false);
   const [selectedElId, setSelectedElId] = _stUS(null);
   const [showLotHouse, setShowLotHouse] = _stUS(true);
+  const [showHouseAdj, setShowHouseAdj] = _stUS(false);
   const [showPerFooting, setShowPerFooting] = _stUS(false);
   var dialDragRef = React.useRef(false);
   _stUE(function() { u("_selectedElId", selectedElId); }, [selectedElId]);
@@ -1383,6 +1384,14 @@ function StepContent(props) {
               " houseOffset=" + _drawOffset + " houseDist=" + _drawDist +
               " hx=" + _drawHX.toFixed(1) + " hy=" + _drawHY.toFixed(1) + " angle=" + _normAng72);
           }
+          // S73: Stash auto-detected values for reset capability
+          // Use drawing-space values if rotated, otherwise the computed values
+          var _finalOffset = (_lotRot72 !== 0 && typeof _drawOffset !== 'undefined') ? _drawOffset : newOffset;
+          var _finalDist = (_lotRot72 !== 0 && typeof _drawDist !== 'undefined') ? _drawDist : newDist;
+          u("_autoHouseOffset", _finalOffset);
+          u("_autoHouseDist", _finalDist);
+          u("_autoHouseWidth", hw2);
+          u("_autoHouseDepth", hd2);
           // S70: Auto-add secondary structures (sheds, garages) as site elements
           // Use position relative to primary building (internally consistent in Overpass)
           var osmTypeMap = { "shed": "shed", "garage": "garage", "garages": "garage", "carport": "garage" };
@@ -2921,11 +2930,34 @@ function StepContent(props) {
         <Slider label="Lot width (front to back neighbor)" value={p.lotWidth} min={30} max={300} field="lotWidth" u={u} p={p} focused={guideFieldFocused('lotWidth')} />
         <Slider label="Lot depth (street to back)" value={p.lotDepth} min={50} max={400} field="lotDepth" u={u} p={p} focused={guideFieldFocused('lotDepth')} />
         <div style={{ fontSize: 9, fontWeight: 700, color: _br.mu, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 8, marginTop: 12 }}>House Position</div>
-        <Slider label="House width" value={p.houseWidth} min={20} max={80} field="houseWidth" u={u} p={p} focused={guideFieldFocused('houseWidth')} />
-        <Slider label="House depth" value={p.houseDepth} min={20} max={60} field="houseDepth" u={u} p={p} focused={guideFieldFocused('houseDepth')} />
-        <Slider label="House offset from left property line" value={p.houseOffsetSide} min={5} max={Math.max(5, p.lotWidth - p.houseWidth - 5)} field="houseOffsetSide" u={u} p={p} focused={guideFieldFocused('houseOffsetSide')} />
-        <Slider label="House distance from street" value={p.houseDistFromStreet || p.setbackFront} min={p.setbackFront} max={Math.max(p.setbackFront + 1, p.lotDepth - p.houseDepth - 10)} field="houseDistFromStreet" u={u} p={p} focused={guideFieldFocused('houseDistFromStreet')} />
-        <div style={{ fontSize: 8, color: _br.mu, fontFamily: _mono, marginTop: -12, marginBottom: 12, fontStyle: "italic" }}>Front setback is the minimum ({p.setbackFront}'). Your house may sit further back.</div>
+        {p._autoHouseOffset != null ? <>
+          {!showHouseAdj ? <div style={{ padding: "8px 10px", background: "#f0fdf4", borderRadius: 6, border: "1px solid #bbf7d0", marginBottom: 12 }}>
+            <div style={{ fontSize: 8, fontFamily: _mono, color: _br.gn, fontWeight: 600, marginBottom: 4 }}>{"\u2713"} Auto-detected from satellite data</div>
+            <div style={{ fontSize: 8, fontFamily: _mono, color: _br.mu }}>House: {p.houseWidth}' x {p.houseDepth}', offset {p.houseOffsetSide}' from left, {p.houseDistFromStreet}' from street</div>
+            <button onClick={function() { setShowHouseAdj(true); }} style={{ marginTop: 6, fontSize: 8, fontFamily: _mono, color: _br.dk, background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>Adjust manually</button>
+          </div> : <div>
+            <div style={{ padding: "8px 10px", background: "#fefce8", borderRadius: 6, border: "1px solid #fde68a", marginBottom: 8 }}>
+              <div style={{ fontSize: 8, fontFamily: _mono, color: "#92400e", fontWeight: 600 }}>{"\u26A0"} Only adjust if the position doesn't match your property</div>
+            </div>
+            <Slider label="House width" value={p.houseWidth} min={20} max={80} field="houseWidth" u={u} p={p} focused={guideFieldFocused('houseWidth')} />
+            <Slider label="House depth" value={p.houseDepth} min={20} max={60} field="houseDepth" u={u} p={p} focused={guideFieldFocused('houseDepth')} />
+            <Slider label="House offset from left property line" value={p.houseOffsetSide} min={0} max={Math.max(5, p.lotWidth - p.houseWidth - 5)} field="houseOffsetSide" u={u} p={p} focused={guideFieldFocused('houseOffsetSide')} />
+            <Slider label="House distance from street" value={p.houseDistFromStreet || p.setbackFront} min={0} max={Math.max(p.setbackFront + 1, p.lotDepth - p.houseDepth - 10)} field="houseDistFromStreet" u={u} p={p} focused={guideFieldFocused('houseDistFromStreet')} />
+            {(p.houseOffsetSide !== p._autoHouseOffset || p.houseDistFromStreet !== p._autoHouseDist || p.houseWidth !== p._autoHouseWidth || p.houseDepth !== p._autoHouseDepth) && <button onClick={function() {
+              u("houseOffsetSide", p._autoHouseOffset);
+              u("houseDistFromStreet", p._autoHouseDist);
+              u("houseWidth", p._autoHouseWidth);
+              u("houseDepth", p._autoHouseDepth);
+            }} style={{ fontSize: 8, fontFamily: _mono, color: "#b91c1c", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 4, padding: "4px 8px", cursor: "pointer", marginBottom: 8 }}>{"\u21A9"} Reset to detected values</button>}
+            <button onClick={function() { setShowHouseAdj(false); }} style={{ fontSize: 8, fontFamily: _mono, color: _br.mu, background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline", display: "block", marginBottom: 8 }}>Hide adjustments</button>
+          </div>}
+        </> : <>
+          <Slider label="House width" value={p.houseWidth} min={20} max={80} field="houseWidth" u={u} p={p} focused={guideFieldFocused('houseWidth')} />
+          <Slider label="House depth" value={p.houseDepth} min={20} max={60} field="houseDepth" u={u} p={p} focused={guideFieldFocused('houseDepth')} />
+          <Slider label="House offset from left property line" value={p.houseOffsetSide} min={5} max={Math.max(5, p.lotWidth - p.houseWidth - 5)} field="houseOffsetSide" u={u} p={p} focused={guideFieldFocused('houseOffsetSide')} />
+          <Slider label="House distance from street" value={p.houseDistFromStreet || p.setbackFront} min={p.setbackFront} max={Math.max(p.setbackFront + 1, p.lotDepth - p.houseDepth - 10)} field="houseDistFromStreet" u={u} p={p} focused={guideFieldFocused('houseDistFromStreet')} />
+        </>}
+        <div style={{ fontSize: 8, color: _br.mu, fontFamily: _mono, marginTop: -4, marginBottom: 12, fontStyle: "italic" }}>Front setback is the minimum ({p.setbackFront}'). Your house may sit further back.</div>
         <div style={{ fontSize: 9, fontWeight: 700, color: _br.mu, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 8, marginTop: 12 }}>Setbacks (from zoning code)</div>
         <Slider label="Front setback" value={p.setbackFront} min={0} max={50} field="setbackFront" u={u} p={p} focused={guideFieldFocused('setbackFront')} />
         <Slider label="Side setback" value={p.setbackSide} min={0} max={30} field="setbackSide" u={u} p={p} focused={guideFieldFocused('setbackSide')} />
