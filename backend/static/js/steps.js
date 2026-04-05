@@ -3958,6 +3958,8 @@ function StepContent(props) {
 
       {/* ===== WOOD STRUCTURAL DISPLAY (original) ===== */}
       {(p.framingType || "wood") === "wood" && <>
+
+      {(() => { const isOver = !!p.overJoist; const val = isOver ? p.overJoist : c.auto.joist; return (
         <div style={{ marginBottom: 10 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
             <span style={{ fontSize: 10, color: _br.mu, fontFamily: _mono, fontWeight: 700 }}>JOISTS</span>
