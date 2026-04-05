@@ -210,7 +210,7 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
 
   // S37 Push 6.5: House drag handler
   function onHousePointerDown(e) {
-    if (!u) return;
+    if (!u || lotRot !== 0) return; // S71: disable drag when lot is rotated (S72 refactor)
     e.preventDefault();
     e.stopPropagation();
     var cX = e.clientX != null ? e.clientX : (e.touches && e.touches[0] ? e.touches[0].clientX : null);
@@ -597,22 +597,10 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
       transform: _combAngle !== 0 ? "rotate(" + (-_combAngle).toFixed(1) + "," + sx(hx + hw / 2).toFixed(1) + "," + sy(hy + hd / 2).toFixed(1) + ")" : undefined
     }, stairEls),
 
-    // S71: Gap DimLine endpoints computed from un-rotated positions, then rotated
-    !_isLarge && rearGap > 0 ? React.createElement(DimLine, (function() {
-      var p1x = _ubbLx + bbW / 2, p1y = _ubbLy + bbD, p2x = _ubbLx + bbW / 2, p2y = _uViewD;
-      if (_rFn) { var r1 = _rFn(p1x, p1y), r2 = _rFn(p2x, p2y); p1x = r1[0]; p1y = r1[1]; p2x = r2[0]; p2y = r2[1]; }
-      return { x1: sx(p1x), y1: sy(p1y), x2: sx(p2x), y2: sy(p2y), label: rearGap.toFixed(1) + "'", color: rearWarn ? "#e53935" : "#1565c0" };
-    })()) : null,
-    !_isLarge && leftGap > 0 && sw(leftGap) > 12 ? React.createElement(DimLine, (function() {
-      var p1x = 0, p1y = _ubbLy + bbD / 2, p2x = _ubbLx, p2y = _ubbLy + bbD / 2;
-      if (_rFn) { var r1 = _rFn(p1x, p1y), r2 = _rFn(p2x, p2y); p1x = r1[0]; p1y = r1[1]; p2x = r2[0]; p2y = r2[1]; }
-      return { x1: sx(p1x), y1: sy(p1y), x2: sx(p2x), y2: sy(p2y), label: leftGap.toFixed(1) + "'", color: leftWarn ? "#e53935" : "#1565c0", side: "above" };
-    })()) : null,
-    !_isLarge && rightGap > 0 && sw(rightGap) > 12 ? React.createElement(DimLine, (function() {
-      var p1x = _ubbLx + bbW, p1y = _ubbLy + bbD / 2, p2x = _uViewW, p2y = _ubbLy + bbD / 2;
-      if (_rFn) { var r1 = _rFn(p1x, p1y), r2 = _rFn(p2x, p2y); p1x = r1[0]; p1y = r1[1]; p2x = r2[0]; p2y = r2[1]; }
-      return { x1: sx(p1x), y1: sy(p1y), x2: sx(p2x), y2: sy(p2y), label: rightGap.toFixed(1) + "'", color: rightWarn ? "#e53935" : "#1565c0", side: "above" };
-    })()) : null,
+    // S71: Gap DimLines hidden when lot rotation is active (coordinate system refactor in S72)
+    !_isLarge && !lotRot && rearGap > 0 ? React.createElement(DimLine, { x1: sx(bbLx + bbW / 2), y1: sy(bbLy + bbD), x2: sx(bbLx + bbW / 2), y2: sy(viewD), label: rearGap.toFixed(1) + "'", color: rearWarn ? "#e53935" : "#1565c0" }) : null,
+    !_isLarge && !lotRot && leftGap > 0 && sw(leftGap) > 12 ? React.createElement(DimLine, { x1: sx(0), y1: sy(bbLy + bbD / 2), x2: sx(bbLx), y2: sy(bbLy + bbD / 2), label: leftGap.toFixed(1) + "'", color: leftWarn ? "#e53935" : "#1565c0", side: "above" }) : null,
+    !_isLarge && !lotRot && rightGap > 0 && sw(rightGap) > 12 ? React.createElement(DimLine, { x1: sx(bbLx + bbW), y1: sy(bbLy + bbD / 2), x2: sx(viewW), y2: sy(bbLy + bbD / 2), label: rightGap.toFixed(1) + "'", color: rightWarn ? "#e53935" : "#1565c0", side: "above" }) : null,
 
     React.createElement("g", null, setbackLabels),
 
