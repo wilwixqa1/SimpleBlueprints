@@ -73,6 +73,11 @@ function DraftsPage({ setPage, user, API, loadProject, startNewProject }) {
   const [projects, setProjects] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [openingId, setOpeningId] = React.useState(null);
+  const [selected, setSelected] = React.useState({});
+  const [deleting, setDeleting] = React.useState(false);
+
+  var selectedCount = Object.keys(selected).filter(function(k) { return selected[k]; }).length;
+  var selectMode = selectedCount > 0;
 
   React.useEffect(function() {
     if (!user || !API) return;
@@ -83,6 +88,7 @@ function DraftsPage({ setPage, user, API, loadProject, startNewProject }) {
   }, [user, API]);
 
   var openProject = function(projId) {
+    if (selectMode) return;
     setOpeningId(projId);
     fetch(API + "/api/projects/" + projId, { credentials: "include" })
       .then(function(r) { return r.json(); })
@@ -99,6 +105,39 @@ function DraftsPage({ setPage, user, API, loadProject, startNewProject }) {
     fetch(API + "/api/projects/" + projId, { method: "DELETE", credentials: "include" })
       .then(function() { setProjects(function(prev) { return prev.filter(function(pr) { return pr.id !== projId; }); }); })
       .catch(function(e) { console.warn("Delete error:", e); });
+  };
+
+  var toggleSelect = function(e, projId) {
+    e.stopPropagation();
+    setSelected(function(prev) {
+      var copy = Object.assign({}, prev);
+      if (copy[projId]) { delete copy[projId]; } else { copy[projId] = true; }
+      return copy;
+    });
+  };
+
+  var selectAll = function() {
+    if (selectedCount === projects.length) {
+      setSelected({});
+    } else {
+      var all = {};
+      projects.forEach(function(p) { all[p.id] = true; });
+      setSelected(all);
+    }
+  };
+
+  var deleteSelected = function() {
+    var ids = Object.keys(selected).filter(function(k) { return selected[k]; });
+    if (ids.length === 0) return;
+    if (!confirm("Delete " + ids.length + " project" + (ids.length > 1 ? "s" : "") + "? This cannot be undone.")) return;
+    setDeleting(true);
+    Promise.all(ids.map(function(id) {
+      return fetch(API + "/api/projects/" + id, { method: "DELETE", credentials: "include" });
+    })).then(function() {
+      setProjects(function(prev) { return prev.filter(function(pr) { return !selected[pr.id]; }); });
+      setSelected({});
+      setDeleting(false);
+    }).catch(function(e) { console.warn("Bulk delete error:", e); setDeleting(false); });
   };
 
   var timeAgo = function(dateStr) {
@@ -133,10 +172,14 @@ function DraftsPage({ setPage, user, API, loadProject, startNewProject }) {
           {/* Header */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <button onClick={function() { setPage("home"); }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 14, color: br.mu, padding: 0 }}>{"\u2190"}</button>
-              <h1 style={{ fontFamily: sans, fontSize: 22, fontWeight: 800, color: br.dk, margin: 0 }}>My Projects</h1>
+              <button onClick={function() { if (selectMode) { setSelected({}); } else { setPage("home"); } }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 14, color: br.mu, padding: 0 }}>{"\u2190"}</button>
+              <h1 style={{ fontFamily: sans, fontSize: 22, fontWeight: 800, color: br.dk, margin: 0 }}>{selectMode ? selectedCount + " Selected" : "My Projects"}</h1>
             </div>
-            <button onClick={startNewProject} style={{ padding: "8px 18px", background: br.gn, color: "#fff", border: "none", borderRadius: 6, fontSize: 11, fontFamily: mono, cursor: "pointer", fontWeight: 700 }}>+ New Deck</button>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              {projects.length > 0 && <button onClick={selectAll} style={{ padding: "6px 12px", background: "transparent", border: "1px solid " + br.bd, borderRadius: 6, fontSize: 10, fontFamily: mono, color: br.mu, cursor: "pointer", fontWeight: 600 }}>{selectedCount === projects.length ? "Deselect All" : "Select All"}</button>}
+              {selectMode && <button onClick={deleteSelected} disabled={deleting} style={{ padding: "6px 12px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 6, fontSize: 10, fontFamily: mono, color: br.rd, cursor: deleting ? "wait" : "pointer", fontWeight: 700, opacity: deleting ? 0.5 : 1 }}>{deleting ? "Deleting..." : "Delete " + selectedCount}</button>}
+              {!selectMode && <button onClick={startNewProject} style={{ padding: "8px 18px", background: br.gn, color: "#fff", border: "none", borderRadius: 6, fontSize: 11, fontFamily: mono, cursor: "pointer", fontWeight: 700 }}>+ New Deck</button>}
+            </div>
           </div>
 
           {loading ? (
@@ -155,10 +198,14 @@ function DraftsPage({ setPage, user, API, loadProject, startNewProject }) {
                 var isOpening = openingId === proj.id;
                 var isGenerated = proj.status === "generated";
                 return (
-                  <div key={proj.id} onClick={function() { if (!isOpening) openProject(proj.id); }}
-                    style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 18px", background: "#fff", border: "1px solid " + br.bd, borderRadius: 8, cursor: isOpening ? "wait" : "pointer", transition: "border-color 0.15s, box-shadow 0.15s", opacity: isOpening ? 0.7 : 1, position: "relative" }}
-                    onMouseEnter={function(e) { e.currentTarget.style.borderColor = br.gn; e.currentTarget.style.boxShadow = "0 2px 8px rgba(61,90,46,0.08)"; }}
-                    onMouseLeave={function(e) { e.currentTarget.style.borderColor = br.bd; e.currentTarget.style.boxShadow = "none"; }}>
+                  <div key={proj.id} onClick={function() { if (selectMode) { toggleSelect({stopPropagation: function(){}}, proj.id); } else if (!isOpening) { openProject(proj.id); } }}
+                    style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 18px", background: selected[proj.id] ? "#f0fdf4" : "#fff", border: "1px solid " + (selected[proj.id] ? br.gn : br.bd), borderRadius: 8, cursor: isOpening ? "wait" : "pointer", transition: "border-color 0.15s, box-shadow 0.15s, background 0.15s", opacity: isOpening ? 0.7 : 1, position: "relative" }}
+                    onMouseEnter={function(e) { if (!selected[proj.id]) { e.currentTarget.style.borderColor = br.gn; e.currentTarget.style.boxShadow = "0 2px 8px rgba(61,90,46,0.08)"; } }}
+                    onMouseLeave={function(e) { if (!selected[proj.id]) { e.currentTarget.style.borderColor = br.bd; e.currentTarget.style.boxShadow = "none"; } }}>
+                    {/* Checkbox */}
+                    <div onClick={function(e) { toggleSelect(e, proj.id); }} style={{ width: 18, height: 18, borderRadius: 4, border: "2px solid " + (selected[proj.id] ? br.gn : br.bd), background: selected[proj.id] ? br.gn : "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, cursor: "pointer", transition: "all 0.15s" }}>
+                      {selected[proj.id] && <span style={{ color: "#fff", fontSize: 12, fontWeight: 900, lineHeight: 1 }}>{"\u2713"}</span>}
+                    </div>
                     {/* Left accent */}
                     <div style={{ width: 3, height: 36, borderRadius: 2, background: isGenerated ? br.gn : br.ac, flexShrink: 0 }} />
                     {/* Info */}
