@@ -1323,21 +1323,7 @@ function StepContent(props) {
               if (_rv72[_i72][0] > _rvMaxX) _rvMaxX = _rv72[_i72][0];
               if (_rv72[_i72][1] > _rvMaxY) _rvMaxY = _rv72[_i72][1];
             }
-            u("lotVertices", _rv72);
-            console.log("S72_DBG: rotated verts=" + JSON.stringify(_rv72.map(function(v){return [Math.round(v[0]*100)/100, Math.round(v[1]*100)/100]})));
-            u("lotWidth", Math.round(_rvMaxX));
-            u("lotDepth", Math.round(_rvMaxY));
-            // Edge lengths are preserved by rotation - use newEdges directly
-            // Must re-store lotEdges so renderer doesn't fall back to computeRectEdges
-            if (newEdges) {
-              u("lotEdges", newEdges);
-              console.log("S72_DBG: lotEdges stored, " + newEdges.length + " edges, lengths=" + newEdges.map(function(e){return e.length}).join(","));
-            } else {
-              console.log("S72_DBG: WARNING newEdges is falsy, lotEdges not stored!");
-            }
             // 2. Compute house corner (hx, hy) exactly like the renderer, then rotate
-            // Use newDist/newOffset from positioning code above, NOT p.houseDistFromStreet
-            // (React state is stale in async callbacks - S70 lesson)
             var _hy72 = newDist;
             var _hOff72 = newOffset;
             var _hMidY72 = _hy72 + hd2 / 2;
@@ -1352,20 +1338,27 @@ function StepContent(props) {
             }
             _lx72 = _mlx72 === Infinity ? 0 : _mlx72;
             var _hx72 = _lx72 + _hOff72;
-            console.log("S72_DBG: pre-rotate hx=" + _hx72.toFixed(2) + " hy=" + _hy72 + " leftX=" + _lx72.toFixed(2) + " offset=" + _hOff72 + " dist=" + _hy72 + " midY=" + _hMidY72 + " scanVerts=" + lotVerts2.length);
-            console.log("S72_DBG: centroid=(" + _cx72.toFixed(2) + "," + _cy72.toFixed(2) + ") rot=" + _lotRot72 + " minShift=(" + _mx72.toFixed(2) + "," + _my72.toFixed(2) + ")");
-            // Rotate house center, store corner
+            // Rotate house center
             var _rhc72 = _rFn72(_hx72 + hw2 / 2, _hy72 + hd2 / 2);
-            u("_houseX", _rhc72[0] - hw2 / 2);
-            u("_houseY", _rhc72[1] - hd2 / 2);
-            // 3. houseAngle: add rotation, normalize mod 180, negate for SVG Y-flip
+            // 3. houseAngle: normalize for drawing space
             var _rawAng72 = (primary.angle || 0) + _lotRot72;
             var _normAng72 = ((_rawAng72 % 180) + 180) % 180;
             if (_normAng72 > 90) _normAng72 -= 180;
-            _normAng72 = -_normAng72; // SVG Y-flip reverses rotation direction
+            _normAng72 = -_normAng72;
+            // S72: Set lotVertices LAST. The engine calls computePolygonVerts
+            // when lotEdges exists but lotVertices is null, producing a regular
+            // polygon that overwrites the real irregular shape.
+            u("lotWidth", Math.round(_rvMaxX));
+            u("lotDepth", Math.round(_rvMaxY));
+            if (newEdges) {
+              u("lotEdges", newEdges);
+            }
+            u("_houseX", _rhc72[0] - hw2 / 2);
+            u("_houseY", _rhc72[1] - hd2 / 2);
             u("houseAngle", _normAng72);
-            // 4. Clear _lotRotation so renderer doesn't double-rotate
             u("_lotRotation", 0);
+            // lotVertices MUST be last to prevent engine from regenerating polygon
+            u("lotVertices", _rv72);
             console.log("S72: Drawing-space values stored. lotBbox=" + Math.round(_rvMaxX) + "x" + Math.round(_rvMaxY) +
               " _houseX=" + (_rhc72[0] - hw2/2).toFixed(1) + " _houseY=" + (_rhc72[1] - hd2/2).toFixed(1) + " angle=" + _normAng72);
           }
