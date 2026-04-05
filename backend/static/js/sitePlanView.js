@@ -20,8 +20,34 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
 
   // Compute polygon verts early so we can size viewport to polygon bounds
   var verts = p.lotVertices || window.computeRectVertices(p);
+  var unrotVerts = verts; // S71: keep un-rotated for house positioning
+  var lotRot = p._lotRotation || 0;
+  var _rFn = null; // S71: rotation function (lot-space un-rotated -> rotated)
   var viewW = lotW, viewD = lotD;
   if (p.lotVertices && verts.length > 2) {
+    // S71: Rotate vertices for display if lot rotation is set
+    if (lotRot !== 0) {
+      var _rcx = 0, _rcy = 0;
+      for (var ri = 0; ri < verts.length; ri++) { _rcx += verts[ri][0]; _rcy += verts[ri][1]; }
+      _rcx /= verts.length; _rcy /= verts.length;
+      var _rr = lotRot * Math.PI / 180, _rc = Math.cos(_rr), _rs = Math.sin(_rr);
+      var rv = [];
+      for (var ri = 0; ri < verts.length; ri++) {
+        var rdx = verts[ri][0] - _rcx, rdy = verts[ri][1] - _rcy;
+        rv.push([_rcx + rdx * _rc - rdy * _rs, _rcy + rdx * _rs + rdy * _rc]);
+      }
+      var _rmx = Infinity, _rmy = Infinity;
+      for (var ri = 0; ri < rv.length; ri++) {
+        if (rv[ri][0] < _rmx) _rmx = rv[ri][0];
+        if (rv[ri][1] < _rmy) _rmy = rv[ri][1];
+      }
+      for (var ri = 0; ri < rv.length; ri++) { rv[ri][0] -= _rmx; rv[ri][1] -= _rmy; }
+      verts = rv;
+      _rFn = function(x, y) {
+        var dx = x - _rcx, dy = y - _rcy;
+        return [_rcx + dx * _rc - dy * _rs - _rmx, _rcy + dx * _rs + dy * _rc - _rmy];
+      };
+    }
     viewW = Math.max.apply(null, verts.map(function(v) { return v[0]; }));
     viewD = Math.max.apply(null, verts.map(function(v) { return v[1]; }));
   }
@@ -249,10 +275,13 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
 
   // Find the left boundary X at a given Y by scanning polygon edges
   function leftEdgeAtY(yVal) {
-    if (!p.lotVertices || verts.length < 3) return 0; // rectangle: left edge is x=0
+    // S71: Always scan un-rotated polygon (house position is in un-rotated space)
+    var scanVerts = unrotVerts;
+    if (!p.lotVertices || scanVerts.length < 3) return 0; // rectangle: left edge is x=0
     var minX = Infinity;
-    for (var ei = 0; ei < nVerts; ei++) {
-      var a = verts[ei], b = verts[(ei + 1) % nVerts];
+    var nScan = scanVerts.length;
+    for (var ei = 0; ei < nScan; ei++) {
+      var a = scanVerts[ei], b = scanVerts[(ei + 1) % nScan];
       var yLo = Math.min(a[1], b[1]), yHi = Math.max(a[1], b[1]);
       if (yVal < yLo || yVal > yHi || yLo === yHi) continue;
       var t = (yVal - a[1]) / (b[1] - a[1]);
@@ -271,6 +300,15 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
   var dw = p.width || 20, dd = p.depth || 12;
   var dx = deckCX - dw / 2;
   var dy = hy + hd;
+
+  // S71: Rotate house and deck positions to match rotated lot polygon.
+  // Both are computed in un-rotated space above. Rotate their centers together.
+  if (_rFn) {
+    var _rhc = _rFn(hx + hw / 2, hy + hd / 2);
+    hx = _rhc[0] - hw / 2; hy = _rhc[1] - hd / 2;
+    var _rdc = _rFn(dx + dw / 2, dy + dd / 2);
+    dx = _rdc[0] - dw / 2; dy = _rdc[1] - dd / 2;
+  }
 
   // === ZONE-AWARE DECK (S30) ===
   var pz = Object.assign({}, p, { deckWidth: dw, deckDepth: dd, deckHeight: p.height || 4 });
@@ -514,10 +552,11 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
         React.createElement("line", { x1: 0, y1: 0, x2: 0, y2: 6, stroke: "#ccc", strokeWidth: 0.5 })
       )
     ),
-    // S70: House group with rotation from building footprint angle
-    // houseAngle is lot-space degrees (0=E-W, 90=N-S). SVG Y is flipped, so negate.
+    // S71: House group rotation includes both houseAngle and lot rotation.
+    // houseAngle is geographic, lotRot puts street at bottom. Combined gives correct visual tilt.
+    var _combAngle = (p.houseAngle || 0) + lotRot;
     React.createElement("g", {
-      transform: (p.houseAngle || 0) !== 0 ? "rotate(" + (-(p.houseAngle || 0)).toFixed(1) + "," + sx(hx + hw / 2).toFixed(1) + "," + sy(hy + hd / 2).toFixed(1) + ")" : undefined
+      transform: _combAngle !== 0 ? "rotate(" + (-_combAngle).toFixed(1) + "," + sx(hx + hw / 2).toFixed(1) + "," + sy(hy + hd / 2).toFixed(1) + ")" : undefined
     },
       React.createElement("rect", { x: sx(hx), y: sy(hy + hd), width: sw(hw), height: sh(hd), fill: "#e8e6e0", stroke: "#666", strokeWidth: 1.2, onMouseDown: function(e) { onHousePointerDown(e); }, onTouchStart: function(e) { onHousePointerDown(e); }, style: { cursor: isDragging ? "grabbing" : "grab" } }),
       React.createElement("rect", { x: sx(hx), y: sy(hy + hd), width: sw(hw), height: sh(hd), fill: "url(#spHatch)", pointerEvents: "none" }),
@@ -527,14 +566,14 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
 
     React.createElement("g", null, siteEls),
 
-    // S70: Deck rotates with house when houseAngle is set
+    // S71: Deck rotates with house + lot rotation
     React.createElement("g", {
-      transform: (p.houseAngle || 0) !== 0 ? "rotate(" + (-(p.houseAngle || 0)).toFixed(1) + "," + sx(hx + hw / 2).toFixed(1) + "," + sy(hy + hd / 2).toFixed(1) + ")" : undefined
+      transform: _combAngle !== 0 ? "rotate(" + (-_combAngle).toFixed(1) + "," + sx(hx + hw / 2).toFixed(1) + "," + sy(hy + hd / 2).toFixed(1) + ")" : undefined
     }, deckEls),
 
-    // S70: Stairs rotate with house when houseAngle is set
+    // S71: Stairs rotate with house + lot rotation
     React.createElement("g", {
-      transform: (p.houseAngle || 0) !== 0 ? "rotate(" + (-(p.houseAngle || 0)).toFixed(1) + "," + sx(hx + hw / 2).toFixed(1) + "," + sy(hy + hd / 2).toFixed(1) + ")" : undefined
+      transform: _combAngle !== 0 ? "rotate(" + (-_combAngle).toFixed(1) + "," + sx(hx + hw / 2).toFixed(1) + "," + sy(hy + hd / 2).toFixed(1) + ")" : undefined
     }, stairEls),
 
     !_isLarge && rearGap > 0 ? React.createElement(DimLine, { x1: sx(bbLx + bbW / 2), y1: sy(bbLy + bbD), x2: sx(bbLx + bbW / 2), y2: sy(lotD), label: rearGap.toFixed(1) + "'", color: rearWarn ? "#e53935" : "#1565c0" }) : null,
