@@ -50,7 +50,11 @@ def draw_ledger_detail(ax, params, calc, spec=None):
 
     # Ledger board
     ax.add_patch(patches.Rectangle((4, 1.5), 1.2, 7, fc=BRAND["post"], ec=BRAND["dark"], lw=1))
-    ax.text(8.5, 5, f'{ledger_size} PT\nLEDGER', fontsize=5, fontweight='bold', color=BRAND["dark"])
+    _is_steel_ld = spec.get("is_steel", False) if spec else False
+    if _is_steel_ld:
+        ax.text(8.5, 5, f'FF-EVOLUTION\nS-LEDGER', fontsize=5, fontweight='bold', color=BRAND["dark"])
+    else:
+        ax.text(8.5, 5, f'{ledger_size} PT\nLEDGER', fontsize=5, fontweight='bold', color=BRAND["dark"])
     ax.annotate('', xy=(5.2, 5), xytext=(8.3, 5),
                 arrowprops=dict(arrowstyle='->', color=BRAND["dark"], lw=0.5))
 
@@ -80,7 +84,11 @@ def draw_ledger_detail(ax, params, calc, spec=None):
 
     # Joist hanger
     ax.plot([5.2, 5.2, 6, 6], [2, 1.5, 1.5, 2], color='#888', lw=1.5)
-    ax.text(5.4, 0.8, f"SIMPSON '{joist_hanger_model}'", fontsize=3.5, color=BRAND["mute"])
+    _is_steel = spec.get("is_steel", False) if spec else False
+    if _is_steel:
+        ax.text(5.4, 0.8, f"FF-EVOLUTION '{joist_hanger_model}'", fontsize=3.5, color=BRAND["mute"])
+    else:
+        ax.text(5.4, 0.8, f"SIMPSON '{joist_hanger_model}'", fontsize=3.5, color=BRAND["mute"])
 
     # Joist tape
     ax.add_patch(patches.Rectangle((5.2, 8.2), 0.8, 0.3, fc='#555', ec=BRAND["dark"], lw=0.3))
@@ -134,7 +142,11 @@ def draw_footing_detail(ax, params, calc, spec=None):
     # Post base hardware
     ax.add_patch(patches.Rectangle((3.5, 0), pier_width - 1, 0.5,
                  fc='#888', ec=BRAND["dark"], lw=0.8))
-    ax.text(10, 1.2, f"SIMPSON '{post_base_model}'\nPOST BASE", fontsize=4.5, color=BRAND["dark"])
+    _is_steel = spec.get("is_steel", False) if spec else False
+    if _is_steel:
+        ax.text(10, 1.2, f"FF-EVOLUTION\n'{post_base_model}'", fontsize=4.5, color=BRAND["dark"])
+    else:
+        ax.text(10, 1.2, f"SIMPSON '{post_base_model}'\nPOST BASE", fontsize=4.5, color=BRAND["dark"])
 
     # Post
     post_visual_w = 2.2 if post_size == "6x6" else 1.5
@@ -200,7 +212,7 @@ def draw_guard_rail_detail(ax, params, calc, spec=None):
                      fc=BRAND["rail"], ec=BRAND["rail"], lw=0.3))
 
     # Rail type label
-    if params["railType"] == "fortress":
+    if params.get("railType", params.get("railingType", "fortress")) == "fortress":
         rail_name = "'FORTRESS'\nFE26 IRON\nRAIL SYSTEM"
     else:
         rail_name = "WOOD\nGUARD RAIL\nSYSTEM"
@@ -244,12 +256,19 @@ def draw_post_beam_detail(ax, params, calc, spec=None):
     post_w = 2.2 if post_size == "6x6" else 1.5
     ax.add_patch(patches.Rectangle((3, -2), post_w, 6,
                  fc=BRAND["post"], ec=BRAND["dark"], lw=1))
-    ax.text(9, 0.5, f'{post_size} PT POST', fontsize=5, fontweight='bold', color=BRAND["dark"])
+    _is_steel = spec.get("is_steel", False) if spec else False
+    if _is_steel:
+        ax.text(9, 0.5, f'FORTRESS 3.5" STEEL POST', fontsize=5, fontweight='bold', color=BRAND["dark"])
+    else:
+        ax.text(9, 0.5, f'{post_size} PT POST', fontsize=5, fontweight='bold', color=BRAND["dark"])
 
     # Post cap
     ax.add_patch(patches.Rectangle((2.5, 4), post_w + 1, 0.5,
                  fc='#888', ec=BRAND["dark"], lw=0.8))
-    ax.text(9, 4, f"SIMPSON '{cap_model}'\nPOST CAP", fontsize=4.5, color=BRAND["dark"])
+    if _is_steel:
+        ax.text(9, 4, f"FF-EVOLUTION\n'{cap_model}'", fontsize=4.5, color=BRAND["dark"])
+    else:
+        ax.text(9, 4, f"SIMPSON '{cap_model}'\nPOST CAP", fontsize=4.5, color=BRAND["dark"])
 
     # Beam
     beam_y = 4.5
@@ -266,6 +285,9 @@ def draw_post_beam_detail(ax, params, calc, spec=None):
 
     if is_lvl:
         beam_label = f'({plies}) 1-3/4" x 11-7/8"\n2.0E LVL EXT. GRADE'
+    elif _is_steel:
+        _bt = "SINGLE" if "Single" in beam_size or "single" in beam_size else "DOUBLE"
+        beam_label = f'FF-EVOLUTION\n2X11 {_bt} BEAM'
     else:
         beam_lumber = beam_size.split(" ", 1)[1] if " " in beam_size else beam_size
         beam_label = f'({plies}) {beam_lumber}\nPT BEAM'
@@ -647,8 +669,15 @@ def draw_hardware_schedule(ax, params, calc, spec=None):
 
     ax.text(0, 11, 'HARDWARE SCHEDULE', fontsize=9, fontweight='bold',
             fontfamily='monospace', color=BRAND["dark"])
-    ax.text(0, 10.1, 'All hardware HDG or stainless steel', fontsize=4.5,
-            fontfamily='monospace', color=BRAND["mute"])
+
+    is_steel = spec.get("is_steel", False) if spec else False
+
+    if is_steel:
+        ax.text(0, 10.1, 'Fortress Evolution brackets + 3/4" self-tapping screws',
+                fontsize=4.5, fontfamily='monospace', color=BRAND["mute"])
+    else:
+        ax.text(0, 10.1, 'All hardware HDG or stainless steel', fontsize=4.5,
+                fontfamily='monospace', color=BRAND["mute"])
 
     # Build hardware rows from spec
     hw = spec["hardware"] if spec else {}
@@ -657,52 +686,103 @@ def draw_hardware_schedule(ax, params, calc, spec=None):
 
     rows = []
 
-    # Post base
-    pb = hw.get("post_base", {})
-    rows.append(("POST BASE", f'Simpson {pb.get("model", "ABU66Z")}',
-                 f'{calc.get("total_posts", 3)} EA'))
+    if is_steel:
+        # --- STEEL: Fortress Evolution hardware ---
+        pb = hw.get("post_base", {})
+        rows.append(("POST/PIER BRACKET", f'Fortress {pb.get("model", "3.5\" POST/PIER BRACKET")}',
+                     f'{calc.get("total_posts", 3)} EA'))
 
-    # Post cap
-    pc = hw.get("post_cap", {})
-    rows.append(("POST CAP", f'Simpson {pc.get("model", "BCS2-3/6")}',
-                 f'{calc.get("total_posts", 3)} EA'))
+        pc = hw.get("post_cap", {})
+        rows.append(("BEAM/POST BRACKET", f'Fortress {pc.get("model", "SNGL BEAM/POST BRACKET")}',
+                     f'{calc.get("total_posts", 3)} EA'))
 
-    # Joist hanger
-    jh = hw.get("joist_hanger", {})
-    n_hangers = calc.get("num_joists", 12) * 2
-    rows.append(("JOIST HANGER", f'Simpson {jh.get("model", "LUS210Z")}',
-                 f'{n_hangers} EA'))
+        jh = hw.get("joist_hanger", {})
+        n_hangers = calc.get("num_joists", 12)
+        rows.append(("HANGER BRACKET", f'Fortress {jh.get("model", "SNGL HANGER BRACKET")}',
+                     f'{n_hangers} EA'))
 
-    # Hurricane tie
-    ht = hw.get("hurricane_tie", {})
-    rows.append(("HURRICANE TIE", f'Simpson {ht.get("model", "H2.5AZ")}',
-                 f'{calc.get("num_joists", 12)} EA'))
+        f50 = hw.get("f50_bracket", {})
+        rows.append(("F50 BRACKET", f'Fortress {f50.get("model", "F50 BRACKET")}',
+                     f'{calc.get("num_joists", 12)} EA'))
 
-    # Ledger fastener (only for ledger attachment)
-    if attachment == "ledger":
-        lf = hw.get("ledger_fastener", {})
-        lf_size = lf.get("size", '5"')
-        rows.append(("LEDGER FASTENER", f"(2) {lf_size} Ledger Locks",
-                     f'@ {lf.get("spacing", 16)}" O.C.'))
+        # Ledger bracket (only for ledger attachment)
+        if attachment == "ledger":
+            lb = hw.get("ledger_bracket", {})
+            rows.append(("LEDGER BRACKET", f'Fortress {lb.get("model", "LEDGER BRACKET")}',
+                         'Per joist'))
 
-    # Lateral load (only for ledger)
-    if attachment == "ledger":
-        ll = hw.get("lateral_load", {})
-        rows.append(("LATERAL LOAD", f'Simpson {ll.get("model", "DTT2Z")}',
-                     f'{ll.get("min_count", 2)} EA (min)'))
+        # Lateral load (still Simpson, even for steel)
+        if attachment == "ledger":
+            ll = hw.get("lateral_load", {})
+            rows.append(("LATERAL LOAD", f'Simpson {ll.get("model", "DTT2Z")}',
+                         f'{ll.get("min_count", 2)} EA (min)'))
 
-    # Beam bolts
-    rows.append(("BEAM BOLTS", '1/2" Carriage Bolts',
-                 'W/ Nuts & Washers'))
+        # Blocking
+        blk = hw.get("blocking", {})
+        rows.append(("BLOCKING", f'Fortress {blk.get("model", "16OC BLOCKING")}',
+                     'Per bay at mid-span'))
 
-    # Stair connectors (if stairs)
-    if has_stairs:
-        st = hw.get("stair_connector_top", {})
-        sb = hw.get("stair_connector_bottom", {})
-        rows.append(("STAIR CONN. (TOP)", f'Simpson {st.get("model", "LSC")}',
-                     'Per stringer'))
-        rows.append(("STAIR CONN. (BTM)", f'Simpson {sb.get("model", "LSSU")}',
-                     'Per stringer'))
+        # Screws
+        scr = hw.get("screw", {})
+        rows.append(("FASTENERS", f'Fortress {scr.get("model", "3/4\" SELF-DRILLING SCREW")}',
+                     'Fill all holes'))
+
+        # Stair connectors (still Simpson, stairs are wood)
+        if has_stairs:
+            st = hw.get("stair_connector_top", {})
+            sb = hw.get("stair_connector_bottom", {})
+            rows.append(("STAIR CONN. (TOP)", f'Simpson {st.get("model", "LSC")}',
+                         'Per stringer'))
+            rows.append(("STAIR CONN. (BTM)", f'Simpson {sb.get("model", "LSSU")}',
+                         'Per stringer'))
+    else:
+        # --- WOOD: Simpson hardware ---
+        # Post base
+        pb = hw.get("post_base", {})
+        rows.append(("POST BASE", f'Simpson {pb.get("model", "ABU66Z")}',
+                     f'{calc.get("total_posts", 3)} EA'))
+
+        # Post cap
+        pc = hw.get("post_cap", {})
+        rows.append(("POST CAP", f'Simpson {pc.get("model", "BCS2-3/6")}',
+                     f'{calc.get("total_posts", 3)} EA'))
+
+        # Joist hanger
+        jh = hw.get("joist_hanger", {})
+        n_hangers = calc.get("num_joists", 12) * 2
+        rows.append(("JOIST HANGER", f'Simpson {jh.get("model", "LUS210Z")}',
+                     f'{n_hangers} EA'))
+
+        # Hurricane tie
+        ht = hw.get("hurricane_tie", {})
+        rows.append(("HURRICANE TIE", f'Simpson {ht.get("model", "H2.5AZ")}',
+                     f'{calc.get("num_joists", 12)} EA'))
+
+        # Ledger fastener (only for ledger attachment)
+        if attachment == "ledger":
+            lf = hw.get("ledger_fastener", {})
+            lf_size = lf.get("size", '5"')
+            rows.append(("LEDGER FASTENER", f"(2) {lf_size} Ledger Locks",
+                         f'@ {lf.get("spacing", 16)}" O.C.'))
+
+        # Lateral load (only for ledger)
+        if attachment == "ledger":
+            ll = hw.get("lateral_load", {})
+            rows.append(("LATERAL LOAD", f'Simpson {ll.get("model", "DTT2Z")}',
+                         f'{ll.get("min_count", 2)} EA (min)'))
+
+        # Beam bolts
+        rows.append(("BEAM BOLTS", '1/2" Carriage Bolts',
+                     'W/ Nuts & Washers'))
+
+        # Stair connectors (if stairs)
+        if has_stairs:
+            st = hw.get("stair_connector_top", {})
+            sb = hw.get("stair_connector_bottom", {})
+            rows.append(("STAIR CONN. (TOP)", f'Simpson {st.get("model", "LSC")}',
+                         'Per stringer'))
+            rows.append(("STAIR CONN. (BTM)", f'Simpson {sb.get("model", "LSSU")}',
+                         'Per stringer'))
 
     # Draw table
     table_top = 9.2

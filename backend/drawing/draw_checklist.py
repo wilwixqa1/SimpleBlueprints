@@ -96,8 +96,13 @@ def draw_checklist_sheet(fig, params, calc, spec=None):
     ax.text(0.4, y - 0.12,
             "USE LISTED JOIST HANGERS TO MATCH JOIST SIZE AND PROVIDE LISTED HARDWARE AT POST CAP AND BASE.",
             fontsize=4.5, fontfamily='monospace', color=dk, fontweight='bold')
+    _is_steel_cl = spec.get("is_steel", False) if spec else False
+    if _is_steel_cl:
+        _hw_mfr = "FORTRESS/SIMPSON/ETC."
+    else:
+        _hw_mfr = "USP/SIMPSON/ETC."
     ax.text(0.4, y - 0.32,
-            "INSTALL ALL LISTED PRODUCTS PER THE MANUFACTURER'S RECOMMENDATIONS (USP/SIMPSON/ETC.)",
+            f"INSTALL ALL LISTED PRODUCTS PER THE MANUFACTURER'S RECOMMENDATIONS ({_hw_mfr})",
             fontsize=4.5, fontfamily='monospace', color=dk, fontweight='bold')
 
     # Reference to A-4

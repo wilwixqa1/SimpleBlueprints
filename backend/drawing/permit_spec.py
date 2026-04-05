@@ -28,6 +28,29 @@ POST_BASES = {
     "6x6": {"model": "ABU66Z", "manufacturer": "Simpson"},
 }
 
+# ============================================================
+# FORTRESS EVOLUTION HARDWARE (STEEL FRAMING)
+# ============================================================
+# Fortress-specific brackets and connectors per CCRR-0313.
+# When framingType == "steel", these replace all Simpson hardware.
+
+STEEL_HARDWARE = {
+    "post_pier_bracket":       {"model": "3.5\" POST/PIER BRACKET",      "manufacturer": "Fortress"},
+    "single_beam_post_bracket":{"model": "SNGL BEAM/POST BRACKET",       "manufacturer": "Fortress"},
+    "double_beam_post_bracket":{"model": "DBL BEAM/POST BRACKET",        "manufacturer": "Fortress"},
+    "hanger_bracket":          {"model": "SNGL HANGER BRACKET",          "manufacturer": "Fortress"},
+    "double_hanger_bracket":   {"model": "DBL HANGER BRACKET",           "manufacturer": "Fortress"},
+    "ledger_bracket":          {"model": "LEDGER BRACKET",               "manufacturer": "Fortress"},
+    "f50_bracket":             {"model": "F50 BRACKET",                  "manufacturer": "Fortress"},
+    "f10_bracket":             {"model": "F10 BRACKET",                  "manufacturer": "Fortress"},
+    "rim_joist_bracket":       {"model": "RIM JOIST BRACKET",            "manufacturer": "Fortress"},
+    "blocking_12":             {"model": "12OC BLOCKING",                "manufacturer": "Fortress"},
+    "blocking_16":             {"model": "16OC BLOCKING",                "manufacturer": "Fortress"},
+    "strap_12":                {"model": "12OC STRAP",                   "manufacturer": "Fortress"},
+    "strap_16":                {"model": "16OC STRAP",                   "manufacturer": "Fortress"},
+    "self_drilling_screw":     {"model": '3/4" SELF-DRILLING SCREW',     "manufacturer": "Fortress"},
+}
+
 POST_CAPS = {
     "4x4": {"model": "BCS2-2/4", "manufacturer": "Simpson"},
     "6x6": {"model": "BCS2-3/6", "manufacturer": "Simpson"},
@@ -82,6 +105,10 @@ def build_permit_spec(params, calc):
     All label strings are pre-formatted. All hardware models are resolved.
     """
     spec = {}
+
+    # --- Framing type (detected early, used throughout) ---
+    is_steel = params.get("framingType") == "steel" or calc.get("framingType") == "steel"
+    spec["is_steel"] = is_steel
 
     # --- Basic dimensions ---
     width = calc["width"]
@@ -140,7 +167,12 @@ def build_permit_spec(params, calc):
     beam_span = calc["beam_span"]
     # Parse ply count and lumber size from beam_size string (e.g. "3-ply 2x10")
     is_lvl = "LVL" in beam_size.upper()
-    beam_material = "PT" if not is_lvl else "LVL"
+    if is_steel:
+        beam_material = "STEEL"
+    elif is_lvl:
+        beam_material = "LVL"
+    else:
+        beam_material = "PT"
 
     spec["beam"] = {
         "size": beam_size,
@@ -164,7 +196,7 @@ def build_permit_spec(params, calc):
         "total": total_posts,
         "positions": post_positions,
         "heights": post_heights,
-        "material": "PT",
+        "material": "STEEL" if is_steel else "PT",
     }
 
     # --- Footings ---
@@ -185,7 +217,7 @@ def build_permit_spec(params, calc):
         "fastener": LEDGER_FASTENERS["default"]["type"],
         "fastener_size": LEDGER_FASTENERS["default"]["size"],
         "fastener_spacing": LEDGER_FASTENERS["default"]["spacing"],
-        "material": "PT",
+        "material": "STEEL" if is_steel else "PT",
     }
 
     # --- Stairs ---
@@ -213,63 +245,112 @@ def build_permit_spec(params, calc):
                  else "5/4 x 6 PT WOOD DECKING",
     }
 
-    # --- Hardware (resolved from selection tables) ---
-    post_base = POST_BASES.get(post_size, POST_BASES["6x6"])
-    post_cap = POST_CAPS.get(post_size, POST_CAPS["6x6"])
-    joist_hanger = JOIST_HANGERS.get(joist_size, JOIST_HANGERS["2x10"])
-    hurricane = HURRICANE_TIES["default"]
-    lateral = LATERAL_LOAD["default"]
-    stair_conn_top = STAIR_CONNECTORS["top"]
-    stair_conn_bot = STAIR_CONNECTORS["bottom"]
+    # --- Framing type details ---
+    steel_gauge = calc.get("steelGauge", params.get("steelGauge", "16"))
+    steel_beam_is_single = calc.get("steelBeamIsSingle", True)
+    spec["steel_gauge"] = steel_gauge
 
-    spec["hardware"] = {
-        "post_base": post_base,
-        "post_cap": post_cap,
-        "joist_hanger": joist_hanger,
-        "hurricane_tie": hurricane,
-        "lateral_load": lateral,
-        "stair_connector_top": stair_conn_top,
-        "stair_connector_bottom": stair_conn_bot,
-        "ledger_fastener": LEDGER_FASTENERS["default"],
-    }
+    # --- Hardware (resolved from selection tables) ---
+    if is_steel:
+        # Fortress Evolution brackets replace all Simpson hardware
+        _bp = "single_beam_post_bracket" if steel_beam_is_single else "double_beam_post_bracket"
+        _hng = "hanger_bracket"
+        _blk = f"blocking_{joist_spacing}"
+        _strp = f"strap_{joist_spacing}"
+        post_base = STEEL_HARDWARE["post_pier_bracket"]
+        post_cap = STEEL_HARDWARE[_bp]
+        joist_hanger = STEEL_HARDWARE[_hng]
+        hurricane = {"model": "N/A (steel system)", "manufacturer": "Fortress"}
+        lateral = LATERAL_LOAD["default"]  # lateral load connectors still apply
+        stair_conn_top = STAIR_CONNECTORS["top"]  # stairs are wood for now
+        stair_conn_bot = STAIR_CONNECTORS["bottom"]
+
+        spec["hardware"] = {
+            "post_base": post_base,
+            "post_cap": post_cap,
+            "joist_hanger": joist_hanger,
+            "hurricane_tie": hurricane,
+            "lateral_load": lateral,
+            "stair_connector_top": stair_conn_top,
+            "stair_connector_bottom": stair_conn_bot,
+            "ledger_fastener": LEDGER_FASTENERS["default"],
+            "f50_bracket": STEEL_HARDWARE["f50_bracket"],
+            "ledger_bracket": STEEL_HARDWARE["ledger_bracket"],
+            "rim_bracket": STEEL_HARDWARE["rim_joist_bracket"],
+            "blocking": STEEL_HARDWARE.get(_blk, STEEL_HARDWARE["blocking_16"]),
+            "strap": STEEL_HARDWARE.get(_strp, STEEL_HARDWARE["strap_16"]),
+            "screw": STEEL_HARDWARE["self_drilling_screw"],
+        }
+    else:
+        post_base = POST_BASES.get(post_size, POST_BASES["6x6"])
+        post_cap = POST_CAPS.get(post_size, POST_CAPS["6x6"])
+        joist_hanger = JOIST_HANGERS.get(joist_size, JOIST_HANGERS["2x10"])
+        hurricane = HURRICANE_TIES["default"]
+        lateral = LATERAL_LOAD["default"]
+        stair_conn_top = STAIR_CONNECTORS["top"]
+        stair_conn_bot = STAIR_CONNECTORS["bottom"]
+
+        spec["hardware"] = {
+            "post_base": post_base,
+            "post_cap": post_cap,
+            "joist_hanger": joist_hanger,
+            "hurricane_tie": hurricane,
+            "lateral_load": lateral,
+            "stair_connector_top": stair_conn_top,
+            "stair_connector_bottom": stair_conn_bot,
+            "ledger_fastener": LEDGER_FASTENERS["default"],
+        }
 
     # --- Zones ---
     zones = params.get("zones", [])
     spec["has_zones"] = len(zones) > 0
 
     # S61: Per-zone structural sizing (single source of truth for all consumers)
-    from .calc_engine import get_joist_spans_for_load, auto_select_beam
+    # S76: For steel framing, zones use same steel members as main deck
     _zone_calcs = []
-    _beam_setback = 1.5
-    for z in zones:
-        if z.get("type") == "cutout":
-            _zone_calcs.append(None)
-            continue
-        _ze = z.get("attachEdge", "front")
-        _zw = z.get("w", 8)
-        _zd = z.get("d", 6)
-        if _ze in ("right", "left"):
-            _zbl = _zd
-            _zjs = _zw - _beam_setback
-            _znp = max(2, math.ceil(_zd / 8) + 1)
-        else:
-            _zbl = _zw
-            _zjs = _zd - _beam_setback
-            _znp = max(2, math.ceil(_zw / 8) + 1)
-        _zjt = get_joist_spans_for_load(LL, calc.get("species", "dfl_hf_spf"))
-        _zj_size = "2x12"
-        for _zsz, _zsp in _zjt.items():
-            if _zsp.get(joist_spacing, 0) >= _zjs:
-                _zj_size = _zsz
-                break
-        _zbs = _zbl / max(_znp - 1, 1)
-        _zb_size = auto_select_beam(_zbs, _zjs, LL, calc.get("species", "dfl_hf_spf"))
-        _zone_calcs.append({
-            "joist_size": _zj_size,
-            "beam_size": _zb_size,
-            "beam_span": round(_zbs, 1),
-            "j_span": round(_zjs, 1),
-        })
+    if is_steel:
+        for z in zones:
+            if z.get("type") == "cutout":
+                _zone_calcs.append(None)
+            else:
+                _zone_calcs.append({
+                    "joist_size": joist_size,
+                    "beam_size": beam_size,
+                    "beam_span": spec["beam"]["span"],
+                    "j_span": spec["joists"]["span"],
+                })
+    else:
+        from .calc_engine import get_joist_spans_for_load, auto_select_beam
+        _beam_setback = 1.5
+        for z in zones:
+            if z.get("type") == "cutout":
+                _zone_calcs.append(None)
+                continue
+            _ze = z.get("attachEdge", "front")
+            _zw = z.get("w", 8)
+            _zd = z.get("d", 6)
+            if _ze in ("right", "left"):
+                _zbl = _zd
+                _zjs = _zw - _beam_setback
+                _znp = max(2, math.ceil(_zd / 8) + 1)
+            else:
+                _zbl = _zw
+                _zjs = _zd - _beam_setback
+                _znp = max(2, math.ceil(_zw / 8) + 1)
+            _zjt = get_joist_spans_for_load(LL, calc.get("species", "dfl_hf_spf"))
+            _zj_size = "2x12"
+            for _zsz, _zsp in _zjt.items():
+                if _zsp.get(joist_spacing, 0) >= _zjs:
+                    _zj_size = _zsz
+                    break
+            _zbs = _zbl / max(_znp - 1, 1)
+            _zb_size = auto_select_beam(_zbs, _zjs, LL, calc.get("species", "dfl_hf_spf"))
+            _zone_calcs.append({
+                "joist_size": _zj_size,
+                "beam_size": _zb_size,
+                "beam_span": round(_zbs, 1),
+                "j_span": round(_zjs, 1),
+            })
     spec["zone_calcs"] = _zone_calcs
 
     # --- Slope ---
@@ -293,43 +374,79 @@ def build_permit_spec(params, calc):
     # ============================================================
     # These are the exact strings that appear on drawings.
     # One place to edit, every sheet picks it up.
+    # S76: Steel labels use Fortress/Welborn convention per STEEL_PDF_LABELS.
 
     labels = {}
 
-    # Framing plan labels (A-1)
-    labels["ledger"] = (
-        f'{ledger_size} PT LEDGER W/ (2) {LEDGER_FASTENERS["default"]["size"]}'
-        f' LEDGER LOCKS @ {LEDGER_FASTENERS["default"]["spacing"]}" O.C.'
-    )
-    labels["joist"] = f'P.T. {joist_size} @ {joist_spacing}" O.C.'
-    labels["joist_deck"] = "DECK JOISTS"
-    labels["blocking"] = f'{joist_size} SOLID BLOCKING AT MID-SPAN'
-    labels["beam"] = f'{beam_size.upper()} PT {"DROPPED " if beam_type == "dropped" else ""}BEAM'
-    labels["posts_and_hardware"] = (
-        f'{post_size} PT POSTS W/ SIMPSON \'{post_base["model"]}\' POST BASE'
-        f' AND \'{post_cap["model"]}\' POST CAP ({total_posts} PLCS)'
-    )
-    labels["footings"] = (
-        f'{footing_diam}" DIA. CONCRETE PIERS x {footing_depth}" DEEP'
-        f' ({num_footings} PLCS)'
-    )
-    labels["joist_hanger"] = (
-        f'SIMPSON \'{joist_hanger["model"]}\' JOIST HANGER EA. JOIST'
-    )
-    labels["hurricane_tie"] = (
-        f'SIMPSON \'{hurricane["model"]}\' EA. JOIST TO BEAM'
-    )
-    labels["lateral_load"] = (
-        f'SIMPSON \'{lateral["model"]}\' LATERAL LOAD CONNECTORS'
-        f' ({lateral["min_count"]}) PLCS'
-    )
+    if is_steel:
+        # ----- STEEL (Fortress Evolution) labels -----
+        # Per Rick Rutstein / Welborn convention: "FF-EVOLUTION - ..."
+        _beam_type_label = "SINGLE" if steel_beam_is_single else "DOUBLE"
+
+        labels["ledger"] = f'FF-EVOLUTION - {joist_spacing}OC - S LEDGER'
+        labels["joist"] = f'FF-EVOLUTION - 2X6-{steel_gauge} GA - PC DECK JOISTS @ {joist_spacing}" O.C.'
+        labels["joist_deck"] = "DECK JOISTS"
+        labels["blocking"] = f'FF-EVOLUTION - {joist_spacing}OC BLOCKING'
+        labels["beam"] = f'FF-EVOLUTION 2X11 {_beam_type_label} {"DROPPED " if beam_type == "dropped" else ""}BEAM'
+        labels["posts_and_hardware"] = (
+            f'FORTRESS STEEL 3.5" X 3.5" POSTS W/ FF-EVOLUTION'
+            f' \'{post_base["model"]}\''
+            f' AND \'{post_cap["model"]}\' ({total_posts} PLCS)'
+        )
+        labels["footings"] = (
+            f'{footing_diam}" DIA. CONCRETE PIERS x {footing_depth}" DEEP'
+            f' ({num_footings} PLCS)'
+        )
+        labels["joist_hanger"] = (
+            f'FF-EVOLUTION \'{joist_hanger["model"]}\' EA. JOIST'
+        )
+        labels["hurricane_tie"] = (
+            f'FF-EVOLUTION F50 BRACKET EA. JOIST TO BEAM'
+        )
+        labels["lateral_load"] = (
+            f'SIMPSON \'{lateral["model"]}\' LATERAL LOAD CONNECTORS'
+            f' ({lateral["min_count"]}) PLCS'
+        )
+        labels["screw_note"] = (
+            'USE 3/4" SELF-TAPPING SCREWS PER MANUFACTURER\'S'
+            ' SPECIFICATIONS - FILL ALL HOLES'
+        )
+    else:
+        # ----- WOOD (IRC R507) labels -----
+        labels["ledger"] = (
+            f'{ledger_size} PT LEDGER W/ (2) {LEDGER_FASTENERS["default"]["size"]}'
+            f' LEDGER LOCKS @ {LEDGER_FASTENERS["default"]["spacing"]}" O.C.'
+        )
+        labels["joist"] = f'P.T. {joist_size} @ {joist_spacing}" O.C.'
+        labels["joist_deck"] = "DECK JOISTS"
+        labels["blocking"] = f'{joist_size} SOLID BLOCKING AT MID-SPAN'
+        labels["beam"] = f'{beam_size.upper()} PT {"DROPPED " if beam_type == "dropped" else ""}BEAM'
+        labels["posts_and_hardware"] = (
+            f'{post_size} PT POSTS W/ SIMPSON \'{post_base["model"]}\' POST BASE'
+            f' AND \'{post_cap["model"]}\' POST CAP ({total_posts} PLCS)'
+        )
+        labels["footings"] = (
+            f'{footing_diam}" DIA. CONCRETE PIERS x {footing_depth}" DEEP'
+            f' ({num_footings} PLCS)'
+        )
+        labels["joist_hanger"] = (
+            f'SIMPSON \'{joist_hanger["model"]}\' JOIST HANGER EA. JOIST'
+        )
+        labels["hurricane_tie"] = (
+            f'SIMPSON \'{hurricane["model"]}\' EA. JOIST TO BEAM'
+        )
+        labels["lateral_load"] = (
+            f'SIMPSON \'{lateral["model"]}\' LATERAL LOAD CONNECTORS'
+            f' ({lateral["min_count"]}) PLCS'
+        )
+
+    # --- Shared labels (same for wood and steel) ---
     labels["decking"] = spec["decking"]["label"]
     labels["guardrail"] = (
         f'{rail_height}" {guard["label"] + " " if guard["label"] else ""}'
         f'GUARD RAIL SYSTEM'
     ).replace("  ", " ")
 
-    # Loads box
     # Loads box - always show actual live load (40 PSF), add snow when applicable
     labels["loads_LL"] = 'L.L. = 40 PSF'
     _ground_snow = spec["loads"]["ground_snow"]
@@ -343,17 +460,19 @@ def build_permit_spec(params, calc):
     labels["loads_TL"] = f'T.L. = {TL} PSF'
     labels["loads_ledger"] = f'LEDGER = {ledger_capacity} PSF' if attachment == "ledger" else None
 
-    # Lumber species design basis (S60)
-    # Default is DFL/HF/SPF. Species param reserved for future professional mode.
-    _species = calc.get("species", "dfl_hf_spf")
-    _species_names = {
-        "southern_pine": "SOUTHERN PINE",
-        "dfl_hf_spf": "DFL / HEM-FIR / SPF",
-        "redwood_cedar": "REDWOOD / W. CEDAR / PP / RP",
-    }
-    labels["loads_lumber"] = f'LUMBER: No. 2 {_species_names.get(_species, "DFL / HEM-FIR / SPF")}'
+    # S76: Lumber/system label in loads box
+    if is_steel:
+        labels["loads_lumber"] = 'STEEL FRAMING PER FORTRESS EVOLUTION SYSTEM - INTERTEK CCRR-0313'
+    else:
+        _species = calc.get("species", "dfl_hf_spf")
+        _species_names = {
+            "southern_pine": "SOUTHERN PINE",
+            "dfl_hf_spf": "DFL / HEM-FIR / SPF",
+            "redwood_cedar": "REDWOOD / W. CEDAR / PP / RP",
+        }
+        labels["loads_lumber"] = f'LUMBER: No. 2 {_species_names.get(_species, "DFL / HEM-FIR / SPF")}'
 
-    # Stair labels
+    # Stair labels (stairs are wood for now, even on steel decks)
     if stair_info:
         n_str = stair_info["num_stringers"]
         labels["stair_stringers"] = (
@@ -366,11 +485,17 @@ def build_permit_spec(params, calc):
             f'SIMPSON \'{stair_conn_top["model"]}\' STRINGER CONNECTOR EA. STRINGER'
         )
 
-    # Compact labels for side elevation views (shorter than A-1 but spec-driven)
-    labels["post_compact"] = f'{post_size} PT POST'
-    labels["pier_compact"] = (
-        f'{footing_diam}" DIA. PIER x {footing_depth}" DEEP'
-    )
+    # Compact labels for side elevation views
+    if is_steel:
+        labels["post_compact"] = f'FORTRESS 3.5" STEEL POST'
+        labels["pier_compact"] = (
+            f'{footing_diam}" DIA. PIER x {footing_depth}" DEEP'
+        )
+    else:
+        labels["post_compact"] = f'{post_size} PT POST'
+        labels["pier_compact"] = (
+            f'{footing_diam}" DIA. PIER x {footing_depth}" DEEP'
+        )
 
     spec["labels"] = labels
 

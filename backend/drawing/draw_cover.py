@@ -199,13 +199,18 @@ def draw_cover_sheet(fig, params, calc, project_info=None, cover_image_b64=None,
     total_posts = calc['total_posts'] + extra_posts
     total_footings = calc['num_footings'] + extra_posts
 
-    # S60: Species name for cover sheet
+    # S60/S76: Species name or steel system for cover sheet
     _species = calc.get("species", "dfl_hf_spf")
-    _sp_cover = {
-        "southern_pine": "NO. 2 SOUTHERN PINE",
-        "dfl_hf_spf": "NO. 2 DFL / HEM-FIR / SPF",
-        "redwood_cedar": "NO. 2 REDWOOD / W. CEDAR",
-    }
+    _is_steel = params.get("framingType") == "steel" or calc.get("framingType") == "steel"
+    if _is_steel:
+        _lumber_label = "FORTRESS EVOLUTION STEEL FRAMING (CCRR-0313)"
+    else:
+        _sp_cover = {
+            "southern_pine": "NO. 2 SOUTHERN PINE",
+            "dfl_hf_spf": "NO. 2 DFL / HEM-FIR / SPF",
+            "redwood_cedar": "NO. 2 REDWOOD / W. CEDAR",
+        }
+        _lumber_label = _sp_cover.get(_species, "NO. 2 DFL / HEM-FIR / SPF")
 
     specs = [
         ("DECK SIZE", f'{format_feet_inches(W)} \u00d7 {format_feet_inches(D)}  ({total_area} SF)'),
@@ -215,7 +220,7 @@ def draw_cover_sheet(fig, params, calc, project_info=None, cover_image_b64=None,
         ("BEAM", calc["beam_size"].upper()),
         ("POSTS", f'{calc["post_size"]}  ({total_posts} TOTAL)'),
         ("FOOTINGS", f'{calc["footing_diam"]}" \u00d8 \u00d7 {calc["footing_depth"]}" DEEP  ({total_footings})'),
-        ("LUMBER", _sp_cover.get(_species, "NO. 2 DFL / HEM-FIR / SPF")),
+        ("LUMBER", _lumber_label),
         ("STAIRS", stair_desc),
     ]
 
