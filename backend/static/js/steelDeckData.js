@@ -510,3 +510,21 @@ function steelBeamType(loadCase, joistSpanFt, joistCantileverKey, requiredBeamSp
   }
   return { type: "exceeds", maxSpan: null };
 }
+
+// Export to window for engine.js consumption
+window.STEEL_JOIST_SPANS = STEEL_JOIST_SPANS;
+window.STEEL_SINGLE_BEAM_SPANS = STEEL_SINGLE_BEAM_SPANS;
+window.STEEL_DOUBLE_BEAM_SPANS = STEEL_DOUBLE_BEAM_SPANS;
+window.STEEL_POST_HEIGHTS = STEEL_POST_HEIGHTS;
+window.STEEL_FASTENING_SCHEDULE = STEEL_FASTENING_SCHEDULE;
+window.STEEL_LOAD_CASES = STEEL_LOAD_CASES;
+window.STEEL_PDF_LABELS = STEEL_PDF_LABELS;
+window.STEEL_CONSTRAINTS = STEEL_CONSTRAINTS;
+window.STEEL_PARTS_CATALOG = FORTRESS_PARTS;
+window.FORTRESS_PARTS = FORTRESS_PARTS;
+window.steelJoistMaxSpan = steelJoistMaxSpan;
+window.steelSingleBeamMaxSpan = steelSingleBeamMaxSpan;
+window.steelDoubleBeamMaxSpan = steelDoubleBeamMaxSpan;
+window.steelMaxPostHeight = steelMaxPostHeight;
+window.steelBeamType = steelBeamType;
+window.spanToInches = spanToInches;

@@ -3827,18 +3827,137 @@ function StepContent(props) {
       chatMessages={chatMessages} chatLoading={chatLoading} onSendMessage={sendChatMessage} onApplyActions={_applyActions} setChatMessages={setChatMessages}
     />}
     <div data-section="structure">
+    {/* S75: Framing type selector */}
+    <div style={{ marginBottom: 16 }}>
+      <Label>Framing System</Label>
+      <div style={{ display: "flex", gap: 6 }}>
+        {[["wood", "\uD83E\uDEB5 Wood (IRC R507)"], ["steel", "\u2699\uFE0F Steel (Fortress Evolution)"]].map(function(arr) {
+          var val = arr[0], label = arr[1];
+          var isActive = (p.framingType || "wood") === val;
+          var steelColor = "#4a90d9";
+          var activeColor = val === "steel" ? steelColor : _br.gn;
+          return <button key={val} onClick={function() { u("framingType", val); }} style={{
+            flex: 1, padding: "10px 8px", borderRadius: 6, fontSize: 11, fontFamily: _mono, cursor: "pointer",
+            border: isActive ? ("2px solid " + activeColor) : ("1px solid " + _br.bd),
+            background: isActive ? (val === "steel" ? "#eef4fc" : "#edf5e8") : "#fff",
+            color: isActive ? activeColor : _br.mu,
+            fontWeight: isActive ? 700 : 400, transition: "all 0.15s", textAlign: "center"
+          }}>{label}</button>;
+        })}
+      </div>
+      {(p.framingType || "wood") === "steel" && <div style={{ fontSize: 9, color: "#4a90d9", fontFamily: _mono, marginTop: 6, padding: "6px 10px", background: "#eef4fc", borderRadius: 6, border: "1px solid #c5d9f0", lineHeight: 1.6 }}>
+        Fortress Evolution steel framing system. Spans validated per Intertek CCRR-0313. All connections use Fortress brackets and 3/4" self-tapping screws.
+      </div>}
+    </div>
+
+    {/* S75: Steel-specific controls */}
+    {(p.framingType || "wood") === "steel" && <>
+      <Chips label="Steel gauge" field="steelGauge" opts={[["16", "16 ga (standard)"], ["18", "18 ga (lighter)"]]} u={u} p={p} />
+      <Chips label="Joist spacing" field="joistSpacing" opts={[[12, '12" O.C.'], [16, '16" O.C.']]} u={u} p={p} />
+      <Chips label="Snow load" field="snowLoad" opts={[["none", "None"], ["light", "Light"], ["moderate", "Moderate"], ["heavy", "Heavy"]]} u={u} p={p} />
+      <Chips label="Footing depth (frost line)" field="frostZone" opts={[["warm", '12"'], ["moderate", '24"'], ["cold", '36"'], ["severe", '48"']]} u={u} p={p} />
+    </>}
+
+    {/* Wood controls (original) */}
+    {(p.framingType || "wood") === "wood" && <>
     <Chips label="Joist spacing" field="joistSpacing" opts={[[12, '12" O.C.'], [16, '16" O.C.'], [24, '24" O.C.']]} u={u} p={p} />
     <Chips label="Snow load" field="snowLoad" opts={[["none", "None"], ["light", "Light"], ["moderate", "Moderate"], ["heavy", "Heavy"]]} u={u} p={p} />
     <Chips label="Footing depth (frost line)" field="frostZone" opts={[["warm", '12"'], ["moderate", '24"'], ["cold", '36"'], ["severe", '48"']]} u={u} p={p} />
+    </>}
     </div>
 
     <div style={{ marginTop: 16, padding: 14, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}` }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-        <div style={{ fontSize: 10, fontWeight: 700, color: _br.gn, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>Structural Members</div>
-        <div style={{ fontSize: 8, color: _br.mu, fontFamily: _mono }}>AUTO = IRC recommended</div>
+        <div style={{ fontSize: 10, fontWeight: 700, color: (p.framingType || "wood") === "steel" ? "#4a90d9" : _br.gn, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>Structural Members</div>
+        <div style={{ fontSize: 8, color: _br.mu, fontFamily: _mono }}>{(p.framingType || "wood") === "steel" ? "CCRR-0313 validated" : "AUTO = IRC recommended"}</div>
       </div>
 
-      {(() => { const isOver = !!p.overJoist; const val = isOver ? p.overJoist : c.auto.joist; return (
+      {/* ===== STEEL STRUCTURAL DISPLAY (S75) ===== */}
+      {(p.framingType || "wood") === "steel" && <>
+        {/* Joists: always 2x6, gauge already selected above */}
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+            <span style={{ fontSize: 10, color: _br.mu, fontFamily: _mono, fontWeight: 700 }}>JOISTS</span>
+            <span style={{ fontSize: 8, fontFamily: _mono, padding: "2px 8px", borderRadius: 3, border: "1px solid #c5d9f0", background: "#eef4fc", color: "#4a90d9", fontWeight: 700 }}>FIXED 2x6</span>
+          </div>
+          <div style={{ padding: "8px 10px", background: "#eef4fc", borderRadius: 6, border: "1px solid #c5d9f0" }}>
+            <div style={{ fontSize: 11, fontFamily: _mono, fontWeight: 700, color: "#4a90d9" }}>2x6 {p.steelGauge || "16"}ga Steel @ {c.sp}" O.C.</div>
+            <div style={{ fontSize: 8, color: _br.mu, fontFamily: _mono, marginTop: 2 }}>
+              Span: {c.jSpan}' {c.attachment === "ledger" ? "(ledger to beam)" : "(beam to beam)"}
+              {c.steelMaxJoistSpan ? (" \u00B7 Max: " + c.steelMaxJoistSpan.toFixed(1) + "'") : ""}
+            </div>
+          </div>
+        </div>
+
+        {/* Beam: single or double 2x11 */}
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+            <span style={{ fontSize: 10, color: _br.mu, fontFamily: _mono, fontWeight: 700 }}>BEAM</span>
+          </div>
+          <Chips label="" field="steelBeamType" opts={[["auto", "Auto"], ["single", "Single 2x11"], ["double", "Double 2x11"]]} u={u} p={p} />
+          <div style={{ fontSize: 8, color: _br.mu, fontFamily: _mono, marginTop: 2 }}>
+            {c.beamSize} {"\u00B7"} Span: {c.bSpan}' between posts
+            {c.beamMaxSpan > 0 ? (" (max " + c.beamMaxSpan.toFixed(1) + "')") : ""}
+          </div>
+        </div>
+
+        {/* Post: fixed 3.5x3.5 steel */}
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+            <span style={{ fontSize: 10, color: _br.mu, fontFamily: _mono, fontWeight: 700 }}>POST</span>
+            <span style={{ fontSize: 8, fontFamily: _mono, padding: "2px 8px", borderRadius: 3, border: "1px solid #c5d9f0", background: "#eef4fc", color: "#4a90d9", fontWeight: 700 }}>3.5" STEEL</span>
+          </div>
+          <div style={{ fontSize: 8, color: _br.mu, fontFamily: _mono }}>
+            Fortress 3.5" x 3.5" galvanized steel post {"\u00B7"} {c.nP} posts
+          </div>
+          <div style={{ fontSize: 8, color: "#c62828", fontFamily: _mono, marginTop: 2, fontStyle: "italic" }}>
+            Steel posts must NOT be buried. Mount on top of pier brackets.
+          </div>
+        </div>
+
+        {/* Post count override */}
+        {(() => { const isOver = !!p.overPostCount; const val = isOver ? p.overPostCount : c.auto.postCount; return (
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+              <span style={{ fontSize: 10, color: _br.mu, fontFamily: _mono, fontWeight: 700 }}>POST COUNT</span>
+              <button onClick={() => u("overPostCount", isOver ? null : c.auto.postCount)} style={{ fontSize: 8, fontFamily: _mono, padding: "2px 8px", borderRadius: 3, cursor: "pointer", border: `1px solid ${isOver ? _br.ac : _br.bd}`, background: isOver ? "#fef9e7" : "#fff", color: isOver ? _br.ac : _br.mu, fontWeight: 700 }}>{isOver ? "MANUAL \u270E" : "AUTO \u2713"}</button>
+            </div>
+            <div style={{ display: "flex", gap: 4 }}>
+              {[2, 3, 4, 5, 6, 7, 8].map(n => (
+                <button key={n} onClick={() => isOver && u("overPostCount", n)} style={{ flex: 1, padding: "6px 4px", fontSize: 10, fontFamily: _mono, cursor: isOver ? "pointer" : "default", border: val === n ? `2px solid ${isOver ? _br.ac : "#4a90d9"}` : `1px solid ${_br.bd}`, background: val === n ? (isOver ? "#fef9e7" : "#eef4fc") : (isOver ? "#fff" : "#fafafa"), color: val === n ? (isOver ? _br.ac : "#4a90d9") : (isOver ? _br.tx : "#ccc"), borderRadius: 5, fontWeight: val === n ? 700 : 400, opacity: isOver ? 1 : 0.7, textAlign: "center" }}>
+                  {n}{!isOver && n === c.auto.postCount && <div style={{ fontSize: 6, color: "#4a90d9", marginTop: 1 }}>REC</div>}
+                </button>
+              ))}
+            </div>
+          </div>
+        ); })()}
+
+        {/* Footing diameter */}
+        {(() => { const isOver = !!p.overFooting; const val = isOver ? p.overFooting : c.auto.footing; return (
+          <div style={{ marginBottom: 6 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+              <span style={{ fontSize: 10, color: _br.mu, fontFamily: _mono, fontWeight: 700 }}>FOOTING DIA.</span>
+              <button onClick={() => u("overFooting", isOver ? null : c.auto.footing)} style={{ fontSize: 8, fontFamily: _mono, padding: "2px 8px", borderRadius: 3, cursor: "pointer", border: `1px solid ${isOver ? _br.ac : _br.bd}`, background: isOver ? "#fef9e7" : "#fff", color: isOver ? _br.ac : _br.mu, fontWeight: 700 }}>{isOver ? "MANUAL \u270E" : "AUTO \u2713"}</button>
+            </div>
+            <div style={{ display: "flex", gap: 4 }}>
+              {[12, 16, 18, 21, 24, 30].map(d => (
+                <button key={d} onClick={() => isOver && u("overFooting", d)} style={{ flex: 1, padding: "6px 2px", fontSize: 9, fontFamily: _mono, cursor: isOver ? "pointer" : "default", border: val === d ? `2px solid ${isOver ? _br.ac : "#4a90d9"}` : `1px solid ${_br.bd}`, background: val === d ? (isOver ? "#fef9e7" : "#eef4fc") : (isOver ? "#fff" : "#fafafa"), color: val === d ? (isOver ? _br.ac : "#4a90d9") : (isOver ? _br.tx : "#ccc"), borderRadius: 5, fontWeight: val === d ? 700 : 400, opacity: isOver ? 1 : 0.7, textAlign: "center" }}>
+                  {d}"{!isOver && d === c.auto.footing && <div style={{ fontSize: 6, color: "#4a90d9", marginTop: 1 }}>REC</div>}
+                </button>
+              ))}
+            </div>
+          </div>
+        ); })()}
+
+        <div style={{ height: 1, background: _br.bd, margin: "10px 0" }} />
+        <Spec l="Joist Span" v={`${c.jSpan}'`} /><Spec l="Beam Span" v={`${c.bSpan}'`} /><Spec l="Total Load" v={`${c.TL} PSF`} color={_br.rd} />
+        <Spec l="Load Case" v={`CCRR ${c.steelLoadCase || "75"} PSF`} color={"#4a90d9"} />
+        <Spec l="Code Reference" v="Intertek CCRR-0313" color={"#4a90d9"} />
+        {c.warnings.map((w, i) => <div key={i} style={{ fontSize: 10, color: _br.rd, marginTop: 4, fontFamily: _mono }}>{"\u26A0\uFE0F"} {w}</div>)}
+      </>}
+
+      {/* ===== WOOD STRUCTURAL DISPLAY (original) ===== */}
+      {(p.framingType || "wood") === "wood" && <>
         <div style={{ marginBottom: 10 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
             <span style={{ fontSize: 10, color: _br.mu, fontFamily: _mono, fontWeight: 700 }}>JOISTS</span>
@@ -3975,6 +4094,7 @@ function StepContent(props) {
       <div style={{ height: 1, background: _br.bd, margin: "10px 0" }} />
       <Spec l="Joist Span" v={`${c.jSpan}'`} /><Spec l="Beam Span" v={`${c.bSpan}'`} /><Spec l="Total Load" v={`${c.TL} PSF`} color={_br.rd} />
       {c.warnings.map((w, i) => <div key={i} style={{ fontSize: 10, color: _br.rd, marginTop: 4, fontFamily: _mono }}>{"\u26A0\uFE0F"} {w}</div>)}
+      </>}
     </div>
   </>;
 

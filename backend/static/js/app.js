@@ -516,6 +516,8 @@ const App = function SimpleBlueprints() {
   const [p, setP] = useState({ width: 20, depth: 12, height: 4, houseWidth: 40, houseDepth: 30, attachment: "ledger", hasStairs: true, stairLocation: "front", stairWidth: 4, numStringers: 3, hasLanding: false, joistSpacing: 16, deckingType: "composite", railType: "fortress", snowLoad: "moderate", frostZone: "cold", lotWidth: 80, lotDepth: 120, setbackFront: 25, setbackSide: 5, setbackRear: 20, houseOffsetSide: 20, deckOffset: 0, stairOffset: 0, beamType: "dropped", stairTemplate: "straight", stairRunSplit: null, stairLandingDepth: null, stairLandingWidth: null, stairGap: 0.5, stairRotation: 0, stairAnchorX: null, stairAnchorY: null, stairAngle: null,
     houseDistFromStreet: null,
     streetName: "",
+    // S75: Framing type (wood=IRC R507, steel=Fortress CCRR-0313)
+    framingType: "wood", steelGauge: "16", steelBeamType: "auto",
     // Polygon lot (S36)
     lotVertices: null, lotEdges: null, lotArea: null,
 // Zone system   S19
@@ -566,6 +568,16 @@ const App = function SimpleBlueprints() {
     }
     if (k === "width" && next.stairWidth > next.width) next.stairWidth = next.width;
     if (k === "deckingType") { next.joistSpacing = v === "composite" ? 12 : 16; }
+    // S75: When switching framing type, clear overrides from the other system
+    if (k === "framingType") {
+      next.overJoist = null; next.overBeam = null;
+      next.overPostSize = null; next.overPostCount = null;
+      next.overFooting = null;
+      if (v === "steel") {
+        // Steel defaults: 16" OC (matches common Fortress configs)
+        next.joistSpacing = 16;
+      }
+    }
     if (k === "stairWidth" || k === "width" || k === "depth") {
       const edge = next.stairLocation === "front" ? next.width : next.depth;
       const maxSO = Math.floor((edge - (next.stairWidth || 4)) / 2);
@@ -987,6 +999,7 @@ const App = function SimpleBlueprints() {
     surveyDirtyRef.current = false;
     setP({ width: 20, depth: 12, height: 4, houseWidth: 40, houseDepth: 30, attachment: "ledger", hasStairs: true, stairLocation: "front", stairWidth: 4, numStringers: 3, hasLanding: false, joistSpacing: 16, deckingType: "composite", railType: "fortress", snowLoad: "moderate", frostZone: "cold", lotWidth: 80, lotDepth: 120, setbackFront: 25, setbackSide: 5, setbackRear: 20, houseOffsetSide: 20, deckOffset: 0, stairOffset: 0, beamType: "dropped", stairTemplate: "straight", stairRunSplit: null, stairLandingDepth: null, stairLandingWidth: null, stairGap: 0.5, stairRotation: 0, stairAnchorX: null, stairAnchorY: null, stairAngle: null,
       houseDistFromStreet: null, streetName: "",
+      framingType: "wood", steelGauge: "16", steelBeamType: "auto",
       lotVertices: null, lotEdges: null, lotArea: null,
       zones: [], activeZone: 0, nextZoneId: 1, mainCorners: { BL: { type: "square", size: 0 }, BR: { type: "square", size: 0 }, FL: { type: "square", size: 0 }, FR: { type: "square", size: 0 } },
       deckStairs: [_defaultStair(1, 0)], _nextStairId: 2,

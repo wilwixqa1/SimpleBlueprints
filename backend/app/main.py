@@ -130,6 +130,10 @@ class DeckParams(BaseModel):
     streetName: Optional[str] = None
     projectInfo: Optional[dict] = None; coverImage: Optional[str] = None
     beamType: str = "dropped"
+    # S75: Steel framing (Fortress Evolution)
+    framingType: str = "wood"
+    steelGauge: str = "16"
+    steelBeamType: str = "auto"
     stairAnchorX: Optional[float] = None; stairAnchorY: Optional[float] = None
     stairAngle: Optional[float] = None
     sitePlanMode: Optional[str] = "generate"; sitePlanFile: Optional[str] = None

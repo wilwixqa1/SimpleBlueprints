@@ -88,8 +88,301 @@ function getBeamMaxSpan(beamSize, joistSpan, designLoad) {
   return spans[spans.length-1];
 }
 
+// ============================================================
+// S75: STEEL FRAMING CALC (Fortress Evolution, CCRR-0313)
+// Parallel to wood calcStructure but uses CCRR-0313 tables
+// instead of IRC R507. All span data from steelDeckData.js.
+// ============================================================
+function calcSteelStructure(p) {
+  var W = p.width || 20, D = p.depth || 12, H = p.height || 4;
+  var attachment = p.attachment || "ledger";
+  var snowLoad = p.snowLoad || "moderate";
+  var frostZone = p.frostZone || "cold";
+  var deckingType = p.deckingType || "composite";
+
+  // Chamfer area subtraction (same as wood)
+  var chamfArea = 0;
+  var mcC = p.mainCorners;
+  if (mcC) {
+    ["BL","BR","FL","FR"].forEach(function(ck) {
+      var cc = mcC[ck];
+      if (cc && cc.type === "chamfer" && cc.size > 0) chamfArea += cc.size * cc.size / 2;
+    });
+  }
+  var area = W * D - chamfArea;
+
+  // Lot area (same as wood)
+  var lotVerts = p.lotVertices;
+  if (!lotVerts && p.lotEdges && window.computePolygonVerts) {
+    lotVerts = window.computePolygonVerts(p.lotEdges);
+  }
+  var lotArea;
+  if (lotVerts && lotVerts.length >= 3) {
+    var sa = 0;
+    for (var li = 0; li < lotVerts.length; li++) {
+      var lj = (li + 1) % lotVerts.length;
+      sa += lotVerts[li][0] * lotVerts[lj][1] - lotVerts[lj][0] * lotVerts[li][1];
+    }
+    lotArea = Math.round(Math.abs(sa) / 2);
+  } else {
+    lotArea = (p.lotWidth || 80) * (p.lotDepth || 120);
+  }
+
+  // CCRR-0313 uses total load cases (DL+LL+SL combined)
+  // Map our snowLoad to CCRR load case
+  var snowPsf = SNOW[snowLoad] || 0;
+  var LL = Math.max(40, snowPsf); // design live load (same as wood)
+  var DL = deckingType === "composite" ? 15 : 12;
+  var TL = LL + DL;
+  // CCRR load case is total (DL=10 + LL=40 + SL)
+  // Our DL is 12-15, CCRR assumes DL=10. We use the CCRR load case that
+  // covers our total load. This is slightly conservative.
+  var ccrrLoadMap = { none: "50", light: "75", moderate: "75", heavy: "100" };
+  var loadCase = ccrrLoadMap[snowLoad] || "75";
+  // Override if TL is very high
+  if (TL > 100) loadCase = "125";
+  if (TL > 125) loadCase = "150";
+  if (TL > 150) loadCase = "200";
+
+  // Steel joist params
+  var gauge = p.steelGauge || "16";  // "16" or "18"
+  var sp = p.joistSpacing || 16;     // 12 or 16 OC
+  // Steel always uses 2x6 joists
+  var joistSize = "2x6-" + gauge + "ga";
+
+  // Joist span
+  var jSpan = attachment === "ledger" ? D - 1.5 : D / 2 - 0.75;
+
+  // Look up max joist span from CCRR-0313 Table 2
+  var joistEntry = window.steelJoistMaxSpan ? window.steelJoistMaxSpan(loadCase, gauge, String(sp)) : null;
+  var maxJoistSpanFt = joistEntry ? (joistEntry.span[0] + joistEntry.span[1] / 12) : 14;
+  var maxJoistCantFt = joistEntry ? (joistEntry.cantilever[0] + joistEntry.cantilever[1] / 12) : 4;
+
+  // Beam span (same geometry as wood)
+  var nP = W <= 10 ? 2 : W <= 16 ? 3 : W <= 24 ? 3 : Math.max(3, Math.ceil(W / 10) + 1);
+
+  // Steel beam: single 2x11 or double 2x11
+  // Try single first, upgrade to double if needed
+  var steelBeamType = p.steelBeamType || "auto"; // "auto", "single", "double"
+  var autoNP = nP;
+
+  // Auto beam sizing: try to find a post count where beam span fits
+  if (!p.overPostCount) {
+    for (var tryI = 0; tryI < 6; tryI++) {
+      var tryBSpan = W / (nP - 1);
+      var tryBSpanIn = Math.round(tryBSpan * 12);
+      var jSpanRounded = Math.min(16, Math.max(1, Math.round(jSpan)));
+      // Check single beam first
+      var singleOk = false;
+      if (window.steelSingleBeamMaxSpan) {
+        var sMax = window.steelSingleBeamMaxSpan(loadCase, jSpanRounded, "0-0");
+        if (sMax && window.spanToInches(sMax) >= tryBSpanIn) singleOk = true;
+      }
+      if (singleOk) break;
+      // Check double beam
+      var doubleOk = false;
+      if (window.steelDoubleBeamMaxSpan) {
+        var dMax = window.steelDoubleBeamMaxSpan(loadCase, jSpanRounded, "0-0");
+        if (dMax && window.spanToInches(dMax) >= tryBSpanIn) doubleOk = true;
+      }
+      if (doubleOk) break;
+      nP++;
+    }
+    autoNP = nP;
+  }
+  if (p.overPostCount) nP = p.overPostCount;
+  var bSpan = W / (nP - 1);
+  var bSpanIn = Math.round(bSpan * 12);
+  var jSpanRounded = Math.min(16, Math.max(1, Math.round(jSpan)));
+
+  // Determine beam type
+  var beamIsSingle = true;
+  var beamMaxSpanFt = 0;
+  if (window.steelSingleBeamMaxSpan) {
+    var sMax = window.steelSingleBeamMaxSpan(loadCase, jSpanRounded, "0-0");
+    if (sMax) {
+      var sMaxIn = window.spanToInches(sMax);
+      if (sMaxIn >= bSpanIn) {
+        beamMaxSpanFt = sMax[0] + sMax[1] / 12;
+      }
+    }
+  }
+  if (beamMaxSpanFt === 0 || steelBeamType === "double") {
+    beamIsSingle = false;
+    if (window.steelDoubleBeamMaxSpan) {
+      var dMax = window.steelDoubleBeamMaxSpan(loadCase, jSpanRounded, "0-0");
+      if (dMax) beamMaxSpanFt = dMax[0] + dMax[1] / 12;
+    }
+  }
+  if (steelBeamType === "single") beamIsSingle = true;
+
+  var beamSize = beamIsSingle ? "Single 2x11 Steel" : "Double 2x11 Steel";
+  var autoBeam = beamSize;
+
+  // Post: always 3.5" x 3.5" steel (CCRR-0313)
+  var postSize = "3.5x3.5 Steel";
+  var autoPostSize = postSize;
+
+  // Post positions (same layout as wood)
+  var pp = [];
+  for (var i = 0; i < nP; i++) pp.push(+(2 + i * (W - 4) / (nP - 1)).toFixed(2));
+
+  // Slope-adjusted post heights (same as wood)
+  var slopePct = (p.slopePercent || 0) / 100;
+  var slopeDir = p.slopeDirection || "front-to-back";
+  var beamDepth = D - 1.5;
+  var postHeights = [];
+  for (var hi = 0; hi < nP; hi++) {
+    var groundDrop = 0;
+    if (slopeDir === "front-to-back") groundDrop = slopePct * beamDepth;
+    else if (slopeDir === "back-to-front") groundDrop = -slopePct * beamDepth;
+    else if (slopeDir === "left-to-right") groundDrop = slopePct * (pp[hi] - W / 2);
+    else if (slopeDir === "right-to-left") groundDrop = -(slopePct * (pp[hi] - W / 2));
+    postHeights.push(Math.max(0.5, +(H + groundDrop).toFixed(2)));
+  }
+
+  var totalPosts = attachment === "ledger" ? nP : nP * 2;
+
+  // Footings (same soil bearing calc as wood)
+  var trib = (W / Math.max(nP - 1, 1)) * D;
+  var reqD = Math.sqrt(trib * TL / 1500 / Math.PI) * 2 * 12;
+  var fDiam = [12, 16, 18, 21, 24, 30, 36, 42].find(function(s) { return s >= reqD; }) || 42;
+  var autoFDiam = fDiam;
+  if (p.overFooting) fDiam = p.overFooting;
+  var fDepth = FROST[frostZone] || 30;
+
+  // Joist count
+  var nJ = Math.ceil(W / (sp / 12)) + 1;
+
+  // Railing length (same as wood)
+  var railLen = W + D * 2;
+  if (attachment === "freestanding") railLen += W;
+  var ds = p.deckStairs || [];
+  if (ds.length > 0) {
+    ds.forEach(function(s) { if ((s.zoneId || 0) === 0) railLen -= (s.width || 4); });
+  } else if (p.hasStairs) {
+    railLen -= (p.stairWidth || 4);
+  }
+  // Chamfer railing adjustment (same as wood)
+  if (mcC) {
+    ["BL","BR","FL","FR"].forEach(function(ck) {
+      var cc = mcC[ck];
+      if (cc && cc.type === "chamfer" && cc.size > 0) {
+        var cs = cc.size;
+        if (attachment === "ledger" && (ck === "BL" || ck === "BR")) {
+          railLen += cs * Math.sqrt(2) - cs;
+        } else {
+          railLen += cs * Math.sqrt(2) - 2 * cs;
+        }
+      }
+    });
+  }
+
+  // Guard rail
+  var guardRequired = H * 12 > 30;
+  var autoGuardHeight = H > 8 ? 42 : 36;
+  var guardHeight = autoGuardHeight;
+  if (p.overGuardHeight) {
+    guardHeight = guardRequired ? Math.max(p.overGuardHeight, 36) : p.overGuardHeight;
+  }
+
+  // Stairs (same calc as wood)
+  var stairs = null;
+  if (p.hasStairs && H > 0.5) {
+    var stairW = p.stairWidth || 4;
+    var nStringers = p.numStringers || 3;
+    var nR = Math.ceil(H * 12 / 7.5);
+    var aR = H * 12 / nR;
+    var tR = (nR - 1) * 10.5;
+    var stairGeom = window.computeStairGeometry ? window.computeStairGeometry({
+      template: p.stairTemplate || "straight", height: H, stairWidth: stairW,
+      numStringers: nStringers, runSplit: p.stairRunSplit ? p.stairRunSplit / 100 : null,
+      landingDepth: p.stairLandingDepth || null, stairGap: p.stairGap != null ? p.stairGap : 0.5
+    }) : null;
+    stairs = {
+      nRisers: nR, nTreads: nR - 1, rise: +aR.toFixed(2), tread: 10.5,
+      runFt: +(tR / 12).toFixed(1),
+      stringerFt: +(Math.sqrt((H * 12) * (H * 12) + tR * tR) / 12 + 1).toFixed(1),
+      width: stairW, nStringers: nStringers,
+      hasLanding: stairGeom ? stairGeom.landings.length > 0 : !!p.hasLanding,
+      location: p.stairLocation || "front",
+      template: p.stairTemplate || "straight",
+      stairGeom: stairGeom,
+      totalLandingPosts: stairGeom ? stairGeom.totalLandingPosts : 0,
+      totalStringers: stairGeom ? stairGeom.totalStringers : nStringers,
+      numRuns: stairGeom ? stairGeom.runs.length : 1,
+      numLandings: stairGeom ? stairGeom.landings.length : 0,
+    };
+  }
+
+  // Blocking: required when joist span > 8' (96 inches)
+  var midSpanBlocking = jSpan > 8;
+  var blockingCount = midSpanBlocking ? Math.ceil(W / (sp / 12)) - 1 : 0;
+
+  // Warnings
+  var warnings = [];
+  var engineeringRequired = false;
+  var maxDepthForJoists = 0;
+  if (maxJoistSpanFt > 0) {
+    maxDepthForJoists = attachment === "ledger" ? +(maxJoistSpanFt + 1.5).toFixed(1) : +((maxJoistSpanFt + 0.75) * 2).toFixed(1);
+  }
+  if (jSpan > maxJoistSpanFt && maxJoistSpanFt > 0) {
+    engineeringRequired = true;
+    warnings.push("Joist span (" + jSpan.toFixed(1) + "') exceeds CCRR-0313 max (" + maxJoistSpanFt.toFixed(1) + "') for " + gauge + "ga @ " + sp + '" O.C. at ' + loadCase + " PSF. Upgrade gauge or reduce depth.");
+  }
+  if (beamMaxSpanFt > 0 && bSpan > beamMaxSpanFt) {
+    warnings.push("Beam span (" + bSpan.toFixed(1) + "') exceeds CCRR-0313 max (" + beamMaxSpanFt.toFixed(1) + "') for " + beamSize + ". Add posts or upgrade to double beam.");
+  }
+
+  // Post height check against CCRR-0313 Table 15
+  var maxPostHeightIn = 120; // default 10'
+  if (window.steelMaxPostHeight) {
+    var snowPsfForPost = { none: 0, light: 25, moderate: 50, heavy: 75 }[snowLoad] || 0;
+    var mh = window.steelMaxPostHeight(snowPsfForPost, trib);
+    if (mh !== null) maxPostHeightIn = mh;
+  }
+  if (H * 12 > maxPostHeightIn) {
+    warnings.push("Post height (" + (H * 12).toFixed(0) + '") exceeds CCRR-0313 max (' + maxPostHeightIn.toFixed(0) + '") for 3.5" steel post at this load.');
+  }
+
+  if (H > 10) warnings.push("Height >10'. Lateral bracing by engineer recommended.");
+  if (area > 500) warnings.push("Area >500 SF. Check local permit requirements.");
+
+  return {
+    W: W, D: D, H: H, area: Math.round(area), lotArea: lotArea,
+    LL: LL, DL: DL, TL: TL,
+    joistSize: joistSize, sp: sp, jSpan: +jSpan.toFixed(1), nJ: nJ,
+    beamSize: beamSize, bSpan: +bSpan.toFixed(1), beamMaxSpan: +beamMaxSpanFt.toFixed(1),
+    postSize: postSize, nP: nP, totalPosts: totalPosts, pp: pp, postHeights: postHeights,
+    fDiam: fDiam, fDepth: fDepth, nF: totalPosts,
+    ledgerSize: "S-Ledger", railLen: +railLen.toFixed(1),
+    guardRequired: guardRequired, guardHeight: guardHeight,
+    midSpanBlocking: midSpanBlocking, blockingCount: blockingCount,
+    stairs: stairs, warnings: warnings, attachment: attachment,
+    engineeringRequired: engineeringRequired, maxDepthForJoists: maxDepthForJoists,
+    // Steel-specific fields
+    framingType: "steel",
+    steelGauge: gauge,
+    steelBeamIsSingle: beamIsSingle,
+    steelLoadCase: loadCase,
+    steelMaxJoistSpan: maxJoistSpanFt,
+    steelMaxCantilever: maxJoistCantFt,
+    auto: {
+      joist: joistSize, beam: autoBeam,
+      postSize: autoPostSize, postCount: autoNP,
+      footing: autoFDiam, guardHeight: autoGuardHeight
+    }
+  };
+}
+
 function calcStructure(p) {
   const { width: W, depth: D, height: H, joistSpacing: sp, attachment, snowLoad, frostZone, deckingType } = p;
+
+  // S75: Steel framing path (Fortress Evolution, CCRR-0313)
+  if (p.framingType === "steel") {
+    return calcSteelStructure(p);
+  }
+
   // S66: Subtract chamfer triangle areas from reported area
   var _chamfArea = 0;
   var _mcC = p.mainCorners;
