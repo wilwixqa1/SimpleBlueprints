@@ -22,11 +22,11 @@
   Phase 1 (immediate): engine + home + app = landing page renders fast.
   Phase 2 (deferred):  Three.js + stairs + zones + views + steps = loaded on wizard entry.
 -->
-<script type="text/babel" src="/static/js/engine.js?v=s73g"></script>
-<script type="text/babel" src="/static/js/stairGeometry.js?v=s73g"></script>
-<script type="text/babel" src="/static/js/zoneUtils.js?v=s73g"></script>
-<script type="text/babel" src="/static/js/home.js?v=s73g"></script>
-<script type="text/babel" src="/static/js/app.js?v=s73g"></script>
+<script type="text/babel" src="/static/js/engine.js?v=s73h"></script>
+<script type="text/babel" src="/static/js/stairGeometry.js?v=s73h"></script>
+<script type="text/babel" src="/static/js/zoneUtils.js?v=s73h"></script>
+<script type="text/babel" src="/static/js/home.js?v=s73h"></script>
+<script type="text/babel" src="/static/js/app.js?v=s73h"></script>
 <!-- S62: Lazy loader for wizard dependencies -->
 <script>
 (function() {
@@ -62,7 +62,7 @@
     if (loading) return new Promise(function(resolve) { callbacks.push(resolve); });
     loading = true;
 
-    var v = "v=s73g";
+    var v = "v=s73h";
     return loadScript("https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js")
       .then(function() {
         // Views can load in parallel (stairGeometry + zoneUtils already loaded)

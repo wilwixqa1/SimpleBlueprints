@@ -338,6 +338,13 @@ var GUIDE_PHASES_STEP0 = [
     sections: ['addressLookup'],
     actions: []
   },
+  {
+    id: 'footprint_loading',
+    message: "Detecting your house...",
+    tip: "Finding building footprint, orientation, and position from satellite data.",
+    sections: [],
+    actions: []
+  },
   // --- SURVEY PATH ---
   {
     id: 'upload_survey',
@@ -1212,6 +1219,7 @@ function StepContent(props) {
           }
           if (!bldg.buildings || bldg.buildings.length === 0) {
             console.log("Building footprint: no OSM buildings found near this location" + (bldg.error ? " (error: " + bldg.error + ")" : ""));
+            if (guideActive) setGuidePhase('verify_extracted');
             return;
           }
           console.log("Building footprint: " + bldg.buildings.length + " buildings found");
@@ -1230,6 +1238,7 @@ function StepContent(props) {
           }
           if (!primary) {
             console.log("Building footprint: no building passed filter (>= 400sqft, < 250ft)");
+            if (guideActive) setGuidePhase('verify_extracted');
             return;
           }
           // Apply building footprint data
@@ -1448,14 +1457,16 @@ function StepContent(props) {
             console.log("Added " + addedCount + " site elements from OSM building data");
           }
           if (window._trackEvent) window._trackEvent('building_footprint', { width: primary.width, depth: primary.depth, angle: primary.angle, area: primary.area_sqft, osm_id: primary.osm_id });
+          if (guideActive) setGuidePhase('verify_extracted');
         })
         .catch(function(err) {
           console.log("Building footprint lookup failed (non-critical):", err.message);
+          if (guideActive) setGuidePhase('verify_extracted');
         });
       }
       // Advance guide to verify
       if (window._markProjectEdited) window._markProjectEdited();
-      if (guideActive) setGuidePhase('verify_extracted');
+      if (guideActive) setGuidePhase(data.location.lat && data.location.lng ? 'footprint_loading' : 'verify_extracted');
       // Track event
       if (window._trackEvent) window._trackEvent('parcel_lookup', { address: parcelAddress, state: parcelState, lot_width: data.lot.width, lot_depth: data.lot.depth, building_sqft: data.building.sqft });
     })
@@ -3720,7 +3731,7 @@ function StepContent(props) {
       </div>}
 
       {/* === PROPERTY INFO (prints on site plan + title block) === */}
-      {(!guideActive || (guidePhase !== 'has_survey' && guidePhase !== 'address_lookup' && guidePhase !== 'address_verifying')) && <div style={{ padding: 14, background: _br.wr, borderRadius: 8, border: "1px solid " + _br.bd, marginBottom: 14 }}>
+      {(!guideActive || (guidePhase !== 'has_survey' && guidePhase !== 'address_lookup' && guidePhase !== 'address_verifying' && guidePhase !== 'footprint_loading')) && <div style={{ padding: 14, background: _br.wr, borderRadius: 8, border: "1px solid " + _br.bd, marginBottom: 14 }}>
         <div style={{ fontSize: 9, fontWeight: 700, color: _br.gn, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 8 }}>Property Information</div>
         <div style={{ marginBottom: 8 }}>
           <label style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, display: "block", marginBottom: 2 }}>Property Address</label>
