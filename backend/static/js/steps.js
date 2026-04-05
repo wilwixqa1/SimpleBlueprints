@@ -1296,6 +1296,8 @@ function StepContent(props) {
           // are in drawing space. The renderer draws them directly, no transforms.
           var _lotRot72 = (typeof drawRotation === 'number') ? Math.round(drawRotation) : 0;
           if (_lotRot72 !== 0 && verts && verts.length >= 3) {
+            console.log("S72_DBG: input verts=" + JSON.stringify(verts.map(function(v){return [Math.round(v[0]*100)/100, Math.round(v[1]*100)/100]})));
+            console.log("S72_DBG: lotVerts2=" + JSON.stringify(lotVerts2.map(function(v){return [Math.round(v[0]*100)/100, Math.round(v[1]*100)/100]})));
             // 1. Rotate lot vertices
             var _cx72 = 0, _cy72 = 0;
             for (var _i72 = 0; _i72 < verts.length; _i72++) { _cx72 += verts[_i72][0]; _cy72 += verts[_i72][1]; }
@@ -1322,6 +1324,7 @@ function StepContent(props) {
               if (_rv72[_i72][1] > _rvMaxY) _rvMaxY = _rv72[_i72][1];
             }
             u("lotVertices", _rv72);
+            console.log("S72_DBG: rotated verts=" + JSON.stringify(_rv72.map(function(v){return [Math.round(v[0]*100)/100, Math.round(v[1]*100)/100]})));
             u("lotWidth", Math.round(_rvMaxX));
             u("lotDepth", Math.round(_rvMaxY));
             // Recompute lotEdges lengths on rotated polygon
