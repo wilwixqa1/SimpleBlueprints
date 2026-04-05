@@ -380,7 +380,261 @@ def get_joist_spans_for_load(design_load, species="dfl_hf_spf"):
     return species_data[tiers[-1]]
 
 
+# ============================================================
+# S75: STEEL FRAMING CALC (Fortress Evolution, CCRR-0313)
+# Backend parallel to frontend calcSteelStructure().
+# Returns same dict shape as wood calculate_structure().
+# ============================================================
+
+# CCRR-0313 Table 2: Joist spans in decimal feet
+# Key: loadCase -> gauge -> spacing -> max_span_ft
+_STEEL_JOIST_SPANS = {
+    "50":  {"16": {12: 16.33, 16: 14.83}, "18": {12: 15.33, 16: 13.92}},
+    "75":  {"16": {12: 16.33, 16: 14.83}, "18": {12: 15.33, 16: 13.92}},
+    "100": {"16": {12: 15.0,  16: 13.5},  "18": {12: 14.08, 16: 12.17}},
+    "125": {"16": {12: 14.0,  16: 12.08}, "18": {12: 12.67, 16: 10.92}},
+    "150": {"16": {12: 12.75, 16: 11.08}, "18": {12: 11.58, 16: 10.0}},
+    "200": {"16": {12: 10.83, 16: 9.33},  "18": {12: 9.75,  16: 8.42}},
+}
+
+# Simplified single beam max spans (beam span in feet for joist span = 12', cantilever = 0)
+# Exact lookup would need full tables; this uses conservative mid-range values
+_STEEL_SINGLE_BEAM_MAX = {
+    "50": 15.5, "75": 14.3, "100": 12.4, "125": 11.1, "150": 10.2, "200": 8.6,
+}
+_STEEL_DOUBLE_BEAM_MAX = {
+    "50": 20.0, "75": 20.0, "100": 19.5, "125": 18.9, "150": 17.3, "200": 14.7,
+}
+
+
+def calculate_steel_structure(params):
+    """Steel framing calculation using CCRR-0313 data.
+    Returns same dict shape as wood calculate_structure()."""
+    width = params["width"]
+    depth = params["depth"]
+    height = params["height"]
+    attachment = params["attachment"]
+    joist_spacing = params.get("joistSpacing", 16)
+    snow = SNOW_LOADS.get(params.get("snowLoad", "moderate"), 0)
+    frost = FROST_DEPTHS.get(params.get("frostZone", "cold"), 30)
+    beam_type = params.get("beamType", "dropped")
+    gauge = params.get("steelGauge", "16")
+    steel_beam_pref = params.get("steelBeamType", "auto")
+
+    area = width * depth
+    _main_corners = params.get("mainCorners")
+    if _main_corners:
+        for _ck in ("BL", "BR", "FL", "FR"):
+            _cc = _main_corners.get(_ck, {})
+            if _cc.get("type") == "chamfer" and _cc.get("size", 0) > 0:
+                area -= _cc["size"] ** 2 / 2
+
+    _lot_verts = params.get("lotVertices")
+    if _lot_verts and len(_lot_verts) >= 3:
+        _sa = sum(_lot_verts[i][0] * _lot_verts[(i+1) % len(_lot_verts)][1]
+                  - _lot_verts[(i+1) % len(_lot_verts)][0] * _lot_verts[i][1]
+                  for i in range(len(_lot_verts)))
+        lot_area = round(abs(_sa) / 2)
+    else:
+        lot_area = params.get("lotWidth", 80) * params.get("lotDepth", 120)
+
+    DL = 15 if params.get("deckingType") == "composite" else 12
+    LL = max(40, snow)
+    TL = LL + DL
+
+    # Map to CCRR load case
+    load_case_map = {"none": "50", "light": "75", "moderate": "75", "heavy": "100"}
+    load_case = load_case_map.get(params.get("snowLoad", "moderate"), "75")
+    if TL > 100:
+        load_case = "125"
+    if TL > 125:
+        load_case = "150"
+    if TL > 150:
+        load_case = "200"
+
+    joist_size = f"2x6-{gauge}ga"
+    joist_span = depth - 1.5 if attachment == "ledger" else depth / 2 - 0.75
+
+    # Max joist span from CCRR-0313
+    gauge_data = _STEEL_JOIST_SPANS.get(load_case, {}).get(gauge, {})
+    max_joist_span = gauge_data.get(joist_spacing, 14.0)
+
+    # Posts and beam
+    num_posts = 2 if width <= 10 else (3 if width <= 24 else max(3, math.ceil(width / 10) + 1))
+    auto_np = num_posts
+    if params.get("overPostCount"):
+        num_posts = params["overPostCount"]
+    beam_span = width / max(num_posts - 1, 1)
+
+    # Single vs double beam
+    single_max = _STEEL_SINGLE_BEAM_MAX.get(load_case, 14.0)
+    double_max = _STEEL_DOUBLE_BEAM_MAX.get(load_case, 20.0)
+    beam_is_single = beam_span <= single_max
+    if steel_beam_pref == "double":
+        beam_is_single = False
+    elif steel_beam_pref == "single":
+        beam_is_single = True
+    beam_max_span = single_max if beam_is_single else double_max
+    beam_size = "Single 2x11 Steel" if beam_is_single else "Double 2x11 Steel"
+    auto_beam = beam_size
+
+    post_size = "3.5x3.5 Steel"
+    auto_post_size = post_size
+
+    post_positions = []
+    for i in range(num_posts):
+        if num_posts == 1:
+            post_positions.append(width / 2)
+        else:
+            post_positions.append(round(2 + i * (width - 4) / (num_posts - 1), 2))
+
+    total_posts = num_posts if attachment == "ledger" else num_posts * 2
+
+    # Slope-adjusted post heights
+    slope_pct = params.get("slopePercent", 0) / 100
+    slope_dir = params.get("slopeDirection", "front-to-back")
+    beam_depth_offset = depth - 1.5
+    post_heights = []
+    for pp_x in post_positions:
+        ground_drop = 0
+        if slope_dir == "front-to-back":
+            ground_drop = slope_pct * beam_depth_offset
+        elif slope_dir == "back-to-front":
+            ground_drop = -slope_pct * beam_depth_offset
+        elif slope_dir == "left-to-right":
+            ground_drop = slope_pct * (pp_x - width / 2)
+        elif slope_dir == "right-to-left":
+            ground_drop = -(slope_pct * (pp_x - width / 2))
+        post_heights.append(round(max(0.5, height + ground_drop), 2))
+
+    # Footings
+    trib_area = (width / max(num_posts - 1, 1)) * depth
+    footing_load = trib_area * TL
+    required_area = footing_load / 1500
+    required_diam_in = math.sqrt(required_area / math.pi) * 2 * 12
+    standard_sizes = [12, 16, 18, 21, 24, 30, 36, 42]
+    auto_footing = 12
+    for s in standard_sizes:
+        if s >= required_diam_in:
+            auto_footing = s
+            break
+    else:
+        auto_footing = 42
+    footing_diam = params.get("overFooting") or auto_footing
+    footing_depth = max(frost, 12)
+
+    num_joists = math.ceil(width / (joist_spacing / 12)) + 1
+    ledger_size = "S-Ledger"
+
+    # Rail length
+    rail_length = width + depth * 2
+    if attachment != "ledger":
+        rail_length += width
+    if params.get("hasStairs"):
+        rail_length -= 3
+    if _main_corners:
+        for _ck in ("BL", "BR", "FL", "FR"):
+            _cc = _main_corners.get(_ck, {})
+            if _cc.get("type") == "chamfer" and _cc.get("size", 0) > 0:
+                _cs = _cc["size"]
+                if attachment == "ledger" and _ck in ("BL", "BR"):
+                    rail_length += _cs * math.sqrt(2) - _cs
+                else:
+                    rail_length += _cs * math.sqrt(2) - 2 * _cs
+
+    guard_required = height * 12 > 30
+    auto_guard_height = 42 if height > 8 else 36
+    override_guard = params.get("overGuardHeight")
+    if override_guard and guard_required:
+        guard_height = max(override_guard, 36)
+    elif override_guard:
+        guard_height = override_guard
+    else:
+        guard_height = auto_guard_height
+
+    # Stairs (same as wood)
+    stair_info = None
+    if params.get("hasStairs") and height > 0.5:
+        stair_width = params.get("stairWidth", 4)
+        num_stringers_param = params.get("numStringers", 3)
+        num_risers = math.ceil(height * 12 / 7.5)
+        actual_rise = height * 12 / num_risers
+        tread_depth = 10.5
+        total_run = (num_risers - 1) * tread_depth
+        stringer_length = math.sqrt((height * 12) ** 2 + total_run ** 2) / 12
+        stair_info = {
+            "num_risers": num_risers, "num_treads": num_risers - 1,
+            "actual_rise": round(actual_rise, 2), "tread_depth": tread_depth,
+            "total_run_ft": round(total_run / 12, 1),
+            "stringer_length_ft": round(stringer_length + 1, 1),
+            "num_stringers": num_stringers_param, "width": stair_width,
+            "has_landing": params.get("hasLanding", False),
+            "location": params.get("stairLocation", "front"),
+        }
+
+    mid_span_blocking = joist_span > 8  # CCRR threshold is 8' (96")
+    blocking_count = math.ceil(width / (joist_spacing / 12)) - 1 if mid_span_blocking else 0
+
+    warnings = []
+    max_depth_for_joists = 0
+    if max_joist_span > 0:
+        if attachment == "ledger":
+            max_depth_for_joists = round(max_joist_span + 1.5, 1)
+        else:
+            max_depth_for_joists = round((max_joist_span + 0.75) * 2, 1)
+    engineering_required = joist_span > max_joist_span and max_joist_span > 0
+    if engineering_required:
+        warnings.append(
+            f"Joist span ({joist_span:.1f}') exceeds CCRR-0313 max ({max_joist_span:.1f}') "
+            f"for {gauge}ga @ {joist_spacing}\" O.C. at {load_case} PSF."
+        )
+    if beam_span > beam_max_span:
+        warnings.append(
+            f"Beam span ({beam_span:.1f}') exceeds CCRR-0313 max ({beam_max_span:.1f}') "
+            f"for {beam_size}. Add posts or upgrade to double beam."
+        )
+    if height > 10:
+        warnings.append("Height >10'. Lateral bracing by engineer recommended.")
+
+    return {
+        "width": width, "depth": depth, "height": height,
+        "area": round(area, 1), "lot_area": lot_area,
+        "attachment": attachment, "beam_type": beam_type,
+        "LL": LL, "DL": DL, "TL": TL,
+        "species": "steel",
+        "joist_size": joist_size, "joist_spacing": joist_spacing,
+        "joist_span": round(joist_span, 1), "num_joists": num_joists,
+        "beam_size": beam_size, "beam_span": round(beam_span, 1),
+        "beam_max_span": round(beam_max_span, 1),
+        "post_size": post_size, "num_posts": num_posts,
+        "total_posts": total_posts, "post_positions": post_positions,
+        "post_heights": post_heights,
+        "footing_diam": footing_diam, "footing_depth": footing_depth,
+        "num_footings": total_posts, "ledger_size": ledger_size,
+        "rail_length": round(rail_length, 1), "rail_height": guard_height,
+        "guard_required": guard_required, "auto_guard_height": auto_guard_height,
+        "mid_span_blocking": mid_span_blocking, "blocking_count": blocking_count,
+        "stairs": stair_info, "warnings": warnings,
+        "joist_hangers_for_beam": 0,  # steel uses Fortress brackets, not joist hangers
+        "engineering_required": engineering_required,
+        "max_depth_for_joists": max_depth_for_joists,
+        "framingType": "steel",
+        "steelGauge": gauge,
+        "steelBeamIsSingle": beam_is_single,
+        "steelLoadCase": load_case,
+        "auto": {
+            "joist": joist_size, "beam": auto_beam,
+            "post_size": auto_post_size, "post_count": auto_np,
+            "footing": auto_footing, "guard_height": auto_guard_height,
+        }
+    }
+
+
 def calculate_structure(params):
+    # S75: Steel framing path
+    if params.get("framingType") == "steel":
+        return calculate_steel_structure(params)
+
     width = params["width"]
     depth = params["depth"]
     height = params["height"]

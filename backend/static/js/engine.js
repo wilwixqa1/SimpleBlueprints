@@ -595,7 +595,167 @@ function calcStructure(p) {
   };
 }
 
+// ============================================================
+// S75: STEEL MATERIALS ESTIMATOR (Fortress Evolution)
+// Uses Fortress parts catalog pricing and CCRR-0313 fastening schedule
+// ============================================================
+function estSteelMaterials(p, c) {
+  var items = [];
+  var gauge = c.steelGauge || p.steelGauge || "16";
+  var sp = c.sp || 16;
+  var isDouble = c.beamSize && c.beamSize.indexOf("Double") >= 0;
+
+  // Foundation (same as wood: concrete, sonotube, pier brackets)
+  var bags = Math.ceil((Math.PI * Math.pow(c.fDiam / 24, 2) * (c.fDepth / 12)) / 0.6) * c.nF;
+  items.push({ cat: "Foundation", item: "Concrete 80lb bags", qty: bags, cost: 6.5 });
+  items.push({ cat: "Foundation", item: "Sonotube " + c.fDiam + '"', qty: c.nF, cost: c.fDiam > 18 ? 28 : 18 });
+  items.push({ cat: "Foundation", item: "FF Post/Pier Bracket 3.5\"", qty: c.nF, cost: 35 });
+
+  // Steel Posts (3.5" x 3.5" x 10')
+  items.push({ cat: "Posts", item: "FF Steel Post 3.5\"x3.5\"x10'", qty: c.totalPosts, cost: 85 });
+
+  // Beam/Post Brackets
+  if (isDouble) {
+    items.push({ cat: "Posts", item: "FF Dbl Beam/Post Bracket", qty: c.totalPosts, cost: 55 });
+  } else {
+    items.push({ cat: "Posts", item: "FF Sngl Beam/Post Bracket", qty: c.totalPosts, cost: 45 });
+  }
+
+  // Steel Beam (2x11 single or double)
+  var beamPieces = Math.ceil(c.W / 20); // beams come in up to 20' lengths
+  items.push({ cat: "Beam", item: "FF Steel Beam 2x11 20'", qty: beamPieces * (isDouble ? 2 : 1), cost: 195 });
+  if (isDouble) {
+    // Double beam track pieces (4' sections, 2-pack)
+    var trackPacks = Math.ceil(c.W / 8); // 2-pack covers 8'
+    items.push({ cat: "Beam", item: "FF Dbl Beam Track 4' (2pk)", qty: trackPacks, cost: 42 });
+  }
+  items.push({ cat: "Beam", item: "FF Beam Cap", qty: 2, cost: 8 });
+
+  // Ledger
+  if (c.attachment === "ledger") {
+    var ledgerPieces = Math.ceil(c.W / 20); // S-Ledger in 12' and 20' lengths
+    var ledgerCode = sp === 12 ? "12OC" : "16OC";
+    items.push({ cat: "Ledger", item: "FF S-Ledger " + ledgerCode + " 20'", qty: ledgerPieces, cost: 185 });
+    items.push({ cat: "Ledger", item: "FF Ledger Bracket", qty: c.nJ, cost: 8 });
+    items.push({ cat: "Ledger", item: "Ledger Lag Bolts (1/2\"x4\")", qty: Math.ceil(c.W / 1.33), cost: 2.5 }); // every 16" OC
+    items.push({ cat: "Ledger", item: "Flashing", qty: 1, cost: 55 });
+    items.push({ cat: "Ledger", item: "Lateral Load Connectors", qty: 2, cost: 32 });
+  }
+
+  // Steel Joists (2x6, gauge-specific, various lengths)
+  var joistLen = Math.ceil(c.D);
+  // Round up to nearest available Fortress length (12, 14, 16, 18, 20)
+  var availLengths = [12, 14, 16, 18, 20];
+  var orderLen = 12;
+  for (var li = 0; li < availLengths.length; li++) {
+    if (availLengths[li] >= joistLen) { orderLen = availLengths[li]; break; }
+    orderLen = 20; // fallback to max
+  }
+  var joistCost = gauge === "16" ? (orderLen <= 12 ? 65 : orderLen <= 16 ? 85 : 105) : (orderLen <= 12 ? 55 : orderLen <= 16 ? 72 : 90);
+  items.push({ cat: "Framing", item: "FF 2x6 " + gauge + "ga Joist " + orderLen + "'", qty: c.nJ + 2, cost: joistCost });
+  items.push({ cat: "Framing", item: "FF Joist Cap", qty: (c.nJ + 2) * 2, cost: 3 });
+
+  // Rim Joists (pre-punched U-rim, 8' sections)
+  var rimLen = c.attachment === "ledger" ? (c.W + c.D * 2) : (c.W * 2 + c.D * 2);
+  var rimPieces = Math.ceil(rimLen / 8);
+  items.push({ cat: "Framing", item: "FF U-Rim Joist " + sp + "OC 8'", qty: rimPieces, cost: 65 });
+  items.push({ cat: "Framing", item: "FF Rim Joist Bracket", qty: rimPieces * 2, cost: 6 });
+
+  // Hanger Brackets (one per joist at beam connection)
+  if (c.attachment === "ledger") {
+    items.push({ cat: "Hardware", item: "FF Sngl Hanger Bracket", qty: c.nJ, cost: 12 });
+  } else {
+    items.push({ cat: "Hardware", item: "FF Sngl Hanger Bracket", qty: c.nJ * 2, cost: 12 });
+  }
+
+  // F50 Brackets (joist-to-ledger connection)
+  if (c.attachment === "ledger") {
+    items.push({ cat: "Hardware", item: "FF F50 Bracket", qty: c.nJ, cost: 8 });
+  }
+
+  // Blocking and Straps (required when joist span > 8')
+  if (c.midSpanBlocking) {
+    var blockingCode = sp === 12 ? "12OC" : "16OC";
+    items.push({ cat: "Framing", item: "FF Blocking " + blockingCode, qty: c.blockingCount, cost: 18 });
+    items.push({ cat: "Framing", item: "FF Strap " + blockingCode, qty: c.blockingCount, cost: 12 });
+  }
+
+  // Self-drilling screws (3/4" black, bags of 250)
+  // Estimate: ~3 per joist-to-ledger, ~8 per hanger, ~28 per post bracket, ~2 per rim bracket
+  var screwCount = c.nJ * 3 + c.nJ * 8 + c.totalPosts * 28 + rimPieces * 4;
+  if (c.midSpanBlocking) screwCount += c.blockingCount * 4;
+  var screwBags = Math.ceil(screwCount / 250);
+  items.push({ cat: "Hardware", item: "FF 3/4\" Self-Drilling Screws (250)", qty: screwBags, cost: 45 });
+
+  // Decking (same as wood path, decking sits on top of steel joists)
+  var bds = Math.ceil(c.W / (5.5 / 12)) * 1.1;
+  if (p.deckingType === "composite") {
+    items.push({ cat: "Decking", item: "Composite " + Math.ceil(c.D + 2) + "'", qty: Math.ceil(bds), cost: c.D <= 10 ? 28 : 38 });
+    items.push({ cat: "Decking", item: "Hidden Fasteners", qty: 1, cost: 175 });
+  } else {
+    items.push({ cat: "Decking", item: "5/4x6 PT " + Math.ceil(c.D + 2) + "'", qty: Math.ceil(bds), cost: c.D <= 10 ? 12 : 18 });
+    items.push({ cat: "Decking", item: "Deck Screws 5lb", qty: Math.ceil(c.W * c.D / 50), cost: 32 });
+  }
+
+  // Railing (same as wood path)
+  var rP = Math.ceil(c.railLen / 6) + 1;
+  if (p.railType === "fortress") {
+    items.push({ cat: "Railing", item: "Fortress Panels", qty: Math.ceil(c.railLen / 7), cost: 80 });
+    items.push({ cat: "Railing", item: "Fortress Posts", qty: rP, cost: 45 });
+    items.push({ cat: "Railing", item: "Top Rail + Brackets", qty: Math.ceil(c.railLen / 7), cost: 52 });
+  } else {
+    items.push({ cat: "Railing", item: "Wood Rail Kit (8')", qty: Math.ceil(c.railLen / 8), cost: 85 });
+  }
+
+  // Stairs (same as wood for now; Fortress steel stair system is a separate CCRR eval)
+  var allDS = p.deckStairs || [];
+  if (allDS.length > 0) {
+    allDS.forEach(function(s, si) {
+      if (c.H <= 0.5) return;
+      var sw = s.width || 4;
+      var ns = s.numStringers || 3;
+      var tmpl = s.template || "straight";
+      var geom = window.computeStairGeometry ? window.computeStairGeometry({ template: tmpl, height: c.H, stairWidth: sw, numStringers: ns, runSplit: s.runSplit ? s.runSplit / 100 : null, landingDepth: s.landingDepth || null, stairGap: s.stairGap != null ? s.stairGap : 0.5 }) : null;
+      var nR = Math.ceil(c.H * 12 / 7.5);
+      var nT = nR - 1;
+      var totalRun = nT * 10.5;
+      var stringerFt = +(Math.sqrt(Math.pow(c.H * 12, 2) + totalRun * totalRun) / 12 + 1).toFixed(1);
+      var totalStringers = geom ? geom.totalStringers : ns;
+      var numLandings = geom ? geom.landings.length : 0;
+      var totalLandingPosts = geom ? geom.totalLandingPosts : 0;
+      var label = si === 0 && (s.zoneId || 0) === 0 ? "" : " (Stair " + (si + 1) + ")";
+      // NOTE: Using wood stair materials for now. Fortress steel stair system
+      // (separate CCRR evaluation) to be added in a future phase.
+      items.push({ cat: "Stairs", item: "2x12 Stair Stringers " + stringerFt + "'" + label, qty: totalStringers, cost: stringerFt <= 8 ? 22 : stringerFt <= 12 ? 35 : 48 });
+      items.push({ cat: "Stairs", item: "5/4x12 PT Treads" + label, qty: nT * Math.ceil(sw / 1), cost: 18 });
+      items.push({ cat: "Stairs", item: "Stair Stringer Brackets" + label, qty: totalStringers, cost: 8 });
+      if (numLandings > 0) {
+        items.push({ cat: "Stairs", item: "Landing Posts" + label, qty: totalLandingPosts, cost: 85 });
+        items.push({ cat: "Stairs", item: "Landing Post Bases" + label, qty: totalLandingPosts, cost: 35 });
+        items.push({ cat: "Stairs", item: "Landing Footings " + c.fDiam + '"' + label, qty: totalLandingPosts, cost: c.fDiam > 18 ? 28 : 18 });
+        items.push({ cat: "Stairs", item: "Landing Framing Lumber" + label, qty: numLandings * 4, cost: 22 });
+        items.push({ cat: "Stairs", item: "Landing Decking" + label, qty: numLandings * Math.ceil(sw + 2), cost: p.deckingType === "composite" ? 28 : 12 });
+      }
+    });
+  } else if (c.stairs) {
+    var st = c.stairs;
+    items.push({ cat: "Stairs", item: "2x12 Stair Stringers " + st.stringerFt + "'", qty: st.totalStringers, cost: st.stringerFt <= 8 ? 22 : st.stringerFt <= 12 ? 35 : 48 });
+    items.push({ cat: "Stairs", item: "5/4x12 PT Treads", qty: st.nTreads * Math.ceil(st.width / 1), cost: 18 });
+    items.push({ cat: "Stairs", item: "Stair Stringer Brackets", qty: st.totalStringers, cost: 8 });
+  }
+
+  items.push({ cat: "Misc", item: "FF Touch-Up Paint", qty: 2, cost: 12 });
+  items.push({ cat: "Misc", item: "Joist Tape + Misc", qty: 1, cost: 120 });
+
+  var sub = items.reduce(function(s, i) { return s + i.qty * i.cost; }, 0);
+  return { items: items, sub: sub, tax: sub * 0.08, cont: sub * 0.05, total: sub * 1.13 };
+}
+
 function estMaterials(p, c) {
+  // S75: Steel framing materials path
+  if (c.framingType === "steel" || p.framingType === "steel") {
+    return estSteelMaterials(p, c);
+  }
   const items = [];
   const bags = Math.ceil((Math.PI * (c.fDiam / 24) ** 2 * (c.fDepth / 12)) / 0.6) * c.nF;
   items.push({ cat: "Foundation", item: "Concrete 80lb bags", qty: bags, cost: 6.5 });
