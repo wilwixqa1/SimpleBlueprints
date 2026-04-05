@@ -1327,9 +1327,9 @@ function StepContent(props) {
             console.log("S72_DBG: rotated verts=" + JSON.stringify(_rv72.map(function(v){return [Math.round(v[0]*100)/100, Math.round(v[1]*100)/100]})));
             u("lotWidth", Math.round(_rvMaxX));
             u("lotDepth", Math.round(_rvMaxY));
-            // Edge lengths are preserved by rotation, no need to recompute.
-            // newEdges already has correct lengths and street/rear/side metadata.
-            // (newEdges was set by road correction code above)
+            // Edge lengths are preserved by rotation - use newEdges directly
+            // Must re-store lotEdges so renderer doesn't fall back to computeRectEdges
+            if (newEdges) u("lotEdges", newEdges);
             // 2. Compute house corner (hx, hy) exactly like the renderer, then rotate
             // Use newDist/newOffset from positioning code above, NOT p.houseDistFromStreet
             // (React state is stale in async callbacks - S70 lesson)
