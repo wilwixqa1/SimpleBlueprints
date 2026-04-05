@@ -1358,12 +1358,9 @@ function StepContent(props) {
             var _rhc72 = _rFn72(_hx72 + hw2 / 2, _hy72 + hd2 / 2);
             u("_houseX", _rhc72[0] - hw2 / 2);
             u("_houseY", _rhc72[1] - hd2 / 2);
-            // 3. houseAngle: add rotation, normalize mod 180 (rectangle symmetry)
-            // Must normalize because positions are pre-rotated; a 178.5 deg group
-            // rotation would flip the deck. Need small angle (~1.5) for correct layout.
+            // 3. houseAngle: add rotation, normalize to [0, 360) range
             var _rawAng72 = (primary.angle || 0) + _lotRot72;
-            var _normAng72 = ((_rawAng72 % 180) + 180) % 180;
-            if (_normAng72 > 90) _normAng72 -= 180;
+            var _normAng72 = ((_rawAng72 % 360) + 360) % 360;
             u("houseAngle", _normAng72);
             // 4. Clear _lotRotation so renderer doesn't double-rotate
             u("_lotRotation", 0);
