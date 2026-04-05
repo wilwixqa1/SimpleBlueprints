@@ -1345,7 +1345,27 @@ function StepContent(props) {
             var _normAng72 = ((_rawAng72 % 180) + 180) % 180;
             if (_normAng72 > 90) _normAng72 -= 180;
             _normAng72 = -_normAng72;
-            // S72: Set lotVertices LAST. The engine calls computePolygonVerts
+            // S73: Compute houseDistFromStreet and houseOffsetSide in rotated
+            // drawing space so ALL downstream consumers (sliders, drag, PDF,
+            // setback gaps, site elements) work without knowing rotation happened.
+            var _drawHX = _rhc72[0] - hw2 / 2;
+            var _drawHY = _rhc72[1] - hd2 / 2;
+            // houseDistFromStreet = Y position in drawing space (same semantics as non-rotated)
+            var _drawDist = Math.round(_drawHY);
+            // houseOffsetSide = X distance from left polygon edge at house mid-Y
+            var _drawMidY = _drawHY + hd2 / 2;
+            var _drawLeftX = Infinity;
+            for (var _ei73 = 0; _ei73 < _rv72.length; _ei73++) {
+              var _a73 = _rv72[_ei73], _b73 = _rv72[(_ei73 + 1) % _rv72.length];
+              var _ylo73 = Math.min(_a73[1], _b73[1]), _yhi73 = Math.max(_a73[1], _b73[1]);
+              if (_drawMidY < _ylo73 || _drawMidY > _yhi73 || _ylo73 === _yhi73) continue;
+              var _t73 = (_drawMidY - _a73[1]) / (_b73[1] - _a73[1]);
+              var _xat73 = _a73[0] + _t73 * (_b73[0] - _a73[0]);
+              if (_xat73 < _drawLeftX) _drawLeftX = _xat73;
+            }
+            if (_drawLeftX === Infinity) _drawLeftX = 0;
+            var _drawOffset = Math.round(Math.max(0, _drawHX - _drawLeftX));
+            // S72 rule: Set lotVertices LAST. The engine calls computePolygonVerts
             // when lotEdges exists but lotVertices is null, producing a regular
             // polygon that overwrites the real irregular shape.
             u("lotWidth", Math.round(_rvMaxX));
@@ -1353,14 +1373,15 @@ function StepContent(props) {
             if (newEdges) {
               u("lotEdges", newEdges);
             }
-            u("_houseX", _rhc72[0] - hw2 / 2);
-            u("_houseY", _rhc72[1] - hd2 / 2);
+            u("houseOffsetSide", _drawOffset);
+            u("houseDistFromStreet", _drawDist);
             u("houseAngle", _normAng72);
             u("_lotRotation", 0);
             // lotVertices MUST be last to prevent engine from regenerating polygon
             u("lotVertices", _rv72);
-            console.log("S72: Drawing-space values stored. lotBbox=" + Math.round(_rvMaxX) + "x" + Math.round(_rvMaxY) +
-              " _houseX=" + (_rhc72[0] - hw2/2).toFixed(1) + " _houseY=" + (_rhc72[1] - hd2/2).toFixed(1) + " angle=" + _normAng72);
+            console.log("S73: Unified drawing-space values. lotBbox=" + Math.round(_rvMaxX) + "x" + Math.round(_rvMaxY) +
+              " houseOffset=" + _drawOffset + " houseDist=" + _drawDist +
+              " hx=" + _drawHX.toFixed(1) + " hy=" + _drawHY.toFixed(1) + " angle=" + _normAng72);
           }
           // S70: Auto-add secondary structures (sheds, garages) as site elements
           // Use position relative to primary building (internally consistent in Overpass)

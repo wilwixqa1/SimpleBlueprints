@@ -266,16 +266,11 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
     return minX === Infinity ? 0 : minX;
   }
 
-  var hx;
-  // S72: Use pre-computed drawing-space position if available
-  if (p._houseX !== undefined && p._houseY !== undefined) {
-    hx = p._houseX;
-    hy = p._houseY;
-  } else {
-    var houseMidY = hy + hd / 2;
-    var leftX = leftEdgeAtY(houseMidY);
-    hx = leftX + houseOffsetVal;
-  }
+  // S73: Single path for house positioning. After rotation (if any),
+  // houseOffsetSide and houseDistFromStreet are in drawing space.
+  var houseMidY = hy + hd / 2;
+  var leftX = leftEdgeAtY(houseMidY);
+  var hx = leftX + houseOffsetVal;
 
   // === DECK ===
   var deckCX = hx + hw / 2 + (p.deckOffset || 0);
