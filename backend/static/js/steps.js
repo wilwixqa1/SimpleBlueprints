@@ -1290,6 +1290,78 @@ function StepContent(props) {
             console.log("House positioned from fallback (centered, 30% setback)");
           }
           console.log("Building footprint applied:", primary.width + "x" + primary.depth, "angle=" + primary.angle + "deg", "area=" + primary.area_sqft + "sqft");
+          // S72: Transform to drawing space. After this block, all stored values
+          // are in drawing space. The renderer draws them directly, no transforms.
+          var _lotRot72 = (typeof drawRotation === 'number') ? Math.round(drawRotation) : 0;
+          if (_lotRot72 !== 0 && verts && verts.length >= 3) {
+            // 1. Rotate lot vertices
+            var _cx72 = 0, _cy72 = 0;
+            for (var _i72 = 0; _i72 < verts.length; _i72++) { _cx72 += verts[_i72][0]; _cy72 += verts[_i72][1]; }
+            _cx72 /= verts.length; _cy72 /= verts.length;
+            var _rad72 = _lotRot72 * Math.PI / 180, _cos72 = Math.cos(_rad72), _sin72 = Math.sin(_rad72);
+            var _rv72 = [];
+            for (var _i72 = 0; _i72 < verts.length; _i72++) {
+              var _dx72 = verts[_i72][0] - _cx72, _dy72 = verts[_i72][1] - _cy72;
+              _rv72.push([_cx72 + _dx72 * _cos72 - _dy72 * _sin72, _cy72 + _dx72 * _sin72 + _dy72 * _cos72]);
+            }
+            var _mx72 = Infinity, _my72 = Infinity;
+            for (var _i72 = 0; _i72 < _rv72.length; _i72++) {
+              if (_rv72[_i72][0] < _mx72) _mx72 = _rv72[_i72][0];
+              if (_rv72[_i72][1] < _my72) _my72 = _rv72[_i72][1];
+            }
+            for (var _i72 = 0; _i72 < _rv72.length; _i72++) { _rv72[_i72][0] -= _mx72; _rv72[_i72][1] -= _my72; }
+            var _rFn72 = function(x, y) {
+              var _ddx = x - _cx72, _ddy = y - _cy72;
+              return [_cx72 + _ddx * _cos72 - _ddy * _sin72 - _mx72, _cy72 + _ddx * _sin72 + _ddy * _cos72 - _my72];
+            };
+            var _rvMaxX = 0, _rvMaxY = 0;
+            for (var _i72 = 0; _i72 < _rv72.length; _i72++) {
+              if (_rv72[_i72][0] > _rvMaxX) _rvMaxX = _rv72[_i72][0];
+              if (_rv72[_i72][1] > _rvMaxY) _rvMaxY = _rv72[_i72][1];
+            }
+            u("lotVertices", _rv72);
+            u("lotWidth", Math.round(_rvMaxX));
+            u("lotDepth", Math.round(_rvMaxY));
+            // Recompute lotEdges lengths on rotated polygon
+            var _curEdges72 = newEdges || [];
+            var _rotEdges72 = [];
+            for (var _ei72 = 0; _ei72 < _rv72.length; _ei72++) {
+              var _ni72 = (_ei72 + 1) % _rv72.length;
+              var _edx72 = _rv72[_ni72][0] - _rv72[_ei72][0], _edy72 = _rv72[_ni72][1] - _rv72[_ei72][1];
+              var _elen72 = Math.round(Math.sqrt(_edx72 * _edx72 + _edy72 * _edy72));
+              var _eInfo72 = _curEdges72[_ei72] || {};
+              _rotEdges72.push({ type: _eInfo72.type || "property", label: _eInfo72.label || "", length: _elen72, setbackType: _eInfo72.setbackType || "side", neighborLabel: _eInfo72.neighborLabel || "" });
+            }
+            u("lotEdges", _rotEdges72);
+            // 2. Compute house corner (hx, hy) exactly like the renderer, then rotate
+            var _hy72 = parseInt(p.houseDistFromStreet) || 25;
+            var _hOff72 = parseInt(p.houseOffsetSide) || 10;
+            var _hMidY72 = _hy72 + hd2 / 2;
+            var _lx72 = 0, _mlx72 = Infinity;
+            for (var _ei72 = 0; _ei72 < lotVerts2.length; _ei72++) {
+              var _a72 = lotVerts2[_ei72], _b72 = lotVerts2[(_ei72 + 1) % lotVerts2.length];
+              var _ylo72 = Math.min(_a72[1], _b72[1]), _yhi72 = Math.max(_a72[1], _b72[1]);
+              if (_hMidY72 < _ylo72 || _hMidY72 > _yhi72 || _ylo72 === _yhi72) continue;
+              var _t72 = (_hMidY72 - _a72[1]) / (_b72[1] - _a72[1]);
+              var _xat72 = _a72[0] + _t72 * (_b72[0] - _a72[0]);
+              if (_xat72 < _mlx72) _mlx72 = _xat72;
+            }
+            _lx72 = _mlx72 === Infinity ? 0 : _mlx72;
+            var _hx72 = _lx72 + _hOff72;
+            // Rotate house center, store corner
+            var _rhc72 = _rFn72(_hx72 + hw2 / 2, _hy72 + hd2 / 2);
+            u("_houseX", _rhc72[0] - hw2 / 2);
+            u("_houseY", _rhc72[1] - hd2 / 2);
+            // 3. houseAngle: add rotation, normalize mod 180
+            var _rawAng72 = (primary.angle || 0) + _lotRot72;
+            var _normAng72 = ((_rawAng72 % 180) + 180) % 180;
+            if (_normAng72 > 90) _normAng72 -= 180;
+            u("houseAngle", _normAng72);
+            // 4. Clear _lotRotation so renderer doesn't double-rotate
+            u("_lotRotation", 0);
+            console.log("S72: Drawing-space values stored. lotBbox=" + Math.round(_rvMaxX) + "x" + Math.round(_rvMaxY) +
+              " _houseX=" + (_rhc72[0] - hw2/2).toFixed(1) + " _houseY=" + (_rhc72[1] - hd2/2).toFixed(1) + " angle=" + _normAng72);
+          }
           // S70: Auto-add secondary structures (sheds, garages) as site elements
           // Use position relative to primary building (internally consistent in Overpass)
           var osmTypeMap = { "shed": "shed", "garage": "garage", "garages": "garage", "carport": "garage" };

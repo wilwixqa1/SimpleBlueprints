@@ -20,35 +20,10 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
 
   // Compute polygon verts early so we can size viewport to polygon bounds
   var verts = p.lotVertices || window.computeRectVertices(p);
-  var unrotVerts = verts; // S71: keep un-rotated for house positioning
-  var lotRot = p._lotRotation || 0;
-  var _combAngle = (p.houseAngle || 0) + lotRot; // S71: combined rotation for house/deck groups
-  var _rFn = null; // S71: rotation function (lot-space un-rotated -> rotated)
+  // S72: houseAngle already includes lot rotation from data layer
+  var _combAngle = p.houseAngle || 0;
   var viewW = lotW, viewD = lotD;
   if (p.lotVertices && verts.length > 2) {
-    // S71: Rotate vertices for display if lot rotation is set
-    if (lotRot !== 0) {
-      var _rcx = 0, _rcy = 0;
-      for (var ri = 0; ri < verts.length; ri++) { _rcx += verts[ri][0]; _rcy += verts[ri][1]; }
-      _rcx /= verts.length; _rcy /= verts.length;
-      var _rr = lotRot * Math.PI / 180, _rc = Math.cos(_rr), _rs = Math.sin(_rr);
-      var rv = [];
-      for (var ri = 0; ri < verts.length; ri++) {
-        var rdx = verts[ri][0] - _rcx, rdy = verts[ri][1] - _rcy;
-        rv.push([_rcx + rdx * _rc - rdy * _rs, _rcy + rdx * _rs + rdy * _rc]);
-      }
-      var _rmx = Infinity, _rmy = Infinity;
-      for (var ri = 0; ri < rv.length; ri++) {
-        if (rv[ri][0] < _rmx) _rmx = rv[ri][0];
-        if (rv[ri][1] < _rmy) _rmy = rv[ri][1];
-      }
-      for (var ri = 0; ri < rv.length; ri++) { rv[ri][0] -= _rmx; rv[ri][1] -= _rmy; }
-      verts = rv;
-      _rFn = function(x, y) {
-        var dx = x - _rcx, dy = y - _rcy;
-        return [_rcx + dx * _rc - dy * _rs - _rmx, _rcy + dx * _rs + dy * _rc - _rmy];
-      };
-    }
     viewW = Math.max.apply(null, verts.map(function(v) { return v[0]; }));
     viewD = Math.max.apply(null, verts.map(function(v) { return v[1]; }));
   }
@@ -210,7 +185,7 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
 
   // S37 Push 6.5: House drag handler
   function onHousePointerDown(e) {
-    if (!u || lotRot !== 0) return; // S71: disable drag when lot is rotated (S72 refactor)
+    if (!u) return;
     e.preventDefault();
     e.stopPropagation();
     var cX = e.clientX != null ? e.clientX : (e.touches && e.touches[0] ? e.touches[0].clientX : null);
@@ -276,8 +251,7 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
 
   // Find the left boundary X at a given Y by scanning polygon edges
   function leftEdgeAtY(yVal) {
-    // S71: Always scan un-rotated polygon (house position is in un-rotated space)
-    var scanVerts = unrotVerts;
+    var scanVerts = verts; // S72: verts are the polygon (pre-rotated in data layer if applicable)
     if (!p.lotVertices || scanVerts.length < 3) return 0; // rectangle: left edge is x=0
     var minX = Infinity;
     var nScan = scanVerts.length;
@@ -291,10 +265,17 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
     }
     return minX === Infinity ? 0 : minX;
   }
-  // Use the midpoint of the house (vertically) to find left edge
-  var houseMidY = hy + hd / 2;
-  var leftX = leftEdgeAtY(houseMidY);
-  var hx = leftX + houseOffsetVal;
+
+  var hx;
+  // S72: Use pre-computed drawing-space position if available
+  if (p._houseX !== undefined && p._houseY !== undefined) {
+    hx = p._houseX;
+    hy = p._houseY;
+  } else {
+    var houseMidY = hy + hd / 2;
+    var leftX = leftEdgeAtY(houseMidY);
+    hx = leftX + houseOffsetVal;
+  }
 
   // === DECK ===
   var deckCX = hx + hw / 2 + (p.deckOffset || 0);
@@ -302,17 +283,7 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
   var dx = deckCX - dw / 2;
   var dy = hy + hd;
 
-  // S71: Save un-rotated positions for stair computation
-  var _udx = dx, _udy = dy;
-
-  // S71: Rotate house and deck positions to match rotated lot polygon.
-  // Both are computed in un-rotated space above. Rotate their centers together.
-  if (_rFn) {
-    var _rhc = _rFn(hx + hw / 2, hy + hd / 2);
-    hx = _rhc[0] - hw / 2; hy = _rhc[1] - hd / 2;
-    var _rdc = _rFn(dx + dw / 2, dy + dd / 2);
-    dx = _rdc[0] - dw / 2; dy = _rdc[1] - dd / 2;
-  }
+  // S72: No rotation needed, positions are already in drawing space
 
   // === ZONE-AWARE DECK (S30) ===
   var pz = Object.assign({}, p, { deckWidth: dw, deckDepth: dd, deckHeight: p.height || 4 });
@@ -341,29 +312,22 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
     var landD = p.hasLanding ? 4 : 0;
     var stX, stY, stDrawW, stDrawD;
 
-    // S71: Compute stair position from UN-ROTATED deck position
+    // S72: Stair position from deck (already in drawing space)
     if (loc === "front") {
-      stX = _udx + dw / 2 + stOff - stW / 2;
-      stY = _udy + dd;
+      stX = dx + dw / 2 + stOff - stW / 2;
+      stY = dy + dd;
       stDrawW = stW;
       stDrawD = stairRun + landD;
     } else if (loc === "left") {
-      stX = _udx - stairRun - landD;
-      stY = _udy + dd / 2 + stOff - stW / 2;
+      stX = dx - stairRun - landD;
+      stY = dy + dd / 2 + stOff - stW / 2;
       stDrawW = stairRun + landD;
       stDrawD = stW;
     } else {
-      stX = _udx + dw;
-      stY = _udy + dd / 2 + stOff - stW / 2;
+      stX = dx + dw;
+      stY = dy + dd / 2 + stOff - stW / 2;
       stDrawW = stairRun + landD;
       stDrawD = stW;
-    }
-
-    // S71: Rotate stair center to match rotated lot
-    if (_rFn) {
-      var _rsc = _rFn(stX + stDrawW / 2, stY + stDrawD / 2);
-      stX = _rsc[0] - stDrawW / 2;
-      stY = _rsc[1] - stDrawD / 2;
     }
 
     stairEls.push(React.createElement("rect", {
@@ -439,16 +403,9 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
   }
 
   // === DISTANCES (bounding box, S30) ===
-  // S71: Compute gaps from un-rotated positions (correct distances)
-  var _ubbLx = _udx + bb.x, _ubbLy = _udy + bb.y;
-  var _uViewW = lotW, _uViewD = lotD;
-  if (unrotVerts.length > 2) {
-    _uViewW = Math.max.apply(null, unrotVerts.map(function(v) { return v[0]; }));
-    _uViewD = Math.max.apply(null, unrotVerts.map(function(v) { return v[1]; }));
-  }
-  var rearGap = _uViewD - (_ubbLy + bbD);
-  var leftGap = _ubbLx;
-  var rightGap = _uViewW - (_ubbLx + bbW);
+  var rearGap = viewD - (bbLy + bbD);
+  var leftGap = bbLx;
+  var rightGap = viewW - (bbLx + bbW);
   var rearWarn = rearGap < sbR;
   var leftWarn = leftGap < sbS;
   var rightWarn = rightGap < sbS;
@@ -575,7 +532,7 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
         React.createElement("line", { x1: 0, y1: 0, x2: 0, y2: 6, stroke: "#ccc", strokeWidth: 0.5 })
       )
     ),
-    // S71: House group rotation includes both houseAngle and lot rotation.
+    // S72: House rotation (angle includes lot rotation from data layer)
     React.createElement("g", {
       transform: _combAngle !== 0 ? "rotate(" + (-_combAngle).toFixed(1) + "," + sx(hx + hw / 2).toFixed(1) + "," + sy(hy + hd / 2).toFixed(1) + ")" : undefined
     },
@@ -587,20 +544,19 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
 
     React.createElement("g", null, siteEls),
 
-    // S71: Deck rotates with house + lot rotation
+    // S72: Deck rotation
     React.createElement("g", {
       transform: _combAngle !== 0 ? "rotate(" + (-_combAngle).toFixed(1) + "," + sx(hx + hw / 2).toFixed(1) + "," + sy(hy + hd / 2).toFixed(1) + ")" : undefined
     }, deckEls),
 
-    // S71: Stairs rotate with house + lot rotation
+    // S72: Stair rotation
     React.createElement("g", {
       transform: _combAngle !== 0 ? "rotate(" + (-_combAngle).toFixed(1) + "," + sx(hx + hw / 2).toFixed(1) + "," + sy(hy + hd / 2).toFixed(1) + ")" : undefined
     }, stairEls),
 
-    // S71: Gap DimLines hidden when lot rotation is active (coordinate system refactor in S72)
-    !_isLarge && !lotRot && rearGap > 0 ? React.createElement(DimLine, { x1: sx(bbLx + bbW / 2), y1: sy(bbLy + bbD), x2: sx(bbLx + bbW / 2), y2: sy(viewD), label: rearGap.toFixed(1) + "'", color: rearWarn ? "#e53935" : "#1565c0" }) : null,
-    !_isLarge && !lotRot && leftGap > 0 && sw(leftGap) > 12 ? React.createElement(DimLine, { x1: sx(0), y1: sy(bbLy + bbD / 2), x2: sx(bbLx), y2: sy(bbLy + bbD / 2), label: leftGap.toFixed(1) + "'", color: leftWarn ? "#e53935" : "#1565c0", side: "above" }) : null,
-    !_isLarge && !lotRot && rightGap > 0 && sw(rightGap) > 12 ? React.createElement(DimLine, { x1: sx(bbLx + bbW), y1: sy(bbLy + bbD / 2), x2: sx(viewW), y2: sy(bbLy + bbD / 2), label: rightGap.toFixed(1) + "'", color: rightWarn ? "#e53935" : "#1565c0", side: "above" }) : null,
+    !_isLarge && rearGap > 0 ? React.createElement(DimLine, { x1: sx(bbLx + bbW / 2), y1: sy(bbLy + bbD), x2: sx(bbLx + bbW / 2), y2: sy(viewD), label: rearGap.toFixed(1) + "'", color: rearWarn ? "#e53935" : "#1565c0" }) : null,
+    !_isLarge && leftGap > 0 && sw(leftGap) > 12 ? React.createElement(DimLine, { x1: sx(0), y1: sy(bbLy + bbD / 2), x2: sx(bbLx), y2: sy(bbLy + bbD / 2), label: leftGap.toFixed(1) + "'", color: leftWarn ? "#e53935" : "#1565c0", side: "above" }) : null,
+    !_isLarge && rightGap > 0 && sw(rightGap) > 12 ? React.createElement(DimLine, { x1: sx(bbLx + bbW), y1: sy(bbLy + bbD / 2), x2: sx(viewW), y2: sy(bbLy + bbD / 2), label: rightGap.toFixed(1) + "'", color: rightWarn ? "#e53935" : "#1565c0", side: "above" }) : null,
 
     React.createElement("g", null, setbackLabels),
 
