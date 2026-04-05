@@ -364,7 +364,7 @@ var GUIDE_PHASES_STEP0 = [
     id: 'verify_extracted',
     message: "Here is what we found. Do these numbers look right?",
     tip: "Check the preview on the right. Adjust any values that seem off.",
-    sections: ['lotHouse'],
+    sections: [],
     actions: [
       { label: 'Looks good', next: 'site_elements_check', style: 'primary' },
       { label: 'Let me adjust', action: 'expand_for_edit', style: 'secondary' }
