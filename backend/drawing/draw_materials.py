@@ -20,8 +20,115 @@ BRAND = {
 }
 
 
+def estimate_steel_materials(params, calc):
+    """S75: Steel framing materials for PDF materials sheet.
+    Mirrors frontend estSteelMaterials() logic."""
+    items = []
+    c = calc
+    fDiam = c["footing_diam"]
+    fDepth = c["footing_depth"]
+    nF = c["num_footings"]
+    totalPosts = c["total_posts"]
+    W = c["width"]
+    D = c["depth"]
+    nJ = c["num_joists"]
+    sp = c["joist_spacing"]
+    railLen = c["rail_length"]
+    attachment = c["attachment"]
+    gauge = c.get("steelGauge", params.get("steelGauge", "16"))
+    isDouble = "Double" in c.get("beam_size", "")
+
+    bags = math.ceil((math.pi * (fDiam / 24) ** 2 * (fDepth / 12)) / 0.6) * nF
+    items.append({"cat": "Foundation", "item": "Concrete 80lb bags", "qty": bags, "cost": 6.5})
+    items.append({"cat": "Foundation", "item": f"Sonotube {fDiam}\"", "qty": nF, "cost": 28 if fDiam > 18 else 18})
+    items.append({"cat": "Foundation", "item": "FF Post/Pier Bracket 3.5\"", "qty": nF, "cost": 35})
+
+    items.append({"cat": "Posts", "item": "FF Steel Post 3.5\"x3.5\"x10'", "qty": totalPosts, "cost": 85})
+    bracket_type = "FF Dbl Beam/Post Bracket" if isDouble else "FF Sngl Beam/Post Bracket"
+    items.append({"cat": "Posts", "item": bracket_type, "qty": totalPosts, "cost": 55 if isDouble else 45})
+
+    beamPieces = math.ceil(W / 20) * (2 if isDouble else 1)
+    items.append({"cat": "Beam", "item": "FF Steel Beam 2x11 20'", "qty": beamPieces, "cost": 195})
+    if isDouble:
+        items.append({"cat": "Beam", "item": "FF Dbl Beam Track 4' (2pk)", "qty": math.ceil(W / 8), "cost": 42})
+    items.append({"cat": "Beam", "item": "FF Beam Cap", "qty": 2, "cost": 8})
+
+    if attachment == "ledger":
+        ledgerCode = "12OC" if sp == 12 else "16OC"
+        items.append({"cat": "Ledger", "item": f"FF S-Ledger {ledgerCode} 20'", "qty": math.ceil(W / 20), "cost": 185})
+        items.append({"cat": "Ledger", "item": "FF Ledger Bracket", "qty": nJ, "cost": 8})
+        items.append({"cat": "Ledger", "item": "Ledger Lag Bolts (1/2\"x4\")", "qty": math.ceil(W / 1.33), "cost": 2.5})
+        items.append({"cat": "Ledger", "item": "Flashing", "qty": 1, "cost": 55})
+        items.append({"cat": "Ledger", "item": "Lateral Load Connectors", "qty": 2, "cost": 32})
+
+    joistLen = math.ceil(D)
+    avail = [12, 14, 16, 18, 20]
+    orderLen = 20
+    for al in avail:
+        if al >= joistLen:
+            orderLen = al
+            break
+    jCost = (65 if orderLen <= 12 else 85 if orderLen <= 16 else 105) if gauge == "16" else (55 if orderLen <= 12 else 72 if orderLen <= 16 else 90)
+    items.append({"cat": "Framing", "item": f"FF 2x6 {gauge}ga Joist {orderLen}'", "qty": nJ + 2, "cost": jCost})
+    items.append({"cat": "Framing", "item": "FF Joist Cap", "qty": (nJ + 2) * 2, "cost": 3})
+
+    rimTotal = (W + D * 2) if attachment == "ledger" else (W * 2 + D * 2)
+    rimPieces = math.ceil(rimTotal / 8)
+    items.append({"cat": "Framing", "item": f"FF U-Rim Joist {sp}OC 8'", "qty": rimPieces, "cost": 65})
+    items.append({"cat": "Framing", "item": "FF Rim Joist Bracket", "qty": rimPieces * 2, "cost": 6})
+
+    hangerQty = nJ * (2 if attachment == "freestanding" else 1)
+    items.append({"cat": "Hardware", "item": "FF Sngl Hanger Bracket", "qty": hangerQty, "cost": 12})
+    if attachment == "ledger":
+        items.append({"cat": "Hardware", "item": "FF F50 Bracket", "qty": nJ, "cost": 8})
+
+    midBlock = c.get("mid_span_blocking", False)
+    blockCount = c.get("blocking_count", 0)
+    if midBlock and blockCount > 0:
+        bCode = "12OC" if sp == 12 else "16OC"
+        items.append({"cat": "Framing", "item": f"FF Blocking {bCode}", "qty": blockCount, "cost": 18})
+        items.append({"cat": "Framing", "item": f"FF Strap {bCode}", "qty": blockCount, "cost": 12})
+
+    screwCount = nJ * 3 + nJ * 8 + totalPosts * 28 + rimPieces * 4
+    if midBlock:
+        screwCount += blockCount * 4
+    items.append({"cat": "Hardware", "item": "FF 3/4\" Self-Drilling Screws (250)", "qty": math.ceil(screwCount / 250), "cost": 45})
+
+    bds = math.ceil(W / (5.5 / 12)) * 1.1
+    if params.get("deckingType") == "composite":
+        items.append({"cat": "Decking", "item": f"Composite {math.ceil(D + 2)}'", "qty": math.ceil(bds), "cost": 38 if D > 10 else 28})
+        items.append({"cat": "Decking", "item": "Hidden Fasteners", "qty": 1, "cost": 175})
+    else:
+        items.append({"cat": "Decking", "item": f"5/4x6 PT {math.ceil(D + 2)}'", "qty": math.ceil(bds), "cost": 18 if D > 10 else 12})
+        items.append({"cat": "Decking", "item": "Deck Screws 5lb", "qty": math.ceil(W * D / 50), "cost": 32})
+
+    rP = math.ceil(railLen / 6) + 1
+    if params.get("railType") == "fortress":
+        items.append({"cat": "Railing", "item": "Fortress Panels", "qty": math.ceil(railLen / 7), "cost": 80})
+        items.append({"cat": "Railing", "item": "Fortress Posts", "qty": rP, "cost": 45})
+        items.append({"cat": "Railing", "item": "Top Rail + Brackets", "qty": math.ceil(railLen / 7), "cost": 52})
+    else:
+        items.append({"cat": "Railing", "item": "Wood Rail Kit (8')", "qty": math.ceil(railLen / 8), "cost": 85})
+
+    stair_info = calc.get("stairs")
+    if stair_info:
+        items.append({"cat": "Stairs", "item": f"2x12 Stair Stringers {stair_info['stringer_length_ft']}'", "qty": stair_info["num_stringers"], "cost": 35 if stair_info["stringer_length_ft"] <= 12 else 48})
+        items.append({"cat": "Stairs", "item": "5/4x12 PT Treads", "qty": stair_info["num_treads"] * math.ceil(stair_info["width"]), "cost": 18})
+        items.append({"cat": "Stairs", "item": "Stair Stringer Brackets", "qty": stair_info["num_stringers"], "cost": 8})
+
+    items.append({"cat": "Misc", "item": "FF Touch-Up Paint", "qty": 2, "cost": 12})
+    items.append({"cat": "Misc", "item": "Joist Tape + Misc", "qty": 1, "cost": 120})
+
+    sub = sum(i["qty"] * i["cost"] for i in items)
+    return {"items": items, "subtotal": round(sub, 2), "tax": round(sub * 0.08, 2), "cont": round(sub * 0.05, 2), "total": round(sub * 1.13, 2)}
+
+
 def estimate_materials(params, calc):
     """Generate itemized material list matching frontend logic exactly."""
+    # S75: Steel framing materials path
+    if calc.get("framingType") == "steel" or params.get("framingType") == "steel":
+        return estimate_steel_materials(params, calc)
+
     items = []
     c = calc  # shorthand
 
