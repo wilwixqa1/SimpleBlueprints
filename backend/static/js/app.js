@@ -589,6 +589,10 @@ const App = function SimpleBlueprints() {
     if (k === "houseDistFromStreet" && v !== null && !next._autoHouseDist) {
       next.houseDistFromStreet = Math.max(next.setbackFront, v);
     }
+    // S73: When _autoHouseDist is being set, also fix houseDistFromStreet if it was previously clamped
+    if (k === "_autoHouseDist" && v !== null && next.houseDistFromStreet !== null) {
+      next.houseDistFromStreet = v;
+    }
     // S64: Sync flat stair params when deckStairs changes
     if (k === "deckStairs") { _syncFlatStairParams(next); }
     // S64: Reverse sync -- flat stair params -> first zone-0 stair in deckStairs
