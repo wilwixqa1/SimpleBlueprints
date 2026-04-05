@@ -824,10 +824,13 @@ AI_HELPER_PARAMS = {
     },
     2: {
         "step_name": "Structure",
-        "step_description": "Structural specifications: joists, beams, posts, footings. Most values are auto-calculated from IRC tables.",
+        "step_description": "Structural specifications: joists, beams, posts, footings. Most values are auto-calculated from IRC tables (wood) or CCRR-0313 tables (steel).",
         "params": {
-            "joistSize": {"desc": "Joist lumber size", "type": "choice", "options": ["2x6", "2x8", "2x10", "2x12"]},
+            "framingType": {"desc": "Framing system: wood (IRC R507 PT lumber) or steel (Fortress Evolution per CCRR-0313)", "type": "choice", "options": ["wood", "steel"]},
+            "joistSize": {"desc": "Joist lumber size (wood only, auto-selected for steel)", "type": "choice", "options": ["2x6", "2x8", "2x10", "2x12"]},
             "joistSpacing": {"desc": "Joist spacing in inches", "type": "choice", "options": [12, 16]},
+            "steelGauge": {"desc": "Steel joist gauge (steel only): 16ga (heavier, longer spans) or 18ga (lighter, shorter spans)", "type": "choice", "options": ["16", "18"]},
+            "steelBeamType": {"desc": "Steel beam type (steel only): auto (engine picks), single, or double 2x11", "type": "choice", "options": ["auto", "single", "double"]},
             "attachment": {"desc": "Ledger (bolted to house) or freestanding (own posts)", "type": "choice", "options": ["ledger", "freestanding"]},
             "snowLoad": {"desc": "Snow load level (affects joist/beam sizing)", "type": "choice", "options": ["none", "light", "moderate", "heavy"]},
             "frostZone": {"desc": "Frost zone for footing depth", "type": "choice", "options": ["warm", "moderate", "cold", "severe"]},
@@ -874,6 +877,7 @@ def build_ai_helper_prompt(step, params, extraction_summary, guide_phase="", com
         "stairLocation": {"desc": "Which side stairs exit from", "type": "choice", "options": ["front", "left", "right"]},
         "attachment": {"desc": "How deck attaches to house", "type": "choice", "options": ["ledger", "freestanding"]},
         "deckOffset": {"desc": "Horizontal offset of deck center from house center", "type": "number"},
+        "framingType": {"desc": "Framing system: wood (PT lumber) or steel (Fortress Evolution)", "type": "choice", "options": ["wood", "steel"]},
     }
     cross_desc = ""
     cross_vals = ""
@@ -989,10 +993,26 @@ HOW COMPLEX TASKS WORK:
         2: """PREVIEW PANEL: Shows the Deck Plan with structural members (joists, beams, posts) overlaid.
 
 UI SECTIONS:
-- "structure": All structural settings. Joist spacing (12" or 16"), snow load (None/Light/Moderate/Heavy), footing depth based on frost zone. Most values are auto-calculated from IRC tables based on deck size.
+- "structure": All structural settings. At the top is the Framing System toggle (Wood / Steel). Below that: joist spacing (12" or 16"), snow load, frost zone. Most values are auto-calculated based on deck size.
+
+FRAMING SYSTEMS:
+- WOOD (default): Traditional pressure-treated lumber per IRC 2021 R507. User can pick joist size (2x6 through 2x12). Beam is multi-ply PT lumber. Posts are 4x4 or 6x6 PT.
+- STEEL: Fortress Evolution steel framing per Intertek CCRR-0313. Joists are always 2x6 steel (16ga or 18ga). Beam is a single or double 2x11 steel beam. Posts are 3.5" x 3.5" steel (must NOT be buried; they mount on pier brackets). All connections use Fortress brackets and 3/4" self-tapping screws instead of Simpson hardware.
+
+STEEL vs WOOD TRADEOFFS (use when user asks):
+- Steel: longer spans (up to 16'4" for 16ga @ 12" OC at 50 PSF), no rot/termite issues, lighter to carry, consistent quality, ~30-40% more expensive in materials but saves labor on large decks. Fortress system is a single-manufacturer ecosystem (joists, beams, brackets, screws all Fortress).
+- Wood: lower material cost, easier to source, familiar to most contractors, IRC prescriptive tables widely accepted by inspectors. More sizing options (2x6 through 2x12).
+
+STEEL-SPECIFIC CONSTRAINTS:
+- Joist size is always 2x6 (not selectable). Only gauge (16ga vs 18ga) and spacing (12" or 16") vary.
+- Beam is always 2x11 steel. Engine auto-selects single vs double based on span.
+- Posts are always 3.5" x 3.5" steel. Cannot be buried underground.
+- Blocking required when joist span exceeds 8' (vs 7' for wood).
+- All span data from CCRR-0313, not IRC tables.
+- Stairs use wood materials (Fortress steel stair system is a separate evaluation, not yet supported).
 
 HOW IT WORKS:
-- Values are auto-calculated. The user can override by looking at the controls. Most homeowners should leave these at defaults unless their building department specifies different requirements.""",
+- Toggle between Wood and Steel at the top of Step 2. When switching, overrides are cleared and the engine recalculates. The 3D preview, plan view, and PDF all update automatically.""",
         3: """PREVIEW PANEL: Shows the Deck Plan.
 
 UI SECTIONS:
@@ -1016,7 +1036,7 @@ HOW IT WORKS:
     return f"""You are the AI guide for SimpleBlueprints, a tool that helps homeowners generate deck blueprint packages for permit applications. You are currently helping on Step {step}: {step_info['step_name']} - {step_info['step_description']}
 {f"Current guide phase: {guide_phase}" if guide_phase else ""}
 
-IMPORTANT: SimpleBlueprints generates blueprint packages to support permit applications. We do NOT guarantee permit approval. Structural sizing follows IRC 2021 prescriptive tables, but every jurisdiction has its own requirements. If a user asks whether their plans will pass or be approved, explain that we provide IRC-based calculations and professional-quality drawings to support their application, but the building department makes the final determination. Never say "permit-ready" or "guaranteed to pass".
+IMPORTANT: SimpleBlueprints generates blueprint packages to support permit applications. We do NOT guarantee permit approval. Structural sizing follows IRC 2021 prescriptive tables (wood framing) or Intertek CCRR-0313 (Fortress Evolution steel framing), but every jurisdiction has its own requirements. If a user asks whether their plans will pass or be approved, explain that we provide code-based calculations and professional-quality drawings to support their application, but the building department makes the final determination. Never say "permit-ready" or "guaranteed to pass".
 
 Your personality: Warm, knowledgeable, concise. You are a friendly building expert helping a non-technical homeowner. Use plain English. Avoid jargon unless asked.
 
@@ -1272,12 +1292,14 @@ async def ai_helper(request: Request):
             _ai_params["depth"] = max(6, min(24, _ai_params.get("depth", 12)))
             _ai_params["height"] = max(1, min(14, _ai_params.get("height", 4)))
             _ai_calc = calculate_structure(_ai_params)
+            _framing_label = "Fortress Evolution CCRR-0313" if _ai_calc.get("framingType") == "steel" else "IRC 2021"
             calc_context = f"""
-CURRENT STRUCTURAL CALCULATIONS (auto-computed from IRC 2021):
-- Joists: {_ai_calc.get('joist_size', '?')} @ {_ai_calc.get('sp', '?')}" spacing
+CURRENT STRUCTURAL CALCULATIONS (auto-computed from {_framing_label}):
+- Framing: {"STEEL (Fortress Evolution)" if _ai_calc.get("framingType") == "steel" else "WOOD (PT lumber)"}
+- Joists: {_ai_calc.get('joist_size', '?')} @ {_ai_calc.get('joist_spacing', '?')}" spacing
 - Beam: {_ai_calc.get('beam_size', '?')} ({_ai_calc.get('beamType', 'dropped')})
-- Posts: {_ai_calc.get('post_size', '?')} x {_ai_calc.get('nP', '?')}
-- Footings: {_ai_calc.get('footing_diam', '?')}" diameter x {_ai_calc.get('nF', '?')}
+- Posts: {_ai_calc.get('post_size', '?')} x {_ai_calc.get('num_posts', '?')}
+- Footings: {_ai_calc.get('footing_diam', '?')}" diameter x {_ai_calc.get('num_footings', '?')}
 - Design load: {_ai_calc.get('TL', '?')} PSF (LL={_ai_calc.get('LL', '?')}, DL={_ai_calc.get('DL', '?')})
 - Guard height: {_ai_calc.get('rail_height', 36)}"
 - Deck area: {_ai_calc.get('area', '?')} SF
