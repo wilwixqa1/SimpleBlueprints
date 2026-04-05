@@ -1358,15 +1358,14 @@ function StepContent(props) {
             var _rhc72 = _rFn72(_hx72 + hw2 / 2, _hy72 + hd2 / 2);
             u("_houseX", _rhc72[0] - hw2 / 2);
             u("_houseY", _rhc72[1] - hd2 / 2);
-            // 3. houseAngle: add rotation, normalize mod 180
+            // 3. houseAngle: add rotation (no normalization - SVG Y-flip
+            // means mod 180 doesn't preserve visual orientation)
             var _rawAng72 = (primary.angle || 0) + _lotRot72;
-            var _normAng72 = ((_rawAng72 % 180) + 180) % 180;
-            if (_normAng72 > 90) _normAng72 -= 180;
-            u("houseAngle", _normAng72);
+            u("houseAngle", _rawAng72);
             // 4. Clear _lotRotation so renderer doesn't double-rotate
             u("_lotRotation", 0);
             console.log("S72: Drawing-space values stored. lotBbox=" + Math.round(_rvMaxX) + "x" + Math.round(_rvMaxY) +
-              " _houseX=" + (_rhc72[0] - hw2/2).toFixed(1) + " _houseY=" + (_rhc72[1] - hd2/2).toFixed(1) + " angle=" + _normAng72);
+              " _houseX=" + (_rhc72[0] - hw2/2).toFixed(1) + " _houseY=" + (_rhc72[1] - hd2/2).toFixed(1) + " angle=" + _rawAng72);
           }
           // S70: Auto-add secondary structures (sheds, garages) as site elements
           // Use position relative to primary building (internally consistent in Overpass)
