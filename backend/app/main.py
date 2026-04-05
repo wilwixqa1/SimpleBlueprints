@@ -936,7 +936,10 @@ THREE WAYS TO SET UP THE LOT (in guided mode):
 2. SURVEY UPLOAD: Upload a PDF or photo. AI extracts lot shape, dimensions, and house position. User picks from shape candidates and confirms.
 3. MANUAL ENTRY: User enters lot width, depth, house dimensions, and position using sliders.
 
-The address lookup returns the legal parcel boundary from county records, which is more accurate than AI extraction from a survey image. However, house position is estimated (centered, standard setbacks) since we do not have the building footprint polygon. User can drag the house to reposition.
+The address lookup returns the legal parcel boundary from county records, which is more accurate than AI extraction from a survey image. When available, building footprint data from satellite imagery provides accurate house dimensions, orientation, and position. These auto-detected values are stored as _autoHouseOffset, _autoHouseDist, _autoHouseWidth, _autoHouseDepth.
+
+RESETTING HOUSE POSITION:
+If the user accidentally moved the house, changed house dimensions, or wants to go back to the original detected values, use the resetHousePosition action: {"resetHousePosition": true}. This restores houseOffsetSide, houseDistFromStreet, houseWidth, and houseDepth to their auto-detected values. Only works when auto-detected values exist (_autoHouseOffset is set).
 
 HOW COMPLEX TASKS WORK:
 - To change lot shape: User can look up by address (recommended), upload a survey (the AI extracts it), use the shape picker in compare mode, or trace manually on the survey image.
@@ -1026,6 +1029,7 @@ SETTABLE PARAMETERS for this step:
 {"CROSS-STEP PARAMETERS (always available - the site plan preview shows the deck on every step):" + chr(10) + cross_desc + chr(10) + "Current deck values:" + chr(10) + (cross_vals if cross_vals else "(defaults)") if cross_desc else ""}
 CURRENT VALUES:
 {current_vals if current_vals else "(defaults)"}
+{f"AUTO-DETECTED VALUES (from satellite): houseWidth={params.get('_autoHouseWidth')}, houseDepth={params.get('_autoHouseDepth')}, houseOffsetSide={params.get('_autoHouseOffset')}, houseDistFromStreet={params.get('_autoHouseDist')}. Use resetHousePosition action to restore these." if params.get('_autoHouseOffset') is not None else ""}
 {extraction_note}{compare_note}{site_elements_note}
 {ui_map}
 
@@ -1057,6 +1061,10 @@ ACTIONS:[{{"chamferSet":{{"corner":"FR","enabled":true,"size":4}}}},{{"classify"
 Example adding a cutout:
 I've cut a 4' by 4' notch from the front edge. This is useful if you need clearance around a post or tree.
 ACTIONS:[{{"cutoutAdd":{{"edge":"front","width":4,"depth":4}}}},{{"classify":"configuration_help"}}]
+
+Example resetting house position:
+Done! I've reset your house back to the original satellite-detected position and dimensions.
+ACTIONS:[{{"resetHousePosition":true}}]
 
 Example with stair template:
 I've set up L-shaped stairs turning left from the front of the deck. They'll go straight out, then turn left on a landing.

@@ -1566,6 +1566,13 @@ function StepContent(props) {
         var els3 = (p.siteElements || []).slice();
         if (rmIdx >= 0 && rmIdx < els3.length) { els3.splice(rmIdx, 1); u("siteElements", els3); }
       }
+      // S73: Reset house position to auto-detected values
+      if (act.resetHousePosition) {
+        if (p._autoHouseOffset != null) u("houseOffsetSide", p._autoHouseOffset);
+        if (p._autoHouseDist != null) u("houseDistFromStreet", p._autoHouseDist);
+        if (p._autoHouseWidth != null) u("houseWidth", p._autoHouseWidth);
+        if (p._autoHouseDepth != null) u("houseDepth", p._autoHouseDepth);
+      }
       // S56: Zone add action - creates L-shaped, wraparound, extensions
       if (act.zoneAdd) {
         var za = act.zoneAdd;
