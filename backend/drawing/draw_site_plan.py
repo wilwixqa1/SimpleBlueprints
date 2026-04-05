@@ -297,7 +297,9 @@ def draw_site_plan(fig, params, calc):
     house_x = left_edge_at_y(house_mid_y) + house_x  # house_x was houseOffsetSide
 
     # S70: House rotation from building footprint angle
-    house_angle = params.get("houseAngle", 0) or 0
+    # S73: houseAngle is negated for SVG Y-flip in the frontend.
+    # Matplotlib uses standard Y-up coordinates, so negate back.
+    house_angle = -(params.get("houseAngle", 0) or 0)
     house_cx = house_x + house_w / 2
     house_cy = house_y + house_d / 2
 
