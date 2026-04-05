@@ -1352,6 +1352,7 @@ function StepContent(props) {
             }
             _lx72 = _mlx72 === Infinity ? 0 : _mlx72;
             var _hx72 = _lx72 + _hOff72;
+            console.log("S72_DBG: pre-rotate hx=" + _hx72.toFixed(2) + " hy=" + _hy72 + " leftX=" + _lx72.toFixed(2) + " offset=" + _hOff72 + " dist=" + _hy72 + " midY=" + _hMidY72 + " scanVerts=" + lotVerts2.length);
             // Rotate house center, store corner
             var _rhc72 = _rFn72(_hx72 + hw2 / 2, _hy72 + hd2 / 2);
             u("_houseX", _rhc72[0] - hw2 / 2);
