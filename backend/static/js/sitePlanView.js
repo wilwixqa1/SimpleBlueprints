@@ -22,6 +22,7 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
   var verts = p.lotVertices || window.computeRectVertices(p);
   var unrotVerts = verts; // S71: keep un-rotated for house positioning
   var lotRot = p._lotRotation || 0;
+  var _combAngle = (p.houseAngle || 0) + lotRot; // S71: combined rotation for house/deck groups
   var _rFn = null; // S71: rotation function (lot-space un-rotated -> rotated)
   var viewW = lotW, viewD = lotD;
   if (p.lotVertices && verts.length > 2) {
@@ -545,8 +546,7 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
     svgEvents.onTouchCancel = onSvgPointerUp;
   }
 
-  // S71: Combined rotation angle for house/deck/stair groups
-  var _combAngle = (p.houseAngle || 0) + lotRot;
+  // S71: Combined rotation angle moved to top of function (before deck text)
 
   return React.createElement("svg", Object.assign({
     ref: svgRef,
