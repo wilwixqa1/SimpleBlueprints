@@ -4236,7 +4236,7 @@ function StepContent(props) {
           <span style={{ fontSize: 16 }}>{statusIcon}</span>
           <div>
             <div style={{ fontSize: 12, fontWeight: 700, color: statusColor, fontFamily: _mono, letterSpacing: "1px" }}>{statusText}</div>
-            <div style={{ fontSize: 10, color: _br.mu, fontFamily: _sans }}>{rpt.passed}/{rpt.total_applicable} checks passed {"\u00B7"} IRC 2021</div>
+            <div style={{ fontSize: 10, color: _br.mu, fontFamily: _sans }}>{rpt.passed}/{rpt.total_applicable} checks passed {"\u00B7"} {(p.framingType || "wood") === "steel" ? "CCRR-0313" : "IRC 2021"}</div>
           </div>
         </div>
         {failChecks.length > 0 && <div style={{ marginBottom: 6 }}>
@@ -4251,7 +4251,9 @@ function StepContent(props) {
           </div>; })}
         </div>}
         <div style={{ fontSize: 7, color: _br.mu, fontFamily: _mono, fontStyle: "italic" }}>
-          Lumber: No. 2 DFL / Hem-Fir / SPF {"\u00B7"} Beam spans per IRC R507.5 {"\u00B7"} Joist spans per IRC R507.6
+          {(p.framingType || "wood") === "steel"
+            ? "Fortress Evolution Steel \u00B7 Beam/joist spans per Intertek CCRR-0313"
+            : "Lumber: No. 2 DFL / Hem-Fir / SPF \u00B7 Beam spans per IRC R507.5 \u00B7 Joist spans per IRC R507.6"}
         </div>
         <div style={{ fontSize: 7, color: _br.mu, fontFamily: _mono, fontStyle: "italic", marginTop: 3 }}>
           This is an automated pre-check, not a guarantee of permit approval. Always verify with your local building department.

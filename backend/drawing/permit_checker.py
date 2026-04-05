@@ -173,6 +173,10 @@ def get_config_tags(params, calc):
     decking = params.get("deckingType", "composite")
     tags.append(f"decking_{decking}")
 
+    # S75: Framing type (wood=IRC R507, steel=CCRR-0313)
+    framing = params.get("framingType", "wood")
+    tags.append(f"{framing}_framing")  # "wood_framing" or "steel_framing"
+
     beam_size = calc.get("beam_size", "")
     if "LVL" in beam_size.upper():
         tags.append("lvl_beam")
@@ -297,6 +301,7 @@ def _build_report(product_type, config_tags, results):
     sheet="A-1",
     severity="error",
     code_ref="IRC R507.5, Table R507.5",
+    conditions=["wood_framing"],
 )
 def check_joist_span(params, calc, spec):
     joist_span = calc.get("joist_span", 0)
@@ -374,6 +379,7 @@ def check_joist_span(params, calc, spec):
     sheet="A-1",
     severity="error",
     code_ref="IRC R507.5, Tables R507.5(1)-R507.5(4)",
+    conditions=["wood_framing"],
 )
 def check_beam_span(params, calc, spec):
     beam_size = calc.get("beam_size", "3-ply 2x10")
