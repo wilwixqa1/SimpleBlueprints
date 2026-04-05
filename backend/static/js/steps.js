@@ -1358,10 +1358,8 @@ function StepContent(props) {
             var _rhc72 = _rFn72(_hx72 + hw2 / 2, _hy72 + hd2 / 2);
             u("_houseX", _rhc72[0] - hw2 / 2);
             u("_houseY", _rhc72[1] - hd2 / 2);
-            // 3. houseAngle: add rotation, add 180 to compensate for pre-rotated positions
-            var _rawAng72 = (primary.angle || 0) + _lotRot72 + 180;
-            var _normAng72 = ((_rawAng72 % 360) + 360) % 360;
-            u("houseAngle", _normAng72);
+            // 3. houseAngle: try 364 degrees
+            u("houseAngle", 364);
             // 4. Clear _lotRotation so renderer doesn't double-rotate
             u("_lotRotation", 0);
             console.log("S72: Drawing-space values stored. lotBbox=" + Math.round(_rvMaxX) + "x" + Math.round(_rvMaxY) +
