@@ -301,6 +301,9 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
   var dx = deckCX - dw / 2;
   var dy = hy + hd;
 
+  // S71: Save un-rotated positions for stair computation
+  var _udx = dx, _udy = dy;
+
   // S71: Rotate house and deck positions to match rotated lot polygon.
   // Both are computed in un-rotated space above. Rotate their centers together.
   if (_rFn) {
@@ -337,21 +340,29 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
     var landD = p.hasLanding ? 4 : 0;
     var stX, stY, stDrawW, stDrawD;
 
+    // S71: Compute stair position from UN-ROTATED deck position
     if (loc === "front") {
-      stX = dx + dw / 2 + stOff - stW / 2;
-      stY = dy + dd;
+      stX = _udx + dw / 2 + stOff - stW / 2;
+      stY = _udy + dd;
       stDrawW = stW;
       stDrawD = stairRun + landD;
     } else if (loc === "left") {
-      stX = dx - stairRun - landD;
-      stY = dy + dd / 2 + stOff - stW / 2;
+      stX = _udx - stairRun - landD;
+      stY = _udy + dd / 2 + stOff - stW / 2;
       stDrawW = stairRun + landD;
       stDrawD = stW;
     } else {
-      stX = dx + dw;
-      stY = dy + dd / 2 + stOff - stW / 2;
+      stX = _udx + dw;
+      stY = _udy + dd / 2 + stOff - stW / 2;
       stDrawW = stairRun + landD;
       stDrawD = stW;
+    }
+
+    // S71: Rotate stair center to match rotated lot
+    if (_rFn) {
+      var _rsc = _rFn(stX + stDrawW / 2, stY + stDrawD / 2);
+      stX = _rsc[0] - stDrawW / 2;
+      stY = _rsc[1] - stDrawD / 2;
     }
 
     stairEls.push(React.createElement("rect", {
@@ -472,11 +483,13 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
     deckEls.push(React.createElement("line", { key: "ldg", x1: sx(dx), y1: sy(dy), x2: sx(dx + dw), y2: sy(dy), stroke: "#2e7d32", strokeWidth: 2.5 }));
   }
   if (sh(bbD) > 16) {
-    deckEls.push(React.createElement("text", { key: "dlbl", x: sx(bbLx + bbW / 2), y: sy(bbLy + bbD / 2) + 3, textAnchor: "middle", style: { fontSize: 8, fill: "#3d5a2e", fontFamily: mono, fontWeight: 700 } }, "PROPOSED DECK"));
+    var _dtx = sx(bbLx + bbW / 2), _dty = sy(bbLy + bbD / 2) + 3;
+    deckEls.push(React.createElement("text", { key: "dlbl", x: _dtx, y: _dty, textAnchor: "middle", transform: _combAngle !== 0 ? "rotate(" + _combAngle.toFixed(1) + "," + _dtx.toFixed(1) + "," + _dty.toFixed(1) + ")" : undefined, style: { fontSize: 8, fill: "#3d5a2e", fontFamily: mono, fontWeight: 700 } }, "PROPOSED DECK"));
   }
   if (sh(bbD) > 28) {
     var dimLabel = hasZones ? totalArea.toFixed(0) + " S.F." : dw + "' x " + dd + "'";
-    deckEls.push(React.createElement("text", { key: "ddim", x: sx(bbLx + bbW / 2), y: sy(bbLy + bbD / 2) + 13, textAnchor: "middle", style: { fontSize: 7, fill: "#5a7a4a", fontFamily: mono } }, dimLabel));
+    var _dtx2 = sx(bbLx + bbW / 2), _dty2 = sy(bbLy + bbD / 2) + 13;
+    deckEls.push(React.createElement("text", { key: "ddim", x: _dtx2, y: _dty2, textAnchor: "middle", transform: _combAngle !== 0 ? "rotate(" + _combAngle.toFixed(1) + "," + _dtx2.toFixed(1) + "," + _dty2.toFixed(1) + ")" : undefined, style: { fontSize: 7, fill: "#5a7a4a", fontFamily: mono } }, dimLabel));
   }
 
   // === SITE ELEMENTS (S31 + S32 drag) ===
@@ -561,8 +574,8 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
     },
       React.createElement("rect", { x: sx(hx), y: sy(hy + hd), width: sw(hw), height: sh(hd), fill: "#e8e6e0", stroke: "#666", strokeWidth: 1.2, onMouseDown: function(e) { onHousePointerDown(e); }, onTouchStart: function(e) { onHousePointerDown(e); }, style: { cursor: isDragging ? "grabbing" : "grab" } }),
       React.createElement("rect", { x: sx(hx), y: sy(hy + hd), width: sw(hw), height: sh(hd), fill: "url(#spHatch)", pointerEvents: "none" }),
-      sh(hd) > 20 ? React.createElement("text", { x: sx(hx + hw / 2), y: sy(hy + hd / 2) + 3, textAnchor: "middle", style: { fontSize: 8, fill: "#666", fontFamily: mono, fontWeight: 600 } }, "EXISTING HOUSE") : null,
-      !_isLarge && sh(hd) > 30 ? React.createElement("text", { x: sx(hx + hw / 2), y: sy(hy + hd / 2) + 13, textAnchor: "middle", style: { fontSize: 7, fill: "#888", fontFamily: mono } }, hw + "' x " + hd + "'") : null
+      sh(hd) > 20 ? React.createElement("text", { x: sx(hx + hw / 2), y: sy(hy + hd / 2) + 3, textAnchor: "middle", transform: _combAngle !== 0 ? "rotate(" + _combAngle.toFixed(1) + "," + sx(hx + hw / 2).toFixed(1) + "," + (sy(hy + hd / 2) + 3).toFixed(1) + ")" : undefined, style: { fontSize: 8, fill: "#666", fontFamily: mono, fontWeight: 600 } }, "EXISTING HOUSE") : null,
+      !_isLarge && sh(hd) > 30 ? React.createElement("text", { x: sx(hx + hw / 2), y: sy(hy + hd / 2) + 13, textAnchor: "middle", transform: _combAngle !== 0 ? "rotate(" + _combAngle.toFixed(1) + "," + sx(hx + hw / 2).toFixed(1) + "," + (sy(hy + hd / 2) + 13).toFixed(1) + ")" : undefined, style: { fontSize: 7, fill: "#888", fontFamily: mono } }, hw + "' x " + hd + "'") : null
     ),
 
     React.createElement("g", null, siteEls),
