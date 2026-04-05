@@ -1374,6 +1374,12 @@ function StepContent(props) {
             if (newEdges) {
               u("lotEdges", newEdges);
             }
+            // S73: Stash auto-detected values BEFORE setting houseDistFromStreet
+            // so the engine clamp (S29) sees _autoHouseDist and skips clamping
+            u("_autoHouseOffset", _drawOffset);
+            u("_autoHouseDist", _drawDist);
+            u("_autoHouseWidth", hw2);
+            u("_autoHouseDepth", hd2);
             u("houseOffsetSide", _drawOffset);
             u("houseDistFromStreet", _drawDist);
             u("houseAngle", _normAng72);
@@ -1384,14 +1390,13 @@ function StepContent(props) {
               " houseOffset=" + _drawOffset + " houseDist=" + _drawDist +
               " hx=" + _drawHX.toFixed(1) + " hy=" + _drawHY.toFixed(1) + " angle=" + _normAng72);
           }
-          // S73: Stash auto-detected values for reset capability
-          // Use drawing-space values if rotated, otherwise the computed values
-          var _finalOffset = (_lotRot72 !== 0 && typeof _drawOffset !== 'undefined') ? _drawOffset : newOffset;
-          var _finalDist = (_lotRot72 !== 0 && typeof _drawDist !== 'undefined') ? _drawDist : newDist;
-          u("_autoHouseOffset", _finalOffset);
-          u("_autoHouseDist", _finalDist);
-          u("_autoHouseWidth", hw2);
-          u("_autoHouseDepth", hd2);
+          // S73: For non-rotated path, stash auto-detected values
+          if (_lotRot72 === 0 || !verts || verts.length < 3) {
+            u("_autoHouseOffset", newOffset);
+            u("_autoHouseDist", newDist);
+            u("_autoHouseWidth", hw2);
+            u("_autoHouseDepth", hd2);
+          }
           // S70: Auto-add secondary structures (sheds, garages) as site elements
           // Use position relative to primary building (internally consistent in Overpass)
           var osmTypeMap = { "shed": "shed", "garage": "garage", "garages": "garage", "carport": "garage" };

@@ -582,10 +582,11 @@ const App = function SimpleBlueprints() {
       next.lotArea = null;
     }
     // S29: clamp houseDistFromStreet when setbackFront changes
-    if (k === "setbackFront" && next.houseDistFromStreet !== null && next.houseDistFromStreet < v) {
+    // S73: Skip clamp when auto-detected (house position is a fact, not a design choice)
+    if (k === "setbackFront" && next.houseDistFromStreet !== null && next.houseDistFromStreet < v && !next._autoHouseDist) {
       next.houseDistFromStreet = v;
     }
-    if (k === "houseDistFromStreet" && v !== null) {
+    if (k === "houseDistFromStreet" && v !== null && !next._autoHouseDist) {
       next.houseDistFromStreet = Math.max(next.setbackFront, v);
     }
     // S64: Sync flat stair params when deckStairs changes
