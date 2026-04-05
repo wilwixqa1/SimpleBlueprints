@@ -439,9 +439,16 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
   }
 
   // === DISTANCES (bounding box, S30) ===
-  var rearGap = viewD - (bbLy + bbD);
-  var leftGap = bbLx;
-  var rightGap = viewW - (bbLx + bbW);
+  // S71: Compute gaps from un-rotated positions (correct distances)
+  var _ubbLx = _udx + bb.x, _ubbLy = _udy + bb.y;
+  var _uViewW = lotW, _uViewD = lotD;
+  if (unrotVerts.length > 2) {
+    _uViewW = Math.max.apply(null, unrotVerts.map(function(v) { return v[0]; }));
+    _uViewD = Math.max.apply(null, unrotVerts.map(function(v) { return v[1]; }));
+  }
+  var rearGap = _uViewD - (_ubbLy + bbD);
+  var leftGap = _ubbLx;
+  var rightGap = _uViewW - (_ubbLx + bbW);
   var rearWarn = rearGap < sbR;
   var leftWarn = leftGap < sbS;
   var rightWarn = rightGap < sbS;
@@ -590,9 +597,22 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
       transform: _combAngle !== 0 ? "rotate(" + (-_combAngle).toFixed(1) + "," + sx(hx + hw / 2).toFixed(1) + "," + sy(hy + hd / 2).toFixed(1) + ")" : undefined
     }, stairEls),
 
-    !_isLarge && rearGap > 0 ? React.createElement(DimLine, { x1: sx(bbLx + bbW / 2), y1: sy(bbLy + bbD), x2: sx(bbLx + bbW / 2), y2: sy(lotD), label: rearGap.toFixed(1) + "'", color: rearWarn ? "#e53935" : "#1565c0" }) : null,
-    !_isLarge && leftGap > 0 && sw(leftGap) > 12 ? React.createElement(DimLine, { x1: sx(0), y1: sy(bbLy + bbD / 2), x2: sx(bbLx), y2: sy(bbLy + bbD / 2), label: leftGap.toFixed(1) + "'", color: leftWarn ? "#e53935" : "#1565c0", side: "above" }) : null,
-    !_isLarge && rightGap > 0 && sw(rightGap) > 12 ? React.createElement(DimLine, { x1: sx(bbLx + bbW), y1: sy(bbLy + bbD / 2), x2: sx(lotW), y2: sy(bbLy + bbD / 2), label: rightGap.toFixed(1) + "'", color: rightWarn ? "#e53935" : "#1565c0", side: "above" }) : null,
+    // S71: Gap DimLine endpoints computed from un-rotated positions, then rotated
+    !_isLarge && rearGap > 0 ? React.createElement(DimLine, (function() {
+      var p1x = _ubbLx + bbW / 2, p1y = _ubbLy + bbD, p2x = _ubbLx + bbW / 2, p2y = _uViewD;
+      if (_rFn) { var r1 = _rFn(p1x, p1y), r2 = _rFn(p2x, p2y); p1x = r1[0]; p1y = r1[1]; p2x = r2[0]; p2y = r2[1]; }
+      return { x1: sx(p1x), y1: sy(p1y), x2: sx(p2x), y2: sy(p2y), label: rearGap.toFixed(1) + "'", color: rearWarn ? "#e53935" : "#1565c0" };
+    })()) : null,
+    !_isLarge && leftGap > 0 && sw(leftGap) > 12 ? React.createElement(DimLine, (function() {
+      var p1x = 0, p1y = _ubbLy + bbD / 2, p2x = _ubbLx, p2y = _ubbLy + bbD / 2;
+      if (_rFn) { var r1 = _rFn(p1x, p1y), r2 = _rFn(p2x, p2y); p1x = r1[0]; p1y = r1[1]; p2x = r2[0]; p2y = r2[1]; }
+      return { x1: sx(p1x), y1: sy(p1y), x2: sx(p2x), y2: sy(p2y), label: leftGap.toFixed(1) + "'", color: leftWarn ? "#e53935" : "#1565c0", side: "above" };
+    })()) : null,
+    !_isLarge && rightGap > 0 && sw(rightGap) > 12 ? React.createElement(DimLine, (function() {
+      var p1x = _ubbLx + bbW, p1y = _ubbLy + bbD / 2, p2x = _uViewW, p2y = _ubbLy + bbD / 2;
+      if (_rFn) { var r1 = _rFn(p1x, p1y), r2 = _rFn(p2x, p2y); p1x = r1[0]; p1y = r1[1]; p2x = r2[0]; p2y = r2[1]; }
+      return { x1: sx(p1x), y1: sy(p1y), x2: sx(p2x), y2: sy(p2y), label: rightGap.toFixed(1) + "'", color: rightWarn ? "#e53935" : "#1565c0", side: "above" };
+    })()) : null,
 
     React.createElement("g", null, setbackLabels),
 
