@@ -1,5 +1,23 @@
 # Session 73 Context File
 
+## !! S73 HIGH-RISK CHANGE WARNING !!
+
+**S73 made a fundamental change to how house positioning works for rotated lots.** This change touches the data layer (steps.js), renderer (sitePlanView.js), engine (app.js), AI helper (main.py), and home page (home.js). It was verified visually on ONE property (10 Chichester Rd, lotRotation=166) but NOT comprehensively tested across different lot orientations, non-rotated properties, drag interactions, slider edge cases, or the full PDF pipeline on varied inputs.
+
+**If you encounter unexpected bugs with house position, lot orientation, setback gaps, slider behavior, site plan rendering, or PDF output, the S73 coordinate unification (Push 1) is the most likely cause.** The core change: after the S72 rotation block, `houseOffsetSide` and `houseDistFromStreet` are now overwritten with drawing-space values derived from the rotated house position. Previously they held un-rotated geographic values while `_houseX`/`_houseY` held the drawing-space values. The `_houseX`/`_houseY` variables no longer exist.
+
+**Key files changed:**
+- `steps.js` lines ~1350-1395: S73 rotation block recomputes offset/dist in drawing space
+- `sitePlanView.js` lines ~268-275: Removed `_houseX`/`_houseY` branch, single code path
+- `app.js` lines ~584-595: Engine clamp bypass when `_autoHouseDist` exists
+- `app.js` lines ~595-598: Force-sync `houseDistFromStreet` when `_autoHouseDist` is set
+
+**To debug:** Check the console for `S73: Unified drawing-space values` log line. It shows `houseOffset`, `houseDist`, `hx`, `hy`, and `angle`. Compare these against what the renderer and PDF are using. If `houseOffset`/`houseDist` don't match what you expect, the `leftEdgeAtY` scan on the rotated polygon in the S73 block may be producing wrong results for that particular lot shape.
+
+**To revert:** Restore `_houseX`/`_houseY` storage in steps.js, restore the branch in sitePlanView.js, and revert the app.js clamp changes. The S72 context file documents the pre-S73 architecture.
+
+---
+
 ## S73 Status: Coordinate Unification + UX Improvements (Complete)
 
 ### What Was Done
