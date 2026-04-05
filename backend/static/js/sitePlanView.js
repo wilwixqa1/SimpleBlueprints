@@ -532,6 +532,9 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
     svgEvents.onTouchCancel = onSvgPointerUp;
   }
 
+  // S71: Combined rotation angle for house/deck/stair groups
+  var _combAngle = (p.houseAngle || 0) + lotRot;
+
   return React.createElement("svg", Object.assign({
     ref: svgRef,
     viewBox: "0 0 " + svgW + " " + svgH,
@@ -553,8 +556,6 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
       )
     ),
     // S71: House group rotation includes both houseAngle and lot rotation.
-    // houseAngle is geographic, lotRot puts street at bottom. Combined gives correct visual tilt.
-    var _combAngle = (p.houseAngle || 0) + lotRot;
     React.createElement("g", {
       transform: _combAngle !== 0 ? "rotate(" + (-_combAngle).toFixed(1) + "," + sx(hx + hw / 2).toFixed(1) + "," + sy(hy + hd / 2).toFixed(1) + ")" : undefined
     },
