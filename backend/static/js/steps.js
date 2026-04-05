@@ -1285,8 +1285,10 @@ function StepContent(props) {
             console.log("House positioned from address point: lot(" + pLotX.toFixed(1) + "," + pLotY.toFixed(1) + ") offset=" + newOffset + " dist=" + newDist);
           } else {
             // Fallback: center house with standard setback
-            u("houseOffsetSide", Math.max(5, Math.round((lotW2 - hw2) / 2)));
-            u("houseDistFromStreet", Math.min(Math.round(lotD2 * 0.3), 35));
+            newOffset = Math.max(5, Math.round((lotW2 - hw2) / 2));
+            newDist = Math.min(Math.round(lotD2 * 0.3), 35);
+            u("houseOffsetSide", newOffset);
+            u("houseDistFromStreet", newDist);
             console.log("House positioned from fallback (centered, 30% setback)");
           }
           console.log("Building footprint applied:", primary.width + "x" + primary.depth, "angle=" + primary.angle + "deg", "area=" + primary.area_sqft + "sqft");
@@ -1334,8 +1336,10 @@ function StepContent(props) {
             }
             u("lotEdges", _rotEdges72);
             // 2. Compute house corner (hx, hy) exactly like the renderer, then rotate
-            var _hy72 = parseInt(p.houseDistFromStreet) || 25;
-            var _hOff72 = parseInt(p.houseOffsetSide) || 10;
+            // Use newDist/newOffset from positioning code above, NOT p.houseDistFromStreet
+            // (React state is stale in async callbacks - S70 lesson)
+            var _hy72 = newDist;
+            var _hOff72 = newOffset;
             var _hMidY72 = _hy72 + hd2 / 2;
             var _lx72 = 0, _mlx72 = Infinity;
             for (var _ei72 = 0; _ei72 < lotVerts2.length; _ei72++) {
