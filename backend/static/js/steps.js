@@ -1401,23 +1401,32 @@ function StepContent(props) {
               if (_rv72[_i72][0] > _rvMaxX) _rvMaxX = _rv72[_i72][0];
               if (_rv72[_i72][1] > _rvMaxY) _rvMaxY = _rv72[_i72][1];
             }
-            // 2. Compute house corner (hx, hy) exactly like the renderer, then rotate
-            var _hy72 = newDist;
-            var _hOff72 = newOffset;
-            var _hMidY72 = _hy72 + hd2 / 2;
-            var _lx72 = 0, _mlx72 = Infinity;
-            for (var _ei72 = 0; _ei72 < lotVerts2.length; _ei72++) {
-              var _a72 = lotVerts2[_ei72], _b72 = lotVerts2[(_ei72 + 1) % lotVerts2.length];
-              var _ylo72 = Math.min(_a72[1], _b72[1]), _yhi72 = Math.max(_a72[1], _b72[1]);
-              if (_hMidY72 < _ylo72 || _hMidY72 > _yhi72 || _ylo72 === _yhi72) continue;
-              var _t72 = (_hMidY72 - _a72[1]) / (_b72[1] - _a72[1]);
-              var _xat72 = _a72[0] + _t72 * (_b72[0] - _a72[0]);
-              if (_xat72 < _mlx72) _mlx72 = _xat72;
+            // 2. Compute house center in unrotated space, then rotate
+            var _houseCenterX72, _houseCenterY72;
+            if (usedCentroid) {
+              // S77: Centroid gives us exact house center -- rotate directly
+              _houseCenterX72 = centroidX;
+              _houseCenterY72 = centroidY;
+            } else {
+              // Reconstruct house corner from offset/dist (address point fallback)
+              var _hy72 = newDist;
+              var _hOff72 = newOffset;
+              var _hMidY72 = _hy72 + hd2 / 2;
+              var _lx72 = 0, _mlx72 = Infinity;
+              for (var _ei72 = 0; _ei72 < lotVerts2.length; _ei72++) {
+                var _a72 = lotVerts2[_ei72], _b72 = lotVerts2[(_ei72 + 1) % lotVerts2.length];
+                var _ylo72 = Math.min(_a72[1], _b72[1]), _yhi72 = Math.max(_a72[1], _b72[1]);
+                if (_hMidY72 < _ylo72 || _hMidY72 > _yhi72 || _ylo72 === _yhi72) continue;
+                var _t72 = (_hMidY72 - _a72[1]) / (_b72[1] - _a72[1]);
+                var _xat72 = _a72[0] + _t72 * (_b72[0] - _a72[0]);
+                if (_xat72 < _mlx72) _mlx72 = _xat72;
+              }
+              _lx72 = _mlx72 === Infinity ? 0 : _mlx72;
+              _houseCenterX72 = _lx72 + _hOff72 + hw2 / 2;
+              _houseCenterY72 = _hy72 + hd2 / 2;
             }
-            _lx72 = _mlx72 === Infinity ? 0 : _mlx72;
-            var _hx72 = _lx72 + _hOff72;
             // Rotate house center
-            var _rhc72 = _rFn72(_hx72 + hw2 / 2, _hy72 + hd2 / 2);
+            var _rhc72 = _rFn72(_houseCenterX72, _houseCenterY72);
             // 3. houseAngle: normalize for drawing space
             var _rawAng72 = (primary.angle || 0) + _lotRot72;
             var _normAng72 = ((_rawAng72 % 180) + 180) % 180;
