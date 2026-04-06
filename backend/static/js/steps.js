@@ -1325,6 +1325,10 @@ function StepContent(props) {
             console.log("House positioned from fallback (centered, 30% setback)");
           }
           console.log("Building footprint applied:", primary.width + "x" + primary.depth, "angle=" + primary.angle + "deg", "area=" + primary.area_sqft + "sqft");
+          // S77: Hoist rotation function so site element code can use it.
+          // Identity by default (no rotation), overridden inside the S72 block.
+          var _rFn72 = function(x, y) { return [x, y]; };
+          var _mx72 = 0, _my72 = 0;
           // S72: Transform to drawing space. After this block, all stored values
           // are in drawing space. The renderer draws them directly, no transforms.
           var _lotRot72 = (typeof drawRotation === 'number') ? Math.round(drawRotation) : 0;
@@ -1453,15 +1457,14 @@ function StepContent(props) {
           }
           // S70: Auto-add secondary structures (sheds, garages) as site elements
           // Use position relative to primary building (internally consistent in Overpass)
+          // S77: Use _rFn72 to rotate element positions into drawing space
           var osmTypeMap = { "shed": "shed", "garage": "garage", "garages": "garage", "carport": "garage" };
           var newElements = (p.siteElements || []).slice(); // copy existing
           var addedCount = 0;
           var primaryCF = primary.centroid_ft;
-          // Compute house center in lot coords from address point
-          var hcDistFS = parseInt(p.houseDistFromStreet) || 25;
-          // House center: use address point X, computed dist + depth/2 for Y
+          // Compute house center in UNROTATED lot coords (same space as Overpass centroids)
           var houseCX2 = pLotX || (lotW2 / 2);
-          var houseCY2 = hcDistFS + hd2 / 2;
+          var houseCY2 = (pLotY || (lotD2 * 0.3)) + hd2 / 2;
           for (var bi2 = 0; bi2 < bldg.buildings.length; bi2++) {
             var b2 = bldg.buildings[bi2];
             if (b2.osm_id === primary.osm_id) continue; // skip primary
@@ -1479,9 +1482,13 @@ function StepContent(props) {
               console.log("Skipped " + (mappedType || b2.type) + " " + b2.osm_id + ": " + distFromPrimary.toFixed(0) + "ft from house (too far, likely neighbor)");
               continue;
             }
-            // Map to lot coords: house center + relative offset
-            var elX = Math.max(0, Math.round(houseCX2 + dx2 - b2.width / 2));
-            var elY = Math.max(0, Math.round(houseCY2 + dy2 - b2.depth / 2));
+            // Map to lot coords: house center + relative offset (unrotated space)
+            var elXRaw = houseCX2 + dx2 - b2.width / 2;
+            var elYRaw = houseCY2 + dy2 - b2.depth / 2;
+            // S77: Rotate element center into drawing space using same transform as house
+            var elCenter = _rFn72(elXRaw + b2.width / 2, elYRaw + b2.depth / 2);
+            var elX = Math.max(0, Math.round(elCenter[0] - b2.width / 2));
+            var elY = Math.max(0, Math.round(elCenter[1] - b2.depth / 2));
             var elId = "osm_" + b2.osm_id;
             // Don't add duplicates
             if (newElements.some(function(e) { return e.id === elId; })) continue;
