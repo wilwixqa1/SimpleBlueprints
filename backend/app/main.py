@@ -2226,7 +2226,13 @@ async def building_footprint(request: Request):
         raise HTTPException(status_code=400, detail="lat and lng required")
 
     # Check cache first (round to 4 decimal places ~ 10m)
-    cache_key = f"{round(lat, 4)},{round(lng, 4)}"
+    # S77: Include lot_origin in cache key -- building coordinates are relative
+    # to lot_origin, so different properties need separate cache entries even
+    # if their lat/lng rounds to the same value.
+    _lo_key = ""
+    if lot_origin:
+        _lo_key = f",{round(lot_origin[0], 6)},{round(lot_origin[1], 6)}"
+    cache_key = f"{round(lat, 4)},{round(lng, 4)}{_lo_key}"
     if cache_key in _building_cache:
         print(f"Building footprint cache hit for {cache_key}", flush=True)
         return JSONResponse(_building_cache[cache_key])
