@@ -1432,6 +1432,17 @@ function StepContent(props) {
             var _normAng72 = ((_rawAng72 % 180) + 180) % 180;
             if (_normAng72 > 90) _normAng72 -= 180;
             _normAng72 = -_normAng72;
+            // S77: If |angle| > 45, the building's longest edge is more vertical
+            // than horizontal in drawing space. Swap width/depth so they always
+            // mean side-to-side and front-to-back respectively. This fixes deck
+            // placement (dy = hy + hd) and all downstream dimension consumers.
+            if (Math.abs(_normAng72) > 45) {
+              var _tmpDim = hw2;
+              hw2 = hd2;
+              hd2 = _tmpDim;
+              _normAng72 = _normAng72 > 0 ? _normAng72 - 90 : _normAng72 + 90;
+              console.log("S77: Swapped width/depth for drawing space. hw=" + hw2 + " hd=" + hd2 + " angle=" + _normAng72.toFixed(1));
+            }
             // S73: Compute houseDistFromStreet and houseOffsetSide in rotated
             // drawing space so ALL downstream consumers (sliders, drag, PDF,
             // setback gaps, site elements) work without knowing rotation happened.
@@ -1495,6 +1506,8 @@ function StepContent(props) {
             u("_autoHouseDepth", hd2);
             u("houseOffsetSide", _drawOffset);
             u("houseDistFromStreet", _drawDist);
+            u("houseWidth", hw2);
+            u("houseDepth", hd2);
             u("houseAngle", _normAng72);
             u("_lotRotation", 0);
             // lotVertices MUST be last to prevent engine from regenerating polygon
