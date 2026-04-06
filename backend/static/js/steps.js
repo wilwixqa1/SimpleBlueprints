@@ -1296,7 +1296,24 @@ function StepContent(props) {
               if (xAt3 < minLX) minLX = xAt3;
             }
             leftX2 = minLX === Infinity ? 0 : minLX;
+            // S77: Also find right edge at this Y to clamp house inside lot
+            var rightX2 = lotW2, maxRX = -Infinity;
+            for (var ei4 = 0; ei4 < lotVerts2.length; ei4++) {
+              var a4 = lotVerts2[ei4], b4 = lotVerts2[(ei4 + 1) % lotVerts2.length];
+              var yLo4 = Math.min(a4[1], b4[1]), yHi4 = Math.max(a4[1], b4[1]);
+              if (houseCY < yLo4 || houseCY > yHi4 || yLo4 === yHi4) continue;
+              var t4 = (houseCY - a4[1]) / (b4[1] - a4[1]);
+              var xAt4 = a4[0] + t4 * (b4[0] - a4[0]);
+              if (xAt4 > maxRX) maxRX = xAt4;
+            }
+            if (maxRX > -Infinity) rightX2 = maxRX;
             var newOffset = Math.max(0, Math.round(pLotX - hw2 / 2 - leftX2));
+            // S77: Clamp so house right edge doesn't exceed lot right edge (with 2' margin)
+            var maxOffset = Math.max(0, Math.round(rightX2 - leftX2 - hw2 - 2));
+            if (newOffset > maxOffset) {
+              console.log("S77: Clamping houseOffset from " + newOffset + " to " + maxOffset + " (rightEdge=" + rightX2.toFixed(1) + " leftEdge=" + leftX2.toFixed(1) + " houseW=" + hw2 + ")");
+              newOffset = maxOffset;
+            }
             u("houseOffsetSide", newOffset);
             console.log("House positioned from address point: lot(" + pLotX.toFixed(1) + "," + pLotY.toFixed(1) + ") offset=" + newOffset + " dist=" + newDist);
           } else {
@@ -1368,6 +1385,11 @@ function StepContent(props) {
             var _drawHY = _rhc72[1] - hd2 / 2;
             // houseDistFromStreet = Y position in drawing space (same semantics as non-rotated)
             var _drawDist = Math.round(_drawHY);
+            // S77: Clamp Y so house doesn't extend past lot top
+            if (_drawDist + hd2 > _rvMaxY - 2) {
+              _drawDist = Math.max(5, Math.round(_rvMaxY - hd2 - 2));
+            }
+            _drawDist = Math.max(5, _drawDist);
             // houseOffsetSide = X distance from left polygon edge at house mid-Y
             var _drawMidY = _drawHY + hd2 / 2;
             var _drawLeftX = Infinity;
@@ -1380,7 +1402,24 @@ function StepContent(props) {
               if (_xat73 < _drawLeftX) _drawLeftX = _xat73;
             }
             if (_drawLeftX === Infinity) _drawLeftX = 0;
+            // S77: Find right edge in rotated coords at house mid-Y
+            var _drawRightX = -Infinity;
+            for (var _ei77 = 0; _ei77 < _rv72.length; _ei77++) {
+              var _a77 = _rv72[_ei77], _b77 = _rv72[(_ei77 + 1) % _rv72.length];
+              var _ylo77 = Math.min(_a77[1], _b77[1]), _yhi77 = Math.max(_a77[1], _b77[1]);
+              if (_drawMidY < _ylo77 || _drawMidY > _yhi77 || _ylo77 === _yhi77) continue;
+              var _t77 = (_drawMidY - _a77[1]) / (_b77[1] - _a77[1]);
+              var _xat77 = _a77[0] + _t77 * (_b77[0] - _a77[0]);
+              if (_xat77 > _drawRightX) _drawRightX = _xat77;
+            }
+            if (_drawRightX === -Infinity) _drawRightX = _rvMaxX;
             var _drawOffset = Math.round(Math.max(0, _drawHX - _drawLeftX));
+            // S77: Clamp so house fits inside lot polygon (with 2' margin)
+            var _maxDrawOff = Math.max(0, Math.round(_drawRightX - _drawLeftX - hw2 - 2));
+            if (_drawOffset > _maxDrawOff) {
+              console.log("S77: Clamping rotated houseOffset from " + _drawOffset + " to " + _maxDrawOff + " (rightEdge=" + _drawRightX.toFixed(1) + " leftEdge=" + _drawLeftX.toFixed(1) + " houseW=" + hw2 + ")");
+              _drawOffset = _maxDrawOff;
+            }
             // S72 rule: Set lotVertices LAST. The engine calls computePolygonVerts
             // when lotEdges exists but lotVertices is null, producing a regular
             // polygon that overwrites the real irregular shape.
