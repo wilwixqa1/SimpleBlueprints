@@ -1474,14 +1474,10 @@ function StepContent(props) {
               console.log("S77: Clamping rotated houseOffset from " + _drawOffset + " to " + _maxDrawOff + " (rightEdge=" + _drawRightX.toFixed(1) + " leftEdge=" + _drawLeftX.toFixed(1) + " houseW=" + hw2 + ")");
               _drawOffset = _maxDrawOff;
             }
-            // S77: If clamping moved house more than 5', the centroid position is
-            // unreliable in rotated space (likely wrong building or OSM offset).
-            // Center the house in the available width instead.
-            var _unclamped = Math.round(Math.max(0, _drawHX - _drawLeftX));
-            if (_unclamped - _drawOffset > 5 || _drawHX < _drawLeftX) {
-              var _availW = _drawRightX - _drawLeftX;
-              _drawOffset = Math.max(0, Math.round((_availW - hw2) / 2));
-              console.log("S77: Centroid position unreliable after rotation, centering house. availWidth=" + _availW.toFixed(1) + " newOffset=" + _drawOffset);
+            // S77: If house left edge went past lot left edge, shift to fit (min 2' margin)
+            if (_drawHX < _drawLeftX) {
+              _drawOffset = 2;
+              console.log("S77: House shifted to fit inside lot (hx=" + _drawHX.toFixed(1) + " leftEdge=" + _drawLeftX.toFixed(1) + ") newOffset=" + _drawOffset);
             }
             // S72 rule: Set lotVertices LAST. The engine calls computePolygonVerts
             // when lotEdges exists but lotVertices is null, producing a regular
