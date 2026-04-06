@@ -688,8 +688,12 @@ def draw_hardware_schedule(ax, params, calc, spec=None):
 
     if is_steel:
         # --- STEEL: Fortress Evolution hardware ---
+        _def_post_pier = '3.5" POST/PIER BRACKET'
+        _def_screw = '3/4" SELF-DRILLING SCREW'
+
         pb = hw.get("post_base", {})
-        rows.append(("POST/PIER BRACKET", f'Fortress {pb.get("model", "3.5\" POST/PIER BRACKET")}',
+        _pb_model = pb.get("model", _def_post_pier)
+        rows.append(("POST/PIER BRACKET", f'Fortress {_pb_model}',
                      f'{calc.get("total_posts", 3)} EA'))
 
         pc = hw.get("post_cap", {})
@@ -724,7 +728,8 @@ def draw_hardware_schedule(ax, params, calc, spec=None):
 
         # Screws
         scr = hw.get("screw", {})
-        rows.append(("FASTENERS", f'Fortress {scr.get("model", "3/4\" SELF-DRILLING SCREW")}',
+        _scr_model = scr.get("model", _def_screw)
+        rows.append(("FASTENERS", f'Fortress {_scr_model}',
                      'Fill all holes'))
 
         # Stair connectors (still Simpson, stairs are wood)
