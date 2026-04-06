@@ -1251,19 +1251,27 @@ function StepContent(props) {
           u("houseWidth", Math.round(primary.width));
           u("houseDepth", Math.round(primary.depth));
           u("houseAngle", primary.angle);
-          // S70: Position house using road-relative data (Option B)
-          // road_setback_ft = perpendicular distance from road to building center
-          // road_lateral_frac = where along the road frontage (0-1)
-          // These are internally consistent within the Overpass dataset.
-          // We map them onto the lot polygon's street edge.
           var lotVerts2 = data.lot.vertices;
           var lotW2 = Math.round(data.lot.width);
           var lotD2 = Math.round(data.lot.depth);
           var hw2 = Math.round(primary.width);
           var hd2 = Math.round(primary.depth);
-          // S70: Address point = house position
-          // Realie lat/lng is geocoded to front of house (near mailbox).
-          // Convert to lot coords. House extends inward from that point.
+          // S77: Point-in-polygon test (ray casting) for lot boundary checks
+          var _pointInPoly = function(px, py, polyVerts) {
+            var inside = false;
+            var n = polyVerts.length;
+            for (var i = 0, j = n - 1; i < n; j = i++) {
+              var xi = polyVerts[i][0], yi = polyVerts[i][1];
+              var xj = polyVerts[j][0], yj = polyVerts[j][1];
+              if (((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / (yj - yi) + xi)) {
+                inside = !inside;
+              }
+            }
+            return inside;
+          };
+          // S77: Use Overpass building centroid for house positioning (ground truth).
+          // Address point is only used for street edge detection, not house position.
+          // The centroid is in the same lot_origin coordinate system as lotVerts2.
           var rawC2 = data.raw_coords;
           var pLotX = null, pLotY = null;
           if (rawC2 && rawC2.length >= 3 && data.location.lat && data.location.lng) {
@@ -1275,16 +1283,16 @@ function StepContent(props) {
             pLotX = (data.location.lng - mLngR) * 364000.0 * Math.cos(mLatR * Math.PI / 180);
             pLotY = (data.location.lat - mLatR) * 364000.0;
           }
-          if (pLotX !== null && pLotY !== null && lotVerts2 && lotVerts2.length >= 3) {
-            // Y position: address point is at front of house
-            var newDist = Math.round(pLotY);
-            // If house would extend above lot, address is at top (street to north)
-            if (newDist + hd2 > lotD2) {
-              newDist = Math.max(5, Math.round(pLotY - hd2));
-            }
-            newDist = Math.max(5, newDist);
-            u("houseDistFromStreet", newDist);
-            // X position: address point ≈ house center X
+          // S77: Primary source = Overpass centroid (building center in lot coords)
+          var centroidX = primary.centroid_ft[0];
+          var centroidY = primary.centroid_ft[1];
+          var usedCentroid = false;
+          if (lotVerts2 && lotVerts2.length >= 3 && _pointInPoly(centroidX, centroidY, lotVerts2)) {
+            // Centroid is inside the lot polygon -- use it directly
+            // houseDistFromStreet = house bottom-left Y = centroid Y - half depth
+            var newDist = Math.max(5, Math.round(centroidY - hd2 / 2));
+            if (newDist + hd2 > lotD2) newDist = Math.max(5, lotD2 - hd2 - 2);
+            // houseOffsetSide = house left X - left polygon edge at house mid-Y
             var houseCY = newDist + hd2 / 2;
             var leftX2 = 0, minLX = Infinity;
             for (var ei3 = 0; ei3 < lotVerts2.length; ei3++) {
@@ -1296,7 +1304,44 @@ function StepContent(props) {
               if (xAt3 < minLX) minLX = xAt3;
             }
             leftX2 = minLX === Infinity ? 0 : minLX;
-            // S77: Also find right edge at this Y to clamp house inside lot
+            var rightX2 = lotW2, maxRX = -Infinity;
+            for (var ei4 = 0; ei4 < lotVerts2.length; ei4++) {
+              var a4 = lotVerts2[ei4], b4 = lotVerts2[(ei4 + 1) % lotVerts2.length];
+              var yLo4 = Math.min(a4[1], b4[1]), yHi4 = Math.max(a4[1], b4[1]);
+              if (houseCY < yLo4 || houseCY > yHi4 || yLo4 === yHi4) continue;
+              var t4 = (houseCY - a4[1]) / (b4[1] - a4[1]);
+              var xAt4 = a4[0] + t4 * (b4[0] - a4[0]);
+              if (xAt4 > maxRX) maxRX = xAt4;
+            }
+            if (maxRX > -Infinity) rightX2 = maxRX;
+            var newOffset = Math.max(0, Math.round(centroidX - hw2 / 2 - leftX2));
+            // Clamp so house fits inside lot
+            var maxOffset = Math.max(0, Math.round(rightX2 - leftX2 - hw2 - 2));
+            if (newOffset > maxOffset) newOffset = maxOffset;
+            u("houseDistFromStreet", newDist);
+            u("houseOffsetSide", newOffset);
+            usedCentroid = true;
+            console.log("S77: House positioned from Overpass centroid: (" + centroidX.toFixed(1) + "," + centroidY.toFixed(1) + ") offset=" + newOffset + " dist=" + newDist);
+          } else if (pLotX !== null && pLotY !== null && lotVerts2 && lotVerts2.length >= 3) {
+            // Fallback: address point (centroid was outside lot or unavailable)
+            console.log("S77: Overpass centroid outside lot polygon or unavailable, falling back to address point");
+            var newDist = Math.round(pLotY);
+            if (newDist + hd2 > lotD2) {
+              newDist = Math.max(5, Math.round(pLotY - hd2));
+            }
+            newDist = Math.max(5, newDist);
+            u("houseDistFromStreet", newDist);
+            var houseCY = newDist + hd2 / 2;
+            var leftX2 = 0, minLX = Infinity;
+            for (var ei3 = 0; ei3 < lotVerts2.length; ei3++) {
+              var a3 = lotVerts2[ei3], b3 = lotVerts2[(ei3 + 1) % lotVerts2.length];
+              var yLo3 = Math.min(a3[1], b3[1]), yHi3 = Math.max(a3[1], b3[1]);
+              if (houseCY < yLo3 || houseCY > yHi3 || yLo3 === yHi3) continue;
+              var t3 = (houseCY - a3[1]) / (b3[1] - a3[1]);
+              var xAt3 = a3[0] + t3 * (b3[0] - a3[0]);
+              if (xAt3 < minLX) minLX = xAt3;
+            }
+            leftX2 = minLX === Infinity ? 0 : minLX;
             var rightX2 = lotW2, maxRX = -Infinity;
             for (var ei4 = 0; ei4 < lotVerts2.length; ei4++) {
               var a4 = lotVerts2[ei4], b4 = lotVerts2[(ei4 + 1) % lotVerts2.length];
@@ -1308,18 +1353,14 @@ function StepContent(props) {
             }
             if (maxRX > -Infinity) rightX2 = maxRX;
             var newOffset = Math.max(0, Math.round(pLotX - hw2 / 2 - leftX2));
-            // S77: Clamp so house right edge doesn't exceed lot right edge (with 2' margin)
             var maxOffset = Math.max(0, Math.round(rightX2 - leftX2 - hw2 - 2));
-            if (newOffset > maxOffset) {
-              console.log("S77: Clamping houseOffset from " + newOffset + " to " + maxOffset + " (rightEdge=" + rightX2.toFixed(1) + " leftEdge=" + leftX2.toFixed(1) + " houseW=" + hw2 + ")");
-              newOffset = maxOffset;
-            }
+            if (newOffset > maxOffset) newOffset = maxOffset;
             u("houseOffsetSide", newOffset);
             console.log("House positioned from address point: lot(" + pLotX.toFixed(1) + "," + pLotY.toFixed(1) + ") offset=" + newOffset + " dist=" + newDist);
           } else {
-            // Fallback: center house with standard setback
-            newOffset = Math.max(5, Math.round((lotW2 - hw2) / 2));
-            newDist = Math.min(Math.round(lotD2 * 0.3), 35);
+            // Last resort: center house with standard setback
+            var newOffset = Math.max(5, Math.round((lotW2 - hw2) / 2));
+            var newDist = Math.min(Math.round(lotD2 * 0.3), 35);
             u("houseOffsetSide", newOffset);
             u("houseDistFromStreet", newDist);
             console.log("House positioned from fallback (centered, 30% setback)");
@@ -1462,9 +1503,9 @@ function StepContent(props) {
           var newElements = (p.siteElements || []).slice(); // copy existing
           var addedCount = 0;
           var primaryCF = primary.centroid_ft;
-          // Compute house center in UNROTATED lot coords (same space as Overpass centroids)
-          var houseCX2 = pLotX || (lotW2 / 2);
-          var houseCY2 = (pLotY || (lotD2 * 0.3)) + hd2 / 2;
+          // S77: Use Overpass centroid as house center (same coord system as other buildings)
+          var houseCX2 = centroidX;
+          var houseCY2 = centroidY;
           for (var bi2 = 0; bi2 < bldg.buildings.length; bi2++) {
             var b2 = bldg.buildings[bi2];
             if (b2.osm_id === primary.osm_id) continue; // skip primary
@@ -1480,6 +1521,11 @@ function StepContent(props) {
             var distFromPrimary = Math.sqrt(dx2 * dx2 + dy2 * dy2);
             if (distFromPrimary > 60) {
               console.log("Skipped " + (mappedType || b2.type) + " " + b2.osm_id + ": " + distFromPrimary.toFixed(0) + "ft from house (too far, likely neighbor)");
+              continue;
+            }
+            // S77: Point-in-polygon check -- reject structures outside lot boundary
+            if (lotVerts2 && lotVerts2.length >= 3 && !_pointInPoly(b2.centroid_ft[0], b2.centroid_ft[1], lotVerts2)) {
+              console.log("Skipped " + (mappedType || b2.type) + " " + b2.osm_id + ": centroid outside lot polygon (neighbor's structure)");
               continue;
             }
             // Map to lot coords: house center + relative offset (unrotated space)
