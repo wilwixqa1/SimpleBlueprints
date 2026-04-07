@@ -2225,6 +2225,16 @@ async def building_footprint(request: Request):
     if not lat or not lng:
         raise HTTPException(status_code=400, detail="lat and lng required")
 
+    # S70: Compute lot_origin from raw GeoJSON coords.
+    # This is the same (min_lat, min_lng) used by _coords_to_feet for the parcel.
+    # Passing it to the Overpass function puts buildings in lot coordinates directly.
+    lot_origin = None
+    if raw_coords and len(raw_coords) >= 3:
+        min_lat_rc = min(c[1] for c in raw_coords)
+        min_lng_rc = min(c[0] for c in raw_coords)
+        lot_origin = (min_lat_rc, min_lng_rc)
+        print(f"Lot origin from raw_coords: ({min_lat_rc:.6f},{min_lng_rc:.6f})", flush=True)
+
     # Check cache first (round to 4 decimal places ~ 10m)
     # S77: Include lot_origin in cache key -- building coordinates are relative
     # to lot_origin, so different properties need separate cache entries even
@@ -2236,16 +2246,6 @@ async def building_footprint(request: Request):
     if cache_key in _building_cache:
         print(f"Building footprint cache hit for {cache_key}", flush=True)
         return JSONResponse(_building_cache[cache_key])
-
-    # S70: Compute lot_origin from raw GeoJSON coords.
-    # This is the same (min_lat, min_lng) used by _coords_to_feet for the parcel.
-    # Passing it to the Overpass function puts buildings in lot coordinates directly.
-    lot_origin = None
-    if raw_coords and len(raw_coords) >= 3:
-        min_lat_rc = min(c[1] for c in raw_coords)
-        min_lng_rc = min(c[0] for c in raw_coords)
-        lot_origin = (min_lat_rc, min_lng_rc)
-        print(f"Lot origin from raw_coords: ({min_lat_rc:.6f},{min_lng_rc:.6f})", flush=True)
 
     result = _overpass_building_lookup(lat, lng, lot_origin=lot_origin)
 
