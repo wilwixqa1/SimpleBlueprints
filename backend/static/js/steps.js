@@ -1211,12 +1211,13 @@ function StepContent(props) {
                 if (bldg.nearest_road.name) {
                   u("streetName", bldg.nearest_road.name);
                 }
-                // S70: Compute rotation needed to put street at bottom
-                // S71 will apply this to lot vertices before rendering
+                // S70: Compute rotation angle (kept for northAngle arrow on site plan)
+                // S78: No longer applied to lot vertices -- street is labeled on correct
+                // edge instead of rotating entire lot to put street at bottom.
                 var drawRotation = (roadBearing - 180 + 360) % 360;
                 u("northAngle", Math.round(drawRotation));
-                u("_lotRotation", Math.round(drawRotation));
-                console.log("Lot rotation=" + Math.round(drawRotation) + " northAngle=" + Math.round(drawRotation) + " from road bearing " + roadBearing);
+                u("_lotRotation", 0);  // S78: disabled rotation
+                console.log("S78: northAngle=" + Math.round(drawRotation) + " from road bearing " + roadBearing + " (rotation disabled, street labeled on edge " + bestEdge + ")");
                 console.log("Street edge corrected via road data:", bldg.nearest_road.name, "bearing=" + roadBearing + "deg", "edge=" + bestEdge, "angleDiff=" + bestAngleDiff.toFixed(1));
               } else {
                 console.log("Road bearing didn't match any edge well enough. bestEdge=" + bestEdge + " angleDiff=" + bestAngleDiff.toFixed(1));
@@ -1356,158 +1357,17 @@ function StepContent(props) {
             console.log("House positioned from fallback (centered, 30% setback)");
           }
           console.log("Building footprint applied:", primary.width + "x" + primary.depth, "angle=" + primary.angle + "deg", "area=" + primary.area_sqft + "sqft");
-          // S77: Hoist rotation function so site element code can use it.
-          // Identity by default (no rotation), overridden inside the S72 block.
+          // S78: Rotation removed. Lot stays in natural orientation from Realie.
+          // Street is labeled on correct edge via road bearing detection (lotEdges).
+          // Identity transform for site element positioning (no rotation needed).
           var _rFn72 = function(x, y) { return [x, y]; };
-          var _mx72 = 0, _my72 = 0;
-          // S72: Transform to drawing space. After this block, all stored values
-          // are in drawing space. The renderer draws them directly, no transforms.
-          var _lotRot72 = (typeof drawRotation === 'number') ? Math.round(drawRotation) : 0;
-          if (_lotRot72 !== 0 && verts && verts.length >= 3) {
-            console.log("S72_DBG: input verts=" + JSON.stringify(verts.map(function(v){return [Math.round(v[0]*100)/100, Math.round(v[1]*100)/100]})));
-            console.log("S72_DBG: lotVerts2=" + JSON.stringify(lotVerts2.map(function(v){return [Math.round(v[0]*100)/100, Math.round(v[1]*100)/100]})));
-            // 1. Rotate lot vertices
-            var _cx72 = 0, _cy72 = 0;
-            for (var _i72 = 0; _i72 < verts.length; _i72++) { _cx72 += verts[_i72][0]; _cy72 += verts[_i72][1]; }
-            _cx72 /= verts.length; _cy72 /= verts.length;
-            var _rad72 = _lotRot72 * Math.PI / 180, _cos72 = Math.cos(_rad72), _sin72 = Math.sin(_rad72);
-            var _rv72 = [];
-            for (var _i72 = 0; _i72 < verts.length; _i72++) {
-              var _dx72 = verts[_i72][0] - _cx72, _dy72 = verts[_i72][1] - _cy72;
-              _rv72.push([_cx72 + _dx72 * _cos72 - _dy72 * _sin72, _cy72 + _dx72 * _sin72 + _dy72 * _cos72]);
-            }
-            var _mx72 = Infinity, _my72 = Infinity;
-            for (var _i72 = 0; _i72 < _rv72.length; _i72++) {
-              if (_rv72[_i72][0] < _mx72) _mx72 = _rv72[_i72][0];
-              if (_rv72[_i72][1] < _my72) _my72 = _rv72[_i72][1];
-            }
-            for (var _i72 = 0; _i72 < _rv72.length; _i72++) { _rv72[_i72][0] -= _mx72; _rv72[_i72][1] -= _my72; }
-            var _rFn72 = function(x, y) {
-              var _ddx = x - _cx72, _ddy = y - _cy72;
-              return [_cx72 + _ddx * _cos72 - _ddy * _sin72 - _mx72, _cy72 + _ddx * _sin72 + _ddy * _cos72 - _my72];
-            };
-            var _rvMaxX = 0, _rvMaxY = 0;
-            for (var _i72 = 0; _i72 < _rv72.length; _i72++) {
-              if (_rv72[_i72][0] > _rvMaxX) _rvMaxX = _rv72[_i72][0];
-              if (_rv72[_i72][1] > _rvMaxY) _rvMaxY = _rv72[_i72][1];
-            }
-            // 2. Compute house center in unrotated space, then rotate
-            var _houseCenterX72, _houseCenterY72;
-            if (usedCentroid) {
-              // S77: Centroid gives us exact house center -- rotate directly
-              _houseCenterX72 = centroidX;
-              _houseCenterY72 = centroidY;
-            } else {
-              // Reconstruct house corner from offset/dist (address point fallback)
-              var _hy72 = newDist;
-              var _hOff72 = newOffset;
-              var _hMidY72 = _hy72 + hd2 / 2;
-              var _lx72 = 0, _mlx72 = Infinity;
-              for (var _ei72 = 0; _ei72 < lotVerts2.length; _ei72++) {
-                var _a72 = lotVerts2[_ei72], _b72 = lotVerts2[(_ei72 + 1) % lotVerts2.length];
-                var _ylo72 = Math.min(_a72[1], _b72[1]), _yhi72 = Math.max(_a72[1], _b72[1]);
-                if (_hMidY72 < _ylo72 || _hMidY72 > _yhi72 || _ylo72 === _yhi72) continue;
-                var _t72 = (_hMidY72 - _a72[1]) / (_b72[1] - _a72[1]);
-                var _xat72 = _a72[0] + _t72 * (_b72[0] - _a72[0]);
-                if (_xat72 < _mlx72) _mlx72 = _xat72;
-              }
-              _lx72 = _mlx72 === Infinity ? 0 : _mlx72;
-              _houseCenterX72 = _lx72 + _hOff72 + hw2 / 2;
-              _houseCenterY72 = _hy72 + hd2 / 2;
-            }
-            // Rotate house center
-            var _rhc72 = _rFn72(_houseCenterX72, _houseCenterY72);
-            // 3. houseAngle: normalize for drawing space
-            var _rawAng72 = (primary.angle || 0) + _lotRot72;
-            var _normAng72 = ((_rawAng72 % 180) + 180) % 180;
-            if (_normAng72 > 90) _normAng72 -= 180;
-            _normAng72 = -_normAng72;
-            // S77: If |angle| > 45, the building's longest edge is more vertical
-            // than horizontal in drawing space. Swap width/depth so they always
-            // mean side-to-side and front-to-back respectively. This fixes deck
-            // placement (dy = hy + hd) and all downstream dimension consumers.
-            if (Math.abs(_normAng72) > 45) {
-              var _tmpDim = hw2;
-              hw2 = hd2;
-              hd2 = _tmpDim;
-              _normAng72 = _normAng72 > 0 ? _normAng72 - 90 : _normAng72 + 90;
-              console.log("S77: Swapped width/depth for drawing space. hw=" + hw2 + " hd=" + hd2 + " angle=" + _normAng72.toFixed(1));
-            }
-            // S73: Compute houseDistFromStreet and houseOffsetSide in rotated
-            // drawing space so ALL downstream consumers (sliders, drag, PDF,
-            // setback gaps, site elements) work without knowing rotation happened.
-            var _drawHX = _rhc72[0] - hw2 / 2;
-            var _drawHY = _rhc72[1] - hd2 / 2;
-            // houseDistFromStreet = Y position in drawing space (same semantics as non-rotated)
-            var _drawDist = Math.round(_drawHY);
-            // S77: Clamp Y so house doesn't extend past lot top
-            if (_drawDist + hd2 > _rvMaxY - 2) {
-              _drawDist = Math.max(5, Math.round(_rvMaxY - hd2 - 2));
-            }
-            _drawDist = Math.max(5, _drawDist);
-            // houseOffsetSide = X distance from left polygon edge at house mid-Y
-            // S78: Scan left/right edges at 3 Y positions (top, mid, bottom of house)
-            // to handle tapered lots where polygon width varies across house height.
-            var _te78 = _tightEdges(_rv72, _drawDist + 2, _drawHY + hd2 / 2, _drawDist + hd2 - 2);
-            var _drawLeftX = _te78.left;
-            var _drawRightX = _te78.right;
-            // Use mid-Y left edge for offset calculation (defines the "left edge" reference)
-            var _drawMidY = _drawHY + hd2 / 2;
-            var _midLeftX = Infinity;
-            for (var _ei73 = 0; _ei73 < _rv72.length; _ei73++) {
-              var _a73 = _rv72[_ei73], _b73 = _rv72[(_ei73 + 1) % _rv72.length];
-              var _ylo73 = Math.min(_a73[1], _b73[1]), _yhi73 = Math.max(_a73[1], _b73[1]);
-              if (_drawMidY < _ylo73 || _drawMidY > _yhi73 || _ylo73 === _yhi73) continue;
-              var _t73 = (_drawMidY - _a73[1]) / (_b73[1] - _a73[1]);
-              var _xat73 = _a73[0] + _t73 * (_b73[0] - _a73[0]);
-              if (_xat73 < _midLeftX) _midLeftX = _xat73;
-            }
-            if (_midLeftX === Infinity) _midLeftX = 0;
-            var _drawOffset = Math.round(Math.max(0, _drawHX - _midLeftX));
-            // S78: Clamp using tightest (narrowest) span across house height
-            var _maxDrawOff = Math.max(0, Math.round(_drawRightX - _drawLeftX - hw2 - 2));
-            if (_drawOffset > _maxDrawOff) {
-              console.log("S78: Clamping rotated houseOffset from " + _drawOffset + " to " + _maxDrawOff + " (narrowest span=" + _te78.span.toFixed(1) + " houseW=" + hw2 + ")");
-              _drawOffset = _maxDrawOff;
-            }
-            // S77: If house left edge went past lot left edge, shift to fit (min 2' margin)
-            if (_drawHX < _drawLeftX) {
-              _drawOffset = 2;
-              console.log("S77: House shifted to fit inside lot (hx=" + _drawHX.toFixed(1) + " leftEdge=" + _drawLeftX.toFixed(1) + ") newOffset=" + _drawOffset);
-            }
-            // S72 rule: Set lotVertices LAST. The engine calls computePolygonVerts
-            // when lotEdges exists but lotVertices is null, producing a regular
-            // polygon that overwrites the real irregular shape.
-            u("lotWidth", Math.round(_rvMaxX));
-            u("lotDepth", Math.round(_rvMaxY));
-            if (newEdges) {
-              u("lotEdges", newEdges);
-            }
-            // S73: Stash auto-detected values BEFORE setting houseDistFromStreet
-            // so the engine clamp (S29) sees _autoHouseDist and skips clamping
-            u("_autoHouseOffset", _drawOffset);
-            u("_autoHouseDist", _drawDist);
-            u("_autoHouseWidth", hw2);
-            u("_autoHouseDepth", hd2);
-            u("houseOffsetSide", _drawOffset);
-            u("houseDistFromStreet", _drawDist);
-            u("houseWidth", hw2);
-            u("houseDepth", hd2);
-            u("houseAngle", _normAng72);
-            u("_lotRotation", 0);
-            // lotVertices MUST be last to prevent engine from regenerating polygon
-            u("lotVertices", _rv72);
-            console.log("S73: Unified drawing-space values. lotBbox=" + Math.round(_rvMaxX) + "x" + Math.round(_rvMaxY) +
-              " houseOffset=" + _drawOffset + " houseDist=" + _drawDist +
-              " hx=" + _drawHX.toFixed(1) + " hy=" + _drawHY.toFixed(1) + " angle=" + _normAng72);
-          }
-          // S73: For non-rotated path, stash auto-detected values
-          if (_lotRot72 === 0 || !verts || verts.length < 3) {
-            u("_autoHouseOffset", newOffset);
-            u("_autoHouseDist", newDist);
-            u("_autoHouseWidth", hw2);
-            u("_autoHouseDepth", hd2);
-          }
+          // Set houseAngle to 0 (Solar bbox is axis-aligned, no building rotation)
+          u("houseAngle", 0);
+          // Stash auto-detected values
+          u("_autoHouseOffset", newOffset);
+          u("_autoHouseDist", newDist);
+          u("_autoHouseWidth", hw2);
+          u("_autoHouseDepth", hd2);
           // S70: Auto-add secondary structures (sheds, garages) as site elements
           // Use position relative to primary building (internally consistent in Overpass)
           // S77: Use _rFn72 to rotate element positions into drawing space
