@@ -1287,33 +1287,39 @@ function StepContent(props) {
           var centroidX = primary.centroid_ft[0];
           var centroidY = primary.centroid_ft[1];
           var usedCentroid = false;
+          // S78: Helper -- find tightest left/right polygon edges across multiple Y positions.
+          // On tapered lots, checking only mid-Y lets the house overflow at top/bottom corners.
+          var _tightEdges = function(polyV, yTop, yMid, yBot) {
+            var bestL = 0, bestR = Infinity, bestSpan = Infinity;
+            var ys = [yTop, yMid, yBot];
+            for (var si = 0; si < ys.length; si++) {
+              var sy = ys[si], slx = Infinity, srx = -Infinity;
+              for (var ei = 0; ei < polyV.length; ei++) {
+                var pa = polyV[ei], pb = polyV[(ei + 1) % polyV.length];
+                var ylo = Math.min(pa[1], pb[1]), yhi = Math.max(pa[1], pb[1]);
+                if (sy < ylo || sy > yhi || ylo === yhi) continue;
+                var tt = (sy - pa[1]) / (pb[1] - pa[1]);
+                var xx = pa[0] + tt * (pb[0] - pa[0]);
+                if (xx < slx) slx = xx;
+                if (xx > srx) srx = xx;
+              }
+              if (slx === Infinity) slx = 0;
+              if (srx === -Infinity) continue;
+              var span = srx - slx;
+              if (span < bestSpan) { bestSpan = span; bestL = slx; bestR = srx; }
+            }
+            return { left: bestL, right: bestR, span: bestSpan };
+          };
           if (lotVerts2 && lotVerts2.length >= 3 && _pointInPoly(centroidX, centroidY, lotVerts2)) {
             // Centroid is inside the lot polygon -- use it directly
             // houseDistFromStreet = house bottom-left Y = centroid Y - half depth
             var newDist = Math.max(5, Math.round(centroidY - hd2 / 2));
             if (newDist + hd2 > lotD2) newDist = Math.max(5, lotD2 - hd2 - 2);
-            // houseOffsetSide = house left X - left polygon edge at house mid-Y
+            // S78: Use tightest edges across house height for tapered lots
             var houseCY = newDist + hd2 / 2;
-            var leftX2 = 0, minLX = Infinity;
-            for (var ei3 = 0; ei3 < lotVerts2.length; ei3++) {
-              var a3 = lotVerts2[ei3], b3 = lotVerts2[(ei3 + 1) % lotVerts2.length];
-              var yLo3 = Math.min(a3[1], b3[1]), yHi3 = Math.max(a3[1], b3[1]);
-              if (houseCY < yLo3 || houseCY > yHi3 || yLo3 === yHi3) continue;
-              var t3 = (houseCY - a3[1]) / (b3[1] - a3[1]);
-              var xAt3 = a3[0] + t3 * (b3[0] - a3[0]);
-              if (xAt3 < minLX) minLX = xAt3;
-            }
-            leftX2 = minLX === Infinity ? 0 : minLX;
-            var rightX2 = lotW2, maxRX = -Infinity;
-            for (var ei4 = 0; ei4 < lotVerts2.length; ei4++) {
-              var a4 = lotVerts2[ei4], b4 = lotVerts2[(ei4 + 1) % lotVerts2.length];
-              var yLo4 = Math.min(a4[1], b4[1]), yHi4 = Math.max(a4[1], b4[1]);
-              if (houseCY < yLo4 || houseCY > yHi4 || yLo4 === yHi4) continue;
-              var t4 = (houseCY - a4[1]) / (b4[1] - a4[1]);
-              var xAt4 = a4[0] + t4 * (b4[0] - a4[0]);
-              if (xAt4 > maxRX) maxRX = xAt4;
-            }
-            if (maxRX > -Infinity) rightX2 = maxRX;
+            var _te = _tightEdges(lotVerts2, newDist + 2, houseCY, newDist + hd2 - 2);
+            var leftX2 = _te.left;
+            var rightX2 = _te.right;
             var newOffset = Math.max(0, Math.round(centroidX - hw2 / 2 - leftX2));
             // Clamp so house fits inside lot
             var maxOffset = Math.max(0, Math.round(rightX2 - leftX2 - hw2 - 2));
@@ -1331,27 +1337,11 @@ function StepContent(props) {
             }
             newDist = Math.max(5, newDist);
             u("houseDistFromStreet", newDist);
+            // S78: Use tightest edges across house height for tapered lots
             var houseCY = newDist + hd2 / 2;
-            var leftX2 = 0, minLX = Infinity;
-            for (var ei3 = 0; ei3 < lotVerts2.length; ei3++) {
-              var a3 = lotVerts2[ei3], b3 = lotVerts2[(ei3 + 1) % lotVerts2.length];
-              var yLo3 = Math.min(a3[1], b3[1]), yHi3 = Math.max(a3[1], b3[1]);
-              if (houseCY < yLo3 || houseCY > yHi3 || yLo3 === yHi3) continue;
-              var t3 = (houseCY - a3[1]) / (b3[1] - a3[1]);
-              var xAt3 = a3[0] + t3 * (b3[0] - a3[0]);
-              if (xAt3 < minLX) minLX = xAt3;
-            }
-            leftX2 = minLX === Infinity ? 0 : minLX;
-            var rightX2 = lotW2, maxRX = -Infinity;
-            for (var ei4 = 0; ei4 < lotVerts2.length; ei4++) {
-              var a4 = lotVerts2[ei4], b4 = lotVerts2[(ei4 + 1) % lotVerts2.length];
-              var yLo4 = Math.min(a4[1], b4[1]), yHi4 = Math.max(a4[1], b4[1]);
-              if (houseCY < yLo4 || houseCY > yHi4 || yLo4 === yHi4) continue;
-              var t4 = (houseCY - a4[1]) / (b4[1] - a4[1]);
-              var xAt4 = a4[0] + t4 * (b4[0] - a4[0]);
-              if (xAt4 > maxRX) maxRX = xAt4;
-            }
-            if (maxRX > -Infinity) rightX2 = maxRX;
+            var _te = _tightEdges(lotVerts2, newDist + 2, houseCY, newDist + hd2 - 2);
+            var leftX2 = _te.left;
+            var rightX2 = _te.right;
             var newOffset = Math.max(0, Math.round(pLotX - hw2 / 2 - leftX2));
             var maxOffset = Math.max(0, Math.round(rightX2 - leftX2 - hw2 - 2));
             if (newOffset > maxOffset) newOffset = maxOffset;
@@ -1456,33 +1446,28 @@ function StepContent(props) {
             }
             _drawDist = Math.max(5, _drawDist);
             // houseOffsetSide = X distance from left polygon edge at house mid-Y
+            // S78: Scan left/right edges at 3 Y positions (top, mid, bottom of house)
+            // to handle tapered lots where polygon width varies across house height.
+            var _te78 = _tightEdges(_rv72, _drawDist + 2, _drawHY + hd2 / 2, _drawDist + hd2 - 2);
+            var _drawLeftX = _te78.left;
+            var _drawRightX = _te78.right;
+            // Use mid-Y left edge for offset calculation (defines the "left edge" reference)
             var _drawMidY = _drawHY + hd2 / 2;
-            var _drawLeftX = Infinity;
+            var _midLeftX = Infinity;
             for (var _ei73 = 0; _ei73 < _rv72.length; _ei73++) {
               var _a73 = _rv72[_ei73], _b73 = _rv72[(_ei73 + 1) % _rv72.length];
               var _ylo73 = Math.min(_a73[1], _b73[1]), _yhi73 = Math.max(_a73[1], _b73[1]);
               if (_drawMidY < _ylo73 || _drawMidY > _yhi73 || _ylo73 === _yhi73) continue;
               var _t73 = (_drawMidY - _a73[1]) / (_b73[1] - _a73[1]);
               var _xat73 = _a73[0] + _t73 * (_b73[0] - _a73[0]);
-              if (_xat73 < _drawLeftX) _drawLeftX = _xat73;
+              if (_xat73 < _midLeftX) _midLeftX = _xat73;
             }
-            if (_drawLeftX === Infinity) _drawLeftX = 0;
-            // S77: Find right edge in rotated coords at house mid-Y
-            var _drawRightX = -Infinity;
-            for (var _ei77 = 0; _ei77 < _rv72.length; _ei77++) {
-              var _a77 = _rv72[_ei77], _b77 = _rv72[(_ei77 + 1) % _rv72.length];
-              var _ylo77 = Math.min(_a77[1], _b77[1]), _yhi77 = Math.max(_a77[1], _b77[1]);
-              if (_drawMidY < _ylo77 || _drawMidY > _yhi77 || _ylo77 === _yhi77) continue;
-              var _t77 = (_drawMidY - _a77[1]) / (_b77[1] - _a77[1]);
-              var _xat77 = _a77[0] + _t77 * (_b77[0] - _a77[0]);
-              if (_xat77 > _drawRightX) _drawRightX = _xat77;
-            }
-            if (_drawRightX === -Infinity) _drawRightX = _rvMaxX;
-            var _drawOffset = Math.round(Math.max(0, _drawHX - _drawLeftX));
-            // S77: Clamp so house fits inside lot polygon (with 2' margin)
+            if (_midLeftX === Infinity) _midLeftX = 0;
+            var _drawOffset = Math.round(Math.max(0, _drawHX - _midLeftX));
+            // S78: Clamp using tightest (narrowest) span across house height
             var _maxDrawOff = Math.max(0, Math.round(_drawRightX - _drawLeftX - hw2 - 2));
             if (_drawOffset > _maxDrawOff) {
-              console.log("S77: Clamping rotated houseOffset from " + _drawOffset + " to " + _maxDrawOff + " (rightEdge=" + _drawRightX.toFixed(1) + " leftEdge=" + _drawLeftX.toFixed(1) + " houseW=" + hw2 + ")");
+              console.log("S78: Clamping rotated houseOffset from " + _drawOffset + " to " + _maxDrawOff + " (narrowest span=" + _te78.span.toFixed(1) + " houseW=" + hw2 + ")");
               _drawOffset = _maxDrawOff;
             }
             // S77: If house left edge went past lot left edge, shift to fit (min 2' margin)
