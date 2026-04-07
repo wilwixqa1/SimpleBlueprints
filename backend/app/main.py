@@ -68,6 +68,7 @@ ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
 SITE_URL = os.getenv("SITE_URL", "http://localhost:8000")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
+GOOGLE_SOLAR_API_KEY = os.getenv("GOOGLE_SOLAR_API_KEY", "")
 BLUEPRINT_PRICE = 2900
 
 PDF_DIR = Path("/tmp/blueprints")
@@ -1933,6 +1934,115 @@ async def parcel_lookup(request: Request):
 # near a lat/lng to get actual house dimensions and orientation.
 # ============================================================
 
+def _google_solar_lookup(lat, lng, lot_origin=None):
+    """Query Google Solar API for building centroid and bounding box.
+    Returns a single building entry in the same shape as _overpass_building_lookup
+    so the frontend doesn't need separate handling.
+    
+    Google Solar gives us authoritative address-to-building association
+    (via place_id), accurate center point, and axis-aligned bounding box.
+    No volunteer data quality issues like Overpass."""
+    if not GOOGLE_SOLAR_API_KEY:
+        print("Google Solar API key not configured, skipping", flush=True)
+        return None
+
+    url = (
+        f"https://solar.googleapis.com/v1/buildingInsights:findClosest"
+        f"?location.latitude={lat}&location.longitude={lng}"
+        f"&requiredQuality=MEDIUM"
+        f"&key={GOOGLE_SOLAR_API_KEY}"
+    )
+    try:
+        req = urllib.request.Request(url, headers={
+            "User-Agent": "SimpleBlueprints/1.0"
+        })
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            raw = resp.read().decode()
+            data = json.loads(raw)
+        print(f"Google Solar OK: building={data.get('name','?')}", flush=True)
+    except urllib.error.HTTPError as e:
+        body = ""
+        try:
+            body = e.read().decode()[:200]
+        except Exception:
+            pass
+        print(f"Google Solar HTTP {e.code}: {body}", flush=True)
+        return None
+    except Exception as e:
+        print(f"Google Solar error: {e}", flush=True)
+        return None
+
+    center = data.get("center")
+    bbox = data.get("boundingBox")
+    if not center or not bbox:
+        print("Google Solar: no center or boundingBox in response", flush=True)
+        return None
+
+    # Convert center and bbox to lot coordinates (feet)
+    ft_per_deg_lat = 364000.0
+    if lot_origin:
+        ref_lat, ref_lng = lot_origin
+    else:
+        ref_lat, ref_lng = lat, lng
+    ft_per_deg_lng = 364000.0 * _math.cos(_math.radians(ref_lat))
+
+    cx_ft = (center["longitude"] - ref_lng) * ft_per_deg_lng
+    cy_ft = (center["latitude"] - ref_lat) * ft_per_deg_lat
+
+    sw = bbox.get("sw", bbox.get("southWest", {}))
+    ne = bbox.get("ne", bbox.get("northEast", {}))
+    if not sw or not ne:
+        print("Google Solar: bbox missing sw/ne", flush=True)
+        return None
+
+    # Bounding box dimensions in feet
+    width_ft = abs(ne["longitude"] - sw["longitude"]) * ft_per_deg_lng
+    depth_ft = abs(ne["latitude"] - sw["latitude"]) * ft_per_deg_lat
+
+    # Distance from search point (for compatibility with Overpass shape)
+    if lot_origin:
+        prop_lot_x = (lng - ref_lng) * ft_per_deg_lng
+        prop_lot_y = (lat - ref_lat) * ft_per_deg_lat
+    else:
+        prop_lot_x, prop_lot_y = 0.0, 0.0
+    dist = _math.sqrt((cx_ft - prop_lot_x) ** 2 + (cy_ft - prop_lot_y) ** 2)
+
+    area_ft2 = width_ft * depth_ft
+
+    # Build a building entry compatible with Overpass shape
+    bldg = {
+        "osm_id": data.get("name", "google_solar"),  # e.g. "buildings/ChIJ..."
+        "type": "house",
+        "polygon_ft": [],  # Solar API doesn't give polygon vertices
+        "centroid_ft": [round(cx_ft, 1), round(cy_ft, 1)],
+        "dist_from_center": round(dist, 1),
+        "area_sqft": round(area_ft2, 0),
+        "width": round(width_ft, 1),
+        "depth": round(depth_ft, 1),
+        "angle": 0.0,  # Bounding box is axis-aligned, no angle info
+        "num_vertices": 4,
+        "source": "google_solar",
+    }
+    if lot_origin:
+        bldg["centroid_lot"] = [round(cx_ft, 1), round(cy_ft, 1)]
+
+    # Additional Solar API metadata
+    solar_meta = {}
+    if data.get("imageryQuality"):
+        solar_meta["imageryQuality"] = data["imageryQuality"]
+    if data.get("imageryDate"):
+        d = data["imageryDate"]
+        solar_meta["imageryDate"] = f"{d.get('year','?')}-{d.get('month','?'):02d}-{d.get('day','?'):02d}" if isinstance(d.get('month'), int) else str(d)
+    sp = data.get("solarPotential", {})
+    wrs = sp.get("wholeRoofStats", {})
+    if wrs.get("groundAreaMeters2"):
+        solar_meta["roofAreaSqft"] = round(wrs["groundAreaMeters2"] * 10.764, 0)
+    bldg["solar_meta"] = solar_meta
+
+    print(f"Google Solar building: {width_ft:.1f}x{depth_ft:.1f}ft center=({cx_ft:.1f},{cy_ft:.1f}) dist={dist:.1f}ft area={area_ft2:.0f}sqft", flush=True)
+    return bldg
+
+
 def _overpass_building_lookup(lat, lng, radius_m=80, lot_origin=None):
     """Query Overpass API for building footprints and nearby roads near lat/lng.
     Returns list of building polygons with computed dimensions and angles,
@@ -2248,6 +2358,28 @@ async def building_footprint(request: Request):
         return JSONResponse(_building_cache[cache_key])
 
     result = _overpass_building_lookup(lat, lng, lot_origin=lot_origin)
+
+    # S78: Try Google Solar API for primary house (more accurate center + bbox).
+    # If successful, replace the primary building in the Overpass result.
+    # Keep Overpass data for: nearest_road, secondary structures (sheds/garages).
+    google_bldg = _google_solar_lookup(lat, lng, lot_origin=lot_origin)
+    if google_bldg:
+        # Find and replace the primary building (first building >= 400sqft)
+        replaced = False
+        for i, b in enumerate(result.get("buildings", [])):
+            if b.get("area_sqft", 0) >= 400 and b.get("dist_from_center", 999) < 250:
+                # Keep Overpass angle if Google doesn't have one (bbox is axis-aligned)
+                if google_bldg["angle"] == 0.0 and b.get("angle", 0) != 0:
+                    google_bldg["angle"] = b["angle"]
+                result["buildings"][i] = google_bldg
+                replaced = True
+                print(f"S78: Replaced Overpass primary with Google Solar building", flush=True)
+                break
+        if not replaced:
+            # No Overpass primary found -- insert Google Solar as first
+            result["buildings"].insert(0, google_bldg)
+            result["count"] = len(result["buildings"])
+            print(f"S78: Inserted Google Solar building as primary (no Overpass match)", flush=True)
 
     # Only cache successful results with actual data
     if result.get("count", 0) > 0 or result.get("nearest_road"):
