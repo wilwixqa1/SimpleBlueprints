@@ -1999,6 +1999,26 @@ def _google_solar_lookup(lat, lng, lot_origin=None):
     width_ft = abs(ne["longitude"] - sw["longitude"]) * ft_per_deg_lng
     depth_ft = abs(ne["latitude"] - sw["latitude"]) * ft_per_deg_lat
 
+    # S78: Correct bbox inflation from building rotation.
+    # Solar's bbox is axis-aligned (N/S/E/W). A rotated building has a bbox
+    # larger than its actual footprint. Use groundAreaMeters2 (actual roof
+    # footprint area) to detect and correct this.
+    sp = data.get("solarPotential", {})
+    wrs = sp.get("wholeRoofStats", {})
+    roof_area_m2 = wrs.get("groundAreaMeters2", 0)
+    bbox_area_ft2 = width_ft * depth_ft
+    if roof_area_m2 > 0 and bbox_area_ft2 > 0:
+        roof_area_ft2 = roof_area_m2 * 10.764
+        ratio = roof_area_ft2 / bbox_area_ft2
+        # If bbox is >20% larger than roof area, the building is rotated
+        # Scale dimensions by sqrt(ratio) to approximate actual footprint
+        if ratio < 0.80:
+            scale = _math.sqrt(ratio)
+            old_w, old_d = width_ft, depth_ft
+            width_ft *= scale
+            depth_ft *= scale
+            print(f"S78: Bbox inflation corrected: {old_w:.1f}x{old_d:.1f} -> {width_ft:.1f}x{depth_ft:.1f} (roof={roof_area_ft2:.0f}sqft, bbox={bbox_area_ft2:.0f}sqft, ratio={ratio:.2f})", flush=True)
+
     # Distance from search point (for compatibility with Overpass shape)
     if lot_origin:
         prop_lot_x = (lng - ref_lng) * ft_per_deg_lng
