@@ -2379,69 +2379,19 @@ async def building_footprint(request: Request):
 
     result = _overpass_building_lookup(lat, lng, lot_origin=lot_origin)
 
-    # S78: Try Google Solar API for primary house (authoritative center point).
-    # Strategy: Solar centroid is authoritative (tied to address via place_id).
-    # Overpass dimensions/angle are more accurate (actual polygon, not axis-aligned bbox).
-    # Best hybrid: Solar center + Overpass width/depth/angle when both available.
+    # S78: Solar API is the primary building data source.
+    # Solar gives us: authoritative center, bbox dimensions (with inflation
+    # correction), and roof area. Overpass building data is unreliable
+    # (wrong building matches, bad polygons) so we ignore it entirely.
+    # Overpass is ONLY used for road name/bearing (for lot rotation).
     google_bldg = _google_solar_lookup(lat, lng, lot_origin=lot_origin)
     if google_bldg:
-        # Find the primary Overpass building (first >= 400sqft, < 250ft)
-        overpass_primary = None
-        overpass_idx = -1
-        for i, b in enumerate(result.get("buildings", [])):
-            if b.get("area_sqft", 0) >= 400 and b.get("dist_from_center", 999) < 250:
-                overpass_primary = b
-                overpass_idx = i
-                break
-
-        if overpass_primary:
-            # Both sources available: cross-check Overpass dims against Solar.
-            # If dimensions differ significantly, Overpass likely matched the wrong
-            # building or has a bad polygon. Use Solar corrected dims instead.
-            solar_roof_sqft = google_bldg.get("solar_meta", {}).get("roofAreaSqft", 0)
-            overpass_area = overpass_primary.get("area_sqft", 0)
-            use_overpass_dims = True
-
-            if solar_roof_sqft > 0 and overpass_area > 0:
-                area_ratio = min(solar_roof_sqft, overpass_area) / max(solar_roof_sqft, overpass_area)
-                # Also compare individual dimensions (sort both pairs so we compare long vs long)
-                o_dims = sorted([overpass_primary.get("width", 0), overpass_primary.get("depth", 0)])
-                s_dims = sorted([google_bldg.get("width", 0), google_bldg.get("depth", 0)])
-                dim_ratios = []
-                if o_dims[0] > 0 and s_dims[0] > 0:
-                    dim_ratios.append(min(o_dims[0], s_dims[0]) / max(o_dims[0], s_dims[0]))
-                if o_dims[1] > 0 and s_dims[1] > 0:
-                    dim_ratios.append(min(o_dims[1], s_dims[1]) / max(o_dims[1], s_dims[1]))
-                worst_dim_ratio = min(dim_ratios) if dim_ratios else 1.0
-
-                if area_ratio < 0.70 or worst_dim_ratio < 0.80:
-                    use_overpass_dims = False
-                    print(f"S78: Overpass dims mismatch (area: {overpass_area:.0f} vs {solar_roof_sqft:.0f} ratio={area_ratio:.2f}, dims: overpass={o_dims[1]:.0f}x{o_dims[0]:.0f} solar={s_dims[1]:.0f}x{s_dims[0]:.0f} worst_ratio={worst_dim_ratio:.2f}). Using Solar corrected dims.", flush=True)
-                else:
-                    print(f"S78: Overpass dims OK (area_ratio={area_ratio:.2f}, dim_ratio={worst_dim_ratio:.2f}). Using Overpass dims.", flush=True)
-
-            if use_overpass_dims:
-                # Overpass dims are trustworthy: merge Solar centroid + Overpass geometry
-                merged = dict(overpass_primary)
-                merged["centroid_ft"] = google_bldg["centroid_ft"]
-                if lot_origin:
-                    merged["centroid_lot"] = google_bldg["centroid_ft"]
-                merged["source"] = "solar_center+overpass_dims"
-                merged["solar_meta"] = google_bldg.get("solar_meta", {})
-                result["buildings"][overpass_idx] = merged
-                print(f"S78: Merged Solar centroid ({google_bldg['centroid_ft']}) + Overpass dims ({overpass_primary['width']}x{overpass_primary['depth']} angle={overpass_primary['angle']})", flush=True)
-            else:
-                # Overpass dims are suspect: use Solar corrected dims + Solar centroid
-                # Keep Overpass angle (bbox has no angle info)
-                if google_bldg["angle"] == 0.0 and overpass_primary.get("angle", 0) != 0:
-                    google_bldg["angle"] = overpass_primary["angle"]
-                result["buildings"][overpass_idx] = google_bldg
-                print(f"S78: Using Solar dims ({google_bldg['width']}x{google_bldg['depth']}) + Overpass angle ({google_bldg['angle']})", flush=True)
-        else:
-            # No Overpass primary -- use Solar data alone (bbox dimensions, less accurate)
-            result["buildings"].insert(0, google_bldg)
-            result["count"] = len(result["buildings"])
-            print(f"S78: Solar-only building (no Overpass match): {google_bldg['width']}x{google_bldg['depth']}", flush=True)
+        # Replace all Overpass buildings with just the Solar building.
+        # Keep secondary structures (sheds/garages < 400sqft) from Overpass.
+        secondary = [b for b in result.get("buildings", []) if b.get("area_sqft", 0) < 400]
+        result["buildings"] = [google_bldg] + secondary
+        result["count"] = len(result["buildings"])
+        print(f"S78: Using Solar building: {google_bldg['width']}x{google_bldg['depth']} center={google_bldg['centroid_ft']} (kept {len(secondary)} secondary structures from Overpass)", flush=True)
 
     # S78: Fallback road bearing when Overpass found no roads.
     # Use address geocode point (near mailbox/curb) as proxy for street direction.
