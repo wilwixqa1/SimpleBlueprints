@@ -2379,27 +2379,36 @@ async def building_footprint(request: Request):
 
     result = _overpass_building_lookup(lat, lng, lot_origin=lot_origin)
 
-    # S78: Try Google Solar API for primary house (more accurate center + bbox).
-    # If successful, replace the primary building in the Overpass result.
-    # Keep Overpass data for: nearest_road, secondary structures (sheds/garages).
+    # S78: Try Google Solar API for primary house (authoritative center point).
+    # Strategy: Solar centroid is authoritative (tied to address via place_id).
+    # Overpass dimensions/angle are more accurate (actual polygon, not axis-aligned bbox).
+    # Best hybrid: Solar center + Overpass width/depth/angle when both available.
     google_bldg = _google_solar_lookup(lat, lng, lot_origin=lot_origin)
     if google_bldg:
-        # Find and replace the primary building (first building >= 400sqft)
-        replaced = False
+        # Find the primary Overpass building (first >= 400sqft, < 250ft)
+        overpass_primary = None
+        overpass_idx = -1
         for i, b in enumerate(result.get("buildings", [])):
             if b.get("area_sqft", 0) >= 400 and b.get("dist_from_center", 999) < 250:
-                # Keep Overpass angle if Google doesn't have one (bbox is axis-aligned)
-                if google_bldg["angle"] == 0.0 and b.get("angle", 0) != 0:
-                    google_bldg["angle"] = b["angle"]
-                result["buildings"][i] = google_bldg
-                replaced = True
-                print(f"S78: Replaced Overpass primary with Google Solar building", flush=True)
+                overpass_primary = b
+                overpass_idx = i
                 break
-        if not replaced:
-            # No Overpass primary found -- insert Google Solar as first
+
+        if overpass_primary:
+            # Both sources available: use Solar centroid + Overpass geometry
+            merged = dict(overpass_primary)  # start with Overpass data (polygon, dims, angle)
+            merged["centroid_ft"] = google_bldg["centroid_ft"]  # Solar centroid (authoritative)
+            if lot_origin:
+                merged["centroid_lot"] = google_bldg["centroid_ft"]
+            merged["source"] = "solar_center+overpass_dims"
+            merged["solar_meta"] = google_bldg.get("solar_meta", {})
+            result["buildings"][overpass_idx] = merged
+            print(f"S78: Merged Solar centroid ({google_bldg['centroid_ft']}) + Overpass dims ({overpass_primary['width']}x{overpass_primary['depth']} angle={overpass_primary['angle']})", flush=True)
+        else:
+            # No Overpass primary -- use Solar data alone (bbox dimensions, less accurate)
             result["buildings"].insert(0, google_bldg)
             result["count"] = len(result["buildings"])
-            print(f"S78: Inserted Google Solar building as primary (no Overpass match)", flush=True)
+            print(f"S78: Solar-only building (no Overpass match): {google_bldg['width']}x{google_bldg['depth']}", flush=True)
 
     # S78: Fallback road bearing when Overpass found no roads.
     # Use address geocode point (near mailbox/curb) as proxy for street direction.
