@@ -2381,10 +2381,46 @@ async def building_footprint(request: Request):
             result["count"] = len(result["buildings"])
             print(f"S78: Inserted Google Solar building as primary (no Overpass match)", flush=True)
 
+    # S78: Fallback road bearing when Overpass found no roads.
+    # Use address geocode point (near mailbox/curb) as proxy for street direction.
+    # Bearing from building center toward address point approximates road bearing.
+    if not result.get("nearest_road") and google_bldg and lot_origin:
+        ft_per_deg_lat = 364000.0
+        ref_lat_fb, ref_lng_fb = lot_origin
+        ft_per_deg_lng_fb = 364000.0 * _math.cos(_math.radians(ref_lat_fb))
+        addr_x = (lng - ref_lng_fb) * ft_per_deg_lng_fb
+        addr_y = (lat - ref_lat_fb) * ft_per_deg_lat
+        bldg_cx = google_bldg["centroid_ft"][0]
+        bldg_cy = google_bldg["centroid_ft"][1]
+        dx_fb = addr_x - bldg_cx
+        dy_fb = addr_y - bldg_cy
+        dist_fb = _math.sqrt(dx_fb * dx_fb + dy_fb * dy_fb)
+        if dist_fb > 3:  # Only if address point is meaningfully different from center
+            # Bearing from north, clockwise (same convention as Overpass road bearing)
+            bearing_fb = _math.degrees(_math.atan2(dx_fb, dy_fb))
+            if bearing_fb < 0:
+                bearing_fb += 360
+            result["nearest_road"] = {
+                "name": "",
+                "dist": round(dist_fb, 1),
+                "bearing": round(bearing_fb, 1),
+                "closest_point_ft": [round(addr_x, 1), round(addr_y, 1)],
+                "osm_id": "address_fallback",
+                "source": "address_point_fallback",
+            }
+            print(f"S78: Synthetic road bearing from address point: {bearing_fb:.1f}deg dist={dist_fb:.1f}ft", flush=True)
+
     # Only cache successful results with actual data
-    if result.get("count", 0) > 0 or result.get("nearest_road"):
-        _building_cache[cache_key] = result
-        print(f"Building footprint cached for {cache_key}", flush=True)
+    # S78: Don't cache when road is only from address fallback -- next request
+    # should retry Overpass for real road data. Fallback results still work for
+    # this request, just won't be cached.
+    has_real_road = result.get("nearest_road") and result["nearest_road"].get("source") != "address_point_fallback"
+    if result.get("count", 0) > 0 or has_real_road:
+        if not has_real_road and result.get("nearest_road", {}).get("source") == "address_point_fallback":
+            print(f"S78: NOT caching (address fallback road only, Overpass may recover)", flush=True)
+        else:
+            _building_cache[cache_key] = result
+            print(f"Building footprint cached for {cache_key}", flush=True)
 
     return JSONResponse(result)
 
