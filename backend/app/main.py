@@ -2407,7 +2407,7 @@ async def building_footprint(request: Request):
         dx_fb = addr_x - bldg_cx
         dy_fb = addr_y - bldg_cy
         dist_fb = _math.sqrt(dx_fb * dx_fb + dy_fb * dy_fb)
-        if dist_fb > 3:  # Only if address point is meaningfully different from center
+        if dist_fb > 30:  # Need meaningful distance for reliable bearing
             # Bearing from north, clockwise (same convention as Overpass road bearing)
             bearing_fb = _math.degrees(_math.atan2(dx_fb, dy_fb))
             if bearing_fb < 0:
@@ -2421,6 +2421,8 @@ async def building_footprint(request: Request):
                 "source": "address_point_fallback",
             }
             print(f"S78: Synthetic road bearing from address point: {bearing_fb:.1f}deg dist={dist_fb:.1f}ft", flush=True)
+        else:
+            print(f"S78: Address point too close to building center ({dist_fb:.1f}ft) for reliable bearing, skipping road fallback", flush=True)
 
     # Only cache successful results with actual data
     # S78: Don't cache when road is only from address fallback -- next request
