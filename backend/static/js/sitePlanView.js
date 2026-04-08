@@ -667,7 +667,7 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
     loadingOverlay = React.createElement("div", {
       style: {
         position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
-        background: "rgba(250, 250, 245, 0.85)",
+        background: "#fafaf5",
         display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
         borderRadius: 4, zIndex: 10
       }
