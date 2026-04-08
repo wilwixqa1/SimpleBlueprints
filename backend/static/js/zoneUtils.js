@@ -35,6 +35,7 @@
          BR: { type: 'square', size: 0 }
        },
        joistDir:     String,       // 'perpendicular'|'parallel'
+       beamType:     String,       // 'dropped'|'flush' (flush = rim board as beam, no posts)
        stairs:       Object|null,
        label:        String
      }
@@ -384,12 +385,15 @@
 
     var edgeLen = (edge === "front") ? parentRect.w : parentRect.d;
     var w = Math.min(8, edgeLen);
+    var d = 8;
+    var area = w * d;
     return {
       id: -1, type: "add",
-      w: w, d: 8, h: null,
+      w: w, d: d, h: null,
       attachTo: parentId, attachEdge: edge,
       attachOffset: Math.max(0, Math.round((edgeLen - w) / 2)),
       corners: Object.assign({}, DEFAULT_CORNERS),
+      beamType: (area < 80 || d < 6) ? "flush" : "dropped",
       joistDir: "perpendicular", stairs: null, label: "Zone"
     };
   }
@@ -401,6 +405,7 @@
     return Object.assign({}, p, {
       deckWidth: zone.w, deckDepth: zone.d, deckHeight: h,
       joistDir: zone.joistDir || p.joistDir || "perpendicular",
+      beamType: zone.beamType || "dropped",
       stairTemplate: zone.stairs ? zone.stairs.template : "None",
       stairLocation: zone.stairs ? zone.stairs.location : "none"
     });

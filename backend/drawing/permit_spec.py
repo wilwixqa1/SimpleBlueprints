@@ -329,6 +329,7 @@ def build_permit_spec(params, calc):
             _ze = z.get("attachEdge", "front")
             _zw = z.get("w", 8)
             _zd = z.get("d", 6)
+            _z_beam_type = z.get("beamType", "dropped")
             if _ze in ("right", "left"):
                 _zbl = _zd
                 _zjs = _zw - _beam_setback
@@ -343,14 +344,25 @@ def build_permit_spec(params, calc):
                 if _zsp.get(joist_spacing, 0) >= _zjs:
                     _zj_size = _zsz
                     break
-            _zbs = _zbl / max(_znp - 1, 1)
-            _zb_size = auto_select_beam(_zbs, _zjs, LL, calc.get("species", "dfl_hf_spf"))
-            _zone_calcs.append({
-                "joist_size": _zj_size,
-                "beam_size": _zb_size,
-                "beam_span": round(_zbs, 1),
-                "j_span": round(_zjs, 1),
-            })
+            # S80: Flush beam zones use rim board -- no beam sizing needed
+            if _z_beam_type == "flush":
+                _zone_calcs.append({
+                    "joist_size": _zj_size,
+                    "beam_size": "rim",
+                    "beam_span": 0,
+                    "j_span": round(_zjs, 1),
+                    "beam_type": "flush",
+                })
+            else:
+                _zbs = _zbl / max(_znp - 1, 1)
+                _zb_size = auto_select_beam(_zbs, _zjs, LL, calc.get("species", "dfl_hf_spf"))
+                _zone_calcs.append({
+                    "joist_size": _zj_size,
+                    "beam_size": _zb_size,
+                    "beam_span": round(_zbs, 1),
+                    "j_span": round(_zjs, 1),
+                    "beam_type": "dropped",
+                })
     spec["zone_calcs"] = _zone_calcs
 
     # --- Slope ---

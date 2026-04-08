@@ -131,11 +131,28 @@ def compute_zone_framing(zone, rect, joist_spacing_in=16):
     """
     Compute framing layout for an add zone.
     Returns beam position, post positions, and joist lines.
+    S80: Supports flush beam (beamType='flush') -- joists span full zone, no beam line or posts.
     """
     edge = zone.get("attachEdge", "front")
+    beam_type = zone.get("beamType", "dropped")
     x, y, w, d = rect["x"], rect["y"], rect["w"], rect["d"]
     sp = joist_spacing_in / 12  # spacing in feet
 
+    if beam_type == "flush":
+        # Flush beam: joists span the full zone depth/width, bearing into rim board
+        # No separate beam line, no posts, no piers
+        joist_lines = []
+        if edge == "right" or edge == "left":
+            for jy in np.arange(y + sp, y + d, sp):
+                if jy < y + d - 0.3:
+                    joist_lines.append({"x1": x + 0.1, "y1": jy, "x2": x + w - 0.1, "y2": jy})
+        else:  # front
+            for jx in np.arange(x + sp, x + w, sp):
+                if jx < x + w - 0.3:
+                    joist_lines.append({"x1": jx, "y1": y + 0.1, "x2": jx, "y2": y + d - 0.1})
+        return {"beam": None, "posts": [], "joist_lines": joist_lines, "beam_type": "flush"}
+
+    # Dropped beam (original logic)
     if edge == "right":
         beam_x = x + w - BEAM_SETBACK
         beam_y1, beam_y2 = y + 0.5, y + d - 0.5
@@ -179,12 +196,14 @@ def compute_zone_framing(zone, rect, joist_spacing_in=16):
 
 
 def draw_zone_framing(ax, zone, rect, calc, zone_sizing=None):
-    """Draw framing elements (outline, joists, beam, posts, piers) for an add zone."""
+    """Draw framing elements (outline, joists, beam, posts, piers) for an add zone.
+    S80: Flush beam zones only draw outline + joists + label (no beam/posts/piers).
+    """
     framing = compute_zone_framing(zone, rect, calc.get("joist_spacing", 16))
     if not framing:
         return
     footing_diam = calc.get("footing_diam", 30)
-    b = framing["beam"]
+    is_flush = framing.get("beam_type") == "flush"
 
     # S61: Zone outline (chamfer-aware)
     _zcorners = zone.get("corners")
@@ -199,26 +218,35 @@ def draw_zone_framing(ax, zone, rect, calc, zone_sizing=None):
                 color=BRAND["light"], lw=0.4)
         ln.set_clip_path(_z_clip)
 
-    # Beam
-    ax.plot([b["x1"], b["x2"]], [b["y1"], b["y2"]],
-            color=BRAND["beam"], lw=3)
+    # Beam (dropped only)
+    if not is_flush and framing["beam"]:
+        b = framing["beam"]
+        ax.plot([b["x1"], b["x2"]], [b["y1"], b["y2"]],
+                color=BRAND["beam"], lw=3)
 
-    # Posts + piers
-    for p in framing["posts"]:
-        ax.plot(p["x"], p["y"], 'o', ms=4, color=BRAND["post"],
-                mec=BRAND["dark"], mew=0.7)
-        pier = plt.Circle((p["x"], p["y"]), footing_diam / 24,
-                          fill=False, ec=BRAND["dark"], lw=0.4, ls='--')
-        ax.add_patch(pier)
+    # Posts + piers (dropped only)
+    if not is_flush:
+        for p in framing["posts"]:
+            ax.plot(p["x"], p["y"], 'o', ms=4, color=BRAND["post"],
+                    mec=BRAND["dark"], mew=0.7)
+            pier = plt.Circle((p["x"], p["y"]), footing_diam / 24,
+                              fill=False, ec=BRAND["dark"], lw=0.4, ls='--')
+            ax.add_patch(pier)
 
     # S61: Zone label with zone-specific joist/beam callout (from spec, compact)
     label = zone.get("label", f"Zone {zone.get('id', '?')}")
     if zone_sizing:
         zj = zone_sizing["joist_size"]
         zb = zone_sizing["beam_size"].upper()
-        label_text = f'{label}\n{zj} @ {calc.get("joist_spacing", 16)}" / {zb}'
+        if is_flush:
+            label_text = f'{label}\n{zj} @ {calc.get("joist_spacing", 16)}" / FLUSH (RIM)'
+        else:
+            label_text = f'{label}\n{zj} @ {calc.get("joist_spacing", 16)}" / {zb}'
     else:
-        label_text = f'{label}\n{calc.get("joist_size", "2x12")} @ {calc.get("joist_spacing", 16)}"'
+        if is_flush:
+            label_text = f'{label}\n{calc.get("joist_size", "2x12")} @ {calc.get("joist_spacing", 16)}" / FLUSH (RIM)'
+        else:
+            label_text = f'{label}\n{calc.get("joist_size", "2x12")} @ {calc.get("joist_spacing", 16)}"'
     ax.text(rect["x"] + rect["w"] / 2, rect["y"] + rect["d"] / 2,
             label_text,
             ha='center', va='center', fontsize=3.0,

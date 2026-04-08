@@ -2480,6 +2480,23 @@ function StepContent(props) {
       </div>
     )}
 
+    {/* S80: Per-zone beam type toggle (zones 1+ add type) */}
+    {!isZone0 && activeZoneObj && activeZoneObj.type === "add" && (
+      <div style={{ marginBottom: 16 }}>
+        <Label>Beam type</Label>
+        <div style={{ display: "flex", gap: 6 }}>
+          {["flush", "dropped"].map(bt => (
+            <button key={bt} onClick={() => updateZone(p.activeZone, "beamType", bt)} style={{ flex: 1, padding: "6px 4px", fontSize: 11, fontFamily: _mono, cursor: "pointer", borderRadius: 4, border: `1px solid ${(activeZoneObj.beamType || "dropped") === bt ? _br.ac : _br.bd}`, background: (activeZoneObj.beamType || "dropped") === bt ? _br.ac : "#fff", color: (activeZoneObj.beamType || "dropped") === bt ? "#fff" : _br.mu, fontWeight: (activeZoneObj.beamType || "dropped") === bt ? 700 : 400, textTransform: "capitalize" }}>{bt === "dropped" ? "Dropped" : "Flush"}</button>
+          ))}
+        </div>
+        <div style={{ fontSize: 9, color: _br.mu, marginTop: 4, fontStyle: "italic" }}>
+          {(activeZoneObj.beamType || "dropped") === "flush"
+            ? "Rim board acts as beam. No posts or footings needed for this zone."
+            : "Separate beam below joists with posts and footings."}
+        </div>
+      </div>
+    )}
+
     {/* Cutout interior offset */}
     {!isZone0 && isCutout && activeZoneObj.attachEdge === "interior" && <>
       <div style={{ marginBottom: 16 }}>
