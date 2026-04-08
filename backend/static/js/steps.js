@@ -1228,16 +1228,174 @@ function StepContent(props) {
           .then(function(r) { return r.json(); })
         .then(function(bldg) {
           console.log("Building footprint response:", bldg.count + " buildings, nearest_road:", bldg.nearest_road ? bldg.nearest_road.name + " bearing=" + bldg.nearest_road.bearing + "deg dist=" + bldg.nearest_road.dist + "ft" : "none");
-          // S79: Enrich street name from Overpass road data (non-critical)
-          if (bldg.nearest_road && bldg.nearest_road.name) {
+          // S79b: Overpass road validation and street edge correction.
+          // The parcel callback identified the street edge via ray-cast and applied
+          // rotation. Overpass may confirm or override that choice.
+          if (bldg.nearest_road && bldg.nearest_road.bearing !== undefined) {
+            var roadBearing = bldg.nearest_road.bearing;
+            var origVerts = data.lot.vertices; // unrotated original
+            var nv2 = origVerts.length;
+            // Find which edge's outward normal is closest to road bearing
+            var cxL = 0, cyL = 0;
+            for (var vi2 = 0; vi2 < nv2; vi2++) { cxL += origVerts[vi2][0]; cyL += origVerts[vi2][1]; }
+            cxL /= nv2; cyL /= nv2;
+            var bestEdge = -1, bestAngleDiff = 999;
+            for (var ei2 = 0; ei2 < nv2; ei2++) {
+              var ni2 = (ei2 + 1) % nv2;
+              var edx2 = origVerts[ni2][0] - origVerts[ei2][0];
+              var edy2 = origVerts[ni2][1] - origVerts[ei2][1];
+              var elen2 = Math.sqrt(edx2 * edx2 + edy2 * edy2);
+              if (elen2 < 1) continue;
+              var nx2 = -edy2 / elen2, ny2 = edx2 / elen2;
+              var mx2 = (origVerts[ei2][0] + origVerts[ni2][0]) / 2;
+              var my2 = (origVerts[ei2][1] + origVerts[ni2][1]) / 2;
+              if (nx2 * (cxL - mx2) + ny2 * (cyL - my2) > 0) { nx2 = -nx2; ny2 = -ny2; }
+              var normalBearing = Math.atan2(nx2, ny2) * 180 / Math.PI;
+              if (normalBearing < 0) normalBearing += 360;
+              var diff2 = Math.abs(normalBearing - roadBearing);
+              if (diff2 > 180) diff2 = 360 - diff2;
+              if (diff2 < bestAngleDiff) { bestAngleDiff = diff2; bestEdge = ei2; }
+            }
+            if (bestEdge >= 0 && bestAngleDiff < 60 && bestEdge !== streetIdx) {
+              // Overpass disagrees with ray-cast! Re-rotate using correct edge.
+              console.log("S79b: Overpass street edge " + bestEdge + " differs from ray-cast edge " + streetIdx + " (road=" + bldg.nearest_road.name + " bearing=" + roadBearing + " angleDiff=" + bestAngleDiff.toFixed(1) + "). Re-rotating.");
+              streetIdx = bestEdge;
+              // Find rear edge (most opposite to new street)
+              rearIdx = 0;
+              var maxDiff2 = 0;
+              for (var ei3 = 0; ei3 < nv2; ei3++) {
+                if (ei3 === bestEdge) continue;
+                var ni3 = (ei3 + 1) % nv2;
+                var edx3 = origVerts[ni3][0] - origVerts[ei3][0];
+                var edy3 = origVerts[ni3][1] - origVerts[ei3][1];
+                var elen3 = Math.sqrt(edx3 * edx3 + edy3 * edy3);
+                if (elen3 < 1) continue;
+                var nx3 = -edy3 / elen3, ny3 = edx3 / elen3;
+                var mx3 = (origVerts[ei3][0] + origVerts[ni3][0]) / 2;
+                var my3 = (origVerts[ei3][1] + origVerts[ni3][1]) / 2;
+                if (nx3 * (cxL - mx3) + ny3 * (cyL - my3) > 0) { nx3 = -nx3; ny3 = -ny3; }
+                var nb3 = Math.atan2(nx3, ny3) * 180 / Math.PI;
+                if (nb3 < 0) nb3 += 360;
+                var d3 = Math.abs(nb3 - roadBearing);
+                if (d3 > 180) d3 = 360 - d3;
+                if (d3 > maxDiff2) { maxDiff2 = d3; rearIdx = ei3; }
+              }
+              // Recompute rotation from corrected street edge
+              var sv1b = origVerts[bestEdge], sv2b = origVerts[(bestEdge + 1) % nv2];
+              var seAngle = Math.atan2(sv2b[1] - sv1b[1], sv2b[0] - sv1b[0]);
+              var rotB = -seAngle;
+              // Check if street ends up at bottom
+              var cosB = Math.cos(rotB), sinB = Math.sin(rotB);
+              var smxB = (sv1b[0] + sv2b[0]) / 2, smyB = (sv1b[1] + sv2b[1]) / 2;
+              var rotSY = (smxB - cxL) * sinB + (smyB - cyL) * cosB;
+              if (rotSY > 0) rotB += Math.PI;
+              while (rotB < 0) rotB += 2 * Math.PI;
+              while (rotB >= 2 * Math.PI) rotB -= 2 * Math.PI;
+              var rotDegB = rotB * 180 / Math.PI;
+              // Apply rotation to original vertices
+              if (rotDegB > 3 && rotDegB < 357) {
+                var cosR = Math.cos(rotB), sinR = Math.sin(rotB);
+                var rv2 = [];
+                for (var vi3 = 0; vi3 < nv2; vi3++) {
+                  var rdx = origVerts[vi3][0] - cxL, rdy = origVerts[vi3][1] - cyL;
+                  rv2.push([cxL + rdx * cosR - rdy * sinR, cyL + rdx * sinR + rdy * cosR]);
+                }
+                var rmx = Infinity, rmy = Infinity;
+                for (var vi4 = 0; vi4 < rv2.length; vi4++) {
+                  if (rv2[vi4][0] < rmx) rmx = rv2[vi4][0];
+                  if (rv2[vi4][1] < rmy) rmy = rv2[vi4][1];
+                }
+                for (var vi5 = 0; vi5 < rv2.length; vi5++) { rv2[vi5][0] -= rmx; rv2[vi5][1] -= rmy; }
+                var rmaxX = 0, rmaxY = 0;
+                for (var vi6 = 0; vi6 < rv2.length; vi6++) {
+                  if (rv2[vi6][0] > rmaxX) rmaxX = rv2[vi6][0];
+                  if (rv2[vi6][1] > rmaxY) rmaxY = rv2[vi6][1];
+                }
+                // Update stored rotation params for centroid transform
+                _s79Rotated = true;
+                _s79Cos = cosR; _s79Sin = sinR;
+                _s79Cx = cxL; _s79Cy = cyL;
+                _s79Mx = rmx; _s79My = rmy;
+                // Rebuild edges
+                var corrEdges = [];
+                for (var ei4 = 0; ei4 < nv2; ei4++) {
+                  var ni4 = (ei4 + 1) % nv2;
+                  var edx4 = rv2[ni4][0] - rv2[ei4][0], edy4 = rv2[ni4][1] - rv2[ei4][1];
+                  var elen4 = Math.round(Math.sqrt(edx4 * edx4 + edy4 * edy4));
+                  var isStr4 = (ei4 === bestEdge);
+                  var isRear4 = (ei4 === rearIdx);
+                  var sbT4 = isStr4 ? "front" : (isRear4 ? "rear" : "side");
+                  corrEdges.push({
+                    type: isStr4 ? "street" : "property",
+                    label: isStr4 ? (bldg.nearest_road.name || data.location.address || "") : "",
+                    length: elen4,
+                    setbackType: sbT4,
+                    neighborLabel: ""
+                  });
+                }
+                verts = rv2; // update closure
+                edges = corrEdges;
+                u("lotWidth", Math.round(rmaxX));
+                u("lotDepth", Math.round(rmaxY));
+                u("northAngle", Math.round(rotDegB));
+                u("_lotRotation", 0);
+                u("lotEdges", corrEdges);
+                u("lotVertices", rv2);
+                if (bldg.nearest_road.name) u("streetName", bldg.nearest_road.name);
+                console.log("S79b: Re-rotated lot: " + rotDegB.toFixed(1) + "deg, street edge " + bestEdge + " (" + bldg.nearest_road.name + "), bbox=" + Math.round(rmaxX) + "x" + Math.round(rmaxY));
+              } else {
+                // Corrected edge is already horizontal, just update labels
+                var corrEdges = [];
+                for (var ei4 = 0; ei4 < nv2; ei4++) {
+                  var ni4 = (ei4 + 1) % nv2;
+                  var edx4 = origVerts[ni4][0] - origVerts[ei4][0], edy4 = origVerts[ni4][1] - origVerts[ei4][1];
+                  var elen4 = Math.round(Math.sqrt(edx4 * edx4 + edy4 * edy4));
+                  var isStr4 = (ei4 === bestEdge);
+                  var isRear4 = (ei4 === rearIdx);
+                  var sbT4 = isStr4 ? "front" : (isRear4 ? "rear" : "side");
+                  corrEdges.push({
+                    type: isStr4 ? "street" : "property",
+                    label: isStr4 ? (bldg.nearest_road.name || data.location.address || "") : "",
+                    length: elen4,
+                    setbackType: sbT4,
+                    neighborLabel: ""
+                  });
+                }
+                _s79Rotated = false;
+                _s79Cos = 1; _s79Sin = 0; _s79Mx = 0; _s79My = 0;
+                verts = origVerts;
+                edges = corrEdges;
+                u("northAngle", 0);
+                u("_lotRotation", 0);
+                u("lotEdges", corrEdges);
+                u("lotVertices", origVerts);
+                if (bldg.nearest_road.name) u("streetName", bldg.nearest_road.name);
+                console.log("S79b: Corrected street edge " + bestEdge + ", no rotation needed");
+              }
+            } else if (bestEdge >= 0 && bestEdge === streetIdx) {
+              // Overpass confirms ray-cast edge selection, just enrich name
+              if (bldg.nearest_road.name) {
+                u("streetName", bldg.nearest_road.name);
+                var curEdges = edges || [];
+                if (curEdges.length > 0) {
+                  var updatedEdges = curEdges.map(function(e) {
+                    if (e.type === "street") return Object.assign({}, e, { label: bldg.nearest_road.name });
+                    return e;
+                  });
+                  u("lotEdges", updatedEdges);
+                }
+              }
+              console.log("S79b: Overpass confirms street edge " + bestEdge + " (" + (bldg.nearest_road.name || "unnamed") + ", angleDiff=" + bestAngleDiff.toFixed(1) + ")");
+            } else {
+              console.log("S79b: Road bearing didn't match any edge well (bestEdge=" + bestEdge + " diff=" + bestAngleDiff.toFixed(1) + "), keeping ray-cast edge " + streetIdx);
+            }
+          } else if (bldg.nearest_road && bldg.nearest_road.name) {
+            // No bearing but has name -- just enrich
             u("streetName", bldg.nearest_road.name);
-            // Update the street edge label in lotEdges
             var curEdges = edges || [];
             if (curEdges.length > 0) {
               var updatedEdges = curEdges.map(function(e) {
-                if (e.type === "street") {
-                  return Object.assign({}, e, { label: bldg.nearest_road.name });
-                }
+                if (e.type === "street") return Object.assign({}, e, { label: bldg.nearest_road.name });
                 return e;
               });
               u("lotEdges", updatedEdges);
