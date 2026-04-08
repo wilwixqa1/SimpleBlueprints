@@ -2386,55 +2386,44 @@ async def building_footprint(request: Request):
     # Overpass is ONLY used for road name/bearing (for lot rotation).
     google_bldg = _google_solar_lookup(lat, lng, lot_origin=lot_origin)
     if google_bldg:
+        # S79: Cross-validate Solar dims against Realie building sqft
+        realie_sqft = body.get("realie_sqft")
+        realie_stories = body.get("stories") or 1
+        if realie_sqft and realie_sqft > 0:
+            try:
+                realie_footprint = float(realie_sqft) / max(1, int(realie_stories))
+                solar_footprint = google_bldg["width"] * google_bldg["depth"]
+                dim_ratio = solar_footprint / realie_footprint if realie_footprint > 0 else 1.0
+                if dim_ratio > 1.5:
+                    # Solar dims significantly larger than Realie -- scale down to Realie
+                    scale = _math.sqrt(realie_footprint / solar_footprint)
+                    old_w, old_d = google_bldg["width"], google_bldg["depth"]
+                    google_bldg["width"] = round(google_bldg["width"] * scale, 1)
+                    google_bldg["depth"] = round(google_bldg["depth"] * scale, 1)
+                    google_bldg["area_sqft"] = round(google_bldg["width"] * google_bldg["depth"], 0)
+                    print(f"S79: Solar dims scaled by Realie cross-check: {old_w:.1f}x{old_d:.1f} -> {google_bldg['width']:.1f}x{google_bldg['depth']:.1f} (solar_fp={solar_footprint:.0f} realie_fp={realie_footprint:.0f} ratio={dim_ratio:.2f})", flush=True)
+                elif dim_ratio < 0.5:
+                    print(f"S79: WARNING Solar dims much smaller than Realie (ratio={dim_ratio:.2f}). Solar may have wrong building. Keeping Solar dims.", flush=True)
+                else:
+                    print(f"S79: Solar/Realie cross-check OK (ratio={dim_ratio:.2f})", flush=True)
+            except (ValueError, TypeError) as e:
+                print(f"S79: Cross-validation error: {e}", flush=True)
+
         # Replace all Overpass buildings with just the Solar building.
         # Keep secondary structures (sheds/garages < 400sqft) from Overpass.
         secondary = [b for b in result.get("buildings", []) if b.get("area_sqft", 0) < 400]
         result["buildings"] = [google_bldg] + secondary
         result["count"] = len(result["buildings"])
-        print(f"S78: Using Solar building: {google_bldg['width']}x{google_bldg['depth']} center={google_bldg['centroid_ft']} (kept {len(secondary)} secondary structures from Overpass)", flush=True)
+        print(f"S79: Using Solar building: {google_bldg['width']}x{google_bldg['depth']} center={google_bldg['centroid_ft']} (kept {len(secondary)} secondary structures)", flush=True)
 
-    # S78: Fallback road bearing when Overpass found no roads.
-    # Use address geocode point (near mailbox/curb) as proxy for street direction.
-    # Bearing from building center toward address point approximates road bearing.
-    if not result.get("nearest_road") and google_bldg and lot_origin:
-        ft_per_deg_lat = 364000.0
-        ref_lat_fb, ref_lng_fb = lot_origin
-        ft_per_deg_lng_fb = 364000.0 * _math.cos(_math.radians(ref_lat_fb))
-        addr_x = (lng - ref_lng_fb) * ft_per_deg_lng_fb
-        addr_y = (lat - ref_lat_fb) * ft_per_deg_lat
-        bldg_cx = google_bldg["centroid_ft"][0]
-        bldg_cy = google_bldg["centroid_ft"][1]
-        dx_fb = addr_x - bldg_cx
-        dy_fb = addr_y - bldg_cy
-        dist_fb = _math.sqrt(dx_fb * dx_fb + dy_fb * dy_fb)
-        if dist_fb > 30:  # Need meaningful distance for reliable bearing
-            # Bearing from north, clockwise (same convention as Overpass road bearing)
-            bearing_fb = _math.degrees(_math.atan2(dx_fb, dy_fb))
-            if bearing_fb < 0:
-                bearing_fb += 360
-            result["nearest_road"] = {
-                "name": "",
-                "dist": round(dist_fb, 1),
-                "bearing": round(bearing_fb, 1),
-                "closest_point_ft": [round(addr_x, 1), round(addr_y, 1)],
-                "osm_id": "address_fallback",
-                "source": "address_point_fallback",
-            }
-            print(f"S78: Synthetic road bearing from address point: {bearing_fb:.1f}deg dist={dist_fb:.1f}ft", flush=True)
-        else:
-            print(f"S78: Address point too close to building center ({dist_fb:.1f}ft) for reliable bearing, skipping road fallback", flush=True)
+    # S79: Address-point fallback bearing REMOVED.
+    # Rotation is now derived from lot polygon edge in the frontend (S79).
+    # Overpass road data is only used for street name enrichment.
 
-    # Only cache successful results with actual data
-    # S78: Don't cache when road is only from address fallback -- next request
-    # should retry Overpass for real road data. Fallback results still work for
-    # this request, just won't be cached.
-    has_real_road = result.get("nearest_road") and result["nearest_road"].get("source") != "address_point_fallback"
-    if result.get("count", 0) > 0 or has_real_road:
-        if not has_real_road and result.get("nearest_road", {}).get("source") == "address_point_fallback":
-            print(f"S78: NOT caching (address fallback road only, Overpass may recover)", flush=True)
-        else:
-            _building_cache[cache_key] = result
-            print(f"Building footprint cached for {cache_key}", flush=True)
+    # Cache successful results with building or road data
+    if result.get("count", 0) > 0 or result.get("nearest_road"):
+        _building_cache[cache_key] = result
+        print(f"Building footprint cached for {cache_key}", flush=True)
 
     return JSONResponse(result)
 

@@ -1084,11 +1084,101 @@ function StepContent(props) {
             neighborLabel: ""
           });
         }
-        u("lotEdges", edges);
         u("lotArea", data.lot.area_sqft || Math.round(data.lot.width * data.lot.depth));
-        // S70: Auto-set north angle. Parcel coords are lat/lng-based,
-        // so Y=geographic north. North points up on the page = 0 degrees.
-        u("northAngle", 0);
+        // S79: Compute lot rotation from street edge angle (polygon-derived).
+        // The street edge bearing gives us the rotation needed to put street
+        // at the bottom of the drawing. This replaces Overpass road bearing
+        // dependency -- rotation is now available immediately from Realie data.
+        var sv1 = verts[streetIdx], sv2 = verts[(streetIdx + 1) % nv];
+        var streetEdgeDx = sv2[0] - sv1[0], streetEdgeDy = sv2[1] - sv1[1];
+        var streetEdgeLen = Math.sqrt(streetEdgeDx * streetEdgeDx + streetEdgeDy * streetEdgeDy);
+        // Edge angle in radians (from +X axis, counterclockwise)
+        var streetEdgeAngle = Math.atan2(streetEdgeDy, streetEdgeDx);
+        // We want this edge horizontal at the bottom (pointing right = angle 0).
+        // Rotation needed = -streetEdgeAngle. But we also need the street edge
+        // to end up at minimum Y (bottom). After rotating by -edgeAngle, the
+        // edge is horizontal. Check if it's at the bottom or top.
+        var rotForHoriz = -streetEdgeAngle;
+        // Rotate lot centroid and street edge midpoint to test position
+        var lotCxR = 0, lotCyR = 0;
+        for (var viR = 0; viR < nv; viR++) { lotCxR += verts[viR][0]; lotCyR += verts[viR][1]; }
+        lotCxR /= nv; lotCyR /= nv;
+        var cosTest = Math.cos(rotForHoriz), sinTest = Math.sin(rotForHoriz);
+        var streetMidX = (sv1[0] + sv2[0]) / 2, streetMidY = (sv1[1] + sv2[1]) / 2;
+        var rotStreetY = (streetMidX - lotCxR) * sinTest + (streetMidY - lotCyR) * cosTest;
+        var rotCentY = 0; // centroid rotates to origin
+        // If street edge is above centroid after rotation, flip 180 degrees
+        if (rotStreetY > rotCentY) {
+          rotForHoriz += Math.PI;
+        }
+        // Normalize to 0..2PI range
+        while (rotForHoriz < 0) rotForHoriz += 2 * Math.PI;
+        while (rotForHoriz >= 2 * Math.PI) rotForHoriz -= 2 * Math.PI;
+        var rotDeg = rotForHoriz * 180 / Math.PI;
+        // Skip rotation for near-zero angles (street already at bottom)
+        var _s79RotRad = 0, _s79Cos = 1, _s79Sin = 0;
+        var _s79Cx = lotCxR, _s79Cy = lotCyR, _s79Mx = 0, _s79My = 0;
+        var _s79Rotated = false;
+        if (rotDeg > 3 && rotDeg < 357) {
+          _s79RotRad = rotForHoriz;
+          _s79Cos = Math.cos(_s79RotRad);
+          _s79Sin = Math.sin(_s79RotRad);
+          // Rotate all vertices around lot centroid
+          var rotVerts = [];
+          for (var viR2 = 0; viR2 < nv; viR2++) {
+            var rdx = verts[viR2][0] - _s79Cx, rdy = verts[viR2][1] - _s79Cy;
+            rotVerts.push([_s79Cx + rdx * _s79Cos - rdy * _s79Sin, _s79Cy + rdx * _s79Sin + rdy * _s79Cos]);
+          }
+          // Shift to origin (min corner = 0,0)
+          var rMinX = Infinity, rMinY = Infinity;
+          for (var viR3 = 0; viR3 < rotVerts.length; viR3++) {
+            if (rotVerts[viR3][0] < rMinX) rMinX = rotVerts[viR3][0];
+            if (rotVerts[viR3][1] < rMinY) rMinY = rotVerts[viR3][1];
+          }
+          _s79Mx = rMinX; _s79My = rMinY;
+          for (var viR4 = 0; viR4 < rotVerts.length; viR4++) {
+            rotVerts[viR4][0] -= rMinX;
+            rotVerts[viR4][1] -= rMinY;
+          }
+          // Compute new bounding box
+          var rMaxX = 0, rMaxY = 0;
+          for (var viR5 = 0; viR5 < rotVerts.length; viR5++) {
+            if (rotVerts[viR5][0] > rMaxX) rMaxX = rotVerts[viR5][0];
+            if (rotVerts[viR5][1] > rMaxY) rMaxY = rotVerts[viR5][1];
+          }
+          // Rebuild edges for rotated vertices
+          var rotEdges = [];
+          for (var ei = 0; ei < nv; ei++) {
+            var ni = (ei + 1) % nv;
+            var edx = rotVerts[ni][0] - rotVerts[ei][0], edy = rotVerts[ni][1] - rotVerts[ei][1];
+            var elen = Math.round(Math.sqrt(edx * edx + edy * edy));
+            var isStreet = (ei === streetIdx);
+            var isRear = (ei === rearIdx);
+            var sbType = isStreet ? "front" : (isRear ? "rear" : "side");
+            rotEdges.push({
+              type: isStreet ? "street" : "property",
+              label: isStreet ? (data.location.address || "") : "",
+              length: elen,
+              setbackType: sbType,
+              neighborLabel: ""
+            });
+          }
+          verts = rotVerts; // update closure variable for building footprint callback
+          edges = rotEdges;
+          u("lotWidth", Math.round(rMaxX));
+          u("lotDepth", Math.round(rMaxY));
+          u("northAngle", Math.round(rotDeg));
+          u("_lotRotation", 0);
+          _s79Rotated = true;
+          console.log("S79: Polygon-edge rotation applied: " + rotDeg.toFixed(1) + "deg from street edge " + streetIdx + " (edgeAngle=" + (streetEdgeAngle * 180 / Math.PI).toFixed(1) + "deg, edgeLen=" + streetEdgeLen.toFixed(0) + "ft)");
+        } else {
+          u("northAngle", 0);
+          u("_lotRotation", 0);
+          console.log("S79: No rotation needed (street edge already near-horizontal, rotDeg=" + rotDeg.toFixed(1) + ")");
+        }
+        u("lotEdges", edges);
+        // lotVertices MUST be set last (prevents engine polygon regeneration race)
+        u("lotVertices", verts);
       }
       // Apply house dimensions
       if (data.building.estimated_width && data.building.estimated_depth) {
@@ -1096,8 +1186,9 @@ function StepContent(props) {
         u("houseDepth", Math.round(data.building.estimated_depth));
       }
       // Estimate house position from standard setbacks
-      var lotW = Math.round(data.lot.width);
-      var lotD = Math.round(data.lot.depth);
+      // S79: Use rotated lot dimensions if rotation was applied
+      var lotW = _s79Rotated ? Math.round(Math.max.apply(null, verts.map(function(v) { return v[0]; }))) : Math.round(data.lot.width);
+      var lotD = _s79Rotated ? Math.round(Math.max.apply(null, verts.map(function(v) { return v[1]; }))) : Math.round(data.lot.depth);
       var hw = Math.round(data.building.estimated_width || 40);
       var hd = Math.round(data.building.estimated_depth || 30);
       var offsetSide = Math.max(5, Math.round((lotW - hw) / 2));
@@ -1124,108 +1215,37 @@ function StepContent(props) {
       // S73: Auto-retry once on failure, show warning if both attempts fail.
       if (data.location.lat && data.location.lng) {
         var _fpLat = data.location.lat, _fpLng = data.location.lng, _fpRaw = data.raw_coords;
+        var _fpRealieSqft = data.building.sqft || null;
+        var _fpStories = data.building.stories || 1;
         var _doFootprintLookup = function(attempt) {
           setFootprintFailed(false);
           if (guideActive && attempt > 1) setGuidePhase('footprint_loading');
           fetch('/api/building-footprint', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ lat: _fpLat, lng: _fpLng, raw_coords: _fpRaw })
+            body: JSON.stringify({ lat: _fpLat, lng: _fpLng, raw_coords: _fpRaw, realie_sqft: _fpRealieSqft, stories: _fpStories })
           })
           .then(function(r) { return r.json(); })
         .then(function(bldg) {
           console.log("Building footprint response:", bldg.count + " buildings, nearest_road:", bldg.nearest_road ? bldg.nearest_road.name + " bearing=" + bldg.nearest_road.bearing + "deg dist=" + bldg.nearest_road.dist + "ft" : "none");
-          // S70: Use nearest road to correct street edge identification
-          if (bldg.nearest_road && bldg.nearest_road.bearing !== undefined) {
-            var roadBearing = bldg.nearest_road.bearing; // degrees from north, clockwise
-            // Use 'verts' from parcel closure, not p.lotVertices (stale React state)
-            var curVerts = verts;
-            if (curVerts && curVerts.length >= 3) {
-              var nv2 = curVerts.length;
-              // Compute lot centroid
-              var cxL = 0, cyL = 0;
-              for (var vi2 = 0; vi2 < nv2; vi2++) { cxL += curVerts[vi2][0]; cyL += curVerts[vi2][1]; }
-              cxL /= nv2; cyL /= nv2;
-              // Find edge whose outward normal is closest to road bearing
-              var bestEdge = -1, bestAngleDiff = 999;
-              for (var ei2 = 0; ei2 < nv2; ei2++) {
-                var ni2 = (ei2 + 1) % nv2;
-                var edx2 = curVerts[ni2][0] - curVerts[ei2][0];
-                var edy2 = curVerts[ni2][1] - curVerts[ei2][1];
-                var elen2 = Math.sqrt(edx2 * edx2 + edy2 * edy2);
-                if (elen2 < 1) continue;
-                // Outward normal: perpendicular to edge, pointing away from centroid
-                var nx2 = -edy2 / elen2, ny2 = edx2 / elen2;
-                var mx2 = (curVerts[ei2][0] + curVerts[ni2][0]) / 2;
-                var my2 = (curVerts[ei2][1] + curVerts[ni2][1]) / 2;
-                if (nx2 * (cxL - mx2) + ny2 * (cyL - my2) > 0) { nx2 = -nx2; ny2 = -ny2; }
-                // Normal bearing (degrees from north=+Y, clockwise)
-                var normalBearing = Math.atan2(nx2, ny2) * 180 / Math.PI;
-                if (normalBearing < 0) normalBearing += 360;
-                // Angular difference (handle wraparound)
-                var diff2 = Math.abs(normalBearing - roadBearing);
-                if (diff2 > 180) diff2 = 360 - diff2;
-                if (diff2 < bestAngleDiff) { bestAngleDiff = diff2; bestEdge = ei2; }
-              }
-              if (bestEdge >= 0 && bestAngleDiff < 60) {
-                console.log("Road bearing matched edge " + bestEdge + " (angleDiff=" + bestAngleDiff.toFixed(1) + ")");
-                // Find rear edge: most opposite to street
-                var rearEdge2 = 0, maxDiff2 = 0;
-                for (var ei2 = 0; ei2 < nv2; ei2++) {
-                  if (ei2 === bestEdge) continue;
-                  var ni2 = (ei2 + 1) % nv2;
-                  var edx2 = curVerts[ni2][0] - curVerts[ei2][0];
-                  var edy2 = curVerts[ni2][1] - curVerts[ei2][1];
-                  var elen2 = Math.sqrt(edx2 * edx2 + edy2 * edy2);
-                  if (elen2 < 1) continue;
-                  var nx2 = -edy2 / elen2, ny2 = edx2 / elen2;
-                  var mx2 = (curVerts[ei2][0] + curVerts[ni2][0]) / 2;
-                  var my2 = (curVerts[ei2][1] + curVerts[ni2][1]) / 2;
-                  if (nx2 * (cxL - mx2) + ny2 * (cyL - my2) > 0) { nx2 = -nx2; ny2 = -ny2; }
-                  var normalBearing2 = Math.atan2(nx2, ny2) * 180 / Math.PI;
-                  if (normalBearing2 < 0) normalBearing2 += 360;
-                  var diff3 = Math.abs(normalBearing2 - roadBearing);
-                  if (diff3 > 180) diff3 = 360 - diff3;
-                  if (diff3 > maxDiff2) { maxDiff2 = diff3; rearEdge2 = ei2; }
+          // S79: Enrich street name from Overpass road data (non-critical)
+          if (bldg.nearest_road && bldg.nearest_road.name) {
+            u("streetName", bldg.nearest_road.name);
+            // Update the street edge label in lotEdges
+            var curEdges = edges || [];
+            if (curEdges.length > 0) {
+              var updatedEdges = curEdges.map(function(e) {
+                if (e.type === "street") {
+                  return Object.assign({}, e, { label: bldg.nearest_road.name });
                 }
-                // Rebuild edges with correct street assignment
-                var newEdges = [];
-                for (var ei2 = 0; ei2 < nv2; ei2++) {
-                  var ni2 = (ei2 + 1) % nv2;
-                  var edx2 = curVerts[ni2][0] - curVerts[ei2][0];
-                  var edy2 = curVerts[ni2][1] - curVerts[ei2][1];
-                  var elen2 = Math.round(Math.sqrt(edx2 * edx2 + edy2 * edy2));
-                  var isStr = (ei2 === bestEdge);
-                  var isRear = (ei2 === rearEdge2);
-                  var sbT = isStr ? "front" : (isRear ? "rear" : "side");
-                  newEdges.push({
-                    type: isStr ? "street" : "property",
-                    label: isStr ? (bldg.nearest_road.name || data.location.address || "") : "",
-                    length: elen2,
-                    setbackType: sbT,
-                    neighborLabel: ""
-                  });
-                }
-                u("lotEdges", newEdges);
-                // Update street name if we got a road name from OSM
-                if (bldg.nearest_road.name) {
-                  u("streetName", bldg.nearest_road.name);
-                }
-                // S78: Compute rotation to put street at bottom.
-                // Simplified: only rotates lot vertices and centroid. No building
-                // angle normalization or width/depth swap (Solar gives angle=0).
-                var drawRotation = (roadBearing - 180 + 360) % 360;
-                u("northAngle", Math.round(drawRotation));
-                u("_lotRotation", Math.round(drawRotation));
-                console.log("S78: lotRotation=" + Math.round(drawRotation) + " from road bearing " + roadBearing);
-                console.log("Street edge corrected via road data:", bldg.nearest_road.name, "bearing=" + roadBearing + "deg", "edge=" + bestEdge, "angleDiff=" + bestAngleDiff.toFixed(1));
-              } else {
-                console.log("Road bearing didn't match any edge well enough. bestEdge=" + bestEdge + " angleDiff=" + bestAngleDiff.toFixed(1));
-              }
+                return e;
+              });
+              u("lotEdges", updatedEdges);
             }
+            console.log("S79: Street name enriched from Overpass: " + bldg.nearest_road.name);
           }
           if (!bldg.buildings || bldg.buildings.length === 0) {
-            console.log("Building footprint: no OSM buildings found near this location" + (bldg.error ? " (error: " + bldg.error + ")" : ""));
+            console.log("Building footprint: no buildings found" + (bldg.error ? " (error: " + bldg.error + ")" : ""));
             if (guideActive) setGuidePhase('verify_extracted');
             return;
           }
@@ -1235,7 +1255,6 @@ function StepContent(props) {
             console.log("  #" + bi + ": " + b.width + "x" + b.depth + " area=" + b.area_sqft + "sqft dist=" + b.dist_from_center + "ft angle=" + b.angle + " type=" + b.type);
           }
           // Find the primary residence: closest building with area > 400 sqft
-          // and within ~250 ft of property center (search radius is 80m = ~262ft)
           var primary = null;
           for (var bi = 0; bi < bldg.buildings.length; bi++) {
             var b = bldg.buildings[bi];
@@ -1248,16 +1267,32 @@ function StepContent(props) {
             if (guideActive) setGuidePhase('verify_extracted');
             return;
           }
-          // Apply building footprint data
-          u("houseWidth", Math.round(primary.width));
-          u("houseDepth", Math.round(primary.depth));
-          u("houseAngle", primary.angle);
-          var lotVerts2 = data.lot.vertices;
-          var lotW2 = Math.round(data.lot.width);
-          var lotD2 = Math.round(data.lot.depth);
+          // Apply building dimensions from Solar/Overpass
           var hw2 = Math.round(primary.width);
           var hd2 = Math.round(primary.depth);
-          // S77: Point-in-polygon test (ray casting) for lot boundary checks
+          u("houseWidth", hw2);
+          u("houseDepth", hd2);
+          u("houseAngle", 0); // S78: always 0, Solar bbox is axis-aligned
+
+          // S79: Position house using Solar centroid in the already-rotated lot.
+          // The lot was rotated in the parcel callback. We rotate the centroid
+          // through the same transform to get its position in drawing space.
+          var centroidX = primary.centroid_ft[0];
+          var centroidY = primary.centroid_ft[1];
+          // Apply S79 rotation to centroid (same transform as lot vertices)
+          if (_s79Rotated) {
+            var cdx = centroidX - _s79Cx, cdy = centroidY - _s79Cy;
+            centroidX = _s79Cx + cdx * _s79Cos - cdy * _s79Sin - _s79Mx;
+            centroidY = _s79Cy + cdx * _s79Sin + cdy * _s79Cos - _s79My;
+            console.log("S79: Centroid rotated to drawing space: (" + centroidX.toFixed(1) + "," + centroidY.toFixed(1) + ")");
+          }
+
+          // Use the current (potentially rotated) lot vertices for positioning
+          var lotVerts2 = verts; // closure variable, already rotated if applicable
+          var lotW2 = Math.round(Math.max.apply(null, lotVerts2.map(function(v) { return v[0]; })));
+          var lotD2 = Math.round(Math.max.apply(null, lotVerts2.map(function(v) { return v[1]; })));
+
+          // Point-in-polygon test
           var _pointInPoly = function(px, py, polyVerts) {
             var inside = false;
             var n = polyVerts.length;
@@ -1270,26 +1305,8 @@ function StepContent(props) {
             }
             return inside;
           };
-          // S77: Use Overpass building centroid for house positioning (ground truth).
-          // Address point is only used for street edge detection, not house position.
-          // The centroid is in the same lot_origin coordinate system as lotVerts2.
-          var rawC2 = data.raw_coords;
-          var pLotX = null, pLotY = null;
-          if (rawC2 && rawC2.length >= 3 && data.location.lat && data.location.lng) {
-            var mLatR = Infinity, mLngR = Infinity;
-            for (var ci3 = 0; ci3 < rawC2.length; ci3++) {
-              if (rawC2[ci3][1] < mLatR) mLatR = rawC2[ci3][1];
-              if (rawC2[ci3][0] < mLngR) mLngR = rawC2[ci3][0];
-            }
-            pLotX = (data.location.lng - mLngR) * 364000.0 * Math.cos(mLatR * Math.PI / 180);
-            pLotY = (data.location.lat - mLatR) * 364000.0;
-          }
-          // S77: Primary source = Overpass centroid (building center in lot coords)
-          var centroidX = primary.centroid_ft[0];
-          var centroidY = primary.centroid_ft[1];
-          var usedCentroid = false;
-          // S78: Helper -- find tightest left/right polygon edges across multiple Y positions.
-          // On tapered lots, checking only mid-Y lets the house overflow at top/bottom corners.
+
+          // Tightest polygon edges across house height (for tapered lots)
           var _tightEdges = function(polyV, yTop, yMid, yBot) {
             var bestL = 0, bestR = Infinity, bestSpan = Infinity;
             var ys = [yTop, yMid, yBot];
@@ -1311,143 +1328,105 @@ function StepContent(props) {
             }
             return { left: bestL, right: bestR, span: bestSpan };
           };
-          if (lotVerts2 && lotVerts2.length >= 3 && _pointInPoly(centroidX, centroidY, lotVerts2)) {
-            // Centroid is inside the lot polygon -- use it directly
-            // houseDistFromStreet = house bottom-left Y = centroid Y - half depth
-            var newDist = Math.max(5, Math.round(centroidY - hd2 / 2));
-            if (newDist + hd2 > lotD2) newDist = Math.max(5, lotD2 - hd2 - 2);
-            // S78: Use tightest edges across house height for tapered lots
-            var houseCY = newDist + hd2 / 2;
-            var _te = _tightEdges(lotVerts2, newDist + 2, houseCY, newDist + hd2 - 2);
-            var leftX2 = _te.left;
-            var rightX2 = _te.right;
-            var newOffset = Math.max(0, Math.round(centroidX - hw2 / 2 - leftX2));
-            // Clamp so house fits inside lot
-            var maxOffset = Math.max(0, Math.round(rightX2 - leftX2 - hw2 - 2));
-            if (newOffset > maxOffset) newOffset = maxOffset;
-            u("houseDistFromStreet", newDist);
-            u("houseOffsetSide", newOffset);
-            usedCentroid = true;
-            console.log("S77: House positioned from Overpass centroid: (" + centroidX.toFixed(1) + "," + centroidY.toFixed(1) + ") offset=" + newOffset + " dist=" + newDist);
-          } else if (pLotX !== null && pLotY !== null && lotVerts2 && lotVerts2.length >= 3) {
-            // Fallback: address point (centroid was outside lot or unavailable)
-            console.log("S77: Overpass centroid outside lot polygon or unavailable, falling back to address point");
-            var newDist = Math.round(pLotY);
-            if (newDist + hd2 > lotD2) {
-              newDist = Math.max(5, Math.round(pLotY - hd2));
-            }
-            newDist = Math.max(5, newDist);
-            u("houseDistFromStreet", newDist);
-            // S78: Use tightest edges across house height for tapered lots
-            var houseCY = newDist + hd2 / 2;
-            var _te = _tightEdges(lotVerts2, newDist + 2, houseCY, newDist + hd2 - 2);
-            var leftX2 = _te.left;
-            var rightX2 = _te.right;
-            var newOffset = Math.max(0, Math.round(pLotX - hw2 / 2 - leftX2));
-            var maxOffset = Math.max(0, Math.round(rightX2 - leftX2 - hw2 - 2));
-            if (newOffset > maxOffset) newOffset = maxOffset;
-            u("houseOffsetSide", newOffset);
-            console.log("House positioned from address point: lot(" + pLotX.toFixed(1) + "," + pLotY.toFixed(1) + ") offset=" + newOffset + " dist=" + newDist);
-          } else {
-            // Last resort: center house with standard setback
-            var newOffset = Math.max(5, Math.round((lotW2 - hw2) / 2));
-            var newDist = Math.min(Math.round(lotD2 * 0.3), 35);
-            u("houseOffsetSide", newOffset);
-            u("houseDistFromStreet", newDist);
-            console.log("House positioned from fallback (centered, 30% setback)");
-          }
-          console.log("Building footprint applied:", primary.width + "x" + primary.depth, "angle=" + primary.angle + "deg", "area=" + primary.area_sqft + "sqft");
 
-          // S78: Simplified lot rotation. Rotate lot vertices so street edge is
-          // at bottom, then reposition house from rotated centroid. No building
-          // angle or width/depth swap -- Solar bbox is axis-aligned, houseAngle=0.
-          var _rFn72 = function(x, y) { return [x, y]; };  // identity default
-          var _lotRot78 = (typeof drawRotation === 'number') ? Math.round(drawRotation) : 0;
-          if (_lotRot78 !== 0 && verts && verts.length >= 3) {
-            // 1. Rotate lot vertices around centroid
-            var _cx = 0, _cy = 0;
-            for (var _i = 0; _i < verts.length; _i++) { _cx += verts[_i][0]; _cy += verts[_i][1]; }
-            _cx /= verts.length; _cy /= verts.length;
-            var _rad = _lotRot78 * Math.PI / 180, _cos = Math.cos(_rad), _sin = Math.sin(_rad);
-            var _rv = [];
-            for (var _i = 0; _i < verts.length; _i++) {
-              var _dx = verts[_i][0] - _cx, _dy = verts[_i][1] - _cy;
-              _rv.push([_cx + _dx * _cos - _dy * _sin, _cy + _dx * _sin + _dy * _cos]);
+          // S79: House positioning with improved fallback behavior.
+          // Priority: Solar centroid > address point > center fallback.
+          // Key rule: dimensions are sacred, position is flexible.
+          // Never push house to lot edge. If it doesn't fit, center it.
+          var newDist, newOffset;
+          var positioned = false;
+
+          if (lotVerts2 && lotVerts2.length >= 3 && _pointInPoly(centroidX, centroidY, lotVerts2)) {
+            // Centroid inside lot -- position from centroid
+            newDist = Math.max(5, Math.round(centroidY - hd2 / 2));
+            if (newDist + hd2 > lotD2 - 2) newDist = Math.max(5, lotD2 - hd2 - 2);
+            var houseCY = newDist + hd2 / 2;
+            var _te = _tightEdges(lotVerts2, newDist + 2, houseCY, newDist + hd2 - 2);
+            var availSpan = _te.right - _te.left;
+            newOffset = Math.max(2, Math.round(centroidX - hw2 / 2 - _te.left));
+            // S79: Improved clamping -- never push to edge, center if doesn't fit
+            var maxOffset = Math.max(2, Math.round(availSpan - hw2 - 2));
+            if (newOffset > maxOffset) {
+              // House overflows right side: center horizontally instead of clamping to edge
+              newOffset = Math.max(2, Math.round((availSpan - hw2) / 2));
+              console.log("S79: House didn't fit at centroid X, centered horizontally (span=" + availSpan.toFixed(0) + " hw=" + hw2 + ")");
             }
-            // 2. Shift to origin (min corner = 0,0)
-            var _mx = Infinity, _my = Infinity;
-            for (var _i = 0; _i < _rv.length; _i++) {
-              if (_rv[_i][0] < _mx) _mx = _rv[_i][0];
-              if (_rv[_i][1] < _my) _my = _rv[_i][1];
-            }
-            for (var _i = 0; _i < _rv.length; _i++) { _rv[_i][0] -= _mx; _rv[_i][1] -= _my; }
-            // Build rotation function for reuse
-            _rFn72 = function(x, y) {
-              var ddx = x - _cx, ddy = y - _cy;
-              return [_cx + ddx * _cos - ddy * _sin - _mx, _cy + ddx * _sin + ddy * _cos - _my];
-            };
-            // 3. Compute rotated lot bounding box
-            var _rvMaxX = 0, _rvMaxY = 0;
-            for (var _i = 0; _i < _rv.length; _i++) {
-              if (_rv[_i][0] > _rvMaxX) _rvMaxX = _rv[_i][0];
-              if (_rv[_i][1] > _rvMaxY) _rvMaxY = _rv[_i][1];
-            }
-            // 4. Rotate Solar centroid and recompute house position
-            var _rc = _rFn72(centroidX, centroidY);
-            var _hx = _rc[0] - hw2 / 2;
-            var _hy = _rc[1] - hd2 / 2;
-            var _dist = Math.max(5, Math.round(_hy));
-            if (_dist + hd2 > _rvMaxY - 2) _dist = Math.max(5, Math.round(_rvMaxY - hd2 - 2));
-            // 5. Clamp offset using tightest edges across house height
-            var _te = _tightEdges(_rv, _dist + 2, _dist + hd2 / 2, _dist + hd2 - 2);
-            var _midLeftX = _te.left;
-            var _offset = Math.round(Math.max(0, _hx - _midLeftX));
-            var _maxOff = Math.max(0, Math.round(_te.right - _te.left - hw2 - 2));
-            if (_offset > _maxOff) {
-              console.log("S78: Clamping offset from " + _offset + " to " + _maxOff + " (span=" + _te.span.toFixed(1) + " hw=" + hw2 + ")");
-              _offset = _maxOff;
-            }
-            if (_hx < _midLeftX) {
-              _offset = 2;
-              console.log("S78: House shifted to fit (hx=" + _hx.toFixed(1) + " leftEdge=" + _midLeftX.toFixed(1) + ")");
-            }
-            // 6. Apply rotated values
-            u("lotWidth", Math.round(_rvMaxX));
-            u("lotDepth", Math.round(_rvMaxY));
-            if (newEdges) u("lotEdges", newEdges);
-            u("_autoHouseOffset", _offset);
-            u("_autoHouseDist", _dist);
-            u("_autoHouseWidth", hw2);
-            u("_autoHouseDepth", hd2);
-            u("houseOffsetSide", _offset);
-            u("houseDistFromStreet", _dist);
-            u("houseWidth", hw2);
-            u("houseDepth", hd2);
-            u("houseAngle", 0);
-            u("_lotRotation", 0);
-            // lotVertices MUST be last (prevents engine polygon regeneration)
-            u("lotVertices", _rv);
-            console.log("S78: Rotated lot. bbox=" + Math.round(_rvMaxX) + "x" + Math.round(_rvMaxY) +
-              " offset=" + _offset + " dist=" + _dist +
-              " centroid=(" + _rc[0].toFixed(1) + "," + _rc[1].toFixed(1) + ")");
-          } else {
-            // No rotation needed (street already at bottom or no road data)
-            u("houseAngle", 0);
-            u("_autoHouseOffset", newOffset);
-            u("_autoHouseDist", newDist);
-            u("_autoHouseWidth", hw2);
-            u("_autoHouseDepth", hd2);
+            if (newOffset < 2) newOffset = 2;
+            positioned = true;
+            console.log("S79: House positioned from centroid: (" + centroidX.toFixed(1) + "," + centroidY.toFixed(1) + ") offset=" + newOffset + " dist=" + newDist);
           }
+
+          if (!positioned) {
+            // Fallback: address point
+            var rawC2 = data.raw_coords;
+            var pLotX = null, pLotY = null;
+            if (rawC2 && rawC2.length >= 3 && data.location.lat && data.location.lng) {
+              var mLatR = Infinity, mLngR = Infinity;
+              for (var ci3 = 0; ci3 < rawC2.length; ci3++) {
+                if (rawC2[ci3][1] < mLatR) mLatR = rawC2[ci3][1];
+                if (rawC2[ci3][0] < mLngR) mLngR = rawC2[ci3][0];
+              }
+              var addrX = (data.location.lng - mLngR) * 364000.0 * Math.cos(mLatR * Math.PI / 180);
+              var addrY = (data.location.lat - mLatR) * 364000.0;
+              // Rotate address point through same S79 transform
+              if (_s79Rotated) {
+                var adx = addrX - _s79Cx, ady = addrY - _s79Cy;
+                addrX = _s79Cx + adx * _s79Cos - ady * _s79Sin - _s79Mx;
+                addrY = _s79Cy + adx * _s79Sin + ady * _s79Cos - _s79My;
+              }
+              pLotX = addrX;
+              pLotY = addrY;
+            }
+            if (pLotX !== null && pLotY !== null && lotVerts2 && lotVerts2.length >= 3) {
+              newDist = Math.max(5, Math.round(pLotY));
+              if (newDist + hd2 > lotD2 - 2) newDist = Math.max(5, lotD2 - hd2 - 2);
+              var houseCY = newDist + hd2 / 2;
+              var _te = _tightEdges(lotVerts2, newDist + 2, houseCY, newDist + hd2 - 2);
+              var availSpan = _te.right - _te.left;
+              newOffset = Math.max(2, Math.round(pLotX - hw2 / 2 - _te.left));
+              var maxOffset = Math.max(2, Math.round(availSpan - hw2 - 2));
+              if (newOffset > maxOffset) {
+                newOffset = Math.max(2, Math.round((availSpan - hw2) / 2));
+              }
+              if (newOffset < 2) newOffset = 2;
+              positioned = true;
+              console.log("S79: House positioned from address point: (" + pLotX.toFixed(1) + "," + pLotY.toFixed(1) + ") offset=" + newOffset + " dist=" + newDist);
+            }
+          }
+
+          if (!positioned) {
+            // Last resort: center house on lot
+            newOffset = Math.max(5, Math.round((lotW2 - hw2) / 2));
+            newDist = Math.min(Math.round(lotD2 * 0.3), 35);
+            console.log("S79: House positioned from fallback (centered)");
+          }
+
+          u("houseDistFromStreet", newDist);
+          u("houseOffsetSide", newOffset);
+          u("_autoHouseOffset", newOffset);
+          u("_autoHouseDist", newDist);
+          u("_autoHouseWidth", hw2);
+          u("_autoHouseDepth", hd2);
+          console.log("S79: Building applied: " + hw2 + "x" + hd2 + " offset=" + newOffset + " dist=" + newDist + " area=" + primary.area_sqft + "sqft");
+
+          // S79: Rotation function for secondary structure positioning
+          // Uses the same S79 transform stored from parcel callback
+          var _rFn72 = _s79Rotated ? function(x, y) {
+            var ddx = x - _s79Cx, ddy = y - _s79Cy;
+            return [_s79Cx + ddx * _s79Cos - ddy * _s79Sin - _s79Mx, _s79Cy + ddx * _s79Sin + ddy * _s79Cos - _s79My];
+          } : function(x, y) { return [x, y]; };
           // S70: Auto-add secondary structures (sheds, garages) as site elements
           // Use position relative to primary building (internally consistent in Overpass)
           // S77: Use _rFn72 to rotate element positions into drawing space
           var osmTypeMap = { "shed": "shed", "garage": "garage", "garages": "garage", "carport": "garage" };
           var newElements = (p.siteElements || []).slice(); // copy existing
           var addedCount = 0;
-          var primaryCF = primary.centroid_ft;
-          // S77: Use Overpass centroid as house center (same coord system as other buildings)
-          var houseCX2 = centroidX;
-          var houseCY2 = centroidY;
+          // S79: Use UNROTATED centroid for relative positioning of secondary structures
+          // (Overpass centroids are in original lot coordinate space)
+          var houseCX2 = primary.centroid_ft[0]; // unrotated
+          var houseCY2 = primary.centroid_ft[1]; // unrotated
+          // Store original unrotated lot vertices for point-in-polygon check on secondary structures
+          var unrotatedVerts = data.lot.vertices;
           for (var bi2 = 0; bi2 < bldg.buildings.length; bi2++) {
             var b2 = bldg.buildings[bi2];
             if (b2.osm_id === primary.osm_id) continue; // skip primary
@@ -1458,15 +1437,15 @@ function StepContent(props) {
             if (!mappedType) continue;
             if (b2.area_sqft < 20 || b2.area_sqft > 2000) continue; // skip tiny or huge
             // Filter: only structures within 60ft of primary building (skip neighbors)
-            var dx2 = b2.centroid_ft[0] - primaryCF[0];
-            var dy2 = b2.centroid_ft[1] - primaryCF[1];
+            var dx2 = b2.centroid_ft[0] - primary.centroid_ft[0];
+            var dy2 = b2.centroid_ft[1] - primary.centroid_ft[1];
             var distFromPrimary = Math.sqrt(dx2 * dx2 + dy2 * dy2);
             if (distFromPrimary > 60) {
               console.log("Skipped " + (mappedType || b2.type) + " " + b2.osm_id + ": " + distFromPrimary.toFixed(0) + "ft from house (too far, likely neighbor)");
               continue;
             }
-            // S77: Point-in-polygon check -- reject structures outside lot boundary
-            if (lotVerts2 && lotVerts2.length >= 3 && !_pointInPoly(b2.centroid_ft[0], b2.centroid_ft[1], lotVerts2)) {
+            // S79: Point-in-polygon check uses UNROTATED vertices (Overpass centroids are in original space)
+            if (unrotatedVerts && unrotatedVerts.length >= 3 && !_pointInPoly(b2.centroid_ft[0], b2.centroid_ft[1], unrotatedVerts)) {
               console.log("Skipped " + (mappedType || b2.type) + " " + b2.osm_id + ": centroid outside lot polygon (neighbor's structure)");
               continue;
             }
