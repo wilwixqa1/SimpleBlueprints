@@ -2440,16 +2440,19 @@ function StepContent(props) {
       </div>
     </div>}
 
-    {/* Active zone header (when not zone 0) */}
-    {!isZone0 && <div style={{ marginBottom: 12, padding: "8px 12px", background: isCutout ? "#fef2f2" : "#eff6ff", borderRadius: 6, border: `1px solid ${isCutout ? "#fca5a5" : "#bfdbfe"}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-      <div>
-        <div style={{ fontSize: 12, fontWeight: 800, color: isCutout ? "#dc2626" : "#2563eb", fontFamily: _mono }}>{activeLabel}</div>
-        <div style={{ fontSize: 9, color: isCutout ? "#ef4444" : "#60a5fa", fontFamily: _mono }}>{isCutout ? "Cutout (subtracts from parent)" : "Add zone (extends deck)"}</div>
+    {/* Active zone header (when not zone 0) -- S80: editable label */}
+    {!isZone0 && <div style={{ marginBottom: 12, padding: "8px 12px", background: isCutout ? "#fef2f2" : "#eff6ff", borderRadius: 6, border: `1px solid ${isCutout ? "#fca5a5" : "#bfdbfe"}` }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+        <input type="text" value={activeLabel} onChange={e => updateZone(p.activeZone, "label", e.target.value)} style={{
+          fontSize: 12, fontWeight: 800, color: isCutout ? "#dc2626" : "#2563eb", fontFamily: _mono,
+          border: "none", background: "transparent", outline: "none", width: "100%", padding: 0
+        }} />
+        <button onClick={() => removeZone(p.activeZone)} style={{
+          padding: "5px 12px", fontSize: 9, fontWeight: 700, borderRadius: 5, fontFamily: _mono, cursor: "pointer",
+          border: "1px solid #fca5a5", background: "#fef2f2", color: "#dc2626", flexShrink: 0, marginLeft: 8
+        }}>Delete</button>
       </div>
-      <button onClick={() => removeZone(p.activeZone)} style={{
-        padding: "5px 12px", fontSize: 9, fontWeight: 700, borderRadius: 5, fontFamily: _mono, cursor: "pointer",
-        border: "1px solid #fca5a5", background: "#fef2f2", color: "#dc2626"
-      }}>Delete</button>
+      <div style={{ fontSize: 9, color: isCutout ? "#ef4444" : "#60a5fa", fontFamily: _mono }}>{isCutout ? "Cutout (subtracts from parent)" : `Add zone (${zoneW}' x ${zoneD}')`}</div>
     </div>}
 
 // {/* Width / Depth / Height sliders   zone-aware */}
@@ -2465,6 +2468,12 @@ function StepContent(props) {
       </div>
     </div>}
     {isZone0 && <Slider label="Height above grade" value={p.height} min={1} max={14} step={0.5} fmt={fmtFtIn} field="height" u={u} p={p} />}
+    {!isZone0 && activeZoneObj && activeZoneObj.type === "add" && <>
+      <Slider label="Zone height" value={zoneH} min={1} max={14} step={0.5} fmt={fmtFtIn} field="height" u={u} p={p} />
+      {zoneH !== p.height && <div style={{ fontSize: 9, color: "#d97706", fontFamily: _mono, marginTop: -4, marginBottom: 8, fontStyle: "italic" }}>
+        Different from main deck ({fmtFtIn(p.height)}). Elevation views will reflect this in a future update.
+      </div>}
+    </>}
     </div>
 
     {/* Zone offset slider (zones 1+ add type) */}
