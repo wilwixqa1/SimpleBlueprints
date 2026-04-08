@@ -2471,7 +2471,7 @@ function StepContent(props) {
     {!isZone0 && activeZoneObj && activeZoneObj.type === "add" && <>
       <Slider label="Zone height" value={zoneH} min={1} max={14} step={0.5} fmt={fmtFtIn} field="height" u={u} p={p} />
       {zoneH !== p.height && <div style={{ fontSize: 9, color: "#d97706", fontFamily: _mono, marginTop: -4, marginBottom: 8, fontStyle: "italic" }}>
-        Different from main deck ({fmtFtIn(p.height)}). Elevation views will reflect this in a future update.
+        Different from main deck ({fmtFtIn(p.height)}). PDF elevation views will reflect this in a future update.
       </div>}
     </>}
     </div>

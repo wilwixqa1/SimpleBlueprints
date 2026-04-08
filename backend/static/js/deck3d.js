@@ -262,7 +262,7 @@ window.buildDeckScene = function(scene, p, c, THREE) {
     var zW = zr.w;         // zone width
     var zD = zr.d;         // zone depth
     var isZ0 = ar.id === 0;
-    var zH = H; // TODO Phase 3: per-zone height from zone.h
+    var zH = isZ0 ? H : (ar.zone && ar.zone.h != null ? ar.zone.h : H); // S80: per-zone height
 
     // For zone 0, use the existing calc's post positions; for other zones, generate basic posts
     if (isZ0) {
@@ -338,37 +338,41 @@ window.buildDeckScene = function(scene, p, c, THREE) {
     } else {
 // Zones 1+: Simplified structure (posts at corners, beam along far edge, joists)
       var zonePostInset = 0.75; // Inset posts from zone edges
+      var isFlushZone = ar.zone && ar.zone.beamType === "flush";
 
-      // Posts at 4 corners of zone
-      var zCorners = [
-        [zwx + zonePostInset, zwz + zonePostInset],
-        [zwx + zW - zonePostInset, zwz + zonePostInset],
-        [zwx + zonePostInset, zwz + zD - zonePostInset],
-        [zwx + zW - zonePostInset, zwz + zD - zonePostInset]
-      ];
-      // Add intermediate posts if zone is wide (every ~6ft)
-      var postSpacing = 6;
-      for (var px2 = zonePostInset + postSpacing; px2 < zW - zonePostInset; px2 += postSpacing) {
-        zCorners.push([zwx + px2, zwz + zD - zonePostInset]);
-      }
-      zCorners.forEach(function(pt) {
-        addM(new THREE.CylinderGeometry(pR, pR, 0.5, 16), mats.concrete, pt[0], -0.1, pt[1]);
-        var po = new THREE.Mesh(new THREE.BoxGeometry(pD, zH, pD), mats.post); po.position.set(pt[0], zH / 2, pt[1]); po.castShadow = true; scene.add(po);
-        addM(new THREE.BoxGeometry(pD + 0.2, 0.15, pD + 0.2), mats.metal, pt[0], zH, pt[1]);
-      });
+      // Posts + beam (dropped only, skip for flush)
+      if (!isFlushZone) {
+        // Posts at 4 corners of zone
+        var zCorners = [
+          [zwx + zonePostInset, zwz + zonePostInset],
+          [zwx + zW - zonePostInset, zwz + zonePostInset],
+          [zwx + zonePostInset, zwz + zD - zonePostInset],
+          [zwx + zW - zonePostInset, zwz + zD - zonePostInset]
+        ];
+        // Add intermediate posts if zone is wide (every ~6ft)
+        var postSpacing = 6;
+        for (var px2 = zonePostInset + postSpacing; px2 < zW - zonePostInset; px2 += postSpacing) {
+          zCorners.push([zwx + px2, zwz + zD - zonePostInset]);
+        }
+        zCorners.forEach(function(pt) {
+          addM(new THREE.CylinderGeometry(pR, pR, 0.5, 16), mats.concrete, pt[0], -0.1, pt[1]);
+          var po = new THREE.Mesh(new THREE.BoxGeometry(pD, zH, pD), mats.post); po.position.set(pt[0], zH / 2, pt[1]); po.castShadow = true; scene.add(po);
+          addM(new THREE.BoxGeometry(pD + 0.2, 0.15, pD + 0.2), mats.metal, pt[0], zH, pt[1]);
+        });
 
-      // Beam along far edge (front edge of zone, furthest from house)
-      var beamLen = zW - 2 * zonePostInset;
-      if (beamLen > 0.1) {
-        var bmZ = new THREE.Mesh(new THREE.BoxGeometry(beamLen, bH2, bW2), mats.beam);
-        bmZ.position.set(zwx + zW / 2, zH - bH2 / 2 - 0.1, zwz + zD - zonePostInset);
-        bmZ.castShadow = true; scene.add(bmZ);
+        // Beam along far edge (front edge of zone, furthest from house)
+        var beamLen = zW - 2 * zonePostInset;
+        if (beamLen > 0.1) {
+          var bmZ = new THREE.Mesh(new THREE.BoxGeometry(beamLen, bH2, bW2), mats.beam);
+          bmZ.position.set(zwx + zW / 2, zH - bH2 / 2 - 0.1, zwz + zD - zonePostInset);
+          bmZ.castShadow = true; scene.add(bmZ);
+        }
       }
 
       // Joists spanning depth of zone
-      var zJLen = zD - 1;
+      var zJLen = isFlushZone ? zD - 0.2 : zD - 1;
       for (var zx2 = sp / 12; zx2 < zW; zx2 += sp / 12) {
-        addM(new THREE.BoxGeometry(jW2, jH2, zJLen), mats.joist, zwx + zx2, zH - jH2 / 2 - 0.1, zwz + zJLen / 2 + 0.5);
+        addM(new THREE.BoxGeometry(jW2, jH2, zJLen), mats.joist, zwx + zx2, zH - jH2 / 2 - 0.1, zwz + (isFlushZone ? 0.1 : 0.5) + zJLen / 2);
       }
 
       // Rim joists on 3 exposed sides (not the attachment edge which connects to parent)
@@ -465,9 +469,26 @@ window.buildDeckScene = function(scene, p, c, THREE) {
     var clip = clipBoardForChamfers(bx2, zStart, zEnd);
     var len = clip.zEnd - clip.zStart;
     if (len < 0.1) return;
+    // S80: Per-zone height for deck boards
+    var boardH = getHeightAtPoint(bx2, clip.zStart + len / 2);
     var b = new THREE.Mesh(new THREE.BoxGeometry(bdW - 0.02, bdH, len), mats.deck);
-    b.position.set(bx2, H + bdH / 2, clip.zStart + len / 2);
+    b.position.set(bx2, boardH + bdH / 2, clip.zStart + len / 2);
     b.receiveShadow = true; scene.add(b);
+  }
+
+// S80: Zone height lookup for deck boards and railing
+  var _zoneHeightRects = [];
+  addRects.forEach(function(ar) {
+    var zr = ar.rect;
+    var zh = ar.id === 0 ? H : (ar.zone && ar.zone.h != null ? ar.zone.h : H);
+    _zoneHeightRects.push({ xMin: cx + zr.x, xMax: cx + zr.x + zr.w, zMin: cz + zr.y, zMax: cz + zr.y + zr.d, h: zh });
+  });
+  function getHeightAtPoint(wx, wz) {
+    for (var i = _zoneHeightRects.length - 1; i >= 0; i--) {
+      var r = _zoneHeightRects[i];
+      if (wx >= r.xMin - 0.01 && wx <= r.xMax + 0.01 && wz >= r.zMin - 0.01 && wz <= r.zMax + 0.01) return r.h;
+    }
+    return H;
   }
 
 // S20: Decking boards   iterate over composite outline rects
@@ -521,7 +542,7 @@ window.buildDeckScene = function(scene, p, c, THREE) {
   });
 
 // S20: Railing   from exposed edges (multi-zone) or hardcoded (single-zone)
-  var rH = (c.guardHeight || 36) / 12, trY = H + bdH + rH, brY = H + bdH + 0.25;
+  var rH = (c.guardHeight || 36) / 12;
   var railTopW = 0.18, railBotW = 0.12, balW = 0.07, balSp = 0.5, postW = 0.3;
   var railZStart = isLedger ? cz + 0.3 : cz;
 
@@ -537,15 +558,18 @@ window.buildDeckScene = function(scene, p, c, THREE) {
     var len = Math.sqrt(dx2 * dx2 + dz2 * dz2);
     if (len < 0.05) return;
     var mx = (x1 + x2) / 2, mz = (z1 + z2) / 2;
+    // S80: Per-zone railing height
+    var localH = getHeightAtPoint(mx, mz);
+    var localTrY = localH + bdH + rH, localBrY = localH + bdH + 0.25;
     var isDiag = Math.abs(dx2) > 0.01 && Math.abs(dz2) > 0.01;
     var angle = isDiag ? Math.atan2(dz2, dx2) : 0;
     var isX = !isDiag && Math.abs(dz2) < 0.01;
     var topG = (isDiag || isX) ? new THREE.BoxGeometry(len, railTopW, railTopW) : new THREE.BoxGeometry(railTopW, railTopW, len);
-    var topM = new THREE.Mesh(topG, mats.rail); topM.position.set(mx, trY, mz);
+    var topM = new THREE.Mesh(topG, mats.rail); topM.position.set(mx, localTrY, mz);
     if (isDiag) topM.rotation.y = -angle;
     scene.add(topM);
     var botG = (isDiag || isX) ? new THREE.BoxGeometry(len, railBotW, railBotW) : new THREE.BoxGeometry(railBotW, railBotW, len);
-    var botM = new THREE.Mesh(botG, mats.rail); botM.position.set(mx, brY, mz);
+    var botM = new THREE.Mesh(botG, mats.rail); botM.position.set(mx, localBrY, mz);
     if (isDiag) botM.rotation.y = -angle;
     scene.add(botM);
     var balG = new THREE.BoxGeometry(balW, rH - 0.3, balW);
@@ -553,14 +577,15 @@ window.buildDeckScene = function(scene, p, c, THREE) {
     for (var i = 0; i <= n; i++) {
       var t = n > 0 ? i / n : 0.5;
       var bm = new THREE.Mesh(balG, mats.rail);
-      bm.position.set(x1 + dx2 * t, H + bdH + rH / 2 + 0.1, z1 + dz2 * t);
+      bm.position.set(x1 + dx2 * t, localH + bdH + rH / 2 + 0.1, z1 + dz2 * t);
       scene.add(bm);
     }
   }
 
   function addRailPost(px, pz) {
+    var localH = getHeightAtPoint(px, pz);
     var pm = new THREE.Mesh(new THREE.BoxGeometry(postW, rH + 0.3, postW), mats.rail);
-    pm.position.set(px, H + bdH + rH / 2, pz);
+    pm.position.set(px, localH + bdH + rH / 2, pz);
     scene.add(pm);
   }
 
