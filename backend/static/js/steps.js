@@ -1217,6 +1217,8 @@ function StepContent(props) {
         var _fpLat = data.location.lat, _fpLng = data.location.lng, _fpRaw = data.raw_coords;
         var _fpRealieSqft = data.building.sqft || null;
         var _fpStories = data.building.stories || 1;
+        // S79c: Flag site plan as loading until building footprint returns
+        u("_siteplanLoading", true);
         var _doFootprintLookup = function(attempt) {
           setFootprintFailed(false);
           if (guideActive && attempt > 1) setGuidePhase('footprint_loading');
@@ -1404,6 +1406,8 @@ function StepContent(props) {
           }
           if (!bldg.buildings || bldg.buildings.length === 0) {
             console.log("Building footprint: no buildings found" + (bldg.error ? " (error: " + bldg.error + ")" : ""));
+            u("_siteplanLoading", false);
+            u("_siteplanConfidence", { level: "low", messages: ["Building data unavailable. Dimensions are estimated from tax records.", "Verify house width, depth, and position."] });
             if (guideActive) setGuidePhase('verify_extracted');
             return;
           }
@@ -1422,6 +1426,8 @@ function StepContent(props) {
           }
           if (!primary) {
             console.log("Building footprint: no building passed filter (>= 400sqft, < 250ft)");
+            u("_siteplanLoading", false);
+            u("_siteplanConfidence", { level: "low", messages: ["Building data unavailable. Dimensions are estimated from tax records.", "Verify house width, depth, and position."] });
             if (guideActive) setGuidePhase('verify_extracted');
             return;
           }
@@ -1634,6 +1640,30 @@ function StepContent(props) {
             console.log("Added " + addedCount + " site elements from OSM building data");
           }
           if (window._trackEvent) window._trackEvent('building_footprint', { width: primary.width, depth: primary.depth, angle: primary.angle, area: primary.area_sqft, osm_id: primary.osm_id });
+          // S79c: Compute site plan confidence based on data quality signals
+          var _confMessages = [];
+          var _confLevel = "high"; // start optimistic
+          var _hadOverpassRoad = bldg.nearest_road && bldg.nearest_road.bearing !== undefined;
+          if (!_hadOverpassRoad) {
+            // No Overpass road data -- street edge is ray-cast only
+            _confLevel = "medium";
+            _confMessages.push("Street edge detected from address data only. Verify the street is on the correct side.");
+          }
+          if (!positioned) {
+            _confLevel = "medium";
+            _confMessages.push("House position is approximate. Drag to adjust if needed.");
+          }
+          if (primary.source === "google_solar" && primary.solar_meta) {
+            // Solar data available -- good signal for dimensions
+          } else {
+            _confLevel = _confLevel === "high" ? "medium" : "low";
+            _confMessages.push("House dimensions are estimated. Please verify width and depth.");
+          }
+          if (_confMessages.length === 0) {
+            _confMessages.push("Street, position, and dimensions verified against satellite data.");
+          }
+          u("_siteplanLoading", false);
+          u("_siteplanConfidence", { level: _confLevel, messages: _confMessages });
           if (guideActive) setGuidePhase('verify_extracted');
         })
         .catch(function(err) {
@@ -1643,6 +1673,8 @@ function StepContent(props) {
             setTimeout(function() { _doFootprintLookup(attempt + 1); }, 2000);
           } else {
             setFootprintFailed(true);
+            u("_siteplanLoading", false);
+            u("_siteplanConfidence", { level: "low", messages: ["Building detection failed. Dimensions are estimated from tax records.", "Verify house width, depth, and position."] });
             if (guideActive) setGuidePhase('verify_extracted');
           }
         });

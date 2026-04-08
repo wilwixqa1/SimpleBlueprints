@@ -507,7 +507,11 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
 
   // S71: Combined rotation angle moved to top of function (before deck text)
 
-  return React.createElement("svg", Object.assign({
+  // S79c: Loading overlay and confidence banner
+  var _isLoading = p._siteplanLoading;
+  var _conf = p._siteplanConfidence;
+
+  var svgElement = React.createElement("svg", Object.assign({
     ref: svgRef,
     viewBox: "0 0 " + svgW + " " + svgH,
     style: { width: "100%", height: "100%", minHeight: 320, touchAction: isDragging ? "none" : "auto" }
@@ -655,5 +659,77 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
       x: ox + sbPx + 10, y: oy + lotPxH + 48, textAnchor: "start",
       style: { fontSize: 7, fill: "#aaa", fontFamily: mono, fontStyle: "italic" }
     }, "Drag house or elements to reposition") : null
+  );
+
+  // S79c: Loading overlay (shown while building footprint is in-flight)
+  var loadingOverlay = null;
+  if (_isLoading) {
+    loadingOverlay = React.createElement("div", {
+      style: {
+        position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+        background: "rgba(250, 250, 245, 0.85)",
+        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+        borderRadius: 4, zIndex: 10
+      }
+    },
+      React.createElement("div", {
+        style: {
+          width: 32, height: 32, border: "3px solid #e0e0d8", borderTopColor: "#2e7d32",
+          borderRadius: "50%", animation: "sbSpin 0.8s linear infinite", marginBottom: 12
+        }
+      }),
+      React.createElement("div", {
+        style: { fontSize: 11, fontFamily: mono, color: "#555", fontWeight: 600 }
+      }, "Finalizing site plan..."),
+      React.createElement("div", {
+        style: { fontSize: 9, fontFamily: mono, color: "#999", marginTop: 4 }
+      }, "Detecting building footprint and verifying street orientation")
+    );
+  }
+
+  // S79c: Confidence banner (shown after loading completes)
+  var confidenceBanner = null;
+  if (_conf && !_isLoading) {
+    var _cColors = {
+      high: { bg: "#f0fdf4", border: "#86efac", icon: "\u2705", text: "#166534" },
+      medium: { bg: "#fefce8", border: "#fde68a", icon: "\u26A0\uFE0F", text: "#92400e" },
+      low: { bg: "#fef2f2", border: "#fca5a5", icon: "\u26A0\uFE0F", text: "#991b1b" }
+    };
+    var _cc = _cColors[_conf.level] || _cColors.medium;
+    var _msgEls = (_conf.messages || []).map(function(msg, idx) {
+      return React.createElement("div", { key: "cm" + idx, style: { fontSize: 9, lineHeight: 1.4 } }, msg);
+    });
+    confidenceBanner = React.createElement("div", {
+      style: {
+        padding: "8px 12px", background: _cc.bg, border: "1px solid " + _cc.border,
+        borderRadius: 6, marginTop: 8, color: _cc.text, fontFamily: mono
+      }
+    },
+      React.createElement("div", {
+        style: { display: "flex", alignItems: "flex-start", gap: 6 }
+      },
+        React.createElement("span", { style: { fontSize: 12, lineHeight: 1, flexShrink: 0 } }, _cc.icon),
+        React.createElement("div", null, _msgEls)
+      )
+    );
+  }
+
+  // S79c: Inject keyframe animation for spinner
+  if (_isLoading && typeof document !== "undefined" && !document.getElementById("sbSpinStyle")) {
+    var styleEl = document.createElement("style");
+    styleEl.id = "sbSpinStyle";
+    styleEl.textContent = "@keyframes sbSpin { to { transform: rotate(360deg); } }";
+    document.head.appendChild(styleEl);
+  }
+
+  return React.createElement("div", null,
+    React.createElement("div", {
+      style: { fontSize: 8, fontWeight: 700, color: "#888", fontFamily: mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 6 }
+    }, "SITE PLAN PREVIEW"),
+    React.createElement("div", { style: { position: "relative" } },
+      svgElement,
+      loadingOverlay
+    ),
+    confidenceBanner
   );
 };
