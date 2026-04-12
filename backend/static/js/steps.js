@@ -2503,7 +2503,18 @@ function StepContent(props) {
             var cls = window.classifyHeightDelta(e.deltaIn);
             var otherId = e.aId === p.activeZone ? e.bId : e.aId;
             var otherLabel = otherId === 0 ? "Main Deck" : ("Zone " + otherId);
-            var deltaStr = (Math.floor(e.deltaIn) + "\"" + (e.deltaIn % 1 ? " " + Math.round((e.deltaIn % 1) * 16) + "/16" : ""));
+            var _whole = Math.floor(e.deltaIn);
+            var _frac = e.deltaIn - _whole;
+            var _eighths = Math.round(_frac * 8);
+            var _fracStr = "";
+            if (_eighths === 8) { _whole += 1; }
+            else if (_eighths > 0) {
+              // reduce 2/8->1/4, 4/8->1/2, 6/8->3/4
+              var _num = _eighths, _den = 8;
+              while (_num % 2 === 0 && _den % 2 === 0) { _num /= 2; _den /= 2; }
+              _fracStr = " " + _num + "/" + _den;
+            }
+            var deltaStr = _whole + "\"" + _fracStr;
             var msg, isError = false;
             if (cls === 'tripping') { msg = "Step is below 4\" minimum riser (R311.7.5.1). Match heights or increase the difference."; isError = true; }
             else if (cls === 'single-step') { msg = "Single step required. Add a transitional step on this edge."; }
