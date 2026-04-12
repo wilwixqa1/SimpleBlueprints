@@ -494,15 +494,17 @@
 
   /* ---------- S81: IRC classification of a height delta ----------
      Returns one of:
-       'flush'        deltaIn < 0.5  (effectively same level)
+       'level'        deltaIn < 0.5  (within construction tolerance, no stair needed)
        'tripping'     0.5 <= deltaIn < 4    (R311.7.5.1 violation, no compliant single step)
        'single-step'  4 <= deltaIn < 7.75   (one riser, no handrail required)
        'multi-step'   7.75 <= deltaIn < 30  (multi-riser, no guard required)
        'guarded'      30 <= deltaIn < 147   (multi-riser + guard required, R312.1.1)
        'over-max'     deltaIn >= 147        (R311.7.3, intermediate landing required)
+     S81d.5: renamed 'flush' -> 'level' to avoid collision with flush-vs-dropped
+     beam type terminology used elsewhere in the codebase.
   */
   function classifyHeightDelta(deltaIn) {
-    if (deltaIn == null || deltaIn < 0.5) return 'flush';
+    if (deltaIn == null || deltaIn < 0.5) return 'level';
     if (deltaIn < 4) return 'tripping';
     if (deltaIn < 7.75) return 'single-step';
     if (deltaIn < 30) return 'multi-step';
@@ -517,7 +519,7 @@
   */
   function suggestRiserPlan(deltaIn) {
     var cls = classifyHeightDelta(deltaIn);
-    if (cls === 'flush' || cls === 'tripping' || cls === 'over-max') {
+    if (cls === 'level' || cls === 'tripping' || cls === 'over-max') {
       return { nRisers: 0, riserHeightIn: 0, needsGuard: cls === 'over-max' || (deltaIn >= 30),
         needsHandrail: false, needsLanding: cls === 'over-max', classification: cls, irc: cls === 'tripping' ? 'R311.7.5.1' : (cls === 'over-max' ? 'R311.7.3' : null) };
     }
@@ -687,11 +689,72 @@
     return best ? best.id : null;
   }
 
+  /* ---------- S81d.5: Get valid stair destinations for a zone ----------
+     Returns an array of destination options for stairs originating from
+     the given zoneId. Always includes "ground" as an option. Adds one
+     entry per adjacent lower zone (via getSharedEdges). The user clicks
+     a destination button and the stair is created with the right
+     _landsOnZoneId AND the right location pre-set to the shared edge.
+
+     Each entry: { label, landsOnZoneId, location }
+       label: human string for the button (e.g. "Main Deck", "Ground")
+       landsOnZoneId: null for ground, number for a zone landing
+       location: "front" | "left" | "right" | "back" — pre-set to the
+                 edge of the FROM zone that touches the destination
+  */
+  function getStairDestinations(zoneId, p) {
+    var out = [];
+    var fromRect = getZoneRect(zoneId, p);
+    if (!fromRect) return [{ label: "Ground", landsOnZoneId: null, location: "front" }];
+    var mainH = (p && p.deckHeight) || 4;
+    var fromZone = getZoneById(zoneId, p);
+    var fromH = (fromZone && fromZone.h != null) ? fromZone.h
+                : (zoneId === 0 ? mainH : mainH);
+    // Always offer ground
+    out.push({ label: "Ground", landsOnZoneId: null, location: "front" });
+    // Offer each adjacent lower zone
+    var TOL = 0.01;
+    var shared = getSharedEdges(p);
+    var seen = {};
+    for (var i = 0; i < shared.length; i++) {
+      var e = shared[i];
+      if (e.aId !== zoneId && e.bId !== zoneId) continue;
+      var otherId = (e.aId === zoneId) ? e.bId : e.aId;
+      var otherH  = (e.aId === zoneId) ? e.bH  : e.aH;
+      // Only offer destinations that are LOWER (we're going down)
+      if (fromH - otherH < 0.5 / 12) continue;
+      // S81d.5: Tripping-range deltas (0.5"-4") are NOT filtered out.
+      // Architects and informed users may need to place a stair in this range
+      // for variance/exception cases. The S81b warning panel surfaces the
+      // R311.7.5.1 violation per stair so the user sees the consequence.
+      if (seen[otherId]) continue;
+      seen[otherId] = true;
+      // Determine which side of fromRect the shared edge is on
+      var loc;
+      if (e.axis === "horizontal") {
+        if (Math.abs(e.y1 - (fromRect.y + fromRect.d)) < TOL) loc = "front";
+        else if (Math.abs(e.y1 - fromRect.y) < TOL) loc = "back";
+        else continue;
+      } else {
+        if (Math.abs(e.x1 - fromRect.x) < TOL) loc = "left";
+        else if (Math.abs(e.x1 - (fromRect.x + fromRect.w)) < TOL) loc = "right";
+        else continue;
+      }
+      var label = (otherId === 0) ? "Main Deck" : "Zone " + otherId;
+      // Use custom label if the other zone has one
+      var otherZone = getZoneById(otherId, p);
+      if (otherZone && otherZone.label) label = otherZone.label;
+      out.push({ label: label, landsOnZoneId: otherId, location: loc });
+    }
+    return out;
+  }
+
   window.getEffectiveBeamType = getEffectiveBeamType;
   window.getSharedEdges = getSharedEdges;
   window.classifyHeightDelta = classifyHeightDelta;
   window.suggestRiserPlan = suggestRiserPlan;
   window.inferStairLanding = inferStairLanding;
+  window.getStairDestinations = getStairDestinations;
   window.inferStairLanding = inferStairLanding;
   window.pickBestStairLocation = pickBestStairLocation;
   window.getZone0 = getZone0;

@@ -722,17 +722,15 @@ const App = function SimpleBlueprints() {
   };
 
 // S64: Stair management functions
-  const addStair = (zoneId) => setP(prev => {
+  // S81d.5: addStair now accepts optional destination override.
+  // dest = { landsOnZoneId, location } or null. When provided, applied directly.
+  // Removes the dead pickBestStairLocation reference from S81d.
+  const addStair = (zoneId, dest) => setP(prev => {
     var newId = prev._nextStairId || ((prev.deckStairs || []).reduce(function(mx, s) { return Math.max(mx, s.id); }, 0) + 1);
     var newStair = _defaultStair(newId, zoneId);
-    // S81d: opinionated default -- pick the location with the smallest valid rise.
-    // Derive _landsOnZoneId from that location. Fallback to "front"/grade if no valid pick.
-    if (window.pickBestStairLocation) {
-      var best = window.pickBestStairLocation(zoneId || 0, prev);
-      if (best) {
-        newStair.location = best.location;
-        newStair._landsOnZoneId = best.landsOnZoneId;
-      }
+    if (dest) {
+      if (dest.location) newStair.location = dest.location;
+      if ('landsOnZoneId' in dest) newStair._landsOnZoneId = dest.landsOnZoneId;
     }
     var next = { ...prev, deckStairs: (prev.deckStairs || []).concat([newStair]), _nextStairId: newId + 1 };
     _syncFlatStairParams(next);

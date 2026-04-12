@@ -2667,7 +2667,14 @@ function StepContent(props) {
             <Slider label="Offset from center" value={st.offset || 0} min={-Math.floor(((st.location === "front" ? zW : zD) - (st.width || 4)) / 2)} max={Math.floor(((st.location === "front" ? zW : zD) - (st.width || 4)) / 2)} field="offset" u={stU} p={st} />
           </div>;
         })}
-        <button onClick={function() { addStair(azId); }} style={{ width: "100%", padding: "8px 14px", background: "none", border: "1px dashed " + _br.gn, borderRadius: 6, cursor: "pointer", fontSize: 11, fontFamily: _mono, color: _br.gn, fontWeight: 600 }}>+ Add Stairs</button>
+        {/* S81d.5: One button per valid destination (ground + adjacent lower zones) */}
+        {(() => {
+          var dests = window.getStairDestinations ? window.getStairDestinations(azId, pForZones) : [{ label: "Ground", landsOnZoneId: null, location: "front" }];
+          return dests.map(function(dest, di) {
+            var labelText = "+ Add stairs to " + dest.label;
+            return <button key={"dest-" + di} onClick={function() { addStair(azId, dest); }} style={{ width: "100%", padding: "8px 14px", marginTop: di === 0 ? 0 : 6, background: "none", border: "1px dashed " + _br.gn, borderRadius: 6, cursor: "pointer", fontSize: 11, fontFamily: _mono, color: _br.gn, fontWeight: 600 }}>{labelText}</button>;
+          });
+        })()}
       </div>;
     })()}
 
