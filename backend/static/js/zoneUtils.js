@@ -401,17 +401,35 @@
   /* ---------- Build calc params for a zone ---------- */
   function buildZoneCalcParams(zone, p) {
     if (zone.type === "cutout") return null;
-    var h = zone.h != null ? zone.h : (p.deckHeight || 4);
+    var mainH = p.deckHeight || 4;
+    var h = zone.h != null ? zone.h : mainH;
+    // S81: flush beam is only valid when zone shares the main deck height.
+    // If the zone is at a different elevation, the rim board of the main deck
+    // cannot physically carry its joists, so force dropped beam.
+    var rawBeamType = zone.beamType || "dropped";
+    var effectiveBeamType = (zone.h != null && Math.abs(zone.h - mainH) > 0.01)
+      ? "dropped"
+      : rawBeamType;
     return Object.assign({}, p, {
       deckWidth: zone.w, deckDepth: zone.d, deckHeight: h,
       joistDir: zone.joistDir || p.joistDir || "perpendicular",
-      beamType: zone.beamType || "dropped",
+      beamType: effectiveBeamType,
       stairTemplate: zone.stairs ? zone.stairs.template : "None",
       stairLocation: zone.stairs ? zone.stairs.location : "none"
     });
   }
 
   /* ---------- Exports ---------- */
+  // S81: single source of truth for whether a zone's beam type is forced
+  // to dropped because of a height mismatch with the main deck.
+  function getEffectiveBeamType(zone, p) {
+    if (!zone || zone.type === "cutout") return "dropped";
+    var mainH = (p && p.deckHeight) || 4;
+    var raw = zone.beamType || "dropped";
+    if (zone.h != null && Math.abs(zone.h - mainH) > 0.01) return "dropped";
+    return raw;
+  }
+  window.getEffectiveBeamType = getEffectiveBeamType;
   window.getZone0 = getZone0;
   window.getAllZones = getAllZones;
   window.getZoneById = getZoneById;

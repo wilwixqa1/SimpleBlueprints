@@ -338,7 +338,9 @@ window.buildDeckScene = function(scene, p, c, THREE) {
     } else {
 // Zones 1+: Simplified structure (posts at corners, beam along far edge, joists)
       var zonePostInset = 0.75; // Inset posts from zone edges
-      var isFlushZone = ar.zone && ar.zone.beamType === "flush";
+      var isFlushZone = ar.zone && (window.getEffectiveBeamType
+        ? window.getEffectiveBeamType(ar.zone, p) === "flush"
+        : ar.zone.beamType === "flush");
 
       // Posts + beam (dropped only, skip for flush)
       if (!isFlushZone) {

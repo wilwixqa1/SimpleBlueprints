@@ -865,7 +865,10 @@ function calcAllZones(p, baseCalc) {
     if (z.type === "cutout") { cutArea += zw * zd; zoneCalcs.push(null); continue; }
     addArea += zw * zd;
     var sp = baseCalc.sp || 16;
-    var zoneBeamType = z.beamType || "dropped";
+    // S81: flush beam invalid when zone height differs from main deck
+    var zoneBeamType = (typeof getEffectiveBeamType === "function")
+      ? getEffectiveBeamType(z, p)
+      : (z.beamType || "dropped");
     var beamLen, jSpan, nJoists, nPosts;
     if (edge === "right" || edge === "left") {
       beamLen = zd; jSpan = zw - BS;
