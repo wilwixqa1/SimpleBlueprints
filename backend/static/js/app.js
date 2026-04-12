@@ -9,21 +9,33 @@ const DEF_CORNERS = { BL: { type: "square", size: 0 }, BR: { type: "square", siz
 // S64: Multi-stair data model
 // ============================================================
 function _defaultStair(id, zoneId) {
+  // S81d: _landsOnZoneId is derived from placement (see inferStairLanding).
+  // null = lands on grade (existing behavior). number = lands on top of that zone (transitional).
+  // Underscore prefix signals "do not set by hand" -- always derived.
   return { id: id, zoneId: zoneId || 0, location: "front", width: 4, template: "straight",
     offset: 0, anchorX: null, anchorY: null, angle: null,
-    numStringers: 3, runSplit: null, landingDepth: null, stairGap: 0.5 };
+    numStringers: 3, runSplit: null, landingDepth: null, stairGap: 0.5,
+    _landsOnZoneId: null };
 }
 
 // Migrate flat stair params to deckStairs array (called on load)
 function _migrateStairs(p) {
-  if (p.deckStairs) return; // already migrated
+  if (p.deckStairs) {
+    // S81d: backfill _landsOnZoneId for stairs saved before this field existed.
+    // Default to null (grade) -- correct for all pre-S81d stairs since they were grade-only.
+    for (var _si = 0; _si < p.deckStairs.length; _si++) {
+      if (!('_landsOnZoneId' in p.deckStairs[_si])) p.deckStairs[_si]._landsOnZoneId = null;
+    }
+    return;
+  }
   if (p.hasStairs) {
     p.deckStairs = [{ id: 1, zoneId: 0, location: p.stairLocation || "front",
       width: p.stairWidth || 4, template: p.stairTemplate || "straight",
       offset: p.stairOffset || 0, anchorX: p.stairAnchorX || null,
       anchorY: p.stairAnchorY || null, angle: p.stairAngle || null,
       numStringers: p.numStringers || 3, runSplit: p.stairRunSplit || null,
-      landingDepth: p.stairLandingDepth || null, stairGap: p.stairGap != null ? p.stairGap : 0.5 }];
+      landingDepth: p.stairLandingDepth || null, stairGap: p.stairGap != null ? p.stairGap : 0.5,
+      _landsOnZoneId: null }];
   } else {
     p.deckStairs = [];
   }
@@ -713,6 +725,15 @@ const App = function SimpleBlueprints() {
   const addStair = (zoneId) => setP(prev => {
     var newId = prev._nextStairId || ((prev.deckStairs || []).reduce(function(mx, s) { return Math.max(mx, s.id); }, 0) + 1);
     var newStair = _defaultStair(newId, zoneId);
+    // S81d: opinionated default -- pick the location with the smallest valid rise.
+    // Derive _landsOnZoneId from that location. Fallback to "front"/grade if no valid pick.
+    if (window.pickBestStairLocation) {
+      var best = window.pickBestStairLocation(zoneId || 0, prev);
+      if (best) {
+        newStair.location = best.location;
+        newStair._landsOnZoneId = best.landsOnZoneId;
+      }
+    }
     var next = { ...prev, deckStairs: (prev.deckStairs || []).concat([newStair]), _nextStairId: newId + 1 };
     _syncFlatStairParams(next);
     return next;
@@ -729,7 +750,11 @@ const App = function SimpleBlueprints() {
       if (s.id !== stairId) return s;
       var upd = Object.assign({}, s, { [field]: val });
       // Reset anchor when location changes (but not during batch/drag updates)
-      if (field === "location") { upd.offset = 0; upd.anchorX = null; upd.anchorY = null; upd.angle = null; }
+      if (field === "location") {
+        upd.offset = 0; upd.anchorX = null; upd.anchorY = null; upd.angle = null;
+        // S81d: re-derive landing target from the new location
+        if (window.inferStairLanding) upd._landsOnZoneId = window.inferStairLanding(upd, prev);
+      }
       return upd;
     })};
     _syncFlatStairParams(next);

@@ -534,10 +534,166 @@
     };
   }
 
+  /* ---------- S81d: Infer stair landing target from placement ----------
+     Given a stair (with .zoneId = anchor zone, .location = front|left|right),
+     determine what's on the other side of that edge:
+       - If another additive zone shares that edge, return its id (transitional stair)
+       - Otherwise, return null (grade landing, existing behavior)
+
+     The user never picks landingType. This helper derives it from where they
+     placed the stair. Called by addStair / updateStair on location change.
+     The "smallest valid rise" default is computed by pickBestStairLocation below.
+  */
+  function inferStairLanding(stair, p) {
+    if (!stair) return null;
+    var anchorId = stair.zoneId || 0;
+    var anchorRect = getZoneRect(anchorId, p);
+    if (!anchorRect) return null;
+    var loc = stair.location || 'front';
+    var TOL = 0.01;
+    // Map location -> edge segment of anchor rect, in deck-local coords.
+    // 'front' = +y edge (away from house), 'left' = -x, 'right' = +x.
+    var edge;
+    if (loc === 'front') {
+      edge = { axis: 'horizontal', y: anchorRect.y + anchorRect.d,
+               x1: anchorRect.x, x2: anchorRect.x + anchorRect.w };
+    } else if (loc === 'left') {
+      edge = { axis: 'vertical', x: anchorRect.x,
+               y1: anchorRect.y, y2: anchorRect.y + anchorRect.d };
+    } else if (loc === 'right') {
+      edge = { axis: 'vertical', x: anchorRect.x + anchorRect.w,
+               y1: anchorRect.y, y2: anchorRect.y + anchorRect.d };
+    } else {
+      return null; // unknown location, treat as grade
+    }
+    // Walk all additive zones; if one's rect shares this edge with overlap, return its id.
+    var rects = getAdditiveRects(p);
+    for (var i = 0; i < rects.length; i++) {
+      var r = rects[i];
+      if (r.id === anchorId) continue;
+      var rr = r.rect;
+      if (edge.axis === 'horizontal') {
+        // Other zone's -y edge (rr.y) must equal edge.y (anchor's +y)
+        if (Math.abs(rr.y - edge.y) > TOL) continue;
+        var ox1 = Math.max(edge.x1, rr.x);
+        var ox2 = Math.min(edge.x2, rr.x + rr.w);
+        if (ox2 - ox1 > TOL) return r.id;
+      } else {
+        // vertical
+        // Other zone's edge x (either rr.x or rr.x+rr.w) must equal edge.x
+        var matchLeft = Math.abs(rr.x + rr.w - edge.x) < TOL;
+        var matchRight = Math.abs(rr.x - edge.x) < TOL;
+        if (!matchLeft && !matchRight) continue;
+        var oy1 = Math.max(edge.y1, rr.y);
+        var oy2 = Math.min(edge.y2, rr.y + rr.d);
+        if (oy2 - oy1 > TOL) return r.id;
+      }
+    }
+    return null; // grade
+  }
+
+  /* ---------- S81d: Pick best stair location for a new stair on a zone ----------
+     Opinionated default: among front/left/right, pick the location with the
+     smallest *valid* rise. Valid = rise > 0.5" (else no stair needed) and
+     rise < 147" (else needs intermediate landing, R311.7.3, not yet supported).
+     Ties broken by preferring 'front' > 'left' > 'right' (matches existing default).
+     Returns { location, landsOnZoneId, riseIn } or null if no valid location.
+  */
+  function pickBestStairLocation(anchorZoneId, p) {
+    var mainH = (p && p.deckHeight) || 4;
+    var anchor = getZoneById(anchorZoneId, p);
+    var fromH;
+    if (anchorZoneId === 0) fromH = mainH;
+    else if (anchor && anchor.h != null) fromH = anchor.h;
+    else fromH = mainH;
+    var locs = ['front', 'left', 'right'];
+    var best = null;
+    for (var i = 0; i < locs.length; i++) {
+      var loc = locs[i];
+      var fakeStair = { zoneId: anchorZoneId, location: loc };
+      var landsId = inferStairLanding(fakeStair, p);
+      var toH;
+      if (landsId == null) toH = 0; // grade
+      else {
+        var tz = getZoneById(landsId, p);
+        toH = (tz && tz.h != null) ? tz.h : mainH;
+      }
+      var riseIn = Math.abs(fromH - toH) * 12;
+      if (riseIn < 0.5) continue; // no stair needed
+      if (riseIn >= 147) continue; // R311.7.3, not yet supported
+      if (best === null || riseIn < best.riseIn) {
+        best = { location: loc, landsOnZoneId: landsId, riseIn: +riseIn.toFixed(2) };
+      }
+    }
+    return best;
+  }
+
+  /* ---------- S81d: Infer where a stair lands based on its placement ----------
+     A stair is anchored to its `zoneId` (the upper deck) on a specific edge
+     (front/left/right). This helper looks at what is on the other side of that
+     edge and returns the id of the lower zone the stair lands on, or null if
+     the stair lands on grade.
+
+     Inputs:
+       stair: { zoneId, location }  -- only zoneId and location are read
+       p:     full state object
+     Returns: number (zone id of landing zone) or null (grade)
+
+     Rules:
+       - Walks getSharedEdges() to find any edge between stair.zoneId and
+         another additive zone that touches the named side of the parent.
+       - "front" means the edge at max-y of the parent rect.
+       - "left" means the edge at min-x of the parent rect.
+       - "right" means the edge at max-x of the parent rect.
+       - Picks the candidate with the smallest height delta where the upper
+         zone (stair.zoneId) is HIGHER than the candidate. A stair never lands
+         on a higher surface.
+       - If no qualifying shared edge exists, returns null (grade).
+       - Tolerance-based to avoid float drift (matches getSharedEdges TOL).
+  */
+  function inferStairLanding(stair, p) {
+    if (!stair || stair.zoneId == null) return null;
+    var parentRect = getZoneRect(stair.zoneId, p);
+    if (!parentRect) return null;
+    var mainH = (p && p.deckHeight) || 4;
+    var parentZone = getZoneById(stair.zoneId, p);
+    var parentH = (parentZone && parentZone.h != null) ? parentZone.h
+                  : (stair.zoneId === 0 ? mainH : mainH);
+    var loc = stair.location || "front";
+    var TOL = 0.01;
+    // Determine the world-coord line of the parent edge the stair sits on.
+    var edgeAxis, edgeCoord;
+    if (loc === "front")      { edgeAxis = "horizontal"; edgeCoord = parentRect.y + parentRect.d; }
+    else if (loc === "back")  { edgeAxis = "horizontal"; edgeCoord = parentRect.y; }
+    else if (loc === "left")  { edgeAxis = "vertical";   edgeCoord = parentRect.x; }
+    else if (loc === "right") { edgeAxis = "vertical";   edgeCoord = parentRect.x + parentRect.w; }
+    else return null;
+    var shared = getSharedEdges(p);
+    var best = null;
+    for (var i = 0; i < shared.length; i++) {
+      var e = shared[i];
+      if (e.aId !== stair.zoneId && e.bId !== stair.zoneId) continue;
+      if (e.axis !== edgeAxis) continue;
+      var lineCoord = edgeAxis === "horizontal" ? e.y1 : e.x1;
+      if (Math.abs(lineCoord - edgeCoord) > TOL) continue;
+      // Identify the other zone and confirm the stair zone is the higher side
+      var otherId = (e.aId === stair.zoneId) ? e.bId : e.aId;
+      var otherH  = (e.aId === stair.zoneId) ? e.bH  : e.aH;
+      if (parentH - otherH < 0.5 / 12) continue; // not enough delta to need stair down
+      if (!best || (parentH - otherH) < (best.delta)) {
+        best = { id: otherId, delta: parentH - otherH };
+      }
+    }
+    return best ? best.id : null;
+  }
+
   window.getEffectiveBeamType = getEffectiveBeamType;
   window.getSharedEdges = getSharedEdges;
   window.classifyHeightDelta = classifyHeightDelta;
   window.suggestRiserPlan = suggestRiserPlan;
+  window.inferStairLanding = inferStairLanding;
+  window.inferStairLanding = inferStairLanding;
+  window.pickBestStairLocation = pickBestStairLocation;
   window.getZone0 = getZone0;
   window.getAllZones = getAllZones;
   window.getZoneById = getZoneById;

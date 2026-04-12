@@ -708,18 +708,34 @@ function estSteelMaterials(p, c) {
   }
 
   // Stairs (same as wood for now; Fortress steel stair system is a separate CCRR eval)
+  // S81d: per-stair rise from anchor zone, transitional landings skip footings.
   var allDS = p.deckStairs || [];
   if (allDS.length > 0) {
+    var _mainH_st = p.deckHeight || c.H;
     allDS.forEach(function(s, si) {
-      if (c.H <= 0.5) return;
+      // S81d: resolve fromH and toH per stair
+      var _aId = s.zoneId || 0;
+      var fromH;
+      if (_aId === 0) fromH = _mainH_st;
+      else {
+        var _az = (p.zones || []).find(function(z) { return z.id === _aId; });
+        fromH = (_az && _az.h != null) ? _az.h : _mainH_st;
+      }
+      var toH = 0, isTransitional = false;
+      if (s._landsOnZoneId != null) {
+        var _tz = (p.zones || []).find(function(z) { return z.id === s._landsOnZoneId; });
+        if (_tz) { toH = (_tz.h != null) ? _tz.h : _mainH_st; isTransitional = true; }
+      }
+      var stairH = Math.abs(fromH - toH);
+      if (stairH <= 0.5) return;
       var sw = s.width || 4;
       var ns = s.numStringers || 3;
       var tmpl = s.template || "straight";
-      var geom = window.computeStairGeometry ? window.computeStairGeometry({ template: tmpl, height: c.H, stairWidth: sw, numStringers: ns, runSplit: s.runSplit ? s.runSplit / 100 : null, landingDepth: s.landingDepth || null, stairGap: s.stairGap != null ? s.stairGap : 0.5 }) : null;
-      var nR = Math.ceil(c.H * 12 / 7.5);
+      var geom = window.computeStairGeometry ? window.computeStairGeometry({ template: tmpl, height: stairH, stairWidth: sw, numStringers: ns, runSplit: s.runSplit ? s.runSplit / 100 : null, landingDepth: s.landingDepth || null, stairGap: s.stairGap != null ? s.stairGap : 0.5 }) : null;
+      var nR = Math.ceil(stairH * 12 / 7.5);
       var nT = nR - 1;
       var totalRun = nT * 10.5;
-      var stringerFt = +(Math.sqrt(Math.pow(c.H * 12, 2) + totalRun * totalRun) / 12 + 1).toFixed(1);
+      var stringerFt = +(Math.sqrt(Math.pow(stairH * 12, 2) + totalRun * totalRun) / 12 + 1).toFixed(1);
       var totalStringers = geom ? geom.totalStringers : ns;
       var numLandings = geom ? geom.landings.length : 0;
       var totalLandingPosts = geom ? geom.totalLandingPosts : 0;
@@ -729,7 +745,8 @@ function estSteelMaterials(p, c) {
       items.push({ cat: "Stairs", item: "2x12 Stair Stringers " + stringerFt + "'" + label, qty: totalStringers, cost: stringerFt <= 8 ? 22 : stringerFt <= 12 ? 35 : 48 });
       items.push({ cat: "Stairs", item: "5/4x12 PT Treads" + label, qty: nT * Math.ceil(sw / 1), cost: 18 });
       items.push({ cat: "Stairs", item: "Stair Stringer Brackets" + label, qty: totalStringers, cost: 8 });
-      if (numLandings > 0) {
+      // S81d: transitional stairs land on a deck surface, not grade -> no landing footings/posts.
+      if (numLandings > 0 && !isTransitional) {
         items.push({ cat: "Stairs", item: "Landing Posts" + label, qty: totalLandingPosts, cost: 85 });
         items.push({ cat: "Stairs", item: "Landing Post Bases" + label, qty: totalLandingPosts, cost: 35 });
         items.push({ cat: "Stairs", item: "Landing Footings " + c.fDiam + '"' + label, qty: totalLandingPosts, cost: c.fDiam > 18 ? 28 : 18 });
@@ -795,19 +812,40 @@ function estMaterials(p, c) {
   } else {
     items.push({ cat: "Railing", item: "Wood Rail Kit (8')", qty: Math.ceil(c.railLen / 8), cost: 85 });
   }
-  // S65: Multi-stair materials -- iterate deckStairs or fall back to c.stairs
+  // S65 + S81d: Multi-stair materials -- iterate deckStairs or fall back to c.stairs
+  // S81d: each stair uses its OWN rise based on its anchor zone (not c.H always),
+  // and skips landing footings/concrete when _landsOnZoneId is set (transitional).
   var _allDS = p.deckStairs || [];
   if (_allDS.length > 0) {
+    var _mainH = p.deckHeight || c.H;
     _allDS.forEach(function(_s, _si) {
-      if (c.H <= 0.5) return;
+      // S81d: resolve fromH (anchor zone height) and toH (landing height)
+      var _anchorId = _s.zoneId || 0;
+      var _fromH;
+      if (_anchorId === 0) _fromH = _mainH;
+      else {
+        var _az = (p.zones || []).find(function(z) { return z.id === _anchorId; });
+        _fromH = (_az && _az.h != null) ? _az.h : _mainH;
+      }
+      var _toH = 0; // grade default
+      var _isTransitional = false;
+      if (_s._landsOnZoneId != null) {
+        var _tz = (p.zones || []).find(function(z) { return z.id === _s._landsOnZoneId; });
+        if (_tz) {
+          _toH = (_tz.h != null) ? _tz.h : _mainH;
+          _isTransitional = true;
+        }
+      }
+      var _stairH = Math.abs(_fromH - _toH);
+      if (_stairH <= 0.5) return; // no stair needed
       var _sw = _s.width || 4;
       var _ns = _s.numStringers || 3;
       var _tmpl = _s.template || "straight";
-      var _geom = window.computeStairGeometry ? window.computeStairGeometry({ template: _tmpl, height: c.H, stairWidth: _sw, numStringers: _ns, runSplit: _s.runSplit ? _s.runSplit/100 : null, landingDepth: _s.landingDepth || null, stairGap: _s.stairGap != null ? _s.stairGap : 0.5 }) : null;
-      var _nR = Math.ceil(c.H * 12 / 7.5);
+      var _geom = window.computeStairGeometry ? window.computeStairGeometry({ template: _tmpl, height: _stairH, stairWidth: _sw, numStringers: _ns, runSplit: _s.runSplit ? _s.runSplit/100 : null, landingDepth: _s.landingDepth || null, stairGap: _s.stairGap != null ? _s.stairGap : 0.5 }) : null;
+      var _nR = Math.ceil(_stairH * 12 / 7.5);
       var _nT = _nR - 1;
       var _totalRun = _nT * 10.5;
-      var _stringerFt = +(Math.sqrt((c.H * 12) ** 2 + _totalRun ** 2) / 12 + 1).toFixed(1);
+      var _stringerFt = +(Math.sqrt((_stairH * 12) ** 2 + _totalRun ** 2) / 12 + 1).toFixed(1);
       var _totalStringers = _geom ? _geom.totalStringers : _ns;
       var _numLandings = _geom ? _geom.landings.length : 0;
       var _totalLandingPosts = _geom ? _geom.totalLandingPosts : 0;
@@ -815,7 +853,9 @@ function estMaterials(p, c) {
       items.push({ cat: "Stairs", item: "2x12 Stair Stringers " + _stringerFt + "'" + _label, qty: _totalStringers, cost: _stringerFt <= 8 ? 22 : _stringerFt <= 12 ? 35 : 48 });
       items.push({ cat: "Stairs", item: "5/4x12 PT Treads" + _label, qty: _nT * Math.ceil(_sw / 1), cost: 18 });
       items.push({ cat: "Stairs", item: "Stair Stringer Brackets" + _label, qty: _totalStringers, cost: 8 });
-      if (_numLandings > 0) {
+      // S81d: transitional stairs land on a deck surface, not grade -> no landing footings/posts/bases.
+      // Treads/stringers/brackets above are still required.
+      if (_numLandings > 0 && !_isTransitional) {
         items.push({ cat: "Stairs", item: "Landing Posts " + c.postSize + _label, qty: _totalLandingPosts, cost: c.postSize === "6x6" ? 48 : 24 });
         items.push({ cat: "Stairs", item: "Landing Post Bases" + _label, qty: _totalLandingPosts, cost: c.postSize === "6x6" ? 42 : 28 });
         items.push({ cat: "Stairs", item: "Landing Footings " + c.fDiam + '"' + _label, qty: _totalLandingPosts, cost: c.fDiam > 18 ? 28 : 18 });

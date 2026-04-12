@@ -340,6 +340,12 @@ def resolve_all_stairs(params: dict, calc: dict) -> list:
         }]
 
     # Build zone rect lookup: zone_id -> rect
+    # S81d NOTE: `height` above is a single global value used for every stair below.
+    # This is incorrect once zones can have per-zone heights and stairs can land
+    # transitionally on other zones. Fix in S81e along with draw_plan.py rendering.
+    # The JS engine (engine.js) already resolves per-stair fromH/toH from
+    # anchor zone and _landsOnZoneId; mirror that logic here when wiring up
+    # drawing.
     add_rects = get_additive_rects(params)
     zone_rects = {}
     for ar in add_rects:
