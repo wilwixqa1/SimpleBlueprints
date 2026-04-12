@@ -429,7 +429,115 @@
     if (zone.h != null && Math.abs(zone.h - mainH) > 0.01) return "dropped";
     return raw;
   }
+
+  /* ---------- S81: Shared edges between zones ----------
+     Returns an array of shared edge segments between every pair of additive
+     rects (including main deck = id 0). Each segment is the overlap region
+     where two rects share a common boundary line.
+       { aId, bId, aH, bH, deltaIn, axis, x1, y1, x2, y2, length }
+     axis: 'vertical' (constant x) | 'horizontal' (constant y)
+     deltaIn: |aH - bH| in inches. aH and bH are in feet.
+     Coordinates are deck-local (same space as getZoneRect).
+  */
+  function getSharedEdges(p) {
+    var mainH = (p && p.deckHeight) || 4;
+    var rects = getAdditiveRects(p);
+    var resolved = rects.map(function(r) {
+      var h;
+      if (r.id === 0) h = mainH;
+      else if (r.zone && r.zone.h != null) h = r.zone.h;
+      else h = mainH;
+      return { id: r.id, h: h, rect: r.rect };
+    });
+    var TOL = 0.01;
+    var out = [];
+    for (var i = 0; i < resolved.length; i++) {
+      for (var j = i + 1; j < resolved.length; j++) {
+        var a = resolved[i], b = resolved[j];
+        var ar = a.rect, br = b.rect;
+        var axMin = ar.x, axMax = ar.x + ar.w;
+        var ayMin = ar.y, ayMax = ar.y + ar.d;
+        var bxMin = br.x, bxMax = br.x + br.w;
+        var byMin = br.y, byMax = br.y + br.d;
+        var deltaFt = Math.abs(a.h - b.h);
+        var deltaIn = +(deltaFt * 12).toFixed(2);
+        // Vertical shared edge: a.right == b.left (or vice versa) with y-overlap
+        var sharedX = null;
+        if (Math.abs(axMax - bxMin) < TOL) sharedX = axMax;
+        else if (Math.abs(bxMax - axMin) < TOL) sharedX = axMin;
+        if (sharedX !== null) {
+          var y1 = Math.max(ayMin, byMin);
+          var y2 = Math.min(ayMax, byMax);
+          if (y2 - y1 > TOL) {
+            out.push({ aId: a.id, bId: b.id, aH: a.h, bH: b.h, deltaIn: deltaIn,
+              axis: 'vertical', x1: sharedX, y1: y1, x2: sharedX, y2: y2,
+              length: +(y2 - y1).toFixed(3) });
+          }
+        }
+        // Horizontal shared edge: a.bottom == b.top (or vice versa) with x-overlap
+        var sharedY = null;
+        if (Math.abs(ayMax - byMin) < TOL) sharedY = ayMax;
+        else if (Math.abs(byMax - ayMin) < TOL) sharedY = ayMin;
+        if (sharedY !== null) {
+          var x1 = Math.max(axMin, bxMin);
+          var x2 = Math.min(axMax, bxMax);
+          if (x2 - x1 > TOL) {
+            out.push({ aId: a.id, bId: b.id, aH: a.h, bH: b.h, deltaIn: deltaIn,
+              axis: 'horizontal', x1: x1, y1: sharedY, x2: x2, y2: sharedY,
+              length: +(x2 - x1).toFixed(3) });
+          }
+        }
+      }
+    }
+    return out;
+  }
+
+  /* ---------- S81: IRC classification of a height delta ----------
+     Returns one of:
+       'flush'        deltaIn < 0.5  (effectively same level)
+       'tripping'     0.5 <= deltaIn < 4    (R311.7.5.1 violation, no compliant single step)
+       'single-step'  4 <= deltaIn < 7.75   (one riser, no handrail required)
+       'multi-step'   7.75 <= deltaIn < 30  (multi-riser, no guard required)
+       'guarded'      30 <= deltaIn < 147   (multi-riser + guard required, R312.1.1)
+       'over-max'     deltaIn >= 147        (R311.7.3, intermediate landing required)
+  */
+  function classifyHeightDelta(deltaIn) {
+    if (deltaIn == null || deltaIn < 0.5) return 'flush';
+    if (deltaIn < 4) return 'tripping';
+    if (deltaIn < 7.75) return 'single-step';
+    if (deltaIn < 30) return 'multi-step';
+    if (deltaIn < 147) return 'guarded';
+    return 'over-max';
+  }
+
+  /* ---------- S81: Suggested riser plan for a delta ----------
+     Returns { nRisers, riserHeightIn, needsGuard, needsHandrail, needsLanding,
+               classification, irc }
+     riserHeightIn is uniform across the flight (R311.7.5.1).
+  */
+  function suggestRiserPlan(deltaIn) {
+    var cls = classifyHeightDelta(deltaIn);
+    if (cls === 'flush' || cls === 'tripping' || cls === 'over-max') {
+      return { nRisers: 0, riserHeightIn: 0, needsGuard: cls === 'over-max' || (deltaIn >= 30),
+        needsHandrail: false, needsLanding: cls === 'over-max', classification: cls, irc: cls === 'tripping' ? 'R311.7.5.1' : (cls === 'over-max' ? 'R311.7.3' : null) };
+    }
+    var nRisers = Math.max(1, Math.ceil(deltaIn / 7.75));
+    var rh = +(deltaIn / nRisers).toFixed(3);
+    return {
+      nRisers: nRisers,
+      riserHeightIn: rh,
+      needsGuard: deltaIn >= 30,
+      needsHandrail: nRisers >= 4,
+      needsLanding: false,
+      classification: cls,
+      irc: null
+    };
+  }
+
   window.getEffectiveBeamType = getEffectiveBeamType;
+  window.getSharedEdges = getSharedEdges;
+  window.classifyHeightDelta = classifyHeightDelta;
+  window.suggestRiserPlan = suggestRiserPlan;
   window.getZone0 = getZone0;
   window.getAllZones = getAllZones;
   window.getZoneById = getZoneById;

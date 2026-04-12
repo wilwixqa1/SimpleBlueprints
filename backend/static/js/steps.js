@@ -2489,6 +2489,39 @@ function StepContent(props) {
       </div>
     )}
 
+    {/* S81b: Height transition warnings on shared edges */}
+    {!isZone0 && activeZoneObj && activeZoneObj.type === "add" && (() => {
+      if (typeof window.getSharedEdges !== "function" || typeof window.classifyHeightDelta !== "function") return null;
+      var _edges = window.getSharedEdges(p) || [];
+      var _mine = _edges.filter(function(e) { return (e.aId === p.activeZone || e.bId === p.activeZone) && e.deltaIn >= 0.5; });
+      if (_mine.length === 0) return null;
+      var _plan = window.suggestRiserPlan;
+      return (
+        <div style={{ marginBottom: 16, padding: 10, border: `1px solid ${_br.bd}`, borderLeft: `3px solid #d97706`, borderRadius: 4, background: "#fffbeb" }}>
+          <div style={{ fontSize: 11, fontFamily: _mono, fontWeight: 800, color: "#92400e", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>Height transition</div>
+          {_mine.map(function(e, idx) {
+            var cls = window.classifyHeightDelta(e.deltaIn);
+            var otherId = e.aId === p.activeZone ? e.bId : e.aId;
+            var otherLabel = otherId === 0 ? "Main Deck" : ("Zone " + otherId);
+            var deltaStr = (Math.floor(e.deltaIn) + "\"" + (e.deltaIn % 1 ? " " + Math.round((e.deltaIn % 1) * 16) + "/16" : ""));
+            var msg, isError = false;
+            if (cls === 'tripping') { msg = "Step is below 4\" minimum riser (R311.7.5.1). Match heights or increase the difference."; isError = true; }
+            else if (cls === 'single-step') { msg = "Single step required. Add a transitional step on this edge."; }
+            else if (cls === 'multi-step') { var pl = _plan(e.deltaIn); msg = "Transitional stair required: " + pl.nRisers + " risers @ " + pl.riserHeightIn.toFixed(2) + "\". No guard required (under 30\")."; }
+            else if (cls === 'guarded') { var pl2 = _plan(e.deltaIn); msg = "Stair required: " + pl2.nRisers + " risers @ " + pl2.riserHeightIn.toFixed(2) + "\". Guard required on the higher side (R312.1.1, drop > 30\")." + (pl2.needsHandrail ? " Handrail required (4+ risers, R311.7.8)." : ""); }
+            else if (cls === 'over-max') { msg = "Transition exceeds 12'-3\" max between landings (R311.7.3). An intermediate landing is required and not yet supported."; isError = true; }
+            else { msg = ""; }
+            return (
+              <div key={idx} style={{ fontSize: 10, color: isError ? "#991b1b" : "#92400e", marginBottom: idx < _mine.length - 1 ? 6 : 0, lineHeight: 1.45 }}>
+                <span style={{ fontWeight: 700 }}>{otherLabel}</span>: {deltaStr} {e.aH > e.bH && e.aId === p.activeZone || e.bH > e.aH && e.bId === p.activeZone ? "above" : "below"} ({e.length.toFixed(1)}' edge). {msg}
+              </div>
+            );
+          })}
+          <div style={{ fontSize: 9, color: _br.mu, marginTop: 6, fontStyle: "italic" }}>Auto-guard rendering and one-click stair add coming in next update.</div>
+        </div>
+      );
+    })()}
+
     {/* S80: Per-zone beam type toggle (zones 1+ add type) */}
     {!isZone0 && activeZoneObj && activeZoneObj.type === "add" && (() => {
       // S81: flush beam invalid when zone is at a different elevation than main deck
