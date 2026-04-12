@@ -672,60 +672,6 @@ window.buildDeckScene = function(scene, p, c, THREE) {
       addRailPost(pt[0], pt[1]);
     });
 
-    // S81c: Auto-guard rails on shared edges with >30" height drop (R312.1.1).
-    // The shared edge between two zones is internal to the composite outline,
-    // so it's not in exposedEdges. Without this loop the higher zone would
-    // have an unguarded fall hazard onto the lower zone. The rail is rendered
-    // at the higher zone's deck-top elevation, slightly inset toward the
-    // higher zone so getHeightAtPoint reliably returns the higher height.
-    if (typeof window.getSharedEdges === "function") {
-      var _shared = window.getSharedEdges(p) || [];
-      var INSET = 0.05; // ft, push rail centerline into the higher zone
-      _shared.forEach(function(se) {
-        if (se.deltaIn < 30) return; // R312.1.1 trigger
-        var higherIsA = se.aH > se.bH;
-        var higherId = higherIsA ? se.aId : se.bId;
-        // Find the higher zone's rect to determine inset direction
-        var hRectInfo = addRects.find(function(ar) { return ar.id === higherId; });
-        if (!hRectInfo) return;
-        var hr = hRectInfo.rect;
-        var hxMin = cx + hr.x, hxMax = cx + hr.x + hr.w;
-        var hzMin = cz + hr.y, hzMax = cz + hr.y + hr.d;
-        var wx1 = cx + se.x1, wz1 = cz + se.y1;
-        var wx2 = cx + se.x2, wz2 = cz + se.y2;
-        // Inset perpendicular to edge axis, into the higher rect
-        if (se.axis === "vertical") {
-          // Edge is at constant world X, push X toward higher rect's interior
-          var midZ = (wz1 + wz2) / 2;
-          var insideX = (Math.abs(wx1 - hxMin) < 0.02) ? wx1 + INSET : wx1 - INSET;
-          // Skip rail segment if it crosses any stair footprint
-          var _skip = false;
-          for (var _si = 0; _si < allStairWBBs.length; _si++) {
-            var _sw = allStairWBBs[_si];
-            if (insideX > _sw.xMin + 0.05 && insideX < _sw.xMax - 0.05 &&
-                Math.max(wz1, wz2) > _sw.zMin - 0.1 && Math.min(wz1, wz2) < _sw.zMax + 0.1) { _skip = true; break; }
-          }
-          if (_skip) return;
-          addRail(insideX, wz1, insideX, wz2, true);
-          addRailPost(insideX, wz1);
-          addRailPost(insideX, wz2);
-        } else {
-          var midX = (wx1 + wx2) / 2;
-          var insideZ = (Math.abs(wz1 - hzMin) < 0.02) ? wz1 + INSET : wz1 - INSET;
-          var _skip2 = false;
-          for (var _si3 = 0; _si3 < allStairWBBs.length; _si3++) {
-            var _sw3 = allStairWBBs[_si3];
-            if (Math.max(wx1, wx2) > _sw3.xMin + 0.05 && Math.min(wx1, wx2) < _sw3.xMax - 0.05 &&
-                insideZ > _sw3.zMin - 0.1 && insideZ < _sw3.zMax + 0.1) { _skip2 = true; break; }
-          }
-          if (_skip2) return;
-          addRail(wx1, insideZ, wx2, insideZ, true);
-          addRailPost(wx1, insideZ);
-          addRailPost(wx2, insideZ);
-        }
-      });
-    }
-
   } else {
 // Single-zone: original hardcoded railing (unchanged)
     if (frontGap && frontGap.zMax >= z0wz + D - 0.1) {
