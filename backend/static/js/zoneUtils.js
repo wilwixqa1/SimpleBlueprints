@@ -603,7 +603,7 @@
   */
   function pickBestStairLocation(anchorZoneId, p) {
     var mainH = (p && p.deckHeight) || 4;
-    var anchor = getZoneById(anchorZoneId, p);
+    var anchor = getZoneById(p, anchorZoneId);
     var fromH;
     if (anchorZoneId === 0) fromH = mainH;
     else if (anchor && anchor.h != null) fromH = anchor.h;
@@ -617,7 +617,7 @@
       var toH;
       if (landsId == null) toH = 0; // grade
       else {
-        var tz = getZoneById(landsId, p);
+        var tz = getZoneById(p, landsId);
         toH = (tz && tz.h != null) ? tz.h : mainH;
       }
       var riseIn = Math.abs(fromH - toH) * 12;
@@ -658,7 +658,7 @@
     var parentRect = getZoneRect(stair.zoneId, p);
     if (!parentRect) return null;
     var mainH = (p && p.deckHeight) || 4;
-    var parentZone = getZoneById(stair.zoneId, p);
+    var parentZone = getZoneById(p, stair.zoneId);
     var parentH = (parentZone && parentZone.h != null) ? parentZone.h
                   : (stair.zoneId === 0 ? mainH : mainH);
     var loc = stair.location || "front";
@@ -707,7 +707,7 @@
     var fromRect = getZoneRect(zoneId, p);
     if (!fromRect) return [{ label: "Ground", landsOnZoneId: null, location: "front" }];
     var mainH = (p && p.deckHeight) || 4;
-    var fromZone = getZoneById(zoneId, p);
+    var fromZone = getZoneById(p, zoneId);
     var fromH = (fromZone && fromZone.h != null) ? fromZone.h
                 : (zoneId === 0 ? mainH : mainH);
     // Always offer ground
@@ -742,7 +742,7 @@
       }
       var label = (otherId === 0) ? "Main Deck" : "Zone " + otherId;
       // Use custom label if the other zone has one
-      var otherZone = getZoneById(otherId, p);
+      var otherZone = getZoneById(p, otherId);
       if (otherZone && otherZone.label) label = otherZone.label;
       out.push({ label: label, landsOnZoneId: otherId, location: loc });
     }
