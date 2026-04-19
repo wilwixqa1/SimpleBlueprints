@@ -2489,13 +2489,87 @@ function StepContent(props) {
       </div>
     )}
 
-    {/* S81b: Height transition warnings on shared edges */}
+    {/* S81e: Height transition warnings on shared edges + satisfaction/orphan detection.
+        Upgrades the S81b warning panel to:
+          1. Turn each warning row green when a matching transitional stair exists
+             (anchor on higher zone, lands on lower zone, location matches the
+             shared edge per inferStairLanding()).
+          2. Show an "Add compliant stair" one-click button when a warning is
+             unsatisfied and the class is a case that requires a stair
+             (multi-step, guarded). The stair is anchored on the higher zone
+             with the correct destination pre-filled via getStairDestinations.
+          3. Surface an orphan-stair advisory if any stair in the deck has
+             fromH <= toH (e.g. user dragged a zone height below the stair's
+             landing after the stair was placed).
+    */}
     {!isZone0 && activeZoneObj && activeZoneObj.type === "add" && (() => {
       if (typeof window.getSharedEdges !== "function" || typeof window.classifyHeightDelta !== "function") return null;
       var _edges = window.getSharedEdges(p) || [];
       var _mine = _edges.filter(function(e) { return (e.aId === p.activeZone || e.bId === p.activeZone) && e.deltaIn >= 0.5; });
-      if (_mine.length === 0) return null;
+
+      // S81e: Detect orphan stairs (same logic as Python resolve_stair_elevation.directionValid == false).
+      // An orphan is a stair whose anchor is now at or below its landing -- the stair
+      // no longer represents a valid descending transition. Does NOT remove the stair;
+      // surfaces an advisory so the user can decide to keep or remove it.
+      function _zoneH(zid) {
+        if (zid === 0) return p.height || 4;
+        var zlist = p.zones || [];
+        for (var zi = 0; zi < zlist.length; zi++) if (zlist[zi].id === zid) {
+          return (zlist[zi].h != null) ? zlist[zi].h : (p.height || 4);
+        }
+        return p.height || 4;
+      }
+      var _hasOrphan = (p.deckStairs || []).some(function(s) {
+        var fromH = _zoneH(s.zoneId || 0);
+        var toH = (s._landsOnZoneId != null) ? _zoneH(s._landsOnZoneId) : 0;
+        return fromH <= toH;
+      });
+
+      if (_mine.length === 0 && !_hasOrphan) return null;
+
       var _plan = window.suggestRiserPlan;
+
+      // S81e: Does an existing transitional stair already serve this edge?
+      // Rule: anchor on higher zone, lands on lower zone, and the stair's
+      // location maps to this same shared edge (verified via inferStairLanding,
+      // which is the same helper the UI uses when stair location changes).
+      function _existingStairForEdge(edge) {
+        var higherId = edge.aH >= edge.bH ? edge.aId : edge.bId;
+        var lowerId  = edge.aH >= edge.bH ? edge.bId : edge.aId;
+        var stairs = p.deckStairs || [];
+        for (var si = 0; si < stairs.length; si++) {
+          var s = stairs[si];
+          if ((s.zoneId || 0) !== higherId) continue;
+          if (s._landsOnZoneId !== lowerId) continue;
+          // Location-on-edge check: use inferStairLanding if available. It
+          // computes the landing zone id based on the stair's location; if it
+          // matches the lower zone, the stair serves this edge.
+          if (typeof window.inferStairLanding === "function") {
+            var inferred = window.inferStairLanding(s, p);
+            if (inferred !== lowerId) continue;
+          }
+          return s;
+        }
+        return null;
+      }
+
+      // S81e: One-click compliant stair for the higher zone of this edge.
+      // Uses the same addStair(zoneId, dest) signature as the destination
+      // buttons in the Stairs section, so the resulting stair is identical to
+      // one the user would create manually.
+      function _addCompliantStair(edge) {
+        var higherId = edge.aH >= edge.bH ? edge.aId : edge.bId;
+        var lowerId  = edge.aH >= edge.bH ? edge.bId : edge.aId;
+        if (typeof window.getStairDestinations !== "function") return;
+        var dests = window.getStairDestinations(higherId, pForZones) || [];
+        var match = null;
+        for (var di = 0; di < dests.length; di++) {
+          if (dests[di].landsOnZoneId === lowerId) { match = dests[di]; break; }
+        }
+        if (!match) return; // destination not resolvable; UI out of sync, skip silently
+        addStair(higherId, match);
+      }
+
       return (
         <div style={{ marginBottom: 16, padding: 10, border: `1px solid ${_br.bd}`, borderLeft: `3px solid #d97706`, borderRadius: 4, background: "#fffbeb" }}>
           <div style={{ fontSize: 11, fontFamily: _mono, fontWeight: 800, color: "#92400e", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>Height transition</div>
@@ -2503,6 +2577,8 @@ function StepContent(props) {
             var cls = window.classifyHeightDelta(e.deltaIn);
             var otherId = e.aId === p.activeZone ? e.bId : e.aId;
             var otherLabel = otherId === 0 ? "Main Deck" : ("Zone " + otherId);
+
+            // Delta formatting (unchanged from S81b)
             var _whole = Math.floor(e.deltaIn);
             var _frac = e.deltaIn - _whole;
             var _eighths = Math.round(_frac * 8);
@@ -2514,6 +2590,14 @@ function StepContent(props) {
               _fracStr = " " + _num + "/" + _den;
             }
             var deltaStr = _whole + "\"" + _fracStr;
+
+            // S81e: Check for existing matching stair
+            var _existing = _existingStairForEdge(e);
+            var _isSatisfied = !!_existing;
+            var _requiresStair = (cls === 'multi-step' || cls === 'guarded');
+            var _showAddButton = !_isSatisfied && _requiresStair;
+
+            // Warning message (unchanged classification -> text logic)
             var msg, isError = false;
             if (cls === 'tripping') { msg = "Step is below 4\" minimum riser (R311.7.5.1). Match heights or increase the difference."; isError = true; }
             else if (cls === 'single-step') { msg = "Single step required. Add a transitional step on this edge."; }
@@ -2521,13 +2605,56 @@ function StepContent(props) {
             else if (cls === 'guarded') { var pl2 = _plan(e.deltaIn); msg = "Stair required: " + pl2.nRisers + " risers @ " + pl2.riserHeightIn.toFixed(2) + "\". Guard required on the higher side (R312.1.1, drop > 30\")." + (pl2.needsHandrail ? " Handrail required (4+ risers, R311.7.8)." : ""); }
             else if (cls === 'over-max') { msg = "Transition exceeds 12'-3\" max between landings (R311.7.3). An intermediate landing is required and not yet supported."; isError = true; }
             else { msg = ""; }
+
+            // S81e: Color + prefix depend on satisfaction state
+            var rowColor, rowBorder, rowBackground, rowPrefix;
+            if (_isSatisfied) {
+              rowColor = "#166534";         // green
+              rowBorder = "transparent";
+              rowBackground = "#f0fdf4";
+              rowPrefix = "\u2713 Stair placed -- ";
+            } else if (isError) {
+              rowColor = "#991b1b";
+              rowBorder = "transparent";
+              rowBackground = "transparent";
+              rowPrefix = "";
+            } else {
+              rowColor = "#92400e";
+              rowBorder = "transparent";
+              rowBackground = "transparent";
+              rowPrefix = "";
+            }
+
+            var aboveOrBelow = (e.aH > e.bH && e.aId === p.activeZone) || (e.bH > e.aH && e.bId === p.activeZone) ? "above" : "below";
+
             return (
-              <div key={idx} style={{ fontSize: 10, color: isError ? "#991b1b" : "#92400e", marginBottom: idx < _mine.length - 1 ? 6 : 0, lineHeight: 1.45 }}>
-                <span style={{ fontWeight: 700 }}>{otherLabel}</span>: {deltaStr} {e.aH > e.bH && e.aId === p.activeZone || e.bH > e.aH && e.bId === p.activeZone ? "above" : "below"} ({e.length.toFixed(1)}' edge). {msg}
+              <div key={idx} style={{
+                fontSize: 10, color: rowColor, marginBottom: idx < _mine.length - 1 ? 6 : 0,
+                lineHeight: 1.45, padding: _isSatisfied ? "4px 6px" : 0, borderRadius: 4,
+                background: rowBackground
+              }}>
+                <span style={{ fontWeight: 700 }}>{otherLabel}</span>: {deltaStr} {aboveOrBelow} ({e.length.toFixed(1)}' edge). {rowPrefix}{msg}
+                {_showAddButton && (
+                  <div style={{ marginTop: 4 }}>
+                    <button onClick={function() { _addCompliantStair(e); }} style={{
+                      fontSize: 10, fontFamily: _mono, fontWeight: 700,
+                      padding: "4px 10px", borderRadius: 4, cursor: "pointer",
+                      border: "1px solid " + _br.gn, background: "#fff", color: _br.gn
+                    }}>+ Add compliant stair</button>
+                  </div>
+                )}
               </div>
             );
           })}
-          <div style={{ fontSize: 9, color: _br.mu, marginTop: 6, fontStyle: "italic" }}>Auto-guard rendering and one-click stair add coming in next update.</div>
+
+          {/* S81e: Orphan-stair advisory. Single line, no buttons -- per the
+              scoping decision, don't build a remove/dismiss UX in this
+              session; surface information only. */}
+          {_hasOrphan && (
+            <div style={{ fontSize: 9, color: "#92400e", marginTop: 8, paddingTop: 6, borderTop: "1px solid #fde68a", fontStyle: "italic" }}>
+              One or more stairs may no longer match your deck's current heights. Check the Stairs section above.
+            </div>
+          )}
         </div>
       );
     })()}

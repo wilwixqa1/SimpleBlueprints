@@ -163,15 +163,41 @@ window.buildDeckScene = function(scene, p, c, THREE) {
 // S64: Multi-stair setup -- resolve all stairs from deckStairs array
   var z0wx = cx + 0, z0wz = cz + 0; // zone 0 rect is at (0,0)
 
+  // S81e: helper -- resolve a zone's top elevation from params
+  // Mirrors the Python resolve_stair_elevation() helper. Zone 0 = main deck
+  // height H. For add zones, read z.h (S80 per-zone height) with safe
+  // fallback to H if missing. Single source of truth for stair rendering.
+  function _zoneTopH(zoneId) {
+    if (zoneId === 0) return H;
+    var zlist = p.zones || [];
+    for (var zi = 0; zi < zlist.length; zi++) {
+      if (zlist[zi].id === zoneId) {
+        return (zlist[zi].h != null) ? zlist[zi].h : H;
+      }
+    }
+    return H; // orphaned stair, safe default
+  }
+
   var resolvedStairs = [];
   var allStairWBBs = [];
   (p.deckStairs || []).forEach(function(stairDef) {
-    if (H <= 0.5) return;
+    // S81e: Resolve per-stair fromH / toH / totalRise before building geometry.
+    // Grade stairs (landsOnZoneId == null): toH = 0.
+    // Transitional stairs: toH = landing zone's elevation.
+    // totalRise = abs(fromH - toH) so engine never breaks on orphaned stairs
+    // (directionValid flag surfaced separately by the warning panel).
+    var _fromH = _zoneTopH(stairDef.zoneId || 0);
+    var _landsOn = stairDef._landsOnZoneId;
+    var _isTransitional = (_landsOn != null);
+    var _toH = _isTransitional ? _zoneTopH(_landsOn) : 0;
+    var _totalRise = Math.abs(_fromH - _toH);
+    if (_totalRise <= 0.5) return; // skip stairs below construction-tolerance rise
+
     var zr = window.getZoneRect ? window.getZoneRect(stairDef.zoneId, pForZones) : null;
     if (!zr && stairDef.zoneId === 0) zr = { x: 0, y: 0, w: W, d: D };
     if (!zr) return;
     var _sg = window.computeStairGeometry({
-      template: stairDef.template || "straight", height: H,
+      template: stairDef.template || "straight", height: _totalRise,
       stairWidth: stairDef.width || 4, numStringers: stairDef.numStringers || 3,
       runSplit: stairDef.runSplit ? stairDef.runSplit / 100 : null,
       landingDepth: stairDef.landingDepth || null,
@@ -187,9 +213,18 @@ window.buildDeckScene = function(scene, p, c, THREE) {
     else if (_ang === 90)  _wbb = { xMin: _wax + _bb.minY, xMax: _wax + _bb.maxY, zMin: _waz - _bb.maxX, zMax: _waz - _bb.minX };
     else if (_ang === 180) _wbb = { xMin: _wax - _bb.maxX, xMax: _wax - _bb.minX, zMin: _waz - _bb.maxY, zMax: _waz - _bb.minY };
     else if (_ang === 270) _wbb = { xMin: _wax - _bb.maxY, xMax: _wax - _bb.minY, zMin: _waz + _bb.minX, zMax: _waz + _bb.maxX };
-    allStairWBBs.push({ xMin: _wbb.xMin, xMax: _wbb.xMax, zMin: _wbb.zMin, zMax: _wbb.zMax, zoneId: stairDef.zoneId });
+    // S81e: Tag wbb with the anchor zone's world-space rect so the clipping
+    // rule "only cut the anchor zone's boards and rails" has the info it needs.
+    var _anchorZoneWorldRect = {
+      xMin: _zwx, xMax: _zwx + zr.w,
+      zMin: _zwz, zMax: _zwz + zr.d
+    };
+    allStairWBBs.push({ xMin: _wbb.xMin, xMax: _wbb.xMax, zMin: _wbb.zMin, zMax: _wbb.zMax,
+      zoneId: stairDef.zoneId, anchorWorldRect: _anchorZoneWorldRect });
     resolvedStairs.push({ def: stairDef, zoneRect: zr, sg: _sg, stPl: _stPl, exitSide: _exit,
-      wbb: _wbb, wax: _wax, waz: _waz, zwx: _zwx, zwz: _zwz, stW: stairDef.width || 4 });
+      wbb: _wbb, wax: _wax, waz: _waz, zwx: _zwx, zwz: _zwz, stW: stairDef.width || 4,
+      fromH: _fromH, toH: _toH, isTransitional: _isTransitional,
+      landsOnZoneId: _isTransitional ? _landsOn : null });
   });
 
   // Backward compat: zone 0 stair gaps for joist/beam/rim/board splitting
@@ -495,6 +530,28 @@ window.buildDeckScene = function(scene, p, c, THREE) {
 
 // S20: Decking boards   iterate over composite outline rects
   var bdW = 5.5 / 12, bdH = 1 / 12;
+
+  // S81e: Anchor-zone clipping helper.
+  //
+  // Rule: a stair may only cut boards and rails that belong to its anchor
+  // zone (the zone the stair starts from). Before S81e this code cut every
+  // board/rail whose world position intersected any stair's bbox, which
+  // punched holes through lower deck surfaces for transitional stairs and
+  // could also cut neighbor zones for grade stairs anchored off zone 0.
+  //
+  // Zone 0 stairs are still routed through frontGap/leftGap/rightGap (the
+  // surgical structured-gap system), so we short-circuit those here --
+  // NOT to defer to the gap system inside the consumer, but so that callers
+  // can use a single uniform rule: "is this point in this stair's anchor
+  // zone, and is the stair non-zone-0?"
+  function _stairCutsPoint(swb, wx, wz) {
+    if (swb.zoneId === 0) return false; // zone 0 handled by frontGap etc.
+    var r = swb.anchorWorldRect;
+    if (!r) return false; // missing anchor rect -> be conservative, do not cut
+    return wx >= r.xMin - 0.01 && wx <= r.xMax + 0.01 &&
+           wz >= r.zMin - 0.01 && wz <= r.zMax + 0.01;
+  }
+
   composite.forEach(function(cr) {
     var crwx = cx + cr.x;  // composite rect world X
     var crwz = cz + cr.y;  // composite rect world Z
@@ -524,17 +581,21 @@ window.buildDeckScene = function(scene, p, c, THREE) {
         }
       }
 
-      // S64: Check ALL stair world bboxes for board gaps (handles non-zone-0 stairs)
+      // S81e: For non-zone-0 stairs, only cut boards that belong to the
+      // stair's anchor zone. The board's midpoint is used as the "ownership
+      // point" since boards extend across the zone depth.
       var _stairCut = false;
+      var _bMidZ = (_bZs + _bZe) / 2;
       for (var _si = 0; _si < allStairWBBs.length; _si++) {
         var _swb = allStairWBBs[_si];
-        if (_swb.zoneId === 0) continue; // zone 0 handled by frontGap/leftGap/rightGap
-        if (bx > _swb.xMin + 0.02 && bx < _swb.xMax - 0.02 &&
-            _bZe > _swb.zMin + 0.02 && _bZs < _swb.zMax - 0.02) {
-          addDeckBoard(bx, _bZs, _swb.zMin);
-          addDeckBoard(bx, Math.max(_bZs, _swb.zMax), _bZe);
-          _stairCut = true; break;
-        }
+        // bbox-intersection with this board strip first (cheap test)
+        if (!(bx > _swb.xMin + 0.02 && bx < _swb.xMax - 0.02 &&
+              _bZe > _swb.zMin + 0.02 && _bZs < _swb.zMax - 0.02)) continue;
+        // Then confirm the board belongs to this stair's anchor zone
+        if (!_stairCutsPoint(_swb, bx, _bMidZ)) continue;
+        addDeckBoard(bx, _bZs, _swb.zMin);
+        addDeckBoard(bx, Math.max(_bZs, _swb.zMax), _bZe);
+        _stairCut = true; break;
       }
       if (_stairCut) continue;
 
@@ -625,9 +686,12 @@ window.buildDeckScene = function(scene, p, c, THREE) {
         }
       }
 
-// S64: Check ALL stair world bboxes for zone railing edges
+// S81e: For non-zone-0 stairs, only cut rails that belong to the stair's
+// anchor zone. The rail edge's midpoint is the ownership point.
       for (var _ri = 0; _ri < allStairWBBs.length; _ri++) {
         var _swb = allStairWBBs[_ri];
+        var _eMidX = (ex1 + ex2) / 2, _eMidZ = (ey1 + ey2) / 2;
+        if (!_stairCutsPoint(_swb, _eMidX, _eMidZ)) continue;
         if (e.dir === "h" && ey1 > _swb.zMin - 0.1 && ey1 < _swb.zMax + 0.1 &&
             ex1 < _swb.xMax && ex2 > _swb.xMin) {
           if (ex1 < _swb.xMin - 0.05) addRail(ex1, ey1, Math.min(ex2, _swb.xMin), ey1);
@@ -661,10 +725,14 @@ window.buildDeckScene = function(scene, p, c, THREE) {
     Object.keys(outlineCorners).forEach(function(k) {
       var pt = outlineCorners[k];
       if (isAtChamferCorner(pt[0], pt[1])) return;
-      // S64: Skip posts inside any stair footprint
+      // S81e: Skip posts inside any stair footprint, but only for stairs
+      // where the post point belongs to the stair's anchor zone. This
+      // prevents a transitional stair from removing rail posts on the
+      // lower deck (the landing zone).
       var _inStair = false;
       for (var _si2 = 0; _si2 < allStairWBBs.length; _si2++) {
         var _sw2 = allStairWBBs[_si2];
+        if (!_stairCutsPoint(_sw2, pt[0], pt[1])) continue;
         if (pt[0] > _sw2.xMin + 0.05 && pt[0] < _sw2.xMax - 0.05 &&
             pt[1] > _sw2.zMin - 0.1 && pt[1] < _sw2.zMax + 0.1) { _inStair = true; break; }
       }
@@ -737,12 +805,14 @@ window.buildDeckScene = function(scene, p, c, THREE) {
     var matStr = mats.stringer;
 
     var cumR = 0;
-    // Precompute landing elevations for clipping
+    // S81e: Precompute landing elevations using this stair's anchor elevation
+    // (fromH) instead of global main deck H. Enables correct rendering of
+    // stairs anchored on non-zone-0 zones AND transitional stairs.
     var landingElevs = [];
     var _lcr = 0;
     for (var _li = 0; _li < sg.landings.length; _li++) {
       _lcr += sg.runs[_li].risers;
-      landingElevs.push(H - _lcr * riseFt);
+      landingElevs.push(rs.fromH - _lcr * riseFt);
     }
     // Helper: check if a tread/riser clips through a landing platform
     // Only clips if inside the landing rect AND at/above the landing surface elevation
@@ -756,7 +826,11 @@ window.buildDeckScene = function(scene, p, c, THREE) {
       return false;
     }
     sg.runs.forEach(function(run, ri) {
-      var topElev = H - cumR * riseFt;
+      // S81e: Run's top elevation is measured from this stair's anchor
+      // zone surface (rs.fromH), not the global main deck H. This is what
+      // makes Zone-1-anchored stairs and transitional stairs render at
+      // correct elevations.
+      var topElev = rs.fromH - cumR * riseFt;
       var dsx = 0, dsz = 0;
       if (run.downDir === "+y") dsz = 1;
       else if (run.downDir === "-y") dsz = -1;
@@ -936,7 +1010,8 @@ window.buildDeckScene = function(scene, p, c, THREE) {
     var lCumR = 0;
     sg.landings.forEach(function(landing, li) {
       lCumR += sg.runs[li].risers;
-      var lElev = H - lCumR * riseFt;
+      // S81e: Intermediate landing elevation measured from anchor zone surface.
+      var lElev = rs.fromH - lCumR * riseFt;
       var lr = landing.rect;
       var lSurf = lElev + treadTh;
 
@@ -973,15 +1048,24 @@ window.buildDeckScene = function(scene, p, c, THREE) {
         [lr.x + lpSz / 2, lr.y + lr.h - lpSz / 2],
         [lr.x + lr.w - lpSz / 2, lr.y + lr.h - lpSz / 2]
       ];
-      lCorners.forEach(function(pt) {
-        var lpm = new THREE.Mesh(new THREE.BoxGeometry(lpSz, lElev, lpSz), mats.post);
-        lpm.position.set(pt[0], lElev / 2, pt[1]);
-        lpm.castShadow = true;
-        stGrp.add(lpm);
-        var pier = new THREE.Mesh(new THREE.CylinderGeometry(pR, pR, 0.35, 12), mats.concrete);
-        pier.position.set(pt[0], -0.025, pt[1]);
-        stGrp.add(pier);
-      });
+      // S81e: For grade stairs, intermediate landing posts go from grade (y=0)
+      // up to the landing platform (y=lElev), with a pier at ground level.
+      // For transitional stairs the stair sits entirely between fromH and toH
+      // and never touches grade, so drawing grade-reaching posts and piers
+      // would produce hovering/through-the-deck visuals. Skip them for now;
+      // a future session can add short posts from the landing down to the
+      // toH surface as a polish pass.
+      if (!rs.isTransitional) {
+        lCorners.forEach(function(pt) {
+          var lpm = new THREE.Mesh(new THREE.BoxGeometry(lpSz, lElev, lpSz), mats.post);
+          lpm.position.set(pt[0], lElev / 2, pt[1]);
+          lpm.castShadow = true;
+          stGrp.add(lpm);
+          var pier = new THREE.Mesh(new THREE.CylinderGeometry(pR, pR, 0.35, 12), mats.concrete);
+          pier.position.set(pt[0], -0.025, pt[1]);
+          stGrp.add(pier);
+        });
+      }
 
       var runBefore = sg.runs[li];
       var runAfter = sg.runs[li + 1];
@@ -1046,29 +1130,34 @@ window.buildDeckScene = function(scene, p, c, THREE) {
       });
     });
 
-    // Concrete pad at base of stairs (where last run meets ground)
-    var lastRun = sg.runs[sg.runs.length - 1];
-    var lr2 = lastRun.rect;
-    var padDepth = 3;
-    var padW, padD, padX, padZ;
-    if (lastRun.downDir === "+y") {
-      padW = lr2.w + 0.5; padD = padDepth;
-      padX = lr2.x + lr2.w / 2; padZ = lr2.y + lr2.h + padDepth / 2;
-    } else if (lastRun.downDir === "-y") {
-      padW = lr2.w + 0.5; padD = padDepth;
-      padX = lr2.x + lr2.w / 2; padZ = lr2.y - padDepth / 2;
-    } else if (lastRun.downDir === "+x") {
-      padW = padDepth; padD = lr2.h + 0.5;
-      padX = lr2.x + lr2.w + padDepth / 2; padZ = lr2.y + lr2.h / 2;
-    } else {
-      padW = padDepth; padD = lr2.h + 0.5;
-      padX = lr2.x - padDepth / 2; padZ = lr2.y + lr2.h / 2;
+    // Concrete pad at base of stairs (where last run meets ground).
+    // S81e: Grade stairs only. Transitional stairs land on an existing deck
+    // surface -- no concrete pad needed (and drawing one would make the
+    // 3D preview show a fake pad underneath the lower deck).
+    if (!rs.isTransitional) {
+      var lastRun = sg.runs[sg.runs.length - 1];
+      var lr2 = lastRun.rect;
+      var padDepth = 3;
+      var padW, padD, padX, padZ;
+      if (lastRun.downDir === "+y") {
+        padW = lr2.w + 0.5; padD = padDepth;
+        padX = lr2.x + lr2.w / 2; padZ = lr2.y + lr2.h + padDepth / 2;
+      } else if (lastRun.downDir === "-y") {
+        padW = lr2.w + 0.5; padD = padDepth;
+        padX = lr2.x + lr2.w / 2; padZ = lr2.y - padDepth / 2;
+      } else if (lastRun.downDir === "+x") {
+        padW = padDepth; padD = lr2.h + 0.5;
+        padX = lr2.x + lr2.w + padDepth / 2; padZ = lr2.y + lr2.h / 2;
+      } else {
+        padW = padDepth; padD = lr2.h + 0.5;
+        padX = lr2.x - padDepth / 2; padZ = lr2.y + lr2.h / 2;
+      }
+      var padMat = new THREE.MeshStandardMaterial({ color: 0xb0b0b0, roughness: 0.95 });
+      var padM = new THREE.Mesh(new THREE.BoxGeometry(padW, 0.25, padD), padMat);
+      padM.position.set(padX, 0.125, padZ);
+      padM.receiveShadow = true;
+      stGrp.add(padM);
     }
-    var padMat = new THREE.MeshStandardMaterial({ color: 0xb0b0b0, roughness: 0.95 });
-    var padM = new THREE.Mesh(new THREE.BoxGeometry(padW, 0.25, padD), padMat);
-    padM.position.set(padX, 0.125, padZ);
-    padM.receiveShadow = true;
-    stGrp.add(padM);
 
     stGrp.position.set(rs.wax, 0, rs.waz);
     stGrp.rotation.y = (stPl.angle || 0) * Math.PI / 180;
