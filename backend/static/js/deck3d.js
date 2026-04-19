@@ -237,28 +237,48 @@ window.buildDeckScene = function(scene, p, c, THREE) {
     if (!exitSide) exitSide = rs.exitSide;
     var stPl = rs.stPl, wbb = rs.wbb;
     var r0 = rs.sg.runs[0].rect;
+    // S81e: Gap zMin/zMax for deck-board/joist cutting must come from run 0's
+    // rect, NOT the full stair bbox. The wrap template has landing 2 and run 3
+    // geometry at negative local y (beside the deck, not under it), which
+    // inflates wbb backward past the anchor and used to cut a 4ft-wide hole
+    // in the deck at the stair base. Using run 0 alone keeps the cut scoped
+    // to the actual portion of the stair that intersects the deck plane.
+    // For all current templates, run 0 starts at y=0 and extends away from
+    // the deck, so front-exit stairs produce a zero-length cut (correct,
+    // because the deck rim joist is the actual boundary).
     if (rs.exitSide === "front" && !frontGap) {
-      stairClipD = Math.max(0, wbb.zMax - wbb.zMin);
+      var _r0zMin = rs.waz + r0.y;
+      var _r0zMax = rs.waz + r0.y + r0.h;
+      stairClipD = Math.max(0, _r0zMax - _r0zMin);
       var sxMin = rs.wax + r0.x, sxMax = rs.wax + r0.x + r0.w;
       if (sxMax > z0wx && sxMin < z0wx + W) {
         frontGap = { min: Math.max(sxMin, z0wx), max: Math.min(sxMax, z0wx + W),
-          zMin: Math.max(wbb.zMin, z0wz), zMax: Math.min(wbb.zMax, z0wz + D) };
+          zMin: Math.max(_r0zMin, z0wz), zMax: Math.min(_r0zMax, z0wz + D) };
       }
     } else if (rs.exitSide === "right" && !rightGap) {
-      stairClipD = Math.max(0, wbb.xMax - wbb.xMin);
-      var szMin = rs.waz - r0.x - r0.w, szMax = rs.waz - r0.x;
-      if (szMax > z0wz && szMin < z0wz + D) {
-        rightGap = { min: Math.max(szMin, z0wz), max: Math.min(szMax, z0wz + D),
-          xMin: Math.max(wbb.xMin, z0wx),
-          xMax: Math.min(wbb.xMax, z0wx + W) };
+      // right-exit rotation: stair local +x maps to world -z, so run0's world
+      // z-range is [waz - r0.x - r0.w, waz - r0.x]
+      var _r0zMinR = rs.waz - r0.x - r0.w;
+      var _r0zMaxR = rs.waz - r0.x;
+      var _r0xMinR = rs.wax + r0.y;
+      var _r0xMaxR = rs.wax + r0.y + r0.h;
+      stairClipD = Math.max(0, _r0xMaxR - _r0xMinR);
+      if (_r0zMaxR > z0wz && _r0zMinR < z0wz + D) {
+        rightGap = { min: Math.max(_r0zMinR, z0wz), max: Math.min(_r0zMaxR, z0wz + D),
+          xMin: Math.max(_r0xMinR, z0wx),
+          xMax: Math.min(_r0xMaxR, z0wx + W) };
       }
     } else if (rs.exitSide === "left" && !leftGap) {
-      stairClipD = Math.max(0, wbb.xMax - wbb.xMin);
-      var szMin = rs.waz + r0.x, szMax = rs.waz + r0.x + r0.w;
-      if (szMax > z0wz && szMin < z0wz + D) {
-        leftGap = { min: Math.max(szMin, z0wz), max: Math.min(szMax, z0wz + D),
-          xMin: Math.max(wbb.xMin, z0wx),
-          xMax: Math.min(wbb.xMax, z0wx + W) };
+      // left-exit rotation: stair local +x maps to world +z
+      var _r0zMinL = rs.waz + r0.x;
+      var _r0zMaxL = rs.waz + r0.x + r0.w;
+      var _r0xMinL = rs.wax - r0.y - r0.h;
+      var _r0xMaxL = rs.wax - r0.y;
+      stairClipD = Math.max(0, _r0xMaxL - _r0xMinL);
+      if (_r0zMaxL > z0wz && _r0zMinL < z0wz + D) {
+        leftGap = { min: Math.max(_r0zMinL, z0wz), max: Math.min(_r0zMaxL, z0wz + D),
+          xMin: Math.max(_r0xMinL, z0wx),
+          xMax: Math.min(_r0xMaxL, z0wx + W) };
       }
     }
   });
