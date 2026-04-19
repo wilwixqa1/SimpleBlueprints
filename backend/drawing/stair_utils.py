@@ -303,6 +303,88 @@ def compute_stair_info(height: float, stair_width: float = 4,
     }
 
 
+def resolve_stair_elevation(stair: dict, params: dict) -> dict:
+    """Single source of truth for stair elevation math.
+
+    Given a stair and the full deck params, returns everything downstream
+    consumers need to know about the stair's vertical geometry.
+
+    This is the Python mirror of the per-stair fromH/toH logic in
+    engine.js (S81d estMaterials and estSteelMaterials). Whenever the
+    rule for resolving stair elevation changes, update both this function
+    and the JS engine together -- they must agree.
+
+    Args:
+        stair: a dict from params["deckStairs"], or a synthesized stair
+               dict from the flat-params backward-compat path. Reads
+               "zoneId" and "_landsOnZoneId" (optional).
+        params: the full deck params dict. Used to look up zone heights.
+
+    Returns:
+        {
+            "fromH": float,          # elevation stair starts from (ft)
+            "toH": float,            # elevation stair lands on (ft)
+            "totalRise": float,      # abs(fromH - toH), always positive
+            "landsOnZoneId": int|None,  # None for grade, zone id for transitional
+            "isTransitional": bool,  # True if landing on a zone surface (not grade)
+            "directionValid": bool,  # False if fromH <= toH (orphan flag)
+        }
+
+    Fallback behavior: if zone lookup fails for any reason (bad data, missing
+    zone, etc.), defaults to grade landing from the main deck height. This
+    matches _migrateStairs in app.js -- safe defaults, never crash.
+    """
+    main_h = float(params.get("height", params.get("deckHeight", 4)))
+    zones = params.get("zones") or []
+
+    # Resolve anchor zone height (where the stair starts from)
+    anchor_id = stair.get("zoneId", 0)
+    if anchor_id == 0:
+        from_h = main_h
+    else:
+        anchor_zone = next((z for z in zones if z.get("id") == anchor_id), None)
+        if anchor_zone is None:
+            # Orphaned stair (anchor zone was deleted). Default to main deck.
+            from_h = main_h
+        else:
+            az_h = anchor_zone.get("h")
+            from_h = float(az_h) if az_h is not None else main_h
+
+    # Resolve landing (grade or transitional)
+    lands_on = stair.get("_landsOnZoneId")
+    if lands_on is None:
+        # Grade landing (legacy behavior, pre-S81d decks, or explicit grade stair)
+        to_h = 0.0
+        is_transitional = False
+    else:
+        # Transitional: find landing zone's height
+        if lands_on == 0:
+            to_h = main_h
+            is_transitional = True
+        else:
+            land_zone = next((z for z in zones if z.get("id") == lands_on), None)
+            if land_zone is None:
+                # Landing zone was deleted -- fall back to grade, safe default
+                to_h = 0.0
+                is_transitional = False
+            else:
+                lz_h = land_zone.get("h")
+                to_h = float(lz_h) if lz_h is not None else main_h
+                is_transitional = True
+
+    total_rise = abs(from_h - to_h)
+    direction_valid = from_h > to_h  # stair must descend
+
+    return {
+        "fromH": from_h,
+        "toH": to_h,
+        "totalRise": total_rise,
+        "landsOnZoneId": lands_on if is_transitional else None,
+        "isTransitional": is_transitional,
+        "directionValid": direction_valid,
+    }
+
+
 def resolve_all_stairs(params: dict, calc: dict) -> list:
     """Resolve all stairs from deckStairs array into world-space placements.
 
@@ -314,7 +396,6 @@ def resolve_all_stairs(params: dict, calc: dict) -> list:
     from .zone_utils import get_additive_rects
 
     deck_stairs = params.get("deckStairs")
-    height = float(params.get("height", 4))
 
     # Fallback: no deckStairs array -> use flat params (backward compat)
     if not deck_stairs:
@@ -324,6 +405,10 @@ def resolve_all_stairs(params: dict, calc: dict) -> list:
         if not st_info:
             return []
         placement = get_stair_placement(params, {"width": calc["width"], "depth": calc["depth"]})
+        # S81e: Backward-compat fallback path is grade-only by construction
+        # (predates multi-stair + _landsOnZoneId). Synthesize an elevation_info
+        # dict from flat params so downstream consumers can rely on this field.
+        fallback_h = float(params.get("height", 4))
         return [{
             "stair": {
                 "id": 0, "zoneId": 0,
@@ -337,15 +422,22 @@ def resolve_all_stairs(params: dict, calc: dict) -> list:
             "angle": placement["angle"],
             "exit_side": get_stair_exit_side(placement["angle"]),
             "stair_info": st_info,
+            "elevation_info": {
+                "fromH": fallback_h,
+                "toH": 0.0,
+                "totalRise": fallback_h,
+                "landsOnZoneId": None,
+                "isTransitional": False,
+                "directionValid": fallback_h > 0,
+            },
         }]
 
     # Build zone rect lookup: zone_id -> rect
-    # S81d NOTE: `height` above is a single global value used for every stair below.
-    # This is incorrect once zones can have per-zone heights and stairs can land
-    # transitionally on other zones. Fix in S81e along with draw_plan.py rendering.
-    # The JS engine (engine.js) already resolves per-stair fromH/toH from
-    # anchor zone and _landsOnZoneId; mirror that logic here when wiring up
-    # drawing.
+    # S81e: Per-stair elevation resolution via resolve_stair_elevation().
+    # Each stair resolves its own fromH (anchor zone height) and toH (grade
+    # or landing zone height). Total rise = abs(fromH - toH). This mirrors
+    # the JS engine.js per-stair logic. See resolve_stair_elevation() above
+    # for the single source of truth.
     add_rects = get_additive_rects(params)
     zone_rects = {}
     for ar in add_rects:
@@ -360,6 +452,10 @@ def resolve_all_stairs(params: dict, calc: dict) -> list:
         if not zr:
             continue  # orphaned stair, skip
 
+        # S81e: Resolve this stair's elevation (fromH/toH/totalRise)
+        elev = resolve_stair_elevation(stair, params)
+        stair_rise = elev["totalRise"]
+
         # Compute placement in zone-local coords
         placement = get_stair_placement_for_zone(stair, zr)
 
@@ -370,7 +466,7 @@ def resolve_all_stairs(params: dict, calc: dict) -> list:
         # Compute stair geometry (flat info for backward compat)
         sw = float(stair.get("width", 4))
         ns = int(stair.get("numStringers", 3))
-        st_info = compute_stair_info(height, sw, ns)
+        st_info = compute_stair_info(stair_rise, sw, ns)
         if not st_info:
             continue
 
@@ -383,7 +479,7 @@ def resolve_all_stairs(params: dict, calc: dict) -> list:
             landing_depth_val = float(landing_depth_val)
         stair_gap_val = float(stair.get("stairGap", 0.5))
         sg = compute_stair_geometry(
-            template=template, height=height,
+            template=template, height=stair_rise,
             stair_width=sw, num_stringers=ns,
             run_split=run_split_val,
             landing_depth=landing_depth_val,
@@ -398,7 +494,8 @@ def resolve_all_stairs(params: dict, calc: dict) -> list:
             "angle": placement["angle"],
             "exit_side": get_stair_exit_side(placement["angle"]),
             "stair_info": st_info,
-            "geometry": sg,  # S68: full template geometry
+            "geometry": sg,          # S68: full template geometry
+            "elevation_info": elev,  # S81e: fromH, toH, totalRise, isTransitional, etc.
         })
 
     return resolved

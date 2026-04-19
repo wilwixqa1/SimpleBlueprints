@@ -121,6 +121,26 @@ def format_feet_inches(feet):
         return f"{ft}'-{inches:.0f}\""
 
 
+def _zone_display_label(zone_id, params):
+    """Return a human-readable label for a zone id.
+
+    S81e helper. Mirrors getStairDestinations()'s label logic in zoneUtils.js:
+    use the zone's custom label if set, otherwise 'Main Deck' for zone 0
+    or 'Zone N' for others. This is called when rendering transitional
+    stair destination callouts on the PDF plan view.
+    """
+    if zone_id == 0:
+        return "Main Deck"
+    zones = params.get("zones") or []
+    for z in zones:
+        if z.get("id") == zone_id:
+            custom = z.get("label")
+            if custom:
+                return custom
+            return f"Zone {zone_id}"
+    return f"Zone {zone_id}"
+
+
 # ============================================================
 # S22: ZONE FRAMING HELPERS
 # ============================================================
@@ -716,13 +736,19 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
                         fontweight='bold', color=BRAND["dark"],
                         bbox=dict(boxstyle='square,pad=0.15', fc='white', ec='none', alpha=0.9))
 
-            # Concrete pad at base of last run
+            # S81e: Landing rendering depends on whether stair is transitional
+            # (lands on a deck surface) or grade (lands on concrete pad).
+            # For transitional stairs we suppress the concrete pad and draw
+            # a "LANDS ON <zone>" destination label instead. Position is the
+            # same either way so layouts stay stable when users toggle.
+            _elev = rs.get("elevation_info") or {}
+            _is_transitional = _elev.get("isTransitional", False)
             if sg["runs"]:
                 last = sg["runs"][-1]
                 lr = last["rect"]
                 dd = last["downDir"]
                 lx, ly, lw, lh = lr["x"], lr["y"], lr["w"], lr["h"]
-                pad_d = 3.0  # 3ft concrete pad
+                pad_d = 3.0  # 3ft pad footprint (also used as label positioning box)
                 if dd == "+y":
                     pad_corners = [_tp(lx - 0.25, ly + lh), _tp(lx + lw + 0.25, ly + lh),
                                    _tp(lx + lw + 0.25, ly + lh + pad_d), _tp(lx - 0.25, ly + lh + pad_d)]
@@ -738,11 +764,28 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
                 else:
                     pad_corners = None
                 if pad_corners:
-                    poly = Polygon(pad_corners, closed=True, fc='#e8e8e0', ec=BRAND["dark"], lw=0.6, ls='--')
-                    ax.add_patch(poly)
-                    pcx, pcy = sum(c[0] for c in pad_corners) / 4, sum(c[1] for c in pad_corners) / 4
-                    ax.text(pcx, pcy, 'CONCRETE\nLANDING', ha='center', va='center',
-                            fontsize=3.0, color=BRAND["mute"])
+                    if _is_transitional:
+                        # S81e: Transitional stair -- lands on an existing deck surface.
+                        # No concrete pad. Draw a destination label at the same position
+                        # so the PDF layout stays stable when users switch destinations.
+                        _lands_id = _elev.get("landsOnZoneId")
+                        _dest_label = _zone_display_label(_lands_id, params) if _lands_id is not None else "DECK"
+                        pcx = sum(c[0] for c in pad_corners) / 4
+                        pcy = sum(c[1] for c in pad_corners) / 4
+                        ax.text(pcx, pcy, f'LANDS ON\n{_dest_label.upper()}',
+                                ha='center', va='center',
+                                fontsize=3.2, fontweight='bold', color=BRAND["dark"],
+                                bbox=dict(boxstyle='square,pad=0.2', fc='white',
+                                          ec=BRAND["border"], lw=0.4, alpha=0.95))
+                    else:
+                        # Grade stair: concrete pad at base of last run (original behavior)
+                        poly = Polygon(pad_corners, closed=True, fc='#e8e8e0',
+                                       ec=BRAND["dark"], lw=0.6, ls='--')
+                        ax.add_patch(poly)
+                        pcx = sum(c[0] for c in pad_corners) / 4
+                        pcy = sum(c[1] for c in pad_corners) / 4
+                        ax.text(pcx, pcy, 'CONCRETE\nLANDING', ha='center', va='center',
+                                fontsize=3.0, color=BRAND["mute"])
 
             # Stringer/rise/run callout (positioned outside the stair bbox)
             bb = sg["bbox"]
