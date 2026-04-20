@@ -76,10 +76,11 @@ def _get_zone_south_north_sections(params, calc):
         if edge not in ("left", "right"):
             continue  # only left/right zones affect S/N width
 
+        # S82f: per-zone height support. Falls back to main deck H if zone has no `h`.
         sections.append({
             "x_draw": r["x"] + x_off,  # x in drawing coords (relative to deck_x)
             "w": r["w"],
-            "deck_top": H,  # future: zone.get("height", H)
+            "deck_top": zone.get("h", H),
         })
 
     return {"x_off": x_off, "bb_w": bb_w, "sections": sections}

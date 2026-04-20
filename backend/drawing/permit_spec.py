@@ -190,10 +190,27 @@ def build_permit_spec(params, calc):
     post_positions = calc["post_positions"]
     post_heights = calc.get("post_heights", [height] * num_posts)
 
+    # S82e: include zone posts in total so framing plan label matches cover sheet.
+    # Mirrors zone post math in draw_cover.py extra_posts.
+    zones = params.get("zones", [])
+    extra_posts = 0
+    for z in zones:
+        if z.get("type") == "cutout":
+            continue
+        # Flush-beam zones don't have posts (joists bear on rim).
+        if z.get("beamType") == "flush":
+            continue
+        edge = z.get("attachEdge", "front")
+        dim = z.get("d", 6) if edge in ("right", "left") else z.get("w", 8)
+        extra_posts += max(2, math.ceil(dim / 8) + 1)
+    total_posts_with_zones = total_posts + extra_posts
+
     spec["posts"] = {
         "size": post_size,
         "count": num_posts,
-        "total": total_posts,
+        "total": total_posts_with_zones,
+        "total_main": total_posts,
+        "total_zones": extra_posts,
         "positions": post_positions,
         "heights": post_heights,
         "material": "STEEL" if is_steel else "PT",
