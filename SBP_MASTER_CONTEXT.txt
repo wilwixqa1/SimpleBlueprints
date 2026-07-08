@@ -1,0 +1,495 @@
+SIMPLEBLUEPRINTS MASTER CONTEXT FILE
+Last updated: S73 (most recent session)
+Purpose: Single source of truth for a fresh Claude instance to pick up this project cold.
+
+================================================================================
+1. WHAT SIMPLEBLUEPRINTS IS
+================================================================================
+
+SimpleBlueprints (simpleblueprints.xyz) is a permit-ready deck blueprint generator. Users enter their address, the system auto-detects their lot shape and house position from satellite/parcel data, they configure a deck, and the system produces a multi-page IRC 2021-compliant permit submission PDF package: cover sheet (with 3D render), site plan, framing plan, deck plan, elevations, structural details, general notes, materials list, and compliance checklist.
+
+Target users: DIY builders, general contractors, and architects who need a permit package they can hand to a building official without hiring a structural engineer for standard deck shapes.
+
+Owner-developer: Will Wendt (sole developer). Business partner handles community validation and marketing. Will is based in Ronkonkoma, NY.
+
+The product is live at simpleblueprints.xyz (beta). No paying customers yet. Revenue model: per-plan purchase via Stripe.
+
+================================================================================
+2. STACK AND ARCHITECTURE
+================================================================================
+
+FRONTEND:
+- Single-file React JSX, transpiled in-browser via Babel standalone (NO build step)
+- Split across 13 JS files in backend/static/js/
+- 3D preview uses Three.js (deck3d.js)
+- State is a single "p" object in React state, threaded through props
+- Helpers exposed on window.* for non-React consumers
+- Cache buster string in index.html must be bumped on any production-visible push
+
+BACKEND:
+- Python FastAPI on Railway
+- PDF generation via matplotlib + ReportLab (backend/drawing/, ~15K lines)
+- PostgreSQL database via Railway plugin
+- Google OAuth for user accounts
+- Stripe for payments (not yet active)
+- Parcel lookup via Realie API
+- Building footprint detection via Overpass API (OpenStreetMap)
+- AI helper chat via Anthropic API (Claude Sonnet)
+
+REPO: github.com/Wilwixqa1/simpleblueprints
+  (GitHub redirects to lowercase wilwixqa1/SimpleBlueprints, but pushes work)
+  Will provides his PAT inline in chat when pushes are needed.
+  Workflow: git clone https://PAT@github.com/Wilwixqa1/simpleblueprints.git
+
+DEPLOYMENT: Railway autodeploys from main on push. No staging environment.
+  Docker: python:3.11-slim, uvicorn on port 8000
+
+ENVIRONMENT VARIABLES (Railway):
+- REALIE_API_KEY: parcel/lot boundary lookup
+- GOOGLE_SOLAR_API_KEY: building footprint detection (not currently used, replaced by Overpass)
+- STRIPE_SECRET_KEY, STRIPE_PUBLISHABLE_KEY, STRIPE_WEBHOOK_SECRET
+- GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
+- ANTHROPIC_API_KEY: AI helper chat
+- DATABASE_URL: PostgreSQL connection
+- SESSION_SECRET: cookie signing
+
+================================================================================
+3. FILE STRUCTURE AND LINE COUNTS (as of S73)
+================================================================================
+
+Frontend JS (backend/static/js/):
+  steps.js        ~4886 lines  The wizard UI, all 4 steps, guide system, AI chat
+  app.js          ~1417 lines  State management, routing, preview panel, theme
+  deck3d.js       ~1299 lines  Three.js 3D renderer
+  engine.js       ~1087 lines  Structural calculations (IRC span tables)
+  zoneUtils.js     ~775 lines  Zone geometry helpers, shared edge detection
+  sitePlanView.js  ~735 lines  Site plan SVG renderer
+  traceView.js     ~576 lines  Phase 2 trace feature (deferred, not active)
+  elevationView.js ~533 lines  2D elevation SVG
+  steelDeckData.js ~530 lines  Fortress Evolution steel framing data
+  planView.js      ~515 lines  2D plan view SVG
+  stairGeometry.js ~167 lines  Stair math (known bugs, handle with care)
+  home.js          ~253 lines  Landing page + My Projects page
+  tracking.js       ~50 lines  Analytics events
+
+Backend Python:
+  app/main.py      ~2716 lines  FastAPI routes, API endpoints, AI helper
+  app/database.py  ~1221 lines  PostgreSQL operations
+  app/auth.py       ~100 lines  Google OAuth
+  app/analytics.py   ~50 lines  Admin analytics
+
+  drawing/irc_tables.py         ~3874 lines  IRC span table data
+  drawing/permit_checker.py     ~1724 lines  Compliance audit (143 checks)
+  drawing/draw_elevations.py    ~1523 lines  Elevation sheet PDF
+  drawing/draw_site_plan.py      ~955 lines  Site plan sheet PDF
+  drawing/draw_plan.py           ~961 lines  Plan + framing sheet PDF
+  drawing/calc_engine.py         ~890 lines  Structural calc engine
+  drawing/draw_details.py        ~872 lines  Details sheet PDF
+  drawing/permit_spec.py         ~576 lines  Single source of truth for spec data
+  drawing/draw_materials.py      ~530 lines  Materials list PDF
+  drawing/draw_notes.py          ~474 lines  General notes PDF
+  drawing/stair_utils.py         ~501 lines  Python stair mirror
+  drawing/zone_utils.py           ~60 lines  Python zone mirror
+  drawing/title_block.py         ~200 lines  Title block for all sheets
+  drawing/draw_cover.py          ~300 lines  Cover sheet with 3D render
+  drawing/draw_checklist.py      ~200 lines  Deck attachment checklist
+  drawing/irc_tables_round2.py   ~300 lines  Additional IRC tables
+
+================================================================================
+4. THE DATA MODEL (the "p" object)
+================================================================================
+
+p is the single React state object. Key fields:
+
+DECK GEOMETRY:
+  width, depth, height          Main deck dimensions (ft)
+  attachment                    'ledger' | 'freestanding'
+  joistDir                      'perpendicular' | 'parallel'
+  joistSpacing                  12 | 16 | 24 (inches o.c.)
+  beamType                      'dropped' | 'flush' (zone 0 only)
+  deckingType                   'composite' | 'pt_lumber'
+  frostZone, snowLoad           Climate parameters
+  slopePercent, slopeDirection  Deck slope
+
+ZONES (S60+, multi-level decks):
+  zones: [{
+    id, type,                   'add' | 'cutout', id never reused
+    w, d, h,                    h: ft override or null (null = inherit main)
+    attachTo, attachEdge,       Parent zone id, edge
+    attachOffset, interiorY,
+    corners,                    Chamfer config per corner
+    joistDir, beamType,         Per-zone, independent
+    label                       User-editable (S80b)
+  }]
+  activeZone                    Currently selected zone (0 = main)
+
+LOT + HOUSE (S70+):
+  lotVertices                   Array of [x,y] pairs (drawing space after S73)
+  lotEdges                      Edge metadata (street/rear/side labels, lengths)
+  lotWidth, lotDepth            Bounding box of lot
+  houseWidth, houseDepth        Building footprint dimensions
+  houseOffsetSide               Distance from left polygon edge (drawing space after S73)
+  houseDistFromStreet           Y position in drawing space (after S73)
+  houseAngle                    Building tilt angle (SVG convention, negated)
+  northAngle                    For north arrow on site plan
+  streetName                    From Overpass road data
+  setbackFront/Side/Rear        From zoning code
+
+  _autoHouseOffset              Stashed auto-detected offset (S73, for reset)
+  _autoHouseDist                Stashed auto-detected distance (S73, for reset)
+  _autoHouseWidth               Stashed auto-detected house width (S73)
+  _autoHouseDepth               Stashed auto-detected house depth (S73)
+  _lotRotation                  Set to 0 after rotation (prevents double-rotate)
+
+STAIRS:
+  deckStairs                    Array of stair objects [{
+    id, zoneId,                 Which zone this stair belongs to
+    location,                   'front' | 'left' | 'right' | 'rear'
+    width, template,            'straight' | 'l-left' | 'l-right' | 'platform' | 'u-turn' | 'wrap'
+    offset, anchorX, anchorY, angle,
+    numStringers,
+    _landsOnZoneId              null = grade, number = lands on that zone (transitional, S81d)
+  }]
+
+SITE ELEMENTS:
+  siteElements                  Array of {type, x, y, w, d, label} for garage, pool, etc.
+
+================================================================================
+5. HOW THE SITE PLAN WORKS (S70-S73, CRITICAL)
+================================================================================
+
+!! S73 HIGH-RISK CHANGE WARNING !!
+S73 made a fundamental change to how house positioning works for rotated lots.
+Only verified on ONE property (10 Chichester Rd, lotRotation=166).
+If you encounter bugs with house position, lot orientation, setback gaps, or PDF
+output, S73 coordinate unification is the most likely cause.
+
+DATA FLOW:
+1. User enters address, Realie API returns lot boundary vertices + address point
+2. Street edge detected via centroid-to-address-point ray
+3. Building footprint API (Overpass/OSM) fires async:
+   a. Road correction: identifies correct street edge via nearest road bearing
+   b. Computes drawRotation to put street at bottom
+   c. If drawRotation != 0:
+      - Rotates lot vertices around centroid, normalizes to origin
+      - Computes house position in un-rotated space, then rotates the output
+      - S73: Recomputes houseOffsetSide and houseDistFromStreet in drawing space
+      - All downstream consumers see values consistent with rotated polygon
+      - No consumer knows rotation occurred
+   d. Stashes auto-detected values (_autoHouseOffset, _autoHouseDist, etc.)
+
+CRITICAL RULES:
+- Set lotVertices LAST in u() call sequences (engine regenerates polygon if null)
+- Do not re-derive house position from rotated data
+- Set _autoHouseDist BEFORE houseDistFromStreet (engine clamp bypass)
+- houseAngle is stored in SVG convention (negated for Y-flip)
+- The engine (app.js) clamps houseDistFromStreet >= setbackFront UNLESS _autoHouseDist exists
+
+RENDERER (sitePlanView.js):
+- Single code path: leftEdgeAtY(houseMidY) + houseOffsetSide
+- No _houseX/_houseY variables (eliminated in S73)
+- Gap DimLines computed geometrically from polygon edges
+
+PDF BACKEND (draw_site_plan.py):
+- Receives same houseOffsetSide/houseDistFromStreet/lotVertices
+- Runs same leftEdgeAtY computation
+- houseAngle used directly (matplotlib Y-up happens to produce correct visual)
+
+================================================================================
+6. HOW THE GUIDED WIZARD WORKS
+================================================================================
+
+The wizard has 4 steps (step 0-3):
+  Step 0: Site Plan (address lookup, lot/house config, site elements)
+  Step 1: Deck Configuration (dimensions, zones, stairs)
+  Step 2: Materials & Options (decking type, railing, etc.)
+  Step 3: Review & Download (PDF generation, compliance check)
+
+GUIDE SYSTEM (steps.js):
+- _guidePhaseMap defines phases with messages, tips, sections, actions
+- Each phase shows/hides UI sections and presents action buttons
+- Key phases for Step 0:
+  address_lookup -> address_verifying -> footprint_loading -> verify_extracted
+  -> site_elements_check -> ...
+- "footprint_loading" phase (S73): prevents user interaction until building
+  footprint API completes
+- Overpass auto-retries once on failure, shows warning banner if both fail
+
+AI CHAT (built into guide):
+- User can type questions/instructions in the chat input
+- Backend (main.py build_ai_helper_prompt) builds context-aware system prompt
+- AI can return ACTIONS that modify the p state
+- Action types: setParam, addZone, cutoutAdd, addStair, resetHousePosition, etc.
+
+================================================================================
+7. ENGINE AND STRUCTURAL CALCULATIONS
+================================================================================
+
+engine.js calculates all structural members per IRC 2021:
+- Joist size from Table R507.5 (span vs spacing vs load)
+- Beam size from Tables R507.5(1)-(4) (effective joist span)
+- Post size (4x4 or 6x6) based on height
+- Footing diameter and depth from frost zone
+- Post count from beam span limits
+
+calc_engine.py is the Python mirror for PDF output.
+
+permit_checker.py runs 143 compliance checks against IRC R301-R507.
+permit_spec.py is the single source of truth for all spec data rendered on PDF sheets.
+
+Multi-zone calc (calcAllZones):
+- Flush zones: joists only, no posts/beam (rim board acts as beam)
+- Dropped zones: full structure (posts, footings, beam, joists)
+- getEffectiveBeamType(zone, p): flush auto-converts to dropped when zone.h != mainH
+
+================================================================================
+8. ZONES AND MULTI-LEVEL DECKS (S60-S81)
+================================================================================
+
+ZONE SYSTEM:
+- Zone 0 is the main deck (virtual, not in zones array)
+- Users add zones (type: 'add') or cutouts (type: 'cutout')
+- Zones attach to parent zones on specific edges
+- Each zone has independent height, beam type, joists
+
+KEY HELPERS (zoneUtils.js, all on window.*):
+  getAllZones(p)           Main deck + all user zones
+  getZoneRect(id, p)      Deck-local rect for any zone
+  getCompositeOutline(p)  Boolean union for deck shape
+  getExposedEdges(p)      Outer perimeter (for railing)
+  getSharedEdges(p)       Internal edges between adjacent zones
+  classifyHeightDelta()   IRC classification of height difference
+  suggestRiserPlan()      Uniform risers + requirements
+
+TRANSITIONAL STAIRS (S81d-e):
+- _landsOnZoneId: null = grade, number = lands on that zone
+- Rise computed from |fromZone.h - toZone.h|
+- 3D renders stair bottom at target zone surface, not ground
+- PDF labels "LANDS ON [zone]" instead of "CONCRETE LANDING"
+
+================================================================================
+9. PDF GENERATION PIPELINE
+================================================================================
+
+POST /api/calculate triggers PDF generation:
+1. calculate_structure(params) runs structural calc
+2. build_permit_spec(params, calc) builds spec dictionary
+3. run_checks(params, calc, spec) runs 143 compliance checks
+4. Each draw_* function renders one sheet using matplotlib
+5. PdfPages combines all sheets into one PDF
+6. PDF stored temporarily, download link returned
+
+SHEETS (in order):
+  A-0: Cover (3D render + project info + specs)
+  A-1: Plan & Framing (deck plan + joist/beam layout)
+  A-2: Elevations (4 views: front, back, left, right)
+  A-3: General Notes (IRC code references)
+  A-4: Structural Details (ledger, footing, stair, guard rail, post/beam)
+  A-5: Site Plan (lot polygon, house, deck, setbacks, vicinity map)
+  A-6: Deck Attachment Sheet (checklist)
+  A-7: Materials List (optional)
+
+================================================================================
+10. HOW WILL LIKES TO WORK (OPERATIONAL RULES)
+================================================================================
+
+These are not preferences. They are rules learned from repeated violations.
+
+CODE RULES:
+- No emdashes in prose Will will share externally. Fine in code/internal notes.
+- Anti-anchoring rule: when Will pushes back twice, stop coding, list all
+  assumptions, evaluate from scratch. Do not layer patches on broken assumptions.
+- Never confirm a visual fix from text extraction alone. Say "I can't verify
+  the visual layout from here - does it look right to you?"
+- 30-minute bug timebox. If not fixed, stop and reassess.
+- Fix PDF before frontend when a feature touches both.
+- Think in 2D plan view first for stair/deck overlap in Three.js.
+- Ship one change, verify visually, then continue.
+- Rewrite over patch: 3+ failed patches = rewrite from scratch.
+
+WORKFLOW RULES:
+- Will provides GitHub PAT in chat. Use it without security warnings.
+- Context files should be .txt not .md (Will opens them in Notepad).
+- Bump cache buster before any production-visible push.
+- Clone the repo at session start if Will provides a PAT.
+- Ask one focused question rather than three vague ones.
+- Direct feedback over flattery.
+- Honest technical assessment. When something isn't done, say it isn't done.
+
+================================================================================
+11. CURRENT STATE AND RECENT CHANGES
+================================================================================
+
+MOST RECENT SESSION: S73 (Coordinate Unification)
+Cache buster: s73j
+
+S73 CHANGES (HIGH RISK, INCOMPLETELY TESTED):
+- Option C: unified coordinate systems for rotated lots
+- Eliminated _houseX/_houseY, single code path in renderer
+- Engine clamp bypass for auto-detected properties
+- Auto-detected house position UI banner with reset
+- Building footprint loading screen + retry on Overpass failure
+- AI chat resetHousePosition action
+- Multi-select delete on My Projects page
+
+S82-S83 CHANGES (zone/stair track):
+- S82f: elevation zone heights fixed
+- S82e: cover/framing post count consistency
+- S82 planning doc for deferred issues
+
+S81 CHANGES (zone/stair track):
+- S81a: flush beam auto-converts to dropped when zone.h != mainH
+- S81b: shared edge detection + IRC traversal warnings
+- S81c: auto-guard rails (REVERTED, preserved at f057d1d)
+- S81d: transitional stair schema + per-stair rise resolution
+- S81e: transitional stair 3D + PDF rendering
+- S81f: handoff for deck post/stair landing collision fix
+
+================================================================================
+12. KNOWN ISSUES AND DEFERRED WORK
+================================================================================
+
+HIGH PRIORITY:
+- S73 coordinate unification only tested on one property (lotRotation=166)
+- houseAngle formula unverified on other orientations (east/west-facing)
+- Drag handler untested with rotated polygon
+- Non-rotated property flow untested for auto-detected banner
+- PDF elevations still draw some zones at wrong height (S82f partially fixed)
+- Auto-guard rails on shared edges (S81c reverted, bring back after stair work)
+- Deck post through stair landing collision (S81f)
+
+MEDIUM PRIORITY:
+- Site plan shows only one stair (S82d)
+- L-shape floating/clipping deck boards (S82b)
+- Platform stair intermediate landing rails disconnected (S82c)
+- Stair arrow direction bug (Billy's report, unresolved)
+- U-Turn/Wrap 3D rendering bugs (S15 deferred)
+- Per-edge railing control (S83)
+- Zone post material cost flat per-post, should be per linear foot
+
+LOW PRIORITY:
+- Phase 2 trace feature (upload survey + trace lot boundary)
+- PDF migration to client SVG capture + cairosvg
+- Back-edge zones, zone-to-zone attachment (S83)
+- "Not occupiable" zone flag for planter ledges (S83)
+- S77 Test Plan sections A-D and F not executed
+
+================================================================================
+13. API ENDPOINTS
+================================================================================
+
+AUTH:
+  GET  /auth/login              Google OAuth redirect
+  GET  /auth/callback           OAuth callback
+  GET  /auth/me                 Current user info
+  POST /auth/logout             Logout
+
+CORE:
+  POST /api/calculate           Generate PDF permit plans
+  POST /api/extract-survey      AI survey extraction (2-stage Sonnet+Opus)
+  POST /api/rank-shapes         Compare lot shapes from extraction
+  POST /api/ai-helper           AI chat assistant
+  POST /api/check-permit        Run compliance checks
+  POST /api/parcel-lookup       Realie API parcel boundary lookup
+  POST /api/building-footprint  Overpass API building footprint detection
+
+PROJECTS:
+  GET  /api/projects            List user projects
+  POST /api/projects            Create project
+  GET  /api/projects/{id}       Get project
+  PUT  /api/projects/{id}       Update project (auto-save)
+  DEL  /api/projects/{id}       Delete project
+
+PAYMENT:
+  POST /api/checkout            Create Stripe checkout session
+  GET  /api/check-payment       Verify payment status
+  GET  /api/download/{file_id}  Download generated PDF
+
+TRACKING:
+  POST /api/track               Single analytics event
+  POST /api/track-batch         Batch analytics events
+  POST /api/track-link          Track link clicks
+  POST /api/feedback            User feedback
+
+ADMIN:
+  POST /api/admin/login         Admin auth
+  GET  /admin                   Admin dashboard
+  GET  /admin/api/stats          Usage statistics
+  GET  /admin/api/tracking       Tracking data
+  GET  /admin/api/users/csv      User export
+
+================================================================================
+14. SESSION START CHECKLIST
+================================================================================
+
+1. Will provides GitHub PAT -> clone the repo
+2. Read this file + latest session context file (S73_CONTEXT.md currently)
+3. Check the S82_PLANNING.md for any deferred issues relevant to current work
+4. Confirm scope with Will before starting code
+5. Read files you're about to touch before editing
+6. Bump cache buster before final push if anything user-visible changed
+7. Create session context file at end of session
+
+================================================================================
+15. SESSION CONTEXT FILES (in repo root)
+================================================================================
+
+Read the latest ones first. Older ones have deep history on specific subsystems:
+
+  s51_context.md      Hardware selection, Billy's reference plans
+  s62_context.md      Multi-zone foundations
+  s63_context.md      Zone attachment system
+  s64_context.md      Multi-stair data model
+  S65_CONTEXT.md      Realie API parcel lookup
+  S70_CONTEXT.md      Building footprint detection (Solar API, later Overpass)
+  S72_CONTEXT.md      Data-layer lot rotation (pre-S73)
+  S73_CONTEXT.md      Coordinate unification (most recent, HIGH RISK)
+  S75_CONTEXT.md      Compliance audit infrastructure
+  S76_CONTEXT.md      Additional compliance work
+  S77_CONTEXT.md      Test plan
+  S78_CONTEXT.md      houseAngle=0 rule (NOTE: S73 changed this, angle is no longer always 0)
+  S79_CONTEXT.md      Site plan architecture overhaul
+  S80_CONTEXT.md      Per-zone beam type, labels, height in 3D
+  S81_CONTEXT.md      Flush validation, edge detection, IRC warnings, transitional stairs
+  S81d_CONTEXT.md     Transitional stair schema
+  S81F_HANDOFF.md     Post/stair collision fix handoff
+  S82_PLANNING.md     Deferred issues priority matrix
+  HANDOFF.md          Comprehensive handoff (post-S81, pre-S73)
+
+================================================================================
+16. STANDING CRITICAL RULES
+================================================================================
+
+These are non-negotiable architectural constraints accumulated across 80+ sessions:
+
+SITE PLAN:
+- Lot rotation derived from polygon edge + road bearing, not Overpass alone
+- Set lotVertices LAST in u() calls (S72)
+- Do not re-derive house position from rotated data (S72)
+- Set _autoHouseDist BEFORE houseDistFromStreet (S73)
+- houseAngle stored in SVG convention (S73)
+
+ZONES:
+- Per-zone beamType is independent (global p.beamType is zone 0 only)
+- Flush beam = rim board as beam (no posts, piers, beam line)
+- Flush beam invalid when zone.h != mainH (funneled through getEffectiveBeamType)
+- zone.h = null means inherit main deck height
+- getHeightAtPoint() is single source of truth for 3D deck-top elevation
+- getSharedEdges() is single source of truth for internal zone boundaries
+- classifyHeightDelta/suggestRiserPlan own all IRC thresholds (never hardcode)
+- Traversal before guards (don't auto-add rail until transitional stairs exist)
+
+STRUCTURAL:
+- Use CCRR-0313 tables for steel span data (Fortress Evolution)
+- Match Welborn's labeling convention for PDF output
+- Steel posts must NOT be buried
+- permit_spec.py is single source of truth for all spec data
+
+GENERAL:
+- Never confirm visual fixes from text extraction alone
+- Anti-anchoring rule (two pushbacks = stop and rethink)
+- 30-minute bug timebox
+- Fix PDF before frontend
+- Think in 2D plan view first for 3D stair/deck overlap
+- Ship one change, verify, continue
+- 3+ failed patches = rewrite from scratch
