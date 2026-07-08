@@ -1,0 +1,115 @@
+SIMPLEBLUEPRINTS ARCHITECTURE
+Current state only. No session narratives. If this file disagrees with the
+code, the code wins and this file must be fixed in the same session.
+Verified against code: S84 (July 2026, HEAD lineage 5505cc6 + s84 branch)
+
+================================================================================
+SITE PLAN SUBSYSTEM (the part that keeps getting rewritten -- READ THIS FIRST)
+================================================================================
+
+CURRENT ARCHITECTURE: S79 polygon-edge rotation. NOT the S73 coordinate
+unification (deleted by S78/S79 -- commits feb4eee, 1e40b4c). Any context
+file claiming S73 is the live architecture is stale. Philosophy:
+"good enough, never wrong" -- optimize the floor, dimensions are sacred,
+position is flexible, never push the house to a lot edge.
+
+DATA FLOW:
+1. Realie parcel lookup returns lot vertices + address geocode.
+2. Parcel callback (steps.js ~1000-1190):
+   a. Street edge detected: ray from lot centroid through address point;
+      lowest-avg-Y edge as fallback. Rear edge = reversed ray.
+   b. Rotation computed FROM THE STREET EDGE ANGLE of the polygon itself
+      (zero external dependency): rot = -atan2(edgeDy, edgeDx), flipped 180
+      if street midpoint would land above centroid. Skipped when < 3 deg.
+   c. Vertices rotated around centroid, shifted so min corner = (0,0).
+      Transform params kept in closure (_s79Cos/_s79Sin/_s79Cx/_s79Cy/
+      _s79Mx/_s79My/_s79Rotated) for reuse by the footprint callback.
+   d. lotVertices set LAST (engine regenerates polygon when null -- race).
+3. Building footprint callback (Overpass, async, ~3-15s, VALIDATION role):
+   a. If Overpass road bearing disagrees with ray-cast street edge:
+      re-rotate from original vertices, update closure vars + state.
+      If Overpass fails: keep ray-cast result (medium confidence).
+      Auto-retry once after 2s; warning banner + manual retry if both fail.
+   b. Primary residence = closest building >= 400 sqft within 250 ft.
+   c. House positioning ladder: building centroid (if inside polygon)
+      -> address point -> centered fallback. Offset measured from
+      tightEdges().left (tightest span across house top/mid/bottom Ys).
+   d. Auto-detected values stashed: _autoHouseOffset/_autoHouseDist/
+      _autoHouseWidth/_autoHouseDepth (drives the green banner + reset UI
+      + AI resetHousePosition action + engine clamp bypass).
+4. houseAngle is ALWAYS 0 under S79. No building tilt, no width/depth swap.
+
+RENDERER (sitePlanView.js): house X = leftEdgeAtY(houseMidY) + houseOffsetSide.
+PDF (draw_site_plan.py): same values, same leftEdgeAtY approach.
+
+KNOWN QUANTIFIED BUG (S84 harness): positioning measures offset from
+tightEdges().left, renderer draws at leftEdgeAtY(midY) + offset. Agree on
+rectangles; diverge ~2.6 ft on tapered lots (worse on flag lots). Fix in
+S85: make both sides use ONE definition (recommend leftEdgeAtY(midY), i.e.
+convert the stored offset at stash time), verify visually.
+
+PURE GEOMETRY MODULE (S84): backend/static/js/lotGeometry.js is the faithful
+extraction of all of the above math. Tests: tests/geometry/ (2700+ invariant
+checks, all shapes x all rotations, runs in CI). RULE: any change to site
+plan math happens in lotGeometry.js WITH tests, then call sites follow.
+steps.js/sitePlanView.js still contain the original inline copies; swapping
+call sites to the module is S85 work requiring visual verification.
+
+ENGINE RULES STILL ACTIVE (app.js reducer):
+- houseDistFromStreet clamped >= setbackFront UNLESS _autoHouseDist exists.
+- Setting _autoHouseDist force-syncs houseDistFromStreet (handles React
+  batching; the old "set _autoHouseDist first" ordering rule is now moot).
+- lotWidth/lotDepth slider changes clear lotVertices/lotEdges (custom
+  polygon reset).
+
+================================================================================
+FRONTEND
+================================================================================
+- Single-page React via Babel standalone, NO build step. 13 files in
+  backend/static/js/. State = single "p" object; u(key, value) updates it
+  through the app.js reducer (side effects live there -- always check the
+  reducer when a stored value seems to change on its own).
+- Helpers exposed on window.* for cross-file use (zoneUtils, lotGeometry).
+- Cache busting: per-file ?v= strings in index.html. DRIFTED (s61a...s81e).
+  TODO S85: single global version string.
+- 3D: deck3d.js (Three.js). 2D: planView/elevationView/sitePlanView (SVG).
+- Wizard: 4 steps in steps.js; guide system via _guidePhaseMap; AI chat can
+  mutate p via action types (setParam, addZone, resetHousePosition, ...).
+
+================================================================================
+BACKEND
+================================================================================
+- FastAPI (backend/app/main.py) on Railway; autodeploys from main. NO
+  staging, NO deploy gate (CI added S84 is a tripwire, not a gate).
+- PDF pipeline: POST /api/calculate -> calculate_structure -> build_permit_spec
+  -> run_checks (143 IRC checks) -> draw_* per sheet -> PdfPages.
+  permit_spec.py is the single source of truth for sheet spec data.
+- Structural: calc_engine.py mirrors engine.js (dual-implementation tax;
+  known divergence class -- see S82e post counts). Long-term: shared tables.
+- External APIs: Realie (parcels), Overpass (footprints, flaky ~30%),
+  Anthropic (AI helper), Stripe (wired, not live), Google OAuth.
+- Security posture (post S84): CORS locked to prod origin; admin auth
+  constant-time + fail-closed + rate limited; SQL parameterized; project
+  endpoints scoped by user_id.
+
+================================================================================
+TESTS AND CI (S84)
+================================================================================
+- node tests/geometry/lotGeometry.test.js  (site plan math invariants)
+- python3 tests/test_structural.py         (IRC known-answer, S60 baseline)
+- python3 tests/test_future_products.py    (shed/pergola logic, dormant)
+- .github/workflows/tests.yml runs all three on every push to main.
+- Golden-file PDF regression: planned S85 (see S84_PLAN.txt Track A 2.3).
+
+================================================================================
+STANDING RULES (binding)
+================================================================================
+- lotVertices set LAST in u() sequences.
+- Never confirm visual fixes from text extraction alone.
+- Fix PDF before frontend. Ship one change, verify, continue.
+- Anti-anchoring: two pushbacks = stop, list assumptions, rethink.
+- 30-minute bug timebox. 3+ failed patches = rewrite from scratch.
+- Geometry changes go through lotGeometry.js + tests first (S84).
+- Bump cache buster on production-visible pushes.
+- Update THIS FILE and STATUS.txt at end of every session. Session
+  narratives go in docs/history/, and are historical record, not truth.
