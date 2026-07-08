@@ -1,0 +1,287 @@
+SIMPLEBLUEPRINTS S84 MASTER PLAN
+Created: S84 kickoff (July 2026), after full repo audit (802 commits, HEAD = 5505cc6 "S83")
+Goal: beta ready to share with contractors + first passing permit submission
+
+================================================================================
+0. CRITICAL FINDING FROM THE S84 AUDIT (READ FIRST)
+================================================================================
+
+THE MASTER CONTEXT FILE IS WRONG ABOUT THE CURRENT ARCHITECTURE.
+
+Git evidence:
+- S73 push 1 (f22ae47) introduced the coordinate unification.
+- S78 (feb4eee "Remove lot rotation") DELETED it.
+- S79 (1e40b4c) rebuilt rotation as polygon-edge rotation from Realie data,
+  Overpass demoted to validation. houseAngle is always 0 under S79.
+- S80-S83 built zone/stair features on top of S79. That is what is deployed.
+
+Chronological session order in git: S73 -> S75 -> S76 -> S77 -> S78 -> S79
+-> S80 -> S81 -> S82/S83 (HEAD). The master context's "most recent session:
+S73" and its Section 5 (site plan = S73 architecture, high-risk warning) are
+STALE. The S73/S74 verification TODO list is obsolete: that code is gone.
+
+S73 LEFTOVERS STILL IN CODE (status unknown, must be triaged):
+- steps.js line ~1571: stashes _autoHouseDist (S79 path kept this partially)
+- steps.js line ~1775: AI chat resetHousePosition handler reads _autoHouse*
+- steps.js line ~3414: auto-detected banner / "Reset to detected" UI
+- app.js: S29 clamp bypass keyed on _autoHouseDist (4 references)
+Open question: does the banner ever render under S79? Does reset work?
+Either wire these fully into S79 or delete them. Half-connected code is worse
+than either.
+
+LESSON: hand-written context files drifted far enough to misdirect a session.
+The fix is not better context files. It is tests + a doc that is regenerated
+from the code each session (see 2.4).
+
+================================================================================
+1. STRATEGIC FRAME
+================================================================================
+
+Target customer: CONTRACTORS (per Will, S84). Implications:
+- Contractors buy time savings and acceptance rate, not novelty. The pitch is
+  "permit package in 20 minutes that the town accepts," not "cool 3D deck."
+- They pull multiple permits/year -> pricing can be $99+/plan or subscription.
+  $29 is homeowner pricing. Decide before Stripe activation.
+- They will know instantly if a drawing is wrong. PDF correctness is the
+  entire product.
+- They have existing relationships with plans examiners -> a contractor beta
+  tester is also a permit-validation channel.
+
+The single milestone that makes this a business: ONE permit package generated
+by the tool, submitted to a real building department, APPROVED. Everything in
+this plan is sequenced to reach that as fast as possible without shipping
+something structurally embarrassing.
+
+FEATURE FREEZE (agreed S84): no new capabilities (no sheds, no pergolas, no
+new zone types, no new stair templates) until Track C milestone 1 is hit.
+
+================================================================================
+2. TRACK A: FOUNDATION (make the codebase trustworthy)
+================================================================================
+
+2.1 GEOMETRY TEST HARNESS (highest-leverage engineering task, S84)
+The site plan subsystem was rebuilt in S70, S72, S73, S78, S79 -- five
+rewrites, each "fixing one address while breaking another" (S79's own words).
+Root cause: pure math verified by clicking addresses in a browser.
+
+Plan:
+a. Extract the S79 geometry into a standalone pure module
+   (backend/static/js/lotGeometry.js + Python mirror or shared logic):
+   - streetEdge detection (ray-cast)
+   - polygon rotation + origin normalization
+   - leftEdgeAtY / tightEdges scans
+   - point-in-polygon, house placement + nudge logic
+   No React, no window.*, no closures over component state. Inputs in,
+   outputs out.
+b. Parameterized tests (Node script or ported to Python/pytest):
+   - Synthetic lots: rectangle, trapezoid, flag lot, concave, tapered,
+     at rotations swept 0-359 degrees in 5-degree steps
+   - Invariants asserted for every case:
+     * street edge lands at bottom (min Y) after rotation
+     * house rect fully inside polygon (or flagged, never silently clipped)
+     * houseOffsetSide >= 0, houseDistFromStreet >= 0
+     * round-trip: rotate then un-rotate reproduces original vertices
+   - Regression fixtures: the actual Realie payloads for the known problem
+     addresses (10 Chichester, 368 Croaton, etc). Save the JSON responses as
+     fixtures so past bugs become permanent tests.
+c. This is the Fable 5 experiment Will asked about. Realistic expectation:
+   the model is genuinely good at this exact task (extraction, refactoring,
+   symbolic verification of rotation math, exhaustive parameterized tests).
+   What it cannot do: validate against ground truth (real surveys) or
+   guarantee a plans examiner accepts the output. The S72/S73/S78/S79 churn
+   was mostly a PROCESS failure (no tests, verify-by-clicking, context
+   drift), so harness + model together is the fix, not model alone.
+
+2.2 CI ON EVERY PUSH (S84, ~1 hour)
+- Convert tests/test_structural.py + test_future_products.py to pytest
+  (currently script-style, 0 pytest-discoverable tests).
+- GitHub Action: run pytest + geometry harness on every push to main.
+- Railway autodeploys from main with no gate, so at minimum the Action gives
+  a red X within minutes of a bad push. Later: deploy from a release branch
+  that only advances on green.
+
+2.3 PDF GOLDEN-FILE REGRESSION (S85)
+- Pick 6-8 canonical configs: basic rect ledger deck, freestanding, L-shape
+  (2 zones), multi-level with transitional stair, deck w/ straight stair,
+  one rotated-lot site plan, one non-rotated.
+- Script renders all sheets for each config, rasterizes pages, compares
+  against checked-in golden PNGs (pixel diff with tolerance).
+- Every PDF bug fixed from now on adds its config to the set.
+- This is what makes "ship one change, verify, continue" scale beyond eyeballs.
+
+2.4 KILL CONTEXT-FILE DRIFT (S84, small)
+- Move all S*_CONTEXT.md files to /docs/history/ (keep them, stop reading
+  them first).
+- Create ARCHITECTURE.txt (single file, .txt per Will's convention):
+  current-state only, no session narratives. Regenerate/verify it against
+  the code at the END of each session as part of the close-out checklist.
+- Add STATUS.txt: 10 lines max. Current session number, cache buster, top 3
+  priorities, blockers. This replaces "most recent session" claims.
+- Fix the master context file's Section 5 immediately (or delete Section 5
+  and point at ARCHITECTURE.txt).
+
+2.5 HYGIENE QUICK WINS (fold into S84/S85 gaps)
+- Cache busters: per-file versions have drifted (s61a/s75a/s81e). Move to a
+  single global version string injected in one place.
+- Triage S73 leftovers (see Section 0): wire in or delete.
+- traceView.js (576 lines, dormant): leave in place for now -- Section 4.2
+  may promote it. Decide at S86, do not delete yet.
+- Dead references to GOOGLE_SOLAR_API_KEY: remove or comment as historical.
+- Security minors (do in one pass, ~1 hour):
+  * admin login: constant-time compare (hmac.compare_digest), add basic
+    rate limiting or IP allowlist
+  * CORS: allow_origins=["https://simpleblueprints.xyz"] instead of "*"
+  * Confirm Railway env has ADMIN_PASSWORD set (code allows open access
+    when unset)
+- GitHub access for future sessions: replace the shared classic PAT pasted
+  in chat with a fine-grained PAT scoped to this one repo (contents:write),
+  90-day expiry. Same workflow, less blast radius.
+
+================================================================================
+3. TRACK B: PRODUCT CORRECTNESS (the PDF is the product)
+================================================================================
+
+Bug burn-down order (PDF before frontend, per standing rule). Each fix adds
+a golden-file config (2.3) before moving on.
+
+B1. Elevations drawing zones at wrong heights (S82f partial). Finish it.
+    A contractor spots a wrong elevation instantly. Highest embarrassment risk.
+B2. Site plan shows only one stair (S82d).
+B3. Deck post through stair landing collision (S81f handoff exists).
+B4. L-shape floating/clipping deck boards (S82b) -- affects cover sheet 3D
+    render, which is the first page an examiner sees.
+B5. Stair arrow direction (Billy's report). Small but it is literally a code
+    reviewer's job to notice arrows.
+B6. Platform stair intermediate landing rails (S82c).
+
+Explicitly deferred until after first permit: U-turn/wrap 3D bugs, per-edge
+railing control, zone cost per-linear-foot, auto-guard rails re-land (S81c).
+
+SCOPE DECISION REQUIRED (Will): define "sellable v1" deck envelope.
+Recommendation: rectangular + simple L (2 zones max), ledger or freestanding,
+straight + L stairs only, no transitional stairs in v1 marketing. The code
+can keep the rest; the v1 promise is only what survives B1-B5 + golden files.
+
+================================================================================
+4. TRACK C: PERMIT VALIDATION (the business milestone)
+================================================================================
+
+4.1 MILESTONE 1: INFORMAL EXAMINER REVIEW (target: within 2-3 weeks)
+- Generate a complete package for a real Suffolk County address (Will's own
+  or a friend's/Billy's contact's).
+- Pre-check it ourselves against the town's published deck permit checklist
+  (Brookhaven and Islip both publish residential deck requirements; pull
+  them and diff against our sheets BEFORE walking in).
+- Will walks into the town building department, asks a plans examiner:
+  "would you accept this?" Take notes on every objection.
+- Expected objections to prepare for:
+  * site plan provenance (satellite/parcel-derived vs licensed survey)
+  * missing jurisdiction-specific notes (NY frost depth, snow load zone,
+    Suffolk-specific amendments)
+  * stamp/design-professional requirements above certain heights
+- Deliverable: written gap list -> becomes S86/S87 scope.
+
+4.2 SURVEY-BASED SITE PLAN FALLBACK (likely required, S86-S87)
+Many examiners want the site plan based on the owner's actual survey.
+Contractors ALWAYS have the survey in hand. This likely promotes the
+deferred Phase 2 trace feature (upload survey image -> trace lot boundary
+-> use as lotVertices) from "someday" to "required for v1."
+Cheaper interim: "upload survey as an appendix page" + disclaimer that the
+generated site plan is schematic. Ask the examiner which they need (4.1).
+
+4.3 MILESTONE 2: FIRST REAL SUBMISSION
+- Ideally through a contractor beta user (Billy's network) who is pulling a
+  real deck permit anyway. We supply the package free; they submit it.
+- Success = approved, or approved-with-corrections we then automate.
+
+4.4 LEGAL/LIABILITY (parallel, before charging money)
+- Terms of service + "prescriptive design per IRC 2021, verify with your
+  AHJ" disclaimer on every sheet and at checkout.
+- One consult with a construction attorney re: selling unstamped structural
+  drawings in NY; ask about LLC + E&O insurance. Boring, non-optional.
+
+================================================================================
+5. TRACK D: BETA + BUSINESS READINESS
+================================================================================
+
+5.1 TRUST ELEMENTS ON THE SITE (S88)
+- Full sample PDF downloadable pre-purchase (watermarked SAMPLE).
+- "Reviewed by [town] building department" the moment 4.1 gives us any
+  version of that sentence truthfully.
+- Money-back-if-rejected guarantee (cheap at low volume, converts skeptics).
+
+5.2 PRICING (decide with Billy before Stripe activation)
+- Contractor-first suggests: $99/plan, or intro $49 for beta cohort, or
+  5-pack. Keep $29 as a homeowner tier later if ever. BLUEPRINT_PRICE is a
+  one-line change (main.py:72); the decision is the work.
+
+5.3 CONTRACTOR BETA (after B1-B5 + Milestone 1)
+- 5-10 contractors from Billy's network. Free plans in exchange for:
+  (a) submitting one real package, (b) 20-minute feedback call.
+- Instrument the funnel (tracking.js already exists): where do they stall?
+  Address lookup failures (Overpass/Realie) are the likely first-impression
+  killer -- measure failure rate in the wild.
+
+5.4 OPS
+- Staging: second Railway service deploying from a staging branch. Test
+  production-shaped changes without betting the live site. (~1 evening)
+- Uptime monitor + error alerting (Railway logs are not alerting).
+
+================================================================================
+6. SESSION-BY-SESSION ROADMAP
+================================================================================
+
+S84 (this session): RECONCILE + FOUNDATION
+  1. Fix master context Section 5; create ARCHITECTURE.txt + STATUS.txt;
+     archive old context files.
+  2. Triage S73 leftovers (banner/reset/clamp bypass): wire in or delete.
+  3. Extract geometry module + build parameterized rotation test harness.
+  4. pytest conversion + GitHub Action CI.
+  5. Security minors one-pass.
+  Exit criteria: CI green on push; geometry harness sweeping 0-359 degrees
+  on 5 synthetic lot shapes; docs match code.
+
+S85: PDF CORRECTNESS
+  Golden-file infrastructure + B1 (elevations) + B2 (site plan stairs).
+  Exit: goldens checked in, B1/B2 verified visually by Will AND by pixel diff.
+
+S86: PERMIT DRY RUN
+  Generate real-address package. Diff against Brookhaven/Islip checklists.
+  Fix the top gaps. Will schedules the building-department walk-in.
+  Decide survey-fallback approach based on findings.
+
+S87: EXAMINER FEEDBACK BURN-DOWN
+  Whatever 4.1 surfaced. Likely: survey appendix/trace work, NY-specific
+  notes, title block requirements.
+
+S88: BUSINESS SWITCH-ON
+  Sample PDF on landing page, ToS/disclaimers, pricing decision, Stripe live
+  in test-cohort mode, staging environment.
+
+S89+: CONTRACTOR BETA
+  Recruit via Billy. First real submission. Iterate on funnel data.
+
+================================================================================
+7. OPEN QUESTIONS FOR WILL (answer before/during S84)
+================================================================================
+
+1. Which town do we target first -- Brookhaven, Islip, or wherever Billy's
+   first contractor works? (Pick ONE for v1.)
+2. Do you have a real address (yours/Billy's/a friend's) we can use for the
+   Milestone 1 package?
+3. Pricing instinct for contractors: $49 beta / $99 standard feel right?
+4. Is Billy able to line up 2-3 contractor conversations in the next month,
+   or should we plan for Will doing outreach solo?
+5. Confirm the feature freeze explicitly covers sheds/pergolas (calc_shed.py
+   and calc_pergola.py stay dormant).
+
+================================================================================
+8. STANDING RULES (carried forward, still binding)
+================================================================================
+- Never confirm visual fixes from text extraction alone.
+- Anti-anchoring: two pushbacks = stop, list assumptions, rethink.
+- 30-minute bug timebox. 3+ failed patches = rewrite.
+- Fix PDF before frontend. Ship one change, verify, continue.
+- Set lotVertices LAST in u() sequences (S79 confirms this still applies).
+- Bump cache buster on production-visible pushes (move to global buster, 2.5).
+- Context files as .txt. Direct feedback over flattery.

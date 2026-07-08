@@ -1,0 +1,41 @@
+# SimpleBlueprints CI -- S84
+# Runs on every push and PR to main. Railway autodeploys from main with no
+# gate, so this is the tripwire: a red X here means the deploy that just
+# went out is suspect. (Gating the deploy itself on green is a later step:
+# deploy from a release branch that only advances when this passes.)
+name: tests
+
+on:
+  push:
+    branches: [main, s84]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install Python deps (calc engine imports matplotlib via drawing pkg)
+        run: pip install matplotlib numpy
+
+      - name: Geometry invariants (site plan math, 2700+ checks)
+        run: node tests/geometry/lotGeometry.test.js
+
+      - name: Structural verification (IRC known-answer tests, S60 baseline)
+        run: python3 tests/test_structural.py
+
+      - name: Future products logic tests
+        run: python3 tests/test_future_products.py

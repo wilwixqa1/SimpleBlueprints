@@ -7,6 +7,7 @@ import os
 import uuid
 import json
 import time
+import hmac
 import hashlib
 import base64
 import io
@@ -91,7 +92,15 @@ async def https_redirect(request: Request, call_next):
         return RedirectResponse(url=str(url), status_code=301)
     return await call_next(request)
 
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+# S84: CORS locked to the production origin (was "*"). The frontend is served
+# from the same origin as the API, so cross-origin browser access isn't needed.
+# Add localhost for local dev convenience.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://simpleblueprints.xyz", "https://www.simpleblueprints.xyz", "http://localhost:8000"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.middleware("http")
 async def cache_control(request: Request, call_next):
@@ -2523,23 +2532,37 @@ async def submit_feedback(request: Request):
 # ============================================================
 
 def _check_admin(request: Request):
-    """Verify admin password from header. Raises 401 if wrong."""
+    """Verify admin password from header. Raises 401 if wrong.
+    S84: constant-time compare; FAIL CLOSED when ADMIN_PASSWORD is unset
+    (previously unset password meant open admin access in production)."""
     if not ADMIN_PASSWORD:
-        return  # No password set = open access (dev mode)
+        raise HTTPException(status_code=503, detail="Admin access not configured")
     pw = request.headers.get("X-Admin-Password", "")
-    if pw != ADMIN_PASSWORD:
+    if not hmac.compare_digest(pw.encode(), ADMIN_PASSWORD.encode()):
         raise HTTPException(status_code=401, detail="Invalid admin password")
 
+
+# S84: crude in-memory rate limit for admin login (5 attempts / 15 min / IP).
+# Good enough for a single-instance deployment; revisit if Railway scales out.
+_admin_attempts = {}
 
 @app.post("/api/admin/login")
 async def admin_login(request: Request):
     """Validate admin password."""
+    ip = request.client.host if request.client else "unknown"
+    now = time.time()
+    attempts = [t for t in _admin_attempts.get(ip, []) if now - t < 900]
+    if len(attempts) >= 5:
+        raise HTTPException(status_code=429, detail="Too many attempts. Try again later.")
     body = await request.json()
     pw = body.get("password", "")
     if not ADMIN_PASSWORD:
-        return {"ok": True}  # No password set = open
-    if pw == ADMIN_PASSWORD:
+        raise HTTPException(status_code=503, detail="Admin access not configured")
+    if hmac.compare_digest(pw.encode(), ADMIN_PASSWORD.encode()):
+        _admin_attempts.pop(ip, None)
         return {"ok": True}
+    attempts.append(now)
+    _admin_attempts[ip] = attempts
     raise HTTPException(status_code=401, detail="Invalid password")
 
 
