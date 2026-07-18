@@ -125,7 +125,7 @@ function _renderChatText(text) {
 
 // S54: Phase-aware placeholder hints for chat input
 var _chatPlaceholders = {
-  has_survey: "",
+  has_survey: "Questions? Ask here (optional)",
   upload_survey: "",
   extracting: "",
   shape_select: "",
@@ -314,14 +314,17 @@ function Spec({ l, v, color }) {
 
 var GUIDE_PHASES_STEP0 = [
   // --- FIRST QUESTION ---
+  // S85 UX: the address form shows IMMEDIATELY. Previously this phase had no
+  // sections and a single 'Look up by address' action button -- the screen
+  // said "start with your property address" but the only visible input was
+  // the AI chat, so users typed their address into the chat. One mandatory
+  // button between the user and the promised action is pure friction.
   {
     id: 'has_survey',
     message: "Let's start with your property address.",
     tip: "We'll pull your lot shape, dimensions, and zoning directly from public records. Need to upload a survey or enter manually? Use 'Switch to manual' below.",
-    sections: [],
-    actions: [
-      { label: 'Look up by address', next: 'address_lookup', style: 'primary' }
-    ]
+    sections: ['addressLookup'],
+    actions: []
   },
   // --- ADDRESS LOOKUP PATH ---
   {
