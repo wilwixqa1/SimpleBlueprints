@@ -1,5 +1,5 @@
 SIMPLEBLUEPRINTS MASTER CONTEXT FILE
-Last updated: S84 (July 2026)
+Last updated: S85 (July 2026)
 Purpose: single source of truth for a fresh Claude instance to pick up this
 project cold. Supersedes ALL prior master/handoff context files. If this file
 disagrees with the code, the code wins -- fix this file in the same session.
@@ -205,6 +205,86 @@ and VISION. Three capabilities every session should know:
   session branches ever; granular pushes ARE the session history.
   git remote set-url origin https://<PAT>@github.com/wilwixqa1/SimpleBlueprints.git
 
+6.4 VISION OUTAGE MODE (learned S85 -- the failure and the workarounds)
+- Claude's image VIEWING can die mid-session in very long conversations
+  while image GENERATION keeps working. S85 evidence: worked for 40+ views
+  (32-page review, before/afters, grade styles), then every view returned
+  empty for the rest of the session, including trivial synthetic test
+  images. Likely cause: context-budget cutoff of tool-result image payloads
+  as the conversation grows. It does NOT recover within the session
+  (context only grows); a FRESH session restores it.
+- FIRST MOVE each session: render one PNG and view it. If vision is dead,
+  know it before planning visual work.
+- Workarounds when vision is down, in order of strength:
+  (a) Will screenshots into chat -- CHAT-UPLOADED IMAGES STILL REACH CLAUDE
+      (different pathway than tool results). This drove S85's entire
+      legibility round.
+  (b) Deterministic oracles: legibility_check.py, instrumented coordinate
+      dumps (6.7), DOM extraction from the live site (6.5), suite runs.
+  (c) NEVER claim visual verification without actually seeing. Say plainly
+      which pushes lack eyes (S85 pushes 9-10 shipped oracle-only; visual
+      re-verification is S86 task #1).
+- Budget vision spend: every image viewed consumes context. Front-load the
+  must-see reviews; use crops of the relevant region instead of full sheets
+  when possible; prefer numeric checks where they are equivalent.
+
+6.5 HEADLESS BROWSER: HARD-WON S85 PATTERNS
+- The sandbox KILLS background processes between tool invocations. Run
+  server + test in ONE bash invocation (start uvicorn &, sleep 8, run
+  playwright, kill $PID).
+- Local server needs Postgres: apt-get install postgresql; service
+  postgresql start; su postgres -c "psql -c \"CREATE USER sbp...\"";
+  DATABASE_URL=postgresql://sbp:sbp@localhost:5432/sbp SESSION_SECRET=test
+  python3 -m uvicorn app.main:app --port 8000
+- FIXTURE INTERCEPTION beats real APIs for deterministic wizard tests:
+  page.route('**/api/parcel-lookup', fulfill(json)) with a synthetic lot.
+  The parcel fixture MUST include parcel{id,zoning} and building{sqft,
+  stories,year_built,estimated_width,estimated_depth} or the callback
+  throws before the footprint fetch. raw_coords are [lng,lat] GeoJSON
+  order; ft = (lng-minLng)*364000*cos(minLat), (lat-minLat)*364000.
+  Canonical tapered-lot fixture lives in /home/claude/wizard_evidence.py
+  pattern (rebuild from S85 chat or docs/history if needed).
+- DOM EXTRACTION is a legitimate non-visual live check: read SVG element
+  positions (e.g. the EXISTING HOUSE label x) and console logs
+  (page.on('console')) to confirm code paths and coordinates to the pixel.
+- Selector gotchas: get_by_placeholder("ST") needs exact=True (substring
+  matches ZIP etc.); babel transpile takes seconds -- wait 8s after
+  navigation before interacting.
+- TRANSPILE CHECK before pushing frontend: npm i @babel/standalone@7.23.9
+  (the version index.html pins -- newer versions REJECT bare '>' in JSX
+  text that 7.23.9 accepts) and Babel.transform(src,{presets:['react']}).
+- CI status: unauthenticated GitHub API rate-limits fast; authenticate with
+  the PAT from the git remote URL.
+
+6.6 LEGIBILITY ORACLE (tests/pdf/legibility_check.py, S85)
+- Works on ANY PDF including reference blueprints. Reports per page: text
+  lines, font pt min/p10/med, %width-normalized median, overlapping pairs,
+  tiny lines, CAD duplicate-draw artifacts (same text >95% overlap --
+  invisible in print, counted separately).
+- CALIBRATION: threshold 30% of smaller bbox. Adjacent-line artifacts
+  (title x subtitle, multi-line boxes) cluster at 22-24%; real collisions
+  38%+. Do not chase sub-30% pairs.
+- REFERENCE BENCHMARKS (All Things Architecture sets, measured S85):
+  1-2 genuine collisions per full set; median type ~0.29-0.32% of sheet
+  width (we match normalized); refs print 36x24 ARCH D vs our 14x8.5in --
+  the ABSOLUTE size gap is a sheet-size decision (Will), not a font fix.
+- QUALITY BAR: <=2 genuine collisions per permit set. S85 close: 4 sets at
+  0, 3 at 2, 4-zone torture case at 10 (open).
+- What it CANNOT see: text-over-linework, panel overflow, clipped text.
+  Planned checks: text-outside-panel, text-clipped-at-axes (S86).
+
+6.7 COORDINATE INSTRUMENTATION (S85 diagnosis pattern)
+- Monkeypatch matplotlib.axes.Axes.text to record (x, y, string) during a
+  generate_blueprint_pdf run. Diagnoses label geometry bugs numerically
+  when vision is down (found zone stairs drawn INSIDE zones this way).
+  Same spy works for any placement question.
+
+6.8 WORK INSURANCE
+- Unpushed local commits die with the sandbox. Before any long gated wait:
+  git bundle create /tmp/x.bundle main && cp to /mnt/user-data/outputs/
+  (direct bundle write to the mount fails -- write /tmp then cp), plus
+  git format-patch as a readable fallback. Done routinely S85.
+
 ================================================================================
 7. THE ORACLE STACK (testing design, agreed S84 -- S85 builds the missing parts)
 ================================================================================
@@ -269,6 +349,69 @@ CRUD (user-scoped), Stripe checkout/check-payment/download, tracking,
 admin (now fail-closed + rate limited).
 
 ================================================================================
+8B. LOOP ENGINEERING DOCTRINE (S85 -- how we build with loops, and when NOT to)
+================================================================================
+
+THE PATTERN (proven S85): define a loop as GOAL + MACHINE JUDGE + BUDGET +
+HUMAN GATE before writing code.
+  GOAL: a precise, machine-checkable end state ("geometry suite 0 failures
+    AND 0 divergence warnings", "<=2 genuine collisions per set").
+  MACHINE JUDGE: the deterministic thing that says pass/fail without taste
+    (test suite, legibility detector, instrumented coordinates, DOM
+    extraction, permit checker). If no such judge exists, BUILD THE JUDGE
+    FIRST or don't call it a loop.
+  BUDGET: iteration cap (S85 used 10; divergence fix converged in 2).
+    Hitting the cap = stop and report, never grind silently.
+  HUMAN GATE: Will's eyes on rendered output before anything examiner-
+    facing ships. Machine green is necessary, not sufficient.
+
+WHEN LOOPS ARE APPROPRIATE:
+  - Mechanical objectives with a crisp oracle: make tests green, drive a
+    measured defect count to a threshold, fuzz for crashes, converge two
+    implementations (divergence-style bugs), regression campaigns.
+  - Battle-testing config matrices where each run auto-judges through the
+    oracle stack (crash -> permit checks -> legibility -> visual sample).
+
+WHEN LOOPS ARE NOT APPROPRIATE (STANDING RULE, requested by Will S85):
+  If Will asks for a loop at an inappropriate time, Claude MUST flag it
+  rather than comply silently. Inappropriate means:
+  - Taste / design / examiner-facing judgment calls (grade-line style,
+    cover aesthetics, annotation layout STYLE). Correct form: prototype
+    2-4 options, render, present for Will's pick. S85 grade styles worked
+    exactly this way.
+  - No deterministic judge exists and building one isn't feasible --
+    looping against vibes just oscillates.
+  - One-shot decisions (sheet size, pricing, targeting) -- these are
+    decisions, not convergence problems.
+  - Vision down + the only judge is visual: do NOT blind-loop on
+    appearance. Queue it or get Will's screenshots per iteration.
+
+S85 LESSONS LEARNED (encode these):
+  1. LOOPS CONVERGE FAST WHEN THE JUDGE IS RIGHT: divergence fix hit
+     goal-state in 2 iterations because the harness measured exactly the
+     defect.
+  2. BLIND ITERATION OSCILLATES: the dimension-clearance fix went
+     4 -> 6 -> 9 collisions across three shotgun attempts until stopping,
+     pulling the COMPLETE defect list, and fixing once (landing-pad extent
+     was the missing fact). Rule: after 2 iterations moving the wrong way,
+     STOP and gather the full picture.
+  3. JUDGE QUALITY IS PART OF THE LOOP: the detector needed calibration
+     (CAD-duplicate filter, 30% threshold) before its numbers meant what
+     we thought. Recalibrating the judge is legitimate loop work;
+     redefining the goal to dodge failures is not.
+  4. ORACLES CATCH WHAT EYES MISS AND VICE VERSA: the detector found the
+     universal A-6 collision eyes had shrugged off; Will's eyes found the
+     floating piers, panel overflow, and clipped callouts no oracle saw.
+     Both layers are mandatory.
+  5. FIXING GEOMETRY EXPOSES LAYOUT DEBT: correct stair projection RAISED
+     collision counts on crowded configs. A metric temporarily worsening
+     because correctness improved is progress -- say so explicitly with
+     the causal story, never hide it.
+  6. EVERY LOOP FAILURE BECOMES A PERMANENT FIXTURE immediately (harness
+     param set or test), then fix the worst 1-2 and backlog the rest with
+     reproducers. No rabbit-holing the whole list in one session.
+
+================================================================================
 9. OPERATIONAL RULES (Will's standing rules -- non-negotiable)
 ================================================================================
 
@@ -323,55 +466,144 @@ POST-DEPLOY CHECKS possibly still pending: Will confirms /admin login works
 in prod; Will revokes the classic PAT shared in chat and mints a
 fine-grained repo-scoped replacement (repeatedly advised).
 
+
+--------------------------------------------------------------------------------
+10B. S85 SESSION RECORD (loop-engineering session; 11 pushes, all CI green)
+--------------------------------------------------------------------------------
+  push 1:  tests/pdf/render_review.py -- 8 named param sets -> PDFs ->
+           150dpi PNGs in one command (basic/freestanding/straight_stair/
+           trapezoid/slope15/zones_LR/zones_stairs_LCR/zones_4x4)
+  push 2:  DIVERGENCE FIX. houseOffsetSide is now RENDERER-SPACE
+           (leftEdgeAtY(midY), converted at stash time in positionHouse).
+           steps.js + sitePlanView.js swapped to window.lotGeometry;
+           lotGeometry.js loaded in index.html. H5 is a HARD test.
+           Geometry suite 2716/0/48 -> 2764/0/0. LIVE-verified via DOM
+           (house label x 259.29 -> 264.86 on identical fixture; old bug
+           scaled as edgeSlope*(hd/2-2), measured up to 5.7ft).
+  push 3:  ELEVATION GRADE BATCH. Slope sign was inverted in ALL 4 PDF
+           views vs calc/frontend ("left-to-right" = DOWNHILL right, per
+           the UI label; engine.js+elevationView were correct, PDF wasn't).
+           Grade line anchored to calc reference -> pier bottoms land ON
+           grade (was 19.2in float/bury); side views anchor at the
+           DEPICTED post under lateral slopes. h=null zone crash fixed
+           (draw_elevations .get(key, default) trap -- default only fires
+           when key MISSING, not when explicitly null). Grade styles via
+           _gradeStyle: bench (DEFAULT, Will's pick), planted (Will wants
+           later), continuous, skip (legacy). legibility_check.py added.
+           4 stress param sets added; first run CRASHED the pipeline
+           (h=null) proving the harness's worth immediately.
+  push 4-5: STATUS + MASTER_CONTEXT + ARCHITECTURE updates.
+  push 6:  photoreal-3D request logged deferred (two-target split:
+           architectural cover style vs sales render).
+  push 7:  UX -- first wizard screen shows the address form immediately
+           (was chat input + mandatory button; users typed addresses into
+           the AI chat). Chat demoted to optional. Buster s85b.
+           Live DOM-verified; full fixture flow 0 console errors.
+  push 8:  quarantined stale S73 context file pushed to root by Will's
+           PARALLEL (GTM) session -> docs/history/ with STALE header.
+           SBP_GTM_PLAN.md left at root pending Will.
+  push 9:  ZONE-STAIR TRANSFORM FIX. transform_stair_point was a CCW
+           rotation-matrix port of planView.js txPt -- but txPt is
+           per-exit-side axis swaps in y-down screen coords; the mirror
+           flips handedness, so 90/270 inverted and the PDF drew zone
+           stairs INSIDE their zones (frontend was always right). Now
+           mirrors txPt exactly. Found via legibility oracle + Axes.text
+           spy. Likely fixes backlog B5 arrow direction -- CONFIRM
+           VISUALLY. Also: A-6 foundation-label collision (present on
+           EVERY config) fixed.
+  push 10: LEGIBILITY ROUND 2. Main dims clear stair+landing-pad extents
+           (pad = 3ft past last run -- missing this caused 3 oscillating
+           attempts); OPENING dims at deck edge; scale-bar caption off the
+           '0' tick (was rendering '0RAPHIC SCALE'); house label below the
+           beam-dim band; detector threshold calibrated to 30%.
+  push 11: STATUS close-out.
+ALSO S85: vision outage mid-session (see 6.4); Will's screenshot reviews
+drove legibility round; UNRESOLVED VISUAL GAP: pushes 9-10 shipped with
+oracle verification only -- S86 must eyeball them first.
+
 ================================================================================
-11. KNOWN ISSUES AND PRIORITIES
+11. COMPREHENSIVE TODO (verified against code at S85 close)
 ================================================================================
 
-S85 SCOPE (in order):
-  1. DONE S85: render_review.py harness (8 sets incl. zones/stairs/slope)
-  2. DONE S85: divergence fix, live-verified via DOM extraction
-  2b. DONE S85: elevation grade fixes (sign inverted in all 4 PDF views vs
-      calc; line anchored to calc ref, piers land ON grade; side views anchor
-      at depicted post under lateral slope; h=null zone crash fix; bench
-      default via _gradeStyle param). tests/pdf/legibility_check.py added:
-      L3 collision+font oracle; pro reference benchmark: 1-2 real collisions
-      per set, type ~0.3% of sheet width (we match normalized; sheet SIZE
-      differs: ours 14x8.5in vs pro 36x24 ARCH D -- Will to decide)
-  3. Fuzz loop: L1 crash oracle + L3 consistency oracle (incl. text-collision
-     detector) over random configs; failing seeds saved as fixtures
-  4. Golden-file PDF regression (6-8 canonical configs)
-  5. B1: elevation zone heights (S82f partial) -- verified via 6.1
+S86 QUEUE (in order):
+  1. VISION CHECK first (6.4), then VISUAL RE-VERIFY pushes 9-10:
+     rasterize zones_stairs_lcr A-1 (stairs project OUTWARD, labels clear)
+     and slope15_l2r A-2 (piers ON grade, bench earth) and LOOK. Then Will
+     screenshot gate. Nothing new ships before this.
+  2. ELEVATION ANNOTATION COLUMN: reserved right-margin text zone per view,
+     leader lines to geometry, wrap not overflow. Fixes Will's S85
+     screenshot findings: South callouts overflowing into North's panel,
+     North callouts clipped mid-word at axes edge, West text over railing
+     linework. Add detector checks: text-outside-panel, text-clipped-at-
+     axes. Judge: those checks at 0 + Will's eyes.
+  3. 4-zone torture case annotation crowding (10 genuine collisions;
+     mostly falls out of #2).
+  4. CONFIG MATRIX BATTLE TEST (Will's S85 spec): {1 zone, 2 zones} x
+     stairs {main only, one zone only, main+both zones} + at least one
+     INTERIOR-ANCHORED stair (anchorX/anchorY/angle path -- exercised
+     NOWHERE today; run it FIRST, highest information value; expect
+     B3-class bugs). Judges per config: L1 crash, 143 permit checks,
+     legibility <=2, one visual sample. Failures -> permanent fixtures,
+     fix worst 1-2, backlog rest.
+  5. Fuzz loop (S85 scope item 3, NOT built): random configs -> crash +
+     consistency oracles; failing seeds saved as fixtures.
+  6. Golden-file PDF regression (scope item 4, NOT built): 6-8 canonical
+     configs, pixel/structure diff, bless-on-approve.
+  7. Post-to-grade consistency check as a PERMANENT test (computed ad hoc
+     in S85 chat; formula: post ground = deck_top - post_height must equal
+     grade line y at post x, all 4 views).
+  8. Frontend elevationView.js bench-grade parity (PDF-first rule
+     satisfied; frontend still draws old grade treatment).
+  9. B1 remainder: elevation zone heights (h=null crash fixed; full
+     variable-height zone rendering still unverified visually).
+ 10. 10 CHICHESTER + real-address verification (S85 kickoff called for it;
+     only synthetic fixtures were verified. Needs Will or geocoded addr).
+ 11. Grade style D 'planted' promotion (Will: "C for now, D later").
+ 12. Chat-address safety net: detect address-shaped text typed into the
+     guide chat on step 0, route to lookup (smaller need post-push-7).
+ 13. Sheet size decision -> if ARCH D chosen, implement figsize change +
+     re-benchmark type sizes.
 
-PDF BUG BACKLOG (after S85): B2 site plan shows only one stair; B3 deck
-post through stair landing (S81F_HANDOFF); B4 L-shape floating/clipping
-boards; B5 stair arrow direction (Billy); B6 platform stair landing rails.
+PDF BUG BACKLOG (post-S85 state):
+  B2 site plan shows only one stair -- OPEN; zones_stairs_lcr siteplan
+     fixture reproduces (fewer stair projections than configured).
+  B3 deck post through stair landing -- OPEN, untested; interior-anchor
+     matrix run (#4) is the probe.
+  B4 L-shape floating/clipping boards -- OPEN.
+  B5 stair arrow direction (Billy) -- LIKELY FIXED by push 9 transform;
+     needs visual confirmation, then close.
+  B6 platform stair landing rails -- OPEN.
+
+DECISIONS PENDING ON WILL:
+  - Revoke the classic PAT used in S85 chat; mint fine-grained.
+  - Sheet size: keep 14x8.5in or move to ARCH D 36x24 (biggest single
+    "reads professional" lever found in S85 measurements).
+  - Point the parallel GTM session at current MASTER_CONTEXT/STATUS before
+    it pushes code (it pushed an S73-era context file in S85).
+  - SBP_GTM_PLAN.md location (root vs docs/).
+  - S84 carryovers: confirm /admin login in prod; which town first
+    (Brookhaven vs Islip); real address for the test package; contractor
+    pricing ($49 beta / $99 standard?); Billy timeline for 2-3 contractor
+    conversations.
 
 DEFERRED (post-first-permit): U-turn/wrap 3D, per-edge railing, zone cost
 per-linear-foot, auto-guard rails re-land (S81c preserved at f057d1d),
-jurisdiction database at scale (see below), sheds/pergolas.
-PHOTOREALISTIC 3D (Will request S85, competitor ref image in S85 chat): two
-distinct targets -- (a) architectural monochrome cover style matching the
-All Things Architecture references (cheap: Three.js materials/lighting;
-maybe pre-milestone if it helps examiner first impressions), (b) textured
-photoreal sales view for contractor->homeowner closing (post-milestone
-feature; wood textures, ground plane, sky light, shadows -- achievable in
-existing Three.js stack, no engine change).
+jurisdiction database at scale, sheds/pergolas.
+PHOTOREALISTIC 3D (Will, S85): (a) architectural monochrome cover style
+matching the reference sets -- cheap, maybe pre-milestone; (b) textured
+photoreal sales view for contractor->homeowner closing -- post-milestone.
+Both achievable in existing Three.js stack.
 
-JURISDICTION STRATEGY (S84 decision): build requirements-as-data
-architecture seeded with 2-3 Suffolk County towns ONLY. The "crawl every
-county" research loop is real but produces DRAFTS requiring human
-verification per jurisdiction (home-rule variance, PDF-only sources,
-liability); it is a growth lever AFTER first permit approval, not before.
+JURISDICTION STRATEGY (S84 decision, unchanged): requirements-as-data
+seeded with 2-3 Suffolk County towns ONLY; county-crawl research loop is a
+post-first-permit growth lever (drafts need human verification).
 
-BUSINESS TRACK: informal examiner review at Brookhaven or Islip (walk-in
-with printed package) is the next real-world step; likely objections:
-site plan provenance (may need survey-based site plan -> traceView
-promotion or survey-appendix interim), NY-specific notes, stamp thresholds.
-Legal before charging: ToS, per-sheet disclaimer, attorney consult re
-unstamped structural drawings in NY, LLC/E&O question.
-OPEN QUESTIONS FOR WILL: which town first; real address for the test
-package; contractor pricing ($49 beta / $99 standard?); Billy's timeline
-for 2-3 contractor conversations.
+BUSINESS TRACK (unchanged): informal examiner walk-in at Brookhaven or
+Islip with a printed package is the next real-world step; likely
+objections: site plan provenance (survey-based site plan / survey-appendix
+interim), NY-specific notes, stamp thresholds. Legal before charging: ToS,
+per-sheet disclaimer, attorney consult re unstamped structural drawings in
+NY, LLC/E&O.
 
 ================================================================================
 12. SESSION START CHECKLIST
@@ -382,7 +614,8 @@ for 2-3 contractor conversations.
 2. Clone repo (public): git clone https://github.com/wilwixqa1/SimpleBlueprints.git
    Configure PAT remote only when Will provides one (needed for push).
 3. Sandbox setup if PDFs/browser needed this session: run section 6.1/6.2
-   installs (~3-4 min total).
+   installs (~3-4 min total). THEN RUN THE VISION CHECK (6.4): render one
+   PNG and view it before planning any visual work.
 4. Run the test suites locally before changing anything:
    node tests/geometry/lotGeometry.test.js && python3 tests/test_structural.py
 5. Confirm scope with Will before coding. Read files before editing.
