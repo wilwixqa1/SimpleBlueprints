@@ -349,6 +349,13 @@ boards; B5 stair arrow direction (Billy); B6 platform stair landing rails.
 DEFERRED (post-first-permit): U-turn/wrap 3D, per-edge railing, zone cost
 per-linear-foot, auto-guard rails re-land (S81c preserved at f057d1d),
 jurisdiction database at scale (see below), sheds/pergolas.
+PHOTOREALISTIC 3D (Will request S85, competitor ref image in S85 chat): two
+distinct targets -- (a) architectural monochrome cover style matching the
+All Things Architecture references (cheap: Three.js materials/lighting;
+maybe pre-milestone if it helps examiner first impressions), (b) textured
+photoreal sales view for contractor->homeowner closing (post-milestone
+feature; wood textures, ground plane, sky light, shadows -- achievable in
+existing Three.js stack, no engine change).
 
 JURISDICTION STRATEGY (S84 decision): build requirements-as-data
 architecture seeded with 2-3 Suffolk County towns ONLY. The "crawl every
