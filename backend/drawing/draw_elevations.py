@@ -80,7 +80,7 @@ def _get_zone_south_north_sections(params, calc):
         sections.append({
             "x_draw": r["x"] + x_off,  # x in drawing coords (relative to deck_x)
             "w": r["w"],
-            "deck_top": zone.get("h", H),
+            "deck_top": H if zone.get("h") is None else zone["h"],
         })
 
     return {"x_off": x_off, "bb_w": bb_w, "sections": sections}
@@ -511,10 +511,16 @@ def _draw_graphic_scale_bar(ax, x_center, y, scale_label="1/4\" = 1'-0\""):
 # ============================================================
 # SHARED DRAWING HELPERS
 # ============================================================
-def draw_grade_line(ax, x1, x2, y, slope_rise=0, slope_pct=None, house_bounds=None):
+def draw_grade_line(ax, x1, x2, y, slope_rise=0, slope_pct=None, house_bounds=None, style="skip"):
     """Draw grade line with earth fill below and APPROX label.
     slope_rise = total vertical change from x1 to x2 (positive = x2 higher).
-    house_bounds = (hx1, hx2) to skip grade through house footprint."""
+    house_bounds = (hx1, hx2) to skip grade through house footprint.
+    style (S85 UX prototypes):
+      "skip"       -- current behavior: grade + earth interrupted at house
+      "continuous" -- grade + earth run continuously behind the house
+      "bench"      -- grade drops vertically at house edges to a flat pad
+                      under the house at the lower grade elevation (site cut)
+    """
     y1 = y - slope_rise / 2
     y2 = y + slope_rise / 2
 
@@ -522,38 +528,73 @@ def draw_grade_line(ax, x1, x2, y, slope_rise=0, slope_pct=None, house_bounds=No
     def _gy(gx):
         return y1 + (y2 - y1) * (gx - x1) / max(x2 - x1, 0.01)
 
-    # S35: Build segment list (skip house zone if provided)
-    if house_bounds and house_bounds[0] < house_bounds[1]:
+    _fill_btm = min(y1, y2) - 1.5
+    _has_house = bool(house_bounds and house_bounds[0] < house_bounds[1])
+
+    if style in ("continuous", "planted") or not _has_house:
+        # One unbroken surface; house/foundation patches draw over it
+        # ("continuous"), or the earth draws over the house's below-grade
+        # portion ("planted": house reads as siding meeting the ground,
+        # no visible foundation band -- S85 UX request).
+        _profile = [(x1, _gy(x1)), (x2, _gy(x2))]
+        _tick_skip = None
+    elif style == "bench":
         hx1, hx2 = house_bounds
+        _pad = min(_gy(hx1), _gy(hx2))
+        _profile = [(x1, _gy(x1)), (hx1, _gy(hx1)), (hx1, _pad),
+                    (hx2, _pad), (hx2, _gy(hx2)), (x2, _gy(x2))]
+        _tick_skip = None
+    else:  # "skip" (pre-S85 behavior)
+        hx1, hx2 = house_bounds
+        _profile = None
+        _tick_skip = (hx1, hx2)
         _segments = []
         if x1 < hx1:
             _segments.append((x1, hx1))
         if hx2 < x2:
             _segments.append((hx2, x2))
-    else:
-        _segments = [(x1, x2)]
 
-    # S34: Earth fill below grade (cross-hatch, matches frontend earthH1/earthH2)
-    _fill_btm = min(y1, y2) - 1.5
-    for _sx, _ex in _segments:
-        _sy, _ey = _gy(_sx), _gy(_ex)
-        _earth = [(_sx, _sy), (_ex, _ey), (_ex, _fill_btm), (_sx, _fill_btm)]
-        ax.add_patch(Polygon(_earth, closed=True, fc='#f0ece4', ec='none', zorder=0))
+    if _profile is not None:
+        # "planted": earth covers the house's below-grade portion (house
+        # patches sit at matplotlib default zorder 1; put earth just above).
+        _zo_fill = 1.4 if style == "planted" else 0
+        _zo_line = 1.5 if style == "planted" else 1.6
+        # Earth fill under the full profile polyline
+        _earth = list(_profile) + [(_profile[-1][0], _fill_btm), (_profile[0][0], _fill_btm)]
+        ax.add_patch(Polygon(_earth, closed=True, fc='#f0ece4', ec='none', zorder=_zo_fill))
         ax.add_patch(Polygon(_earth, closed=True, fc='none', ec='#999999',
-                             hatch='////', lw=0.1, alpha=0.2, zorder=0))
+                             hatch='////', lw=0.1, alpha=0.2, zorder=_zo_fill))
+        _pxs = [p[0] for p in _profile]
+        _pys = [p[1] for p in _profile]
+        ax.plot(_pxs, _pys, color=BRAND["dark"], lw=1, zorder=_zo_line)
 
-    # Grade line (per segment)
-    for _sx, _ex in _segments:
-        ax.plot([_sx, _ex], [_gy(_sx), _gy(_ex)], color=BRAND["dark"], lw=1)
+        def _gy_tick(gx):
+            # grade height along the profile for tick placement
+            for i in range(len(_profile) - 1):
+                (ax1_, ay1_), (ax2_, ay2_) = _profile[i], _profile[i + 1]
+                if ax1_ <= gx <= ax2_ and ax2_ > ax1_:
+                    return ay1_ + (ay2_ - ay1_) * (gx - ax1_) / (ax2_ - ax1_)
+            return _gy(gx)
+    else:
+        # S34: Earth fill below grade (cross-hatch, matches frontend earthH1/earthH2)
+        for _sx, _ex in _segments:
+            _sy, _ey = _gy(_sx), _gy(_ex)
+            _earth = [(_sx, _sy), (_ex, _ey), (_ex, _fill_btm), (_sx, _fill_btm)]
+            ax.add_patch(Polygon(_earth, closed=True, fc='#f0ece4', ec='none', zorder=0))
+            ax.add_patch(Polygon(_earth, closed=True, fc='none', ec='#999999',
+                                 hatch='////', lw=0.1, alpha=0.2, zorder=0))
+        for _sx, _ex in _segments:
+            ax.plot([_sx, _ex], [_gy(_sx), _gy(_ex)], color=BRAND["dark"], lw=1)
+        _gy_tick = _gy
 
-    # Tick marks below grade (skip house zone)
+    # Tick marks below grade
     n_hatch = int((x2 - x1) / 0.3)
     for j in range(n_hatch + 1):
         t = j / max(n_hatch, 1)
         hx = x1 + t * (x2 - x1)
-        if house_bounds and house_bounds[0] <= hx <= house_bounds[1]:
+        if _tick_skip and _tick_skip[0] <= hx <= _tick_skip[1]:
             continue
-        hy = _gy(hx)
+        hy = _gy_tick(hx)
         ax.plot([hx, hx - 0.2], [hy, hy - 0.2], color=BRAND["mute"], lw=0.2)
 
     # S34: APPROX label with actual slope percentage
@@ -706,24 +747,31 @@ def draw_south_elevation(ax, params, calc, compact=False, spec=None):
     # S33: Compute grade slope for this view (moved before house for S34 grade_drop)
     _slope_pct = params.get("slopePercent", 0) / 100
     _slope_dir = params.get("slopeDirection", "front-to-back")
-    _grade_rise = 0
+    # S85: gradient g (ft/ft) matches calc_engine post_heights + frontend
+    # elevationView ("left-to-right" = downhill toward view-right, South).
+    # Line is anchored at the deck center so post bottoms land exactly on it.
+    _g_s = 0
     if _slope_dir == "left-to-right":
-        _grade_rise = _slope_pct * total_w
+        _g_s = -_slope_pct
     elif _slope_dir == "right-to-left":
-        _grade_rise = -_slope_pct * total_w
+        _g_s = _slope_pct
+    _gx1s, _gx2s = -3.0, deck_x + total_w + 5.0
+    _anchor_s = z0_x + W / 2
+    _grade_rise = _g_s * (_gx2s - _gx1s)
+    _gmid_s = ground_y + _g_s * ((_gx1s + _gx2s) / 2 - _anchor_s)
 
     # House behind (centered on zone-0)
     house_x = z0_x + (W - min(W, 30)) / 2
     house_w = min(W, 30)
     # S34: Foundation extends to lowest grade at house edges
-    _glx1, _glx2 = -3.0, deck_x + total_w + 5.0
-    _gly1, _gly2 = ground_y - _grade_rise / 2, ground_y + _grade_rise / 2
+    _glx1, _glx2 = _gx1s, _gx2s
+    _gly1, _gly2 = _gmid_s - _grade_rise / 2, _gmid_s + _grade_rise / 2
     _ghl = _gly1 + (_gly2 - _gly1) * (house_x - _glx1) / max(_glx2 - _glx1, 0.01)
     _ghr = _gly1 + (_gly2 - _gly1) * (house_x + house_w - _glx1) / max(_glx2 - _glx1, 0.01)
     _gdrop = max(0, ground_y - min(_ghl, _ghr))
     total_wall, roof_peak = _draw_house_front(ax, house_x, house_w, ground_y, H, grade_drop=_gdrop)
 
-    draw_grade_line(ax, -3, deck_x + total_w + 5, ground_y, slope_rise=_grade_rise, slope_pct=params.get("slopePercent", 0), house_bounds=(house_x, house_x + house_w))
+    draw_grade_line(ax, _gx1s, _gx2s, _gmid_s, slope_rise=_grade_rise, slope_pct=params.get("slopePercent", 0), house_bounds=(house_x, house_x + house_w), style=params.get("_gradeStyle", "bench"))
 
     deck_top = H
     footing_diam = calc.get("footing_diam", calc.get("fDiam", 24))
@@ -962,24 +1010,29 @@ def draw_north_elevation(ax, params, calc, compact=False, spec=None):
     # S33: Grade slope for north view (moved before house for S34 grade_drop)
     _slope_pct_n = params.get("slopePercent", 0) / 100
     _slope_dir_n = params.get("slopeDirection", "front-to-back")
-    _grade_rise_n = 0
+    # S85: mirrored view -- downhill left-to-right appears rising to view-right
+    _g_n = 0
     if _slope_dir_n == "left-to-right":
-        _grade_rise_n = -_slope_pct_n * total_w
+        _g_n = _slope_pct_n
     elif _slope_dir_n == "right-to-left":
-        _grade_rise_n = _slope_pct_n * total_w
+        _g_n = -_slope_pct_n
+    _gx1n, _gx2n = -3.0, deck_x + total_w + 5.0
+    _anchor_n = z0_x + W / 2
+    _grade_rise_n = _g_n * (_gx2n - _gx1n)
+    _gmid_n = ground_y + _g_n * ((_gx1n + _gx2n) / 2 - _anchor_n)
 
     # House (centered on zone-0, mirrored)
     house_x = z0_x + (W - min(W, 30)) / 2
     house_w = min(W, 30)
     # S34: Foundation extends to lowest grade at house edges
-    _glx1n, _glx2n = -3.0, deck_x + total_w + 5.0
-    _gly1n, _gly2n = ground_y - _grade_rise_n / 2, ground_y + _grade_rise_n / 2
+    _glx1n, _glx2n = _gx1n, _gx2n
+    _gly1n, _gly2n = _gmid_n - _grade_rise_n / 2, _gmid_n + _grade_rise_n / 2
     _ghln = _gly1n + (_gly2n - _gly1n) * (house_x - _glx1n) / max(_glx2n - _glx1n, 0.01)
     _ghrn = _gly1n + (_gly2n - _gly1n) * (house_x + house_w - _glx1n) / max(_glx2n - _glx1n, 0.01)
     _gdropn = max(0, ground_y - min(_ghln, _ghrn))
     total_wall, roof_peak = _draw_house_front(ax, house_x, house_w, ground_y, H, grade_drop=_gdropn)
 
-    draw_grade_line(ax, -3, deck_x + total_w + 5, ground_y, slope_rise=_grade_rise_n, slope_pct=params.get("slopePercent", 0), house_bounds=(house_x, house_x + house_w))
+    draw_grade_line(ax, _gx1n, _gx2n, _gmid_n, slope_rise=_grade_rise_n, slope_pct=params.get("slopePercent", 0), house_bounds=(house_x, house_x + house_w), style=params.get("_gradeStyle", "bench"))
 
     deck_top = H
     footing_diam = calc.get("footing_diam", calc.get("fDiam", 24))
@@ -1144,21 +1197,31 @@ def draw_side_elevation(ax, params, calc, direction="east", compact=False, spec=
         # S33: Grade slope for west view (moved before house for S34)
         _slope_pct_w = params.get("slopePercent", 0) / 100
         _slope_dir_w = params.get("slopeDirection", "front-to-back")
-        _grade_rise_w = 0
+        # S85: gradient anchored at house face (front = low side for f2b)
+        _g_w = 0
         if _slope_dir_w == "front-to-back":
-            _grade_rise_w = -_slope_pct_w * D
+            _g_w = _slope_pct_w
         elif _slope_dir_w == "back-to-front":
-            _grade_rise_w = _slope_pct_w * D
+            _g_w = -_slope_pct_w
+        _gx1w, _gx2w = -2.0, house_draw_x + house_d + 3.0
+        _anchor_w = house_draw_x
+        _grade_rise_w = _g_w * (_gx2w - _gx1w)
+        _gmid_w = ground_y + _g_w * ((_gx1w + _gx2w) / 2 - _anchor_w)
+        # S85: lateral slopes have no rise in this projection; draw the flat
+        # grade at the DEPICTED post's ground (view-side edge), not deck center
+        _lat_w = _slope_dir_w in ("left-to-right", "right-to-left")
+        if _lat_w:
+            _gmid_w = ground_y + (H - _side_ph)
 
         # S34: Foundation extends to lowest grade at house edges
-        _glx1w, _glx2w = -2.0, house_draw_x + house_d + 3.0
-        _gly1w, _gly2w = ground_y - _grade_rise_w / 2, ground_y + _grade_rise_w / 2
+        _glx1w, _glx2w = _gx1w, _gx2w
+        _gly1w, _gly2w = _gmid_w - _grade_rise_w / 2, _gmid_w + _grade_rise_w / 2
         _ghlw = _gly1w + (_gly2w - _gly1w) * (house_draw_x - _glx1w) / max(_glx2w - _glx1w, 0.01)
         _ghrw = _gly1w + (_gly2w - _gly1w) * (house_draw_x + house_d - _glx1w) / max(_glx2w - _glx1w, 0.01)
         _gdropw = max(0, ground_y - min(_ghlw, _ghrw))
         house_h, roof_peak = _draw_house_side(ax, house_draw_x, house_d, ground_y, H, grade_drop=_gdropw)
 
-        draw_grade_line(ax, -2, house_draw_x + house_d + 3, ground_y, slope_rise=_grade_rise_w, slope_pct=params.get("slopePercent", 0), house_bounds=(house_draw_x, house_draw_x + house_d))
+        draw_grade_line(ax, _gx1w, _gx2w, _gmid_w, slope_rise=_grade_rise_w, slope_pct=(None if _lat_w else params.get("slopePercent", 0)), house_bounds=(house_draw_x, house_draw_x + house_d), style=params.get("_gradeStyle", "bench"))
 
         deck_top = H
         _ground_at_post = deck_top - _side_ph
@@ -1288,21 +1351,31 @@ def draw_side_elevation(ax, params, calc, direction="east", compact=False, spec=
         # S33: Compute grade slope for east view (moved before house for S34)
         _slope_pct_e = params.get("slopePercent", 0) / 100
         _slope_dir_e = params.get("slopeDirection", "front-to-back")
-        _grade_rise_e = 0
+        # S85: gradient anchored at house face (front = low side for f2b)
+        _g_e = 0
         if _slope_dir_e == "front-to-back":
-            _grade_rise_e = _slope_pct_e * D
+            _g_e = -_slope_pct_e
         elif _slope_dir_e == "back-to-front":
-            _grade_rise_e = -_slope_pct_e * D
+            _g_e = _slope_pct_e
+        _gx1e, _gx2e = -2.0, house_x + house_d + D + 5.0
+        _anchor_e = house_x + house_d
+        _grade_rise_e = _g_e * (_gx2e - _gx1e)
+        _gmid_e = ground_y + _g_e * ((_gx1e + _gx2e) / 2 - _anchor_e)
+        # S85: lateral slopes are flat in this projection; anchor at the
+        # depicted (rightmost) post's ground, not deck center
+        _lat_e = _slope_dir_e in ("left-to-right", "right-to-left")
+        if _lat_e:
+            _gmid_e = ground_y + (H - _side_ph)
 
         # S34: Foundation extends to lowest grade at house edges
-        _glx1e, _glx2e = -2.0, house_x + house_d + D + 5.0
-        _gly1e, _gly2e = ground_y - _grade_rise_e / 2, ground_y + _grade_rise_e / 2
+        _glx1e, _glx2e = _gx1e, _gx2e
+        _gly1e, _gly2e = _gmid_e - _grade_rise_e / 2, _gmid_e + _grade_rise_e / 2
         _ghle = _gly1e + (_gly2e - _gly1e) * (house_x - _glx1e) / max(_glx2e - _glx1e, 0.01)
         _ghre = _gly1e + (_gly2e - _gly1e) * (house_x + house_d - _glx1e) / max(_glx2e - _glx1e, 0.01)
         _gdrope = max(0, ground_y - min(_ghle, _ghre))
         house_h, roof_peak = _draw_house_side(ax, house_x, house_d, ground_y, H, grade_drop=_gdrope)
 
-        draw_grade_line(ax, -2, house_x + house_d + D + 5, ground_y, slope_rise=_grade_rise_e, slope_pct=params.get("slopePercent", 0), house_bounds=(house_x, house_x + house_d))
+        draw_grade_line(ax, _gx1e, _gx2e, _gmid_e, slope_rise=_grade_rise_e, slope_pct=(None if _lat_e else params.get("slopePercent", 0)), house_bounds=(house_x, house_x + house_d), style=params.get("_gradeStyle", "bench"))
 
         deck_top = H
         _ground_at_post = deck_top - _side_ph
