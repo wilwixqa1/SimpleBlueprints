@@ -1,3 +1,7 @@
+STALE -- S73-era context (12 sessions old). Superseded by /MASTER_CONTEXT.txt.
+Pushed to repo root by a parallel session on 2026-07-18; moved here per doc policy.
+Do NOT use for current architecture (S73 houseAngle model was replaced in S78/S79).
+
 SIMPLEBLUEPRINTS MASTER CONTEXT FILE
 Last updated: S73 (most recent session)
 Purpose: Single source of truth for a fresh Claude instance to pick up this project cold.
