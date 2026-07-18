@@ -1,0 +1,89 @@
+S85 KICKOFF -- FIRST LOOP ENGINEERING EXPERIMENT
+Written at end of S84. Purpose: Will copies the prompt below into a fresh
+Claude chat session to start S85. The task is deliberately the safest
+possible loop: machine-checkable goal, existing tests as the judge, and two
+hard gates before anything reaches production.
+
+WHY THIS TASK IS THE LOWEST-HANGING FRUIT:
+- The bug is already quantified (2.6ft position/render divergence, 48
+  harness warnings) and the test that detects it already exists.
+- Success is machine-checkable: warnings -> 0, failures stay 0. That is
+  what makes it a "loop" -- Claude iterates against the harness without
+  Will relaying anything.
+- The risky part (production call-site changes) is gated by visual
+  verification BEFORE push. Nothing ships on test results alone.
+
+GUARDRAILS BAKED INTO THE PROMPT (do not remove):
+1. No push to main until ALL suites are green AND Will has visually
+   approved rendered evidence (PDFs + site screenshots) in the chat.
+2. Cache buster bumps only in the same push as approved frontend changes.
+3. 30-minute timebox per bug, 10-iteration cap on the loop, anti-anchoring
+   rule applies. If the loop stalls, stop and report rather than force it.
+
+============================================================================
+COPY EVERYTHING BELOW THIS LINE INTO A NEW SESSION TO START S85
+============================================================================
+
+This is session S85 of SimpleBlueprints. Repo (public):
+https://github.com/wilwixqa1/SimpleBlueprints
+
+Setup, in order:
+1. Clone the repo. Read STATUS.txt, then MASTER_CONTEXT.txt (especially
+   section 6, the capability playbook -- PDF visual review and the headless
+   browser work in your sandbox; set both up now), then ARCHITECTURE.txt.
+2. Run the existing suites to confirm a green baseline before touching
+   anything: node tests/geometry/lotGeometry.test.js and
+   python3 tests/test_structural.py. Report the numbers to me.
+
+Then run this as a LOOP -- iterate autonomously against the verification
+commands, do not ask me for permission between iterations:
+
+TASK A (safety net first, new files only): build tests/pdf/render_review.py
+per MASTER_CONTEXT section 11 item 1 -- named param sets covering: basic
+rect ledger deck, freestanding, deck with straight stair, and one site plan
+on the trapezoid lot [[0,0],[90,0],[70,130],[15,130]]. One command renders
+all PDFs and rasterizes every page to 150 DPI PNGs. Visually review every
+page yourself and give me a findings report. Commit as S85 push 1.
+
+TASK B (the loop): fix the position/render divergence documented in
+ARCHITECTURE.txt. Goal state, all three required:
+  - node tests/geometry/lotGeometry.test.js reports 0 failures AND 0
+    divergence warnings
+  - python3 tests/test_structural.py stays at 52 passed
+  - the render_review harness output for the trapezoid site plan shows the
+    house positioned sensibly (you check visually)
+Approach: unify on ONE left-edge definition (ARCHITECTURE.txt recommends
+leftEdgeAtY(midY), converting the stored offset at stash time), implement
+in lotGeometry.js first, then swap the steps.js and sitePlanView.js call
+sites to use window.lotGeometry. Budget: max 10 edit-test iterations; if
+not converged, STOP and write up what you found instead of forcing it.
+
+HARD GATES -- do not violate:
+  - Do NOT push anything from Task B to main until you have shown me: the
+    green test output, before/after site plan PDF pages, and before/after
+    screenshots of the site plan step in the live wizard flow (headless
+    browser), AND I have replied approving them. My visual approval is the
+    release gate, not the tests.
+  - When I approve: single commit "S85 push 2: ..." including the cache
+    buster bump (frontend files changed), push direct to main with the PAT
+    I provide, then re-verify the LIVE site renders correctly.
+
+Standing rules apply throughout (MASTER_CONTEXT section 9): 30-minute bug
+timebox, anti-anchoring after two pushbacks, ship one change verify
+continue, honest reporting -- if something is not done, say it is not done.
+
+============================================================================
+END OF KICKOFF PROMPT
+============================================================================
+
+WHAT WILL SHOULD EXPECT / HOW TO JUDGE THE EXPERIMENT:
+- A good outcome: Claude reports a green loop in a handful of iterations,
+  shows before/after pages, and the site plan looks right to you. You have
+  then run your first real loop: goal + judge + budget + gate.
+- An acceptable outcome: the loop hits the iteration cap and Claude writes
+  up why. That is the guardrails working, not a failure.
+- A bad outcome you should call out: Claude pushing anything before your
+  visual approval, or declaring success from test output alone.
+If the experiment works, the same pattern (goal, machine judge, budget,
+human gate) extends to the fuzz loop and the PDF bug backlog -- see
+MASTER_CONTEXT sections 7 and 11.

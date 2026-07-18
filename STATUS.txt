@@ -9,6 +9,7 @@ TOP PRIORITIES (S85, in order):
 3. Fuzz loop (crash + consistency oracles, incl. text-collision detector)
 4. Golden-file PDF regression; then B1 elevation zone heights
 
+NEXT SESSION: paste the prompt from S85_KICKOFF.txt to begin.
 READ FIRST: MASTER_CONTEXT.txt (capability playbook section 6 -- PDF visual
 review + headless browser work IN CHAT, do not rediscover this).
 PENDING ON WILL: confirm /admin login in prod; revoke classic PAT, mint
