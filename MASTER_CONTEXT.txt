@@ -739,9 +739,16 @@ PDF BUG BACKLOG (unchanged from S85 unless noted):
 DECISIONS / PENDING ON WILL:
   - Sheet size: RESOLVED (arch_d 36x24 default).
   - Jurisdiction: RESOLVED -> Colorado Springs / PPRBD (see section 1).
-  - Revoke the classic PAT reused in S86 chat; mint a fine-grained repo token.
-  - Real test address in CO Springs; contractor pricing ($49 beta / $99?);
-    Billy's timeline for contractor conversations.
+  - PAT: Will is KEEPING the classic PAT (his explicit decision S86). Do NOT
+    re-raise revoking it -- use it as provided per rule 9.
+  - REAL TEST ADDRESSES (Will, S86): Ilaria = 4739 Sweetgrass Lane, Colorado
+    Springs CO 80922 (the wood-deck reference set); Welborn = steel-deck
+    project, street address still TBD from Will. Use these instead of
+    synthetic fixtures for genuine end-to-end runs -- but real parcel/geocode
+    needs live Realie/Overpass (Railway keys), so run on simpleblueprints.xyz
+    or a keyed env / headless live site (6.2), not the bare sandbox.
+  - Contractor pricing ($49 beta / $99?); Billy's timeline for contractor
+    conversations.
   - Confirm PPRBD accepts a mixed-size set (36x24 drawing sheets + the letter
     PPRBD attachment form) -- expected fine, worth a real-world check.
   - Point the parallel GTM session at current MASTER_CONTEXT before it pushes.

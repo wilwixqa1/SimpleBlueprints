@@ -37,7 +37,13 @@ operates there), NOT Brookhaven/Islip. The reference sets are CO Springs /
 PPRBD. is_colorado_springs() + append_cos_attachment() already exist; the
 PPRBD attachment is the official letter-size form appended as-is.
 
-PENDING ON WILL: revoke the classic PAT reused in S86 chat; real test
-address; contractor pricing ($49/$99?); confirm mixed page sizes (36x24
-drawings + letter PPRBD form) are fine for PPRBD submission.
+PENDING ON WILL: real test address -> Will gave two REAL CO Springs
+addresses: Ilaria (4739 Sweetgrass Lane, Colorado Springs CO 80922; the wood-
+deck reference set) and Welborn (steel-deck project; street address TBD from
+Will). Contractor pricing ($49/$99?); confirm mixed page sizes (36x24 drawings
++ letter PPRBD form) are fine for PPRBD submission.
+NOTE: Will is KEEPING the classic PAT (his decision -- do NOT re-raise
+revoking it). A genuine real-address run needs the live Realie/Overpass APIs
+(keys live on Railway), so it happens on simpleblueprints.xyz or a keyed env,
+not the bare sandbox -- drive the live site headless (6.2) against these.
 BLOCKERS: none. NEXT SESSION: paste the prompt from S87_KICKOFF.txt.
