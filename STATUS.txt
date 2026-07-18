@@ -1,17 +1,31 @@
 SIMPLEBLUEPRINTS STATUS
-Session: S84 (closed)
-Cache buster: unchanged (no production-visible frontend change in S84)
+Session: S85 (in progress; may end abruptly -- Claude vision outage mid-session)
+Cache buster: s85a (lotGeometry.js script tag + lazy-loader bump, pushed S85)
 
-TOP PRIORITIES (S85, in order):
-1. tests/pdf/render_review.py harness (param sets -> PDFs -> 150dpi PNGs)
-2. Fix 2.6ft position/render divergence; swap call sites to lotGeometry.js;
-   Will visually verifies 10 Chichester + one tapered lot
-3. Fuzz loop (crash + consistency oracles, incl. text-collision detector)
-4. Golden-file PDF regression; then B1 elevation zone heights
+SHIPPED THIS SESSION (pushes 1-3, CI green, LIVE verified via DOM extraction):
+1. tests/pdf/render_review.py harness (8 named param sets -> PDFs -> 150dpi PNGs)
+2. Position/render divergence FIXED: offset now renderer-space (leftEdgeAtY(midY),
+   converted at stash time); steps.js/sitePlanView.js swapped to window.lotGeometry;
+   geometry suite 2764/0/0 (H5 divergence is now a HARD check)
+3. Elevation grade fixes: l2r/r2l sign was inverted in ALL 4 PDF views vs
+   calc/frontend; grade line now anchored to calc reference (piers land ON grade,
+   was up to 19.2in float/bury); side views anchor at depicted post for lateral
+   slopes; h=null zone crash fixed (draw_elevations.py:83 .get default trap);
+   bench grade style default (_gradeStyle: skip|continuous|bench|planted)
+4. tests/pdf/legibility_check.py: L3 text-collision + font-size oracle, works on
+   any PDF incl. reference blueprints (2 pro sets measured, in docs/history refs)
 
-NEXT SESSION: paste the prompt from S85_KICKOFF.txt to begin.
-READ FIRST: MASTER_CONTEXT.txt (capability playbook section 6 -- PDF visual
-review + headless browser work IN CHAT, do not rediscover this).
-PENDING ON WILL: confirm /admin login in prod; revoke classic PAT, mint
-fine-grained replacement; answer open questions (MASTER_CONTEXT.txt sec 11).
-BLOCKERS: none.
+TOP PRIORITIES (remaining S85 / next session):
+1. WHEN VISION RETURNS: visual pass on reference blueprints (Loucks/Ilaria, in
+   chat uploads); eye-verify grade fixes; fix A-6 cantilever-note collision
+   (appears on EVERY set) + zone-label/DOWN collisions (detector = judge)
+2. Sheet size decision for Will: our type is proportionally equal to pro refs
+   (~0.3% of sheet width) but we render 14x8.5in vs their 36x24 ARCH D
+3. Config matrix battle-test (Will's spec): 1-zone/2-zone x stairs from
+   main/zone/main+both zones/INTERIOR-ANCHORED (anchorX/Y path untested, run
+   FIRST); judges = crash + 143 checks + legibility thresholds + visual sample
+4. Fuzz loop (L1 crash oracle); golden files; frontend elevationView bench grade
+
+NEXT SESSION: read MASTER_CONTEXT.txt sec 5 (offset contract), sec 11.
+PENDING ON WILL: revoke classic PAT used S85, mint fine-grained; sheet size call.
+BLOCKERS: Claude vision outage (rasterize works, viewing returns empty).
