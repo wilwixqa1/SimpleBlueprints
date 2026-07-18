@@ -41,7 +41,7 @@ TOP PRIORITIES (S86):
    checks + legibility thresholds (<=2/set) + visual sample
 5. 4-zone torture case annotation crowding (10 collisions)
 
-NEXT SESSION: paste kickoff referencing this file; read MASTER_CONTEXT sec 5.
+NEXT SESSION: paste the prompt from S86_KICKOFF.txt to begin.
 PENDING ON WILL: revoke classic PAT used S85; sheet size call; point the
 parallel (GTM) session at current MASTER_CONTEXT.txt before it pushes code.
 BLOCKERS: none (vision expected back in fresh session).
