@@ -114,6 +114,21 @@ def draw_scale_bar(ax, x, y, total_ft=12):
             va='top', color=BRAND["mute"])
 
 
+def _margin_callout(ax, tx, ty, mx, my, text, fontsize=4.5, ha='left',
+                    color=None, weight='normal'):
+    """Place an annotation in the sheet margin with a thin leader line back to
+    the member it describes (tx, ty). Keeps member callouts OFF the geometry
+    (S86), matching the reference sets. text at (mx, my); leader to (tx, ty)."""
+    color = color or BRAND["dark"]
+    ax.annotate(
+        text, xy=(tx, ty), xytext=(mx, my),
+        fontsize=fontsize, ha=ha, va='center',
+        fontfamily='monospace', fontweight=weight, color=color, zorder=7,
+        arrowprops=dict(arrowstyle='-', color=BRAND["mute"], lw=0.4,
+                        shrinkA=1, shrinkB=2),
+    )
+
+
 def format_feet_inches(feet):
     """Convert decimal feet to feet-inches string"""
     ft = int(feet)
@@ -440,6 +455,25 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
         if is_framing:
             beam_y = D - 1.5
 
+            # S86: member callouts live in the empty LEFT margin on leaders,
+            # not stacked on the geometry. Column x + stacked y-slots + wrap.
+            _mLx = min(bbox["x"], stair_x_min) - margin_x_left + 0.6
+            _cy_posts = D * 0.88
+            _cy_beam = D * 0.60
+            _cy_hw = D * 0.34
+            _cy_block = D * 0.10
+
+            def _wrap(s, n=18):
+                out, line = [], ""
+                for w in s.split():
+                    if line and len(line) + 1 + len(w) > n:
+                        out.append(line); line = w
+                    else:
+                        line = (line + " " + w) if line else w
+                if line:
+                    out.append(line)
+                return "\n".join(out)
+
             # Joists (clipped to chamfer polygon)
             sp = calc["joist_spacing"] / 12
             for jx in np.arange(sp, W, sp):
@@ -469,11 +503,9 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
                         ln, = ax.plot([jx, jx + sp_ft], [block_y, block_y],
                                 color=BRAND["dark"], lw=0.6, ls='--', dashes=(1.5, 1.5))
                         ln.set_clip_path(_z0_clip)
-                # S22: Position blocking label relative to bbox right edge
-                ax.text(W / 2, block_y + 0.5,
-                        spec["labels"]["blocking"],
-                        ha='center', fontsize=3.5, fontfamily='monospace', color=BRAND["dark"],
-                        bbox=dict(boxstyle='square,pad=0.15', fc='white', ec='none', alpha=0.85))
+                # S86: blocking label -> left margin on a leader
+                _margin_callout(ax, W * 0.5, block_y, _mLx, _cy_block,
+                                _wrap(spec["labels"]["blocking"]))
 
             # Joist label
             ax.text(W / 2, D / 2 - 1.5,
@@ -487,9 +519,10 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
             _bl1.set_clip_path(_z0_clip)
             _bl2.set_clip_path(_z0_clip)
             _bl3.set_clip_path(_z0_clip)
-            ax.text(W / 2, beam_y - 0.8,
-                    spec["labels"]["beam"],
-                    ha='center', fontsize=4, fontweight='bold', color='#8B6914')
+            # S86: beam label -> left margin on a leader (was on the beam)
+            _margin_callout(ax, W * 0.4, beam_y, _mLx, _cy_beam,
+                            _wrap(spec["labels"]["beam"]),
+                            color='#8B6914', weight='bold')
 
             # Posts + piers (clipped to chamfer polygon)
             for px in calc["post_positions"]:
@@ -513,15 +546,12 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
                                 bbox=dict(boxstyle='square,pad=0.1', fc='#fff8f0',
                                           ec='#c4960a', lw=0.3, alpha=0.9))
 
-            # S61: Hardware labels - consolidated for readability
+            # S61/S86: post + footing callout -> left margin on a leader
             _first_px = calc["post_positions"][0]
-            # Combined post + footing on one line above beam
-            _hw_fs = 3.0
-            _hw_box = dict(boxstyle='square,pad=0.1', fc='white', ec='none', alpha=0.85)
-            ax.text(_first_px, beam_y + 1.2,
-                    f'{spec["posts"]["size"]} PT POSTS ({spec["posts"]["total"]}) W/ {spec["footings"]["diameter"]}" PIERS x {spec["footings"]["depth"]}" DEEP',
-                    ha='left', fontsize=_hw_fs, fontfamily='monospace', color=BRAND["dark"],
-                    bbox=_hw_box)
+            _margin_callout(
+                ax, _first_px, beam_y, _mLx, _cy_posts,
+                _wrap(f'({spec["posts"]["total"]}) {spec["posts"]["size"]} PT POSTS '
+                      f'ON {spec["footings"]["diameter"]}" PIERS x {spec["footings"]["depth"]}" DEEP'))
 
             # Hurricane tie + joist hanger: single line below beam
             _hw_items = []
@@ -530,10 +560,9 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
             if attachment == "ledger":
                 _hw_items.append(spec["hardware"]["joist_hanger"]["model"] + ' HANGERS')
             if _hw_items:
-                ax.text(W / 2, beam_y - 1.5,
-                        'SIMPSON ' + ' + '.join(_hw_items),
-                        ha='center', fontsize=_hw_fs, fontfamily='monospace', color=BRAND["dark"],
-                        bbox=_hw_box)
+                # S86: hardware callout -> left margin on a leader
+                _margin_callout(ax, W * 0.5, beam_y, _mLx, _cy_hw,
+                                _wrap('SIMPSON ' + ' + '.join(_hw_items)))
 
             # S61: Loads box - moved OUTSIDE deck to lower-left margin
             _has_snow = bool(spec["labels"].get("loads_snow"))
