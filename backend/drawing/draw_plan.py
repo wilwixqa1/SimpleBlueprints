@@ -129,6 +129,19 @@ def _margin_callout(ax, tx, ty, mx, my, text, fontsize=4.5, ha='left',
     )
 
 
+def _wrap_txt(s, n=16):
+    """Word-wrap a callout string to <= n chars per line."""
+    out, line = [], ""
+    for w in s.split():
+        if line and len(line) + 1 + len(w) > n:
+            out.append(line); line = w
+        else:
+            line = (line + " " + w) if line else w
+    if line:
+        out.append(line)
+    return "\n".join(out)
+
+
 def format_feet_inches(feet):
     """Convert decimal feet to feet-inches string"""
     ft = int(feet)
@@ -233,9 +246,13 @@ def compute_zone_framing(zone, rect, joist_spacing_in=16):
     return None
 
 
-def draw_zone_framing(ax, zone, rect, calc, zone_sizing=None):
+def draw_zone_framing(ax, zone, rect, calc, zone_sizing=None, margin_cols=None):
     """Draw framing elements (outline, joists, beam, posts, piers) for an add zone.
     S80: Flush beam zones only draw outline + joists + label (no beam/posts/piers).
+    S86: when margin_cols=(left_x, right_x, main_cx) is given (complex full-width
+    framing sheet), the zone keeps a short readable tag and its member spec is
+    leadered out to the nearer side margin instead of being micro-printed inside
+    the small wing.
     """
     framing = compute_zone_framing(zone, rect, calc.get("joist_spacing", 16))
     if not framing:
@@ -271,24 +288,36 @@ def draw_zone_framing(ax, zone, rect, calc, zone_sizing=None):
                               fill=False, ec=BRAND["dark"], lw=0.4, ls='--')
             ax.add_patch(pier)
 
-    # S61: Zone label with zone-specific joist/beam callout (from spec, compact)
+    # S61/S86: Zone label = short tag on the wing + member spec (leadered to
+    # margin on the complex full-width sheet, else printed compactly on the zone)
     label = zone.get("label", f"Zone {zone.get('id', '?')}")
+    _sp = calc.get("joist_spacing", 16)
     if zone_sizing:
         zj = zone_sizing["joist_size"]
         zb = zone_sizing["beam_size"].upper()
-        if is_flush:
-            label_text = f'{label}\n{zj} @ {calc.get("joist_spacing", 16)}" / FLUSH (RIM)'
-        else:
-            label_text = f'{label}\n{zj} @ {calc.get("joist_spacing", 16)}" / {zb}'
+        member_spec = f'{zj} @ {_sp}" / FLUSH (RIM)' if is_flush else f'{zj} @ {_sp}" / {zb}'
     else:
-        if is_flush:
-            label_text = f'{label}\n{calc.get("joist_size", "2x12")} @ {calc.get("joist_spacing", 16)}" / FLUSH (RIM)'
-        else:
-            label_text = f'{label}\n{calc.get("joist_size", "2x12")} @ {calc.get("joist_spacing", 16)}"'
-    ax.text(rect["x"] + rect["w"] / 2, rect["y"] + rect["d"] / 2,
-            label_text,
-            ha='center', va='center', fontsize=3.0,
-            fontfamily='monospace', color=BRAND["mute"], fontstyle='italic')
+        _zj = calc.get("joist_size", "2x12")
+        member_spec = f'{_zj} @ {_sp}" / FLUSH (RIM)' if is_flush else f'{_zj} @ {_sp}"'
+
+    _zx = rect["x"] + rect["w"] / 2
+    _zy = rect["y"] + rect["d"] / 2
+    if margin_cols:
+        # readable zone tag on the wing
+        ax.text(_zx, _zy, label, ha='center', va='center', fontsize=4.5,
+                fontfamily='monospace', color=BRAND["mute"], fontweight='bold')
+        # member spec dropped just below the wing on a short leader (local,
+        # legible, symmetric on both sides -- no narrow-margin crowding)
+        _margin_callout(ax, _zx, rect["y"] + 0.2, _zx, rect["y"] - 1.6,
+                        _wrap_txt(member_spec, 20),
+                        fontsize=4.2, ha='center', color=BRAND["mute"])
+    else:
+        ax.text(_zx, _zy, f'{label}\n{member_spec}',
+                ha='center', va='center', fontsize=3.0,
+                fontfamily='monospace', color=BRAND["mute"], fontstyle='italic')
+        ax.text(_zx, _zy, f'{label}\n{member_spec}',
+                ha='center', va='center', fontsize=3.0,
+                fontfamily='monospace', color=BRAND["mute"], fontstyle='italic')
 
 
 # ============================================================
@@ -400,6 +429,9 @@ def draw_plan_and_framing(fig, params, calc, spec=None, panels=None):
             if has_zones:
                 _zone_calcs = spec.get("zone_calcs", [])
                 _zones_list = params.get("zones", [])
+                # S86: side-margin columns for leadered wing callouts
+                _zL = min(bbox["x"], stair_x_min) - margin_x_left + 0.6
+                _zR = max(bbox["x"] + bbox["w"], stair_x_max) + 0.6
                 for zi, ar in enumerate(add_rects):
                     if ar["id"] == 0:
                         continue
@@ -409,7 +441,8 @@ def draw_plan_and_framing(fig, params, calc, spec=None, panels=None):
                         if _zz.get("id") == ar["zone"].get("id") and _zli < len(_zone_calcs):
                             _zs = _zone_calcs[_zli]
                             break
-                    draw_zone_framing(ax, ar["zone"], ar["rect"], calc, zone_sizing=_zs)
+                    draw_zone_framing(ax, ar["zone"], ar["rect"], calc, zone_sizing=_zs,
+                                      margin_cols=(_zL, _zR, W / 2))
         else:
             # S22: Zone-aware plan view with color differentiation
             for idx, ar in enumerate(add_rects):
@@ -469,9 +502,9 @@ def draw_plan_and_framing(fig, params, calc, spec=None, panels=None):
         if is_framing:
             beam_y = D - 1.5
 
-            # S86: member callouts live in the empty LEFT margin on leaders,
-            # not stacked on the geometry. Column x + stacked y-slots + wrap.
-            _mLx = min(bbox["x"], stair_x_min) - margin_x_left + 0.6
+            # S86: member callouts sit just off the drawing's left edge,
+            # right-anchored so text ends near the framing with short leaders.
+            _mLx = min(bbox["x"], stair_x_min) - 0.8
             _cy_posts = D * 0.88
             _cy_beam = D * 0.60
             _cy_hw = D * 0.34
@@ -518,8 +551,8 @@ def draw_plan_and_framing(fig, params, calc, spec=None, panels=None):
                                 color=BRAND["dark"], lw=0.6, ls='--', dashes=(1.5, 1.5))
                         ln.set_clip_path(_z0_clip)
                 # S86: blocking label -> left margin on a leader
-                _margin_callout(ax, W * 0.5, block_y, _mLx, _cy_block,
-                                _wrap(spec["labels"]["blocking"]))
+                _margin_callout(ax, 1.5, block_y, _mLx, _cy_block,
+                                _wrap(spec["labels"]["blocking"]), ha='right')
 
             # Joist label
             ax.text(W / 2, D / 2 - 1.5,
@@ -534,9 +567,9 @@ def draw_plan_and_framing(fig, params, calc, spec=None, panels=None):
             _bl2.set_clip_path(_z0_clip)
             _bl3.set_clip_path(_z0_clip)
             # S86: beam label -> left margin on a leader (was on the beam)
-            _margin_callout(ax, W * 0.4, beam_y, _mLx, _cy_beam,
+            _margin_callout(ax, 1.5, beam_y, _mLx, _cy_beam,
                             _wrap(spec["labels"]["beam"]),
-                            color='#8B6914', weight='bold')
+                            ha='right', color='#8B6914', weight='bold')
 
             # Posts + piers (clipped to chamfer polygon)
             for px in calc["post_positions"]:
@@ -565,7 +598,8 @@ def draw_plan_and_framing(fig, params, calc, spec=None, panels=None):
             _margin_callout(
                 ax, _first_px, beam_y, _mLx, _cy_posts,
                 _wrap(f'({spec["posts"]["total"]}) {spec["posts"]["size"]} PT POSTS '
-                      f'ON {spec["footings"]["diameter"]}" PIERS x {spec["footings"]["depth"]}" DEEP'))
+                      f'ON {spec["footings"]["diameter"]}" PIERS x {spec["footings"]["depth"]}" DEEP'),
+                ha='right')
 
             # Hurricane tie + joist hanger: single line below beam
             _hw_items = []
@@ -575,43 +609,59 @@ def draw_plan_and_framing(fig, params, calc, spec=None, panels=None):
                 _hw_items.append(spec["hardware"]["joist_hanger"]["model"] + ' HANGERS')
             if _hw_items:
                 # S86: hardware callout -> left margin on a leader
-                _margin_callout(ax, W * 0.5, beam_y, _mLx, _cy_hw,
-                                _wrap('SIMPSON ' + ' + '.join(_hw_items)))
+                _margin_callout(ax, 2.5, beam_y, _mLx, _cy_hw,
+                                _wrap('SIMPSON ' + ' + '.join(_hw_items)), ha='right')
 
-            # S61: Loads box - moved OUTSIDE deck to lower-left margin
+            # S86: Loads TABLE (green header + aligned label/value cols + ruled
+            # total) matching the cover drawing-index style. Lower-left margin.
             _has_snow = bool(spec["labels"].get("loads_snow"))
             _has_ledger = bool(spec["labels"].get("loads_ledger"))
-            _lb_x = min(bbox["x"], stair_x_min) - margin_x_left + 1
-            _lb_y = -house_depth + 0.5
-            _lb_lines = 4 + (1 if _has_snow else 0) + (1 if _has_ledger else 0)
-            _lb_h = 0.5 + _lb_lines * 0.55
-            _lb_w = 5.5
-            ax.add_patch(patches.Rectangle((_lb_x, _lb_y), _lb_w, _lb_h,
-                         fc='#fafaf8', ec=BRAND["dark"], lw=0.5, zorder=5))
-            _ly = _lb_y + _lb_h - 0.4
-            _line_n = 0
-            ax.text(_lb_x + 0.2, _ly, 'DECK LOADS:', fontsize=4,
-                    fontweight='bold', color=BRAND["dark"], zorder=6)
-            _line_n += 1
-            ax.text(_lb_x + 0.2, _ly - _line_n * 0.55, spec["labels"]["loads_LL"],
-                    fontsize=3.5, color=BRAND["dark"], zorder=6)
+            _rows = [("val", spec["labels"]["loads_LL"])]
             if _has_snow:
-                _line_n += 1
-                ax.text(_lb_x + 0.2, _ly - _line_n * 0.55, spec["labels"]["loads_snow"],
-                        fontsize=3.5, color=BRAND["dark"], zorder=6)
-            _line_n += 1
-            ax.text(_lb_x + 0.2, _ly - _line_n * 0.55, spec["labels"]["loads_DL"],
-                    fontsize=3.5, color=BRAND["dark"], zorder=6)
-            _line_n += 1
-            ax.text(_lb_x + 0.2, _ly - _line_n * 0.55, spec["labels"]["loads_TL"],
-                    fontsize=3.5, fontweight='bold', color=BRAND["red"], zorder=6)
-            _line_n += 1
-            ax.text(_lb_x + 0.2, _ly - _line_n * 0.55, spec["labels"]["loads_lumber"],
-                    fontsize=3.5, color=BRAND["dark"], zorder=6)
+                _rows.append(("val", spec["labels"]["loads_snow"]))
+            _rows.append(("val", spec["labels"]["loads_DL"]))
+            _rows.append(("total", spec["labels"]["loads_TL"]))
+            _rows.append(("note", spec["labels"]["loads_lumber"]))
             if _has_ledger:
-                _line_n += 1
-                ax.text(_lb_x + 0.2, _ly - _line_n * 0.55, spec["labels"]["loads_ledger"],
-                        fontsize=3.5, color=BRAND["dark"], zorder=6)
+                _rows.append(("val", spec["labels"]["loads_ledger"]))
+
+            _hdr_h = 0.75
+            _row_h = 0.52
+            _lb_w = 6.6
+            _lb_h = _hdr_h + len(_rows) * _row_h + 0.25
+            # S86: lower-left, anchored to the drawing's left edge and sitting
+            # just above the scale bar in the open band beneath the framing.
+            _lb_x = bbox["x"]
+            _lb_y = -house_depth - margin_y * 0.35 + 1.0
+            # body + header bar
+            ax.add_patch(patches.Rectangle((_lb_x, _lb_y), _lb_w, _lb_h,
+                         fc='white', ec=BRAND["dark"], lw=0.6, zorder=5))
+            ax.add_patch(patches.Rectangle((_lb_x, _lb_y + _lb_h - _hdr_h), _lb_w, _hdr_h,
+                         fc=BRAND["green"], ec='none', zorder=6))
+            ax.text(_lb_x + _lb_w / 2, _lb_y + _lb_h - _hdr_h / 2, 'DECK LOADS',
+                    ha='center', va='center', fontsize=4.0, fontweight='bold',
+                    fontfamily='monospace', color='white', zorder=7)
+            _ry = _lb_y + _lb_h - _hdr_h - _row_h * 0.65
+            for _kind, _s in _rows:
+                if _kind == "total":
+                    ax.plot([_lb_x + 0.3, _lb_x + _lb_w - 0.3],
+                            [_ry + _row_h * 0.55, _ry + _row_h * 0.55],
+                            color=BRAND["dark"], lw=0.4, zorder=6)
+                if _kind != "note" and "=" in _s:
+                    _lbl, _val = _s.split("=", 1)
+                    _c = BRAND["red"] if _kind == "total" else BRAND["dark"]
+                    _fw = 'bold' if _kind == "total" else 'normal'
+                    ax.text(_lb_x + 0.35, _ry, _lbl.strip(), ha='left', va='center',
+                            fontsize=3.6, fontweight=_fw, fontfamily='monospace',
+                            color=_c, zorder=7)
+                    ax.text(_lb_x + _lb_w - 0.35, _ry, _val.strip(), ha='right', va='center',
+                            fontsize=3.6, fontweight=_fw, fontfamily='monospace',
+                            color=_c, zorder=7)
+                else:
+                    ax.text(_lb_x + 0.35, _ry, _s, ha='left', va='center',
+                            fontsize=3.1, fontfamily='monospace',
+                            color=BRAND["mute"], zorder=7)
+                _ry -= _row_h
 
 
 
