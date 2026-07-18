@@ -32,7 +32,7 @@ def format_feet_inches(feet):
         return f"{ft}'-{inches:.0f}\""
 
 
-def draw_cover_sheet(fig, params, calc, project_info=None, cover_image_b64=None, compliance_summary=None):
+def draw_cover_sheet(fig, params, calc, project_info=None, cover_image_b64=None, compliance_summary=None, sheet_index=None):
     """Draw Sheet A-0: Cover page with 3D rendering and project details."""
     pi = project_info or {}
     if isinstance(pi, str):
@@ -247,7 +247,7 @@ def draw_cover_sheet(fig, params, calc, project_info=None, cover_image_b64=None,
     ax.text(idx_x + idx_w / 2, info_y - 2.2, "DRAWING INDEX", fontsize=6, fontweight='bold',
             fontfamily='monospace', color='white', ha='center')
 
-    sheets = [
+    sheets = sheet_index or [
         ("A-0", "COVER"),
         ("A-1", "PLAN & FRAMING"),
         ("A-2", "ELEVATIONS"),

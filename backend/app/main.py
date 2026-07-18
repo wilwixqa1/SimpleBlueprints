@@ -223,36 +223,62 @@ def generate_blueprint_pdf(params: dict) -> tuple:
     permit_path = PDF_DIR / f"{permit_id}.pdf"
     materials_path = PDF_DIR / f"{materials_id}.pdf"
 
-    # -- Permit Plan Set (Cover + A-1 through A-5) --
-    permit_sheets = [
-        ("A-1", "DECK PLAN & FRAMING", draw_plan_and_framing),
-        ("A-2", "ELEVATIONS", draw_elevations_sheet),
-        ("A-3", "GENERAL NOTES", draw_notes_sheet),
-        ("A-4", "STRUCTURAL DETAILS", draw_details_sheet),
-    ]
+    # -- Permit Plan Set --
+    # S86: multi-zone (complex) decks split plan and framing onto separate
+    # full-width sheets so neither is crammed into a half panel; simple decks
+    # keep the historical combined A-1 layout unchanged.
+    _complex = len(params.get("zones", [])) > 0
+
+    def _panel_plan(fig, p, c, s):
+        draw_plan_and_framing(fig, p, c, s, panels=("plan",))
+
+    def _panel_framing(fig, p, c, s):
+        draw_plan_and_framing(fig, p, c, s, panels=("framing",))
+
+    def _sheet_site(fig, p, c, s):
+        draw_site_plan(fig, p, c)
+
+    def _sheet_checklist(fig, p, c, s):
+        draw_checklist_sheet(fig, p, c, s)
+
+    if _complex:
+        body_sheets = [
+            ("A-1", "DECK PLAN", _panel_plan),
+            ("A-2", "DECK FRAMING", _panel_framing),
+            ("A-3", "ELEVATIONS", draw_elevations_sheet),
+            ("A-4", "GENERAL NOTES", draw_notes_sheet),
+            ("A-5", "STRUCTURAL DETAILS", draw_details_sheet),
+            ("A-6", "SITE PLAN", _sheet_site),
+            ("A-7", "DECK ATTACHMENT SHEET", _sheet_checklist),
+        ]
+        cover_index = [
+            ("A-0", "COVER"), ("A-1", "DECK PLAN"), ("A-2", "DECK FRAMING"),
+            ("A-3", "ELEVATIONS"), ("A-4", "GENERAL NOTES"),
+            ("A-5", "DETAILS"), ("A-6", "SITE PLAN"), ("A-7", "ATTACHMENT"),
+        ]
+    else:
+        body_sheets = [
+            ("A-1", "DECK PLAN & FRAMING", draw_plan_and_framing),
+            ("A-2", "ELEVATIONS", draw_elevations_sheet),
+            ("A-3", "GENERAL NOTES", draw_notes_sheet),
+            ("A-4", "STRUCTURAL DETAILS", draw_details_sheet),
+            ("A-5", "SITE PLAN", _sheet_site),
+            ("A-6", "DECK ATTACHMENT SHEET", _sheet_checklist),
+        ]
+        cover_index = None  # keep the historical hardcoded cover index
 
     with PdfPages(str(permit_path)) as pdf, render_scale():
         fig0 = plt.figure(figsize=sheet_size()); fig0.set_facecolor('white')
         _compliance = get_compliance_summary(permit_report)
-        draw_cover_sheet(fig0, params, calc, pi, cover_img, compliance_summary=_compliance)
+        draw_cover_sheet(fig0, params, calc, pi, cover_img,
+                         compliance_summary=_compliance, sheet_index=cover_index)
         pdf.savefig(fig0, dpi=200); plt.close(fig0)
 
-        for sheet_num, sheet_name, draw_fn in permit_sheets:
+        for sheet_num, sheet_name, draw_fn in body_sheets:
             fig = plt.figure(figsize=sheet_size()); fig.set_facecolor('white')
             draw_fn(fig, params, calc, spec)
             draw_title_block(fig, sheet_num, sheet_name, calc, pi)
             pdf.savefig(fig, dpi=200); plt.close(fig)
-
-        # A-5: Site plan (was A-6 before S50)
-        fig5 = plt.figure(figsize=sheet_size()); fig5.set_facecolor('white')
-        draw_site_plan(fig5,params,calc); draw_title_block(fig5,"A-5","SITE PLAN",calc,pi)
-        pdf.savefig(fig5,dpi=200); plt.close(fig5)
-
-        # A-6: Compliance checklist (S66)
-        fig6 = plt.figure(figsize=sheet_size()); fig6.set_facecolor('white')
-        draw_checklist_sheet(fig6,params,calc,spec)
-        draw_title_block(fig6,"A-6","DECK ATTACHMENT SHEET",calc,pi)
-        pdf.savefig(fig6,dpi=200); plt.close(fig6)
 
     # S50: Append jurisdiction-specific sheets (Colorado Springs PPRBD)
     if is_colorado_springs(pi):

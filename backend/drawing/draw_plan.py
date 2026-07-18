@@ -294,8 +294,12 @@ def draw_zone_framing(ax, zone, rect, calc, zone_sizing=None):
 # ============================================================
 # SHEET 1: DECK PLAN + FRAMING (side by side)
 # ============================================================
-def draw_plan_and_framing(fig, params, calc, spec=None):
-    """Draw plan view (left) and framing plan (right)"""
+def draw_plan_and_framing(fig, params, calc, spec=None, panels=None):
+    """Draw plan view (left) and framing plan (right).
+
+    S86: `panels` selects which panels to draw. None/("plan","framing") =
+    today's side-by-side simple layout (unchanged). ("plan",) or ("framing",)
+    draws a single full-width panel for the complex multi-sheet layout."""
 
     # Build spec if not provided (backwards compat)
     if spec is None:
@@ -308,8 +312,18 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
     has_stairs = params.get("hasStairs", False)
     has_zones = len(params.get("zones", [])) > 0
 
-    ax1, ax2 = fig.subplots(1, 2)
-    fig.subplots_adjust(left=0.04, right=0.84, top=0.91, bottom=0.08, wspace=0.12)
+    panels = panels or ("plan", "framing")
+    _pspec = {"plan": ("MAIN LEVEL DECK PLAN", False),
+              "framing": ("DECK FRAMING", True)}
+    if len(panels) == 2:
+        ax1, ax2 = fig.subplots(1, 2)
+        fig.subplots_adjust(left=0.04, right=0.84, top=0.91, bottom=0.08, wspace=0.12)
+        _axes = [ax1, ax2]
+    else:
+        _ax = fig.subplots(1, 1)
+        fig.subplots_adjust(left=0.06, right=0.84, top=0.91, bottom=0.08)
+        _axes = [_ax]
+    _panel_iter = [(_axes[i], *_pspec[p]) for i, p in enumerate(panels)]
 
     # S21: Zone-aware plan view data
     add_rects = get_additive_rects(params)
@@ -346,7 +360,7 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
     margin_y = max(eff_d * 0.30, 6)  # S57: enough for title and stair extents
     house_depth = min(D * 0.5, 8)
 
-    for ax, title, is_framing in [(ax1, "MAIN LEVEL DECK PLAN", False), (ax2, "DECK FRAMING", True)]:
+    for ax, title, is_framing in _panel_iter:
         ax.set_xlim(min(bbox["x"], stair_x_min) - margin_x_left,
                    max(bbox["x"] + bbox["w"], stair_x_max) + margin_x_right)
         ax.set_ylim(-house_depth - margin_y * 0.4,
