@@ -1,0 +1,68 @@
+S87 KICKOFF PROMPT -- paste the text between the lines as the first message
+of the next session. No file uploads needed; the repo carries all context.
+--------------------------------------------------------------------------------
+You are Claude, working with Will Wendt on SimpleBlueprints
+(simpleblueprints.xyz). This is session S87 of an ongoing engineering
+collaboration; the public repo is the single source of truth for all
+context. Do not rely on memory of prior sessions.
+
+SETUP (do all of this before proposing or writing any code, ~5 min):
+1. git clone https://github.com/wilwixqa1/SimpleBlueprints.git
+2. Read in order: STATUS.txt, then MASTER_CONTEXT.txt (pay particular
+   attention to sections 6.4 vision outage, 8B loop doctrine, 9 operational
+   rules, 10C the S86 record, 11B the current TODO), then ARCHITECTURE.txt
+   (note the new SHEET SIZE + COMPLEXITY-BRANCH section).
+3. Install the PDF toolchain per MASTER_CONTEXT 6.1 (pip install matplotlib
+   numpy httpx python-multipart itsdangerous anthropic fastapi stripe
+   psycopg2-binary --break-system-packages; ensure poppler/pdftoppm).
+4. VISION CHECK (6.4) FIRST: render one PNG and view it. Tell me plainly
+   whether your image viewing works. This session's work is heavily VISUAL
+   (fill-the-sheet + multi-sheet review), so if vision is down we replan
+   immediately -- do NOT blind-loop on appearance (8B).
+5. Run both suites, expect geometry 2764/0/0 and structural 52 passed.
+
+HOW TO RENDER FOR REVIEW (S86):
+- Sheet size is now a parameter. Default ships ARCH D 36x24. Render any set
+  at a size with: SBP_SHEET=arch_d python3 tests/pdf/render_review.py <set>
+  (sizes: letter, tabloid, arch_c, arch_d -- see backend/drawing/sheet.py).
+- Complex (multi-zone) decks now produce SEPARATE full-width sheets: cover=
+  page1, A-1 DECK PLAN=page2, A-2 DECK FRAMING=page3, then elevations/notes/
+  details/site/checklist. Simple (no-zone) decks keep the combined A-1.
+- zones_stairs_lcr is the canonical complex fixture; basic_rect_ledger and
+  slope15_l2r are simple.
+- Collision oracle: python3 tests/pdf/legibility_check.py <permit.pdf>.
+  KNOWN BLIND SPOT: it does NOT see text-over-linework, only text-over-text.
+
+SESSION SCOPE: work the TODO in MASTER_CONTEXT 11B, in order. The top items
+are visual and want your own working vision:
+  1. FILL THE SHEET. Small decks read small on 36x24 (a 20x12 deck at 1/4"
+     is physically small; the reference sets fill more of their sheet).
+     Options: bump scale to 3/8" for small decks, and/or vertically center
+     the drawing in the axes. This touches every draw_* sheet, so prototype
+     on one sheet, get Will's gate, then roll out. TASTE CALL -> prototype
+     2-3 options and let Will pick (8B); do not loop.
+  2. BROAD VISUAL PASS at 36x24 on the sheets only lightly checked in S86:
+     elevations (A-3 complex), general notes, structural details, site plan,
+     checklist, and simple-deck versions of all sheets. Confirm the ARCH D
+     flip + font scaling didn't break any sheet's layout.
+  3. MANY-ZONE SCALING: verify zones_four_stairs_four as a complex render.
+     The S86 per-wing "spec below the wing" + leadered beam group may not
+     scale past ~2 zones; if 4 zones crowd, switch zone member specs to a
+     consolidated FRAMING SCHEDULE table (reference convention).
+
+Loop-engineering rules (8B) apply: for mechanical objectives (config matrix,
+fuzz, golden files) define goal + machine judge + budget + Will's gate up
+front. For taste/layout, prototype and let Will choose.
+
+STANDING RULES (full set in MASTER_CONTEXT 9): granular 'S87 push N:'
+commits direct to main once Will provides a PAT in chat (use it without
+security lectures). Nothing examiner-facing ships without Will's visual
+approval -- with vision working you review yourself and show him key pages;
+if vision drops mid-session, Will screenshots (chat-uploaded images still
+reach you) or you queue the visual item. Bump the frontend cache buster ONLY
+if you touch frontend (S86 touched none). Update STATUS.txt +
+MASTER_CONTEXT.txt + ARCHITECTURE.txt at session end, verified against code.
+
+Begin with setup and the baseline report. Ask at most one focused question
+if something blocks you.
+--------------------------------------------------------------------------------

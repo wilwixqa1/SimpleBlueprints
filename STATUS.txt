@@ -1,47 +1,43 @@
 SIMPLEBLUEPRINTS STATUS
-Session: S85 (closed -- ended due to Claude vision outage; see below)
-Cache buster: s85b
+Session: S86 (closed clean; vision dropped ~10 views in, workaround used)
+Cache buster: s85b  (S86 touched NO frontend -> no bump needed)
 
-SHIPPED S85 (pushes 1-10, all CI green):
-1-3. render_review harness (8 sets); divergence fix (renderer-space offset,
-   live-verified via DOM); elevation grade fixes (sign inverted in all 4 PDF
-   views; anchored to calc ref; side views anchor at depicted post); h=null
-   zone crash fix; bench grade default; legibility oracle
-4-6. STATUS/MASTER_CONTEXT/ARCHITECTURE updates; photoreal-3D logged deferred
-7. UX: first wizard screen shows address form immediately (no intermediate
-   button; chat demoted to optional) -- live DOM-verified
-8. Quarantined stale S73 context file pushed by Will's PARALLEL session
-   (docs/history/S73_MASTER_CONTEXT_stale.txt). GTM plan left at root.
-9. Zone-stair world transform fixed: rotation-matrix port inverted left/right
-   exit sides -- PDF drew zone stairs INSIDE zones; now mirrors planView.js
-   txPt exactly. A-6 foundation-label collision fixed (was on EVERY config).
-10. Legibility round 2: main dims clear stair+landing-pad extents; OPENING
-   dims at deck edge; scale-bar caption fix; house label below dim band;
-   detector threshold calibrated to 30%.
-LEGIBILITY SCORE vs pro references (Loucks/Ilaria, in S85 chat + measured):
-   refs = 1-2 genuine collisions/set. Ours: 4 sets at 0, 3 sets at 2,
-   4-zone torture case at 10 (annotation crowding -- next).
+SHIPPED S86 (pushes 1-5, all CI green, HEAD 0675910):
+1. Sheet size centralized in backend/drawing/sheet.py + render_scale() shim
+   that scales fonts proportionally to sheet width. No-op at 14x8.5
+   (verified 24/24 pages pixel-identical). Sizes: letter/tabloid/arch_c/
+   arch_d; SBP_SHEET env or set_active() overrides.
+2. Framing member callouts reflowed OFF the geometry into leaders.
+3. COMPLEXITY BRANCH: decks with >=1 zone split DECK PLAN (A-1) and DECK
+   FRAMING (A-2) onto separate FULL-WIDTH sheets; rest renumbered A-3..A-7.
+   Sheet numbering data-driven in main.py; cover drawing-index + notes prose
+   follow it. Simple (no-zone) decks keep combined A-1, proven byte-identical.
+4. Cover drawing-index row height adapts to sheet count; DEFAULT SHEET SIZE
+   FLIPPED TO ARCH D 36x24 (matches the CO Springs reference sets).
+5. Zone-wing specs printed below each wing; beam group right-anchored tight
+   to the drawing's left edge; DECK LOADS rebuilt as a titled table (green
+   header, aligned cols, ruled total) anchored lower-left.
 
-!! VISUAL REVIEW GAP: pushes 9-10 verified by oracles + suites + CI ONLY.
-   Claude's image viewing broke mid-S85 (likely context-budget cutoff of
-   tool-result image payloads in a very long conversation; chat-uploaded
-   images still worked). FIRST TASK S86: rasterize + eyeball pushes 9-10
-   output (zones_stairs_lcr A-1, slope15 A-2), confirm with Will.
+STATE: complex set zones_stairs_lcr = 0 text collisions across all 8 sheets.
+Simple set = 0 collisions, byte-identical to pre-S86. Will approved plan +
+framing + cover visually (via pasted screenshots; my view tool was down).
 
-TOP PRIORITIES (S86):
-1. Visual re-verification of pushes 9-10 (above) + Will's screenshot gate
-2. Elevation ANNOTATION COLUMN: reserved right-margin text zone per view,
-   leader lines, wrap not overflow (fixes Will's screenshot findings:
-   callouts crossing panels, clipped mid-word, text over railing linework).
-   Add detector checks: text-outside-panel, text-clipped-at-axes.
-3. Sheet size decision (Will): 14x8.5in vs ARCH D 36x24 -- type is
-   proportionally equal to refs; absolute print size is the gap
-4. Config matrix battle-test: 1/2 zones x stairs main/zone/both/INTERIOR-
-   ANCHORED (anchorX/Y path untested -- run FIRST); judges: crash + 143
-   checks + legibility thresholds (<=2/set) + visual sample
-5. 4-zone torture case annotation crowding (10 collisions)
+TOP PRIORITIES (S87) -- see MASTER_CONTEXT 11B for the full list:
+1. FILL THE SHEET: small decks read small on 36x24; bump scale (3/8") for
+   small decks and/or vertically center the drawing. Touches all sheets;
+   needs working vision. TASTE CALL -> prototype + Will's pick.
+2. BROAD 36x24 VISUAL PASS on the other sheets (elevations, notes, details,
+   site, checklist, simple-deck versions) -- only plan/framing/cover were
+   closely verified in S86.
+3. MANY-ZONE scaling: verify zones_four_stairs_four; per-wing callouts may
+   need a consolidated framing schedule at 4 zones.
 
-NEXT SESSION: paste the prompt from S86_KICKOFF.txt to begin.
-PENDING ON WILL: revoke classic PAT used S85; sheet size call; point the
-parallel (GTM) session at current MASTER_CONTEXT.txt before it pushes code.
-BLOCKERS: none (vision expected back in fresh session).
+JURISDICTION (corrected S86): target is COLORADO SPRINGS (partner Billy
+operates there), NOT Brookhaven/Islip. The reference sets are CO Springs /
+PPRBD. is_colorado_springs() + append_cos_attachment() already exist; the
+PPRBD attachment is the official letter-size form appended as-is.
+
+PENDING ON WILL: revoke the classic PAT reused in S86 chat; real test
+address; contractor pricing ($49/$99?); confirm mixed page sizes (36x24
+drawings + letter PPRBD form) are fine for PPRBD submission.
+BLOCKERS: none. NEXT SESSION: paste the prompt from S87_KICKOFF.txt.

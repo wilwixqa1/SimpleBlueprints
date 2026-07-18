@@ -1,5 +1,6 @@
 SIMPLEBLUEPRINTS MASTER CONTEXT FILE
-Last updated: S85 (July 2026)
+Last updated: S86 (July 2026) -- see 10C (S86 record), 11B (current TODO),
+and the SHEET SIZE + COMPLEXITY BRANCH section in ARCHITECTURE.txt.
 Purpose: single source of truth for a fresh Claude instance to pick up this
 project cold. Supersedes ALL prior master/handoff context files. If this file
 disagrees with the code, the code wins -- fix this file in the same session.
@@ -28,8 +29,13 @@ pricing likely $49-99/plan or subscription; PDF correctness is the whole
 product; contractors have surveys in hand and examiner relationships.
 
 THE BUSINESS MILESTONE THAT MATTERS: one generated package approved by a
-real building department. Nothing else counts as validation. Plan: informal
-plans-examiner review at a Suffolk County town (Brookhaven or Islip) first.
+real building department. Nothing else counts as validation. TARGET
+JURISDICTION (corrected S86): COLORADO SPRINGS / Pikes Peak Regional Building
+Dept (PPRBD) -- partner Billy operates there, and the professional reference
+sets (All Things Architecture) are CO Springs / PPRBD permit sets. The old
+Brookhaven/Islip (Suffolk County NY) framing from S84 is SUPERSEDED. The code
+already has is_colorado_springs() + append_cos_attachment() (the official
+PPRBD deck-attachment form, letter size, merged as-is onto the set).
 
 FEATURE FREEZE (agreed S84): no new capabilities (no sheds, no pergolas, no
 new zone types or stair templates) until that milestone is hit. calc_shed.py
@@ -624,3 +630,118 @@ NY, LLC/E&O.
 7. Bump cache buster if anything user-visible changed.
 8. END OF SESSION: update MASTER_CONTEXT.txt (this file), ARCHITECTURE.txt,
    STATUS.txt -- verified against code, not memory.
+
+
+--------------------------------------------------------------------------------
+10C. S86 SESSION RECORD (sheet-size + complex-layout redesign; 5 pushes, CI green)
+--------------------------------------------------------------------------------
+Framing: the crowding on complex sheets was a LAYOUT-CAPACITY problem, not a
+label-placement one. Two prior label reflows (pushes into the same half-panel)
+barely helped; the fix was giving each drawing its own full sheet + a bigger
+sheet. North stars restated by Will: (a) pass the permit, (b) LOOK professional
+enough that a contractor feels safe submitting it. Benchmark = the reference
+sets, goal "as clean or better."
+
+  push 1: backend/drawing/sheet.py -- single source of truth for sheet size +
+          render_scale() context manager scaling all point-valued styles
+          (font.size, linewidths, markersize) proportionally to sheet width so
+          normalized type holds when the sheet grows. NO-OP at 14x8.5 (verified
+          24/24 pages pixel-identical). Sizes: letter(14x8.5)/tabloid(17x11)/
+          arch_c(24x18)/arch_d(36x24). SBP_SHEET env var + set_active() switch.
+          Wired the 6 production figsize sites in main.py to sheet_size().
+  push 2: framing beam-group + blocking callouts reflowed off the geometry into
+          the left margin on leaders (draw_plan.py, is_framing branch only; plan
+          panel untouched). Good for simple decks; insufficient alone for complex
+          (panel still too small) -> motivated push 3.
+  push 3: COMPLEXITY BRANCH. is_complex = any zones. Complex decks split DECK
+          PLAN (A-1) and DECK FRAMING (A-2) onto separate FULL-WIDTH sheets via
+          draw_plan_and_framing(..., panels=("plan",)/("framing",)); rest
+          renumbered A-3..A-7. Sheet list is now data-driven in main.py; cover
+          drawing-index (draw_cover_sheet sheet_index=) and the notes zone-prose
+          follow the numbering. Simple decks keep combined A-1 -- PROVEN
+          byte-identical (stash-diff test, 16 pages). Result: complex framing
+          went from crammed to 0 text collisions purely from the extra room.
+  push 4: cover drawing-index row height adapts to sheet count (fixes the
+          8-row complex index colliding with the compliance stamp); DEFAULT
+          SHEET SIZE FLIPPED to arch_d 36x24 (the PM call -- matches the CO
+          Springs references; jurisdiction mandates SCALE >=1/4", not a size).
+          COS PPRBD attachment stays letter (official form) -- intended.
+  push 5: zone-wing member specs printed just BELOW each wing (was 3pt micro-
+          text inside the wing); beam-group callouts RIGHT-anchored tight to the
+          drawing's left edge with short leaders (were parked at the far margin,
+          "floating"); DECK LOADS rebuilt as a titled TABLE (green header like
+          the cover index, label/value columns, ruled total in red) anchored
+          lower-left above the scale bar.
+
+VISION: dropped ~10 views into the session (the S85-documented outage; likely
+context-budget cutoff of tool-result image payloads, made worse by two full
+reference PDFs in context). Confirmed with a synthetic test image. Will drove
+all visual gates from push 3 on via CHAT-PASTED screenshots (those still reach
+Claude with the view tool dead). Mechanism + mitigations for 6.4 should be
+tightened next doc pass: front-load must-see views; avoid pouring big PDFs into
+a render-heavy session; prefer crops.
+
+--------------------------------------------------------------------------------
+11B. CURRENT TODO (verified against code at S86 close -- supersedes the S86 QUEUE)
+--------------------------------------------------------------------------------
+DONE in S86: sheet-size parameter + arch_d default; proportional font scaling;
+complex split-sheet layout + data-driven numbering; framing callouts to
+leaders; wing specs below wings; DECK LOADS table; simple path byte-identical;
+cover-index fit. All on main, CI green (HEAD 0675910).
+
+S87 QUEUE (in order; items 1-3 are visual -> need working vision):
+  1. FILL THE SHEET (top design lever). Small decks read small on 36x24. Bump
+     scale (e.g. 3/8") for small decks and/or vertically center the drawing in
+     the axes. Touches every draw_* sheet. TASTE CALL -> prototype 2-3 options,
+     Will picks; do not loop.
+  2. BROAD 36x24 VISUAL PASS on sheets only lightly checked in S86: elevations
+     (A-3 complex), general notes, structural details, site plan, checklist,
+     and the simple-deck versions of every sheet. Confirm the arch_d flip +
+     font scaling broke no sheet's layout. (S86 closely verified only plan,
+     framing, and cover.)
+  3. MANY-ZONE SCALING: render zones_four_stairs_four as a complex set. The S86
+     per-wing "spec below wing" + leadered beam group likely won't scale past
+     ~2 zones; if 4 zones crowd, move zone member specs into a consolidated
+     FRAMING SCHEDULE table (reference convention) instead of per-wing leaders.
+  4. ELEVATION ANNOTATION (old S86 item 2, NOT done -- we pivoted to layout):
+     reserved right-margin text column + leaders; detector checks text-outside-
+     panel and text-clipped-at-axes. May be lighter now that elevations get a
+     full sheet at 36x24 -- verify the dense case first before building.
+  5. CONFIG MATRIX BATTLE TEST: {1,2 zones} x stairs {main / one zone / both} +
+     >=1 INTERIOR-ANCHORED stair (anchorX/anchorY/angle path still exercised
+     NOWHERE -- run FIRST, highest info value, expect B3-class bugs). Judges per
+     config: L1 crash, 143 permit checks, legibility <=2, one visual sample.
+  6. FUZZ LOOP (not built): random valid configs -> crash + consistency oracles;
+     failing seeds saved as fixtures.
+  7. GOLDEN-FILE PDF regression (not built): 6-8 canonical configs, pixel diff,
+     bless-on-approve.
+  8. TEXT-OVER-LINEWORK detector (oracle blind spot hit in S86): would let Claude
+     self-verify callout placement without Will's screenshots. Optional but high
+     value for vision-down sessions.
+  9. Sub-legible "tiny" text pass: ~15 lines render <4pt across the set (small
+     dimension/notes text). Minor legibility polish.
+ 10. Post-to-grade consistency check as a PERMANENT test (S85 ad hoc).
+ 11. Frontend elevationView.js bench-grade parity (PDF-first satisfied; frontend
+     still draws old grade treatment). Bump cache buster when frontend changes.
+ 12. B1 remainder: full variable-height zone elevation rendering (crash fixed
+     S85, not visually verified).
+ 13. Grade style D 'planted' promotion (Will: "C for now, D later").
+ 14. Chat-address safety net on step 0 (smaller need post S85 push 7).
+
+PDF BUG BACKLOG (unchanged from S85 unless noted):
+  B2 site plan shows only one stair -- OPEN (zones_stairs_lcr site plan repro).
+  B3 deck post through stair landing -- OPEN; interior-anchor matrix (item 5) is
+     the probe.
+  B4 L-shape floating/clipping boards -- OPEN.
+  B5 stair arrow direction -- likely fixed S85 push 9; needs visual confirm.
+  B6 platform stair landing rails -- OPEN.
+
+DECISIONS / PENDING ON WILL:
+  - Sheet size: RESOLVED (arch_d 36x24 default).
+  - Jurisdiction: RESOLVED -> Colorado Springs / PPRBD (see section 1).
+  - Revoke the classic PAT reused in S86 chat; mint a fine-grained repo token.
+  - Real test address in CO Springs; contractor pricing ($49 beta / $99?);
+    Billy's timeline for contractor conversations.
+  - Confirm PPRBD accepts a mixed-size set (36x24 drawing sheets + the letter
+    PPRBD attachment form) -- expected fine, worth a real-world check.
+  - Point the parallel GTM session at current MASTER_CONTEXT before it pushes.

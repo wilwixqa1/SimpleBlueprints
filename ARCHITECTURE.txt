@@ -120,3 +120,43 @@ STANDING RULES (binding)
   S/N, house face E/W; depicted post for lateral slopes in side views) so
   pier bottoms land exactly on the drawn grade. Grade styles via _gradeStyle
   param: bench (default), planted, continuous, skip (legacy).
+
+================================================================================
+SHEET SIZE + COMPLEXITY BRANCH (S86 -- READ BEFORE TOUCHING SHEET LAYOUT)
+================================================================================
+SHEET SIZE is a parameter, not a literal. backend/drawing/sheet.py is the
+single source: SHEET_SIZES registry (letter 14x8.5 / tabloid 17x11 / arch_c
+24x18 / arch_d 36x24), sheet_size() getter, and render_scale() -- a context
+manager that scales every point-valued style (font.size, lines/patch/hatch
+linewidth, markersize, and explicit fontsize kwargs on Axes.text/annotate/
+Figure.text) by font_scale() = sheet_width / 14. This keeps normalized type
+constant as the sheet grows (sheets are drawn in DATA feet with fonts in
+absolute POINTS, so a bigger sheet would otherwise shrink text relatively).
+render_scale() is a guaranteed NO-OP at scale 1.0 (14x8.5). DEFAULT ships
+arch_d 36x24. Override per-render with SBP_SHEET env var or set_active().
+main.py wraps both PdfPages blocks in `with render_scale():` and creates every
+figure at figsize=sheet_size().
+
+COMPLEXITY BRANCH (main.py generate_blueprint_pdf): _complex = deck has >=1
+zone. The permit sheet sequence is data-driven:
+  simple:  A-1 DECK PLAN & FRAMING (combined), A-2 elev, A-3 notes, A-4
+           details, A-5 site, A-6 checklist.
+  complex: A-1 DECK PLAN, A-2 DECK FRAMING (each a full-width single panel),
+           A-3 elev, A-4 notes, A-5 details, A-6 site, A-7 checklist.
+draw_plan_and_framing(fig, params, calc, spec, panels=...) drives this:
+panels=("plan","framing") is the historical side-by-side (fig.subplots(1,2));
+("plan",) or ("framing",) draws one full-width panel (fig.subplots(1,1)). The
+cover drawing-index (draw_cover_sheet sheet_index=) and the draw_notes zone
+prose reference the numbering, so both branches stay internally consistent.
+INVARIANT: the simple (no-zone) path is byte-for-byte identical to pre-S86
+(verified). Any change here must preserve that -- test by rendering a no-zone
+config and diffing pixel hashes against a pre-change render.
+
+FRAMING CALLOUT PLACEMENT (draw_plan.py, is_framing branch): member callouts
+live OFF the geometry. Beam group (posts/piers, beam ply, hardware, blocking)
+are right-anchored just off the drawing's left edge on short leaders via
+_margin_callout(). Zone-wing specs print just below each wing. DECK LOADS is a
+titled table (green header, label/value columns, ruled total) anchored lower-
+left above the scale bar. draw_zone_framing(..., margin_cols=) toggles the
+complex-sheet wing labeling. KNOWN: this per-wing scheme is unverified past ~2
+zones; 4+ zones may need a consolidated framing schedule (S87 item 3).
