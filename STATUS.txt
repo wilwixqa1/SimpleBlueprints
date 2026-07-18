@@ -1,13 +1,16 @@
 SIMPLEBLUEPRINTS STATUS
-Session: S84 (in progress)
-Branch: s84 (pending merge to main)
-Cache buster: unchanged this session (no production-visible frontend change yet)
+Session: S84 (closed)
+Cache buster: unchanged (no production-visible frontend change in S84)
 
-TOP 3 PRIORITIES:
-1. S85: fix position/render 2.6ft divergence (test already exists), swap
-   geometry call sites to lotGeometry.js with visual verification
-2. S85: PDF golden files + elevation zone-height bug (B1)
-3. S86: permit dry run for a real Suffolk County address -> examiner walk-in
+TOP PRIORITIES (S85, in order):
+1. tests/pdf/render_review.py harness (param sets -> PDFs -> 150dpi PNGs)
+2. Fix 2.6ft position/render divergence; swap call sites to lotGeometry.js;
+   Will visually verifies 10 Chichester + one tapered lot
+3. Fuzz loop (crash + consistency oracles, incl. text-collision detector)
+4. Golden-file PDF regression; then B1 elevation zone heights
 
-BLOCKERS: none. OPEN QUESTIONS: see S84_PLAN.txt section 7 (town choice,
-real address, contractor pricing, Billy's contact timeline).
+READ FIRST: MASTER_CONTEXT.txt (capability playbook section 6 -- PDF visual
+review + headless browser work IN CHAT, do not rediscover this).
+PENDING ON WILL: confirm /admin login in prod; revoke classic PAT, mint
+fine-grained replacement; answer open questions (MASTER_CONTEXT.txt sec 11).
+BLOCKERS: none.

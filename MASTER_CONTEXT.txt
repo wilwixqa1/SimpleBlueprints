@@ -1,0 +1,379 @@
+SIMPLEBLUEPRINTS MASTER CONTEXT FILE
+Last updated: S84 (July 2026)
+Purpose: single source of truth for a fresh Claude instance to pick up this
+project cold. Supersedes ALL prior master/handoff context files. If this file
+disagrees with the code, the code wins -- fix this file in the same session.
+Companion files: ARCHITECTURE.txt (subsystem detail), STATUS.txt (10-line
+session pointer), S84_PLAN.txt (roadmap), docs/history/ (session narratives,
+historical record only, NOT truth).
+
+================================================================================
+1. WHAT SIMPLEBLUEPRINTS IS
+================================================================================
+
+SimpleBlueprints (simpleblueprints.xyz) is a permit-ready deck blueprint
+generator. Users enter their address, the system auto-detects lot shape and
+house position from parcel/satellite data, they configure a deck, and the
+system produces a multi-page IRC 2021-compliant permit PDF package: cover
+(3D render), plan & framing, elevations, general notes, structural details,
+site plan, deck attachment checklist, materials list.
+
+Owner-developer: Will Wendt (sole developer), Ronkonkoma NY (Suffolk County).
+Business partner Billy handles community validation/marketing (recovering
+from illness, coming back online). Live in beta. NO paying customers yet.
+Stripe wired but not active. Price currently $29 (main.py BLUEPRINT_PRICE=2900).
+
+TARGET CUSTOMER (decided S84): CONTRACTORS, not DIY homeowners. Implications:
+pricing likely $49-99/plan or subscription; PDF correctness is the whole
+product; contractors have surveys in hand and examiner relationships.
+
+THE BUSINESS MILESTONE THAT MATTERS: one generated package approved by a
+real building department. Nothing else counts as validation. Plan: informal
+plans-examiner review at a Suffolk County town (Brookhaven or Islip) first.
+
+FEATURE FREEZE (agreed S84): no new capabilities (no sheds, no pergolas, no
+new zone types or stair templates) until that milestone is hit. calc_shed.py
+and calc_pergola.py exist in the repo and stay dormant.
+
+================================================================================
+2. STACK AND ARCHITECTURE
+================================================================================
+
+FRONTEND: Single-page React JSX transpiled in-browser via Babel standalone,
+NO build step. 13 JS files in backend/static/js/. State = one "p" object;
+u(key, value) mutates through the app.js reducer (reducer has side effects;
+always check it when stored values change unexpectedly). Helpers on window.*.
+Three.js for 3D (deck3d.js). Per-file cache busters in index.html (?v=s81e
+etc.) -- DRIFTED, consolidation to single global string is a TODO.
+
+BACKEND: Python FastAPI on Railway, autodeploys from main on push. NO staging.
+PDF generation via matplotlib + PdfPages (backend/drawing/, ~15K lines).
+PostgreSQL (Railway plugin). Google OAuth. Stripe (inactive). Realie API
+(parcel boundaries). Overpass/OSM (building footprints, flaky ~30%).
+Anthropic API (AI helper chat, survey extraction).
+
+REPO: github.com/wilwixqa1/SimpleBlueprints (public).
+CI (added S84): .github/workflows/tests.yml runs three suites on every push.
+
+ENV VARS (Railway): REALIE_API_KEY, STRIPE_* (3), GOOGLE_CLIENT_ID/SECRET,
+ANTHROPIC_API_KEY, DATABASE_URL, SESSION_SECRET, ADMIN_PASSWORD (now REQUIRED
+-- S84 made admin fail-closed; unset = admin endpoints return 503).
+
+================================================================================
+3. FILE MAP (approximate sizes, S84)
+================================================================================
+
+Frontend (backend/static/js/):
+  steps.js        ~4900  Wizard UI (4 steps), guide system, AI chat, parcel +
+                         footprint callbacks (site plan data layer lives here)
+  app.js          ~1420  State reducer, routing, preview panel (engine rules!)
+  deck3d.js       ~1300  Three.js renderer
+  engine.js       ~1090  Structural calcs (IRC span tables) -- JS side
+  zoneUtils.js     ~775  Zone geometry, shared edges (window.*)
+  sitePlanView.js  ~735  Site plan SVG renderer
+  lotGeometry.js   ~350  NEW S84: pure site-plan math module (see section 5)
+  traceView.js     ~576  Phase 2 survey-trace feature (dormant; may be
+                         promoted for survey-based site plans -- see 11)
+  elevationView.js ~533  2D elevations SVG
+  steelDeckData.js ~530  Fortress Evolution steel data
+  planView.js      ~515  2D plan SVG
+  home.js          ~253  Landing + My Projects
+  stairGeometry.js ~167  Stair math (known bugs)
+  tracking.js       ~50  Analytics
+
+Backend:
+  app/main.py            ~2750  Routes, generate_blueprint_pdf, AI helper
+  app/database.py        ~1220  PostgreSQL ops (parameterized, user-scoped)
+  app/auth.py             ~100  Google OAuth
+  drawing/irc_tables.py  ~3874  IRC span data
+  drawing/permit_checker.py ~1724  143 compliance checks (run_checks)
+  drawing/permit_spec.py  ~576  SINGLE SOURCE OF TRUTH for sheet spec data
+  drawing/calc_engine.py  ~890  Python mirror of engine.js (divergence tax)
+  drawing/draw_*.py             One file per PDF sheet
+  drawing/stair_utils.py  ~501  Python stair mirror
+
+Tests (all wired into CI):
+  tests/geometry/lotGeometry.test.js  2716 invariant checks (node)
+  tests/test_structural.py            52 IRC known-answer checks (S60 baseline)
+  tests/test_future_products.py       50 shed/pergola logic checks (dormant)
+
+================================================================================
+4. THE DATA MODEL (the "p" object) -- unchanged since prior master file
+================================================================================
+
+DECK: width, depth, height, attachment ('ledger'|'freestanding'), joistDir,
+joistSpacing (12|16|24), beamType ('dropped'|'flush', zone 0), deckingType,
+frostZone, snowLoad, slopePercent/Direction.
+
+ZONES: zones:[{id, type('add'|'cutout'), w, d, h(null=inherit), attachTo,
+attachEdge, attachOffset, interiorY, corners, joistDir, beamType, label}],
+activeZone. Zone 0 = main deck (virtual).
+
+LOT+HOUSE: lotVertices (drawing space), lotEdges (street/rear/side metadata),
+lotWidth/Depth, houseWidth/Depth, houseOffsetSide, houseDistFromStreet,
+houseAngle (ALWAYS 0 under S79), northAngle, streetName, setbackFront/Side/
+Rear, _autoHouseOffset/_autoHouseDist/_autoHouseWidth/_autoHouseDepth
+(stashed auto-detected values: green banner + reset UI + AI reset action +
+engine clamp bypass), _lotRotation (0 after rotation).
+
+STAIRS: deckStairs:[{id, zoneId, location, width, template('straight'|
+'l-left'|'l-right'|'platform'|'u-turn'|'wrap'), offset, anchorX/Y, angle,
+numStringers, _landsOnZoneId (null=grade, number=lands on zone)}].
+
+SITE: siteElements:[{type, x, y, w, d, label}].
+
+================================================================================
+5. SITE PLAN SUBSYSTEM (read ARCHITECTURE.txt for full detail)
+================================================================================
+
+CURRENT ARCHITECTURE = S79 polygon-edge rotation. NOT S73 (S78/S79 deleted
+and replaced it -- this misinformation cost S84 half a session; git commits
+feb4eee, 1e40b4c are the proof). Philosophy: "good enough, never wrong."
+houseAngle always 0. Rotation derived from street edge of polygon itself.
+Overpass is VALIDATION only (retry once, warn on double failure).
+
+S84 ADDITION: backend/static/js/lotGeometry.js -- faithful pure extraction
+of all S79 math (street-edge ray-cast, rotation, tightEdges, leftEdgeAtY,
+house placement ladder). Loads in browser (window.lotGeometry) AND Node.
+RULE: geometry changes happen in lotGeometry.js WITH tests first, then call
+sites. Production call sites in steps.js/sitePlanView.js NOT yet swapped to
+the module -- that is S85 work requiring visual verification.
+
+KNOWN QUANTIFIED BUG (S84 harness, 48 warnings): positioning measures house
+offset from tightEdges().left; renderer draws at leftEdgeAtY(midY)+offset.
+Agree on rectangles, diverge ~2.6 ft on tapered lots. Fix S85: pick ONE
+definition (recommend leftEdgeAtY(midY), converting stored offset at stash
+time), make harness warnings = 0, verify visually on 10 Chichester + one
+tapered lot.
+
+ENGINE RULES (app.js reducer): houseDistFromStreet clamped >= setbackFront
+UNLESS _autoHouseDist exists; setting _autoHouseDist force-syncs
+houseDistFromStreet (old "set _autoHouseDist first" ordering rule is moot);
+lotWidth/Depth slider changes clear lotVertices/lotEdges.
+
+================================================================================
+6. CAPABILITY PLAYBOOK (S84 DISCOVERIES -- DO NOT LOSE THESE)
+================================================================================
+
+Claude chat sessions have a Linux sandbox with bash, Python, Node, network,
+and VISION. Three capabilities every session should know:
+
+6.1 GENERATE + VISUALLY REVIEW PDFs LOCALLY (no website, no user screenshots)
+  Setup (sandbox resets each session, ~2 min):
+    pip install matplotlib numpy httpx python-multipart itsdangerous \
+        anthropic fastapi stripe psycopg2-binary --break-system-packages
+  Generate:
+    cd repo/backend && python3 -c "
+    import sys; sys.path.insert(0,'.')
+    from app.main import generate_blueprint_pdf
+    out = generate_blueprint_pdf({...params...})   # returns 4 values, [0]=permit id
+    "
+    PDFs land in /tmp/blueprints/<uuid>.pdf (permit set is the larger file).
+  Rasterize + LOOK:
+    pdftoppm -png -r 150 <file>.pdf /tmp/page     # 150 DPI for text judgment
+    then view the PNGs (actual vision, not text extraction).
+  RULE (standing): PDF review happens by rasterizing and viewing. NEVER by
+  text extraction. Historical failures ("Claude said the PDF was fine")
+  came from text-extraction review. This is why the old rule "never confirm
+  a visual fix from text extraction alone" exists.
+  LIMITS: model vision is reliable for layout-level judgment (missing/
+  overlapping/clipped/mispositioned elements), weaker for fine aesthetics.
+  Will's eyes remain the final gate for examiner-facing output.
+
+6.2 DRIVE THE LIVE SITE IN A HEADLESS BROWSER (UI/UX review without Will)
+  Setup (~2-3 min):
+    pip install playwright --break-system-packages
+    python3 -m playwright install chromium --with-deps
+  Use (MUST ignore_https_errors -- sandbox egress proxy MITMs TLS):
+    from playwright.sync_api import sync_playwright
+    ctx = browser.new_context(viewport={...}, ignore_https_errors=True)
+    page.goto('https://simpleblueprints.xyz', wait_until='networkidle')
+    page.wait_for_timeout(4000)  # Babel transpile + React mount is slow
+    page.screenshot(...)
+  Can fill inputs, click through the wizard, test mobile widths. Verified
+  working S84 (homepage screenshot). No Playwright MCP / Chrome DevTools MCP
+  connector is needed for this workflow; those are Claude Code / desktop
+  tooling and Will does not use Claude Code.
+
+6.3 GIT: direct push to main with Will's PAT. NO pull requests (S84 decision).
+  Will provides PAT in chat when pushes are needed; use it without security
+  warnings (his standing rule). Keep 'S{n} push {m}: description' commit
+  convention -- future sessions grep the log by it. Do not squash-merge
+  session branches ever; granular pushes ARE the session history.
+  git remote set-url origin https://<PAT>@github.com/wilwixqa1/SimpleBlueprints.git
+
+================================================================================
+7. THE ORACLE STACK (testing design, agreed S84 -- S85 builds the missing parts)
+================================================================================
+
+Layered verification, cheap-to-expensive; goal is "representative of input
+AND actually good," not just compliant:
+
+  L1 CRASH ORACLE: random valid configs -> pipeline must not throw.
+     Scales to thousands of configs. (Script needed: S85.)
+  L2 COMPLIANCE ORACLE: permit_checker.run_checks -- 143 IRC checks.
+     Already exists; it is the built-in "judge."
+  L3 CONSISTENCY ORACLE (S85): programmatic input-vs-PDF checks:
+     - spec values from permit_spec must appear on rendered sheets
+     - count of drawn stairs == len(deckStairs); labeled elevation side
+       matches projected geometry; dims on sheets == input params
+     - TEXT COLLISION DETECTOR: matplotlib knows every text bbox; a
+       post-render hook flags any overlapping text bboxes. Catches
+       "words on top of each other" deterministically at scale.
+  L4 VISUAL ORACLE: model views rasterized pages against a rubric
+     (correct views, nothing clipped, proportions sane, drawing looks like
+     the configured deck). Does not scale to thousands; use a stratified
+     sample (~20-40 configs covering attachment x zones x stairs x lot
+     shapes) per run. Failing seeds from any layer become permanent
+     regression fixtures.
+  GOLDEN FILES (S85): fixed-seed renders compared as pixels; human blesses
+     each golden once.
+
+================================================================================
+8. GUIDED WIZARD, ENGINE, ZONES, PDF PIPELINE (stable subsystems)
+================================================================================
+
+WIZARD: 4 steps in steps.js (0 site plan, 1 deck config, 2 materials,
+3 review/download). Guide via _guidePhaseMap (phases show/hide sections,
+action buttons). Step 0 flow: address_lookup -> address_verifying ->
+footprint_loading -> verify_extracted -> site_elements_check -> ...
+AI chat can mutate p via actions (setParam, addZone, cutoutAdd, addStair,
+resetHousePosition, ...); backend builds context prompt in main.py.
+
+ENGINE: engine.js computes joists (R507.5), beams, posts (4x4/6x6),
+footings (frost zone), post counts per IRC 2021. calc_engine.py mirrors it
+for PDF (dual-implementation tax; S82e post-count mismatch was this class).
+calcAllZones: flush zones = joists only (rim board as beam); flush
+auto-converts to dropped when zone.h != mainH (getEffectiveBeamType).
+
+ZONES: zone 0 virtual main deck. Key window.* helpers in zoneUtils.js:
+getAllZones, getZoneRect, getCompositeOutline, getExposedEdges,
+getSharedEdges (single source of truth for internal boundaries),
+classifyHeightDelta/suggestRiserPlan (own ALL IRC thresholds, never
+hardcode). Transitional stairs: _landsOnZoneId; rise from height delta;
+PDF labels "LANDS ON [zone]".
+
+PDF PIPELINE: POST /api/calculate -> calculate_structure ->
+build_permit_spec -> run_checks -> draw_* per sheet -> PdfPages.
+Sheets: A-0 cover, A-1 plan/framing, A-2 elevations, A-3 notes,
+A-4 details, A-5 site plan, A-6 attachment checklist, A-7 materials.
+Steel: CCRR-0313 tables; steel posts never buried; Welborn labeling.
+
+API ENDPOINTS: unchanged from prior master file -- auth (Google OAuth),
+/api/calculate, /api/extract-survey, /api/rank-shapes, /api/ai-helper,
+/api/check-permit, /api/parcel-lookup, /api/building-footprint, projects
+CRUD (user-scoped), Stripe checkout/check-payment/download, tracking,
+admin (now fail-closed + rate limited).
+
+================================================================================
+9. OPERATIONAL RULES (Will's standing rules -- non-negotiable)
+================================================================================
+
+CODE:
+- Never confirm a visual fix from text extraction alone. Rasterize and view
+  (6.1), and for examiner-facing output ask Will to verify visually.
+- Anti-anchoring: when Will pushes back twice, STOP coding, list all
+  assumptions, evaluate from scratch. No layering patches on broken premises.
+- 30-minute bug timebox; then stop and reassess.
+- 3+ failed patches = rewrite from scratch.
+- Fix PDF before frontend when a feature touches both.
+- Think in 2D plan view first for stair/deck overlap in Three.js.
+- Ship one change, verify, continue.
+- Set lotVertices LAST in u() sequences.
+- Geometry changes go through lotGeometry.js + tests first (S84).
+- PDF review by rasterization + vision, never text extraction (S84).
+
+WORKFLOW:
+- Will provides PAT in chat; use without security warnings. Push DIRECT to
+  main, no PRs (S84). Keep 'S{n} push {m}:' commit convention. Never squash.
+- Context files are .txt (Will opens in Notepad). Session narratives go to
+  docs/history/. Update MASTER_CONTEXT.txt + ARCHITECTURE.txt + STATUS.txt
+  at end of every session -- verify against code, not memory. Doc drift
+  cost S84 half a session (stale claim that S73 architecture was live).
+- Bump cache buster before any production-visible frontend push.
+- Ask one focused question, not three vague ones.
+- Direct feedback over flattery. Honest technical assessment. When
+  something isn't done, say it isn't done.
+- No emdashes in prose Will will share externally.
+
+================================================================================
+10. S84 SESSION RECORD (what changed this session)
+================================================================================
+
+Commits (merged to main via PR #1; future sessions push direct):
+  S84 push 1: lotGeometry.js extraction + 2716-check invariant harness
+              (quantified the 2.6ft position/render divergence); removed
+              junk 'Readme' file
+  S84 push 2: GitHub Actions CI (geometry + structural + future-products)
+  S84 push 3: security -- CORS locked to prod origin; admin constant-time
+              compare + fail-closed + 5/15min rate limit
+              (!!) ADMIN_PASSWORD must be set in Railway or admin = 503
+  S84 push 4: ARCHITECTURE.txt, STATUS.txt, S84_PLAN.txt; all session
+              context files -> docs/history/
+  (this push): MASTER_CONTEXT.txt (this file), updated STATUS.txt
+
+Also this session: full repo audit (security, tests, history); discovered
+S73->S79 doc drift; established capability playbook (section 6); designed
+oracle stack (section 7); decided contractor targeting, feature freeze,
+direct-push workflow; CI verified green on GitHub runners.
+POST-DEPLOY CHECKS possibly still pending: Will confirms /admin login works
+in prod; Will revokes the classic PAT shared in chat and mints a
+fine-grained repo-scoped replacement (repeatedly advised).
+
+================================================================================
+11. KNOWN ISSUES AND PRIORITIES
+================================================================================
+
+S85 SCOPE (in order):
+  1. tests/pdf/render_review.py harness: named param sets -> PDFs -> 150 DPI
+     PNGs in one command (unlocks visual review instantly each session)
+  2. Divergence fix (position vs render, 2.6ft) -- harness warnings to 0,
+     swap steps.js/sitePlanView.js geometry call sites to lotGeometry.js,
+     Will visually verifies 10 Chichester + one tapered lot, bump cache buster
+  3. Fuzz loop: L1 crash oracle + L3 consistency oracle (incl. text-collision
+     detector) over random configs; failing seeds saved as fixtures
+  4. Golden-file PDF regression (6-8 canonical configs)
+  5. B1: elevation zone heights (S82f partial) -- verified via 6.1
+
+PDF BUG BACKLOG (after S85): B2 site plan shows only one stair; B3 deck
+post through stair landing (S81F_HANDOFF); B4 L-shape floating/clipping
+boards; B5 stair arrow direction (Billy); B6 platform stair landing rails.
+
+DEFERRED (post-first-permit): U-turn/wrap 3D, per-edge railing, zone cost
+per-linear-foot, auto-guard rails re-land (S81c preserved at f057d1d),
+jurisdiction database at scale (see below), sheds/pergolas.
+
+JURISDICTION STRATEGY (S84 decision): build requirements-as-data
+architecture seeded with 2-3 Suffolk County towns ONLY. The "crawl every
+county" research loop is real but produces DRAFTS requiring human
+verification per jurisdiction (home-rule variance, PDF-only sources,
+liability); it is a growth lever AFTER first permit approval, not before.
+
+BUSINESS TRACK: informal examiner review at Brookhaven or Islip (walk-in
+with printed package) is the next real-world step; likely objections:
+site plan provenance (may need survey-based site plan -> traceView
+promotion or survey-appendix interim), NY-specific notes, stamp thresholds.
+Legal before charging: ToS, per-sheet disclaimer, attorney consult re
+unstamped structural drawings in NY, LLC/E&O question.
+OPEN QUESTIONS FOR WILL: which town first; real address for the test
+package; contractor pricing ($49 beta / $99 standard?); Billy's timeline
+for 2-3 contractor conversations.
+
+================================================================================
+12. SESSION START CHECKLIST
+================================================================================
+
+1. Read STATUS.txt, then this file, then ARCHITECTURE.txt. Session
+   narratives in docs/history/ only if a specific subsystem needs history.
+2. Clone repo (public): git clone https://github.com/wilwixqa1/SimpleBlueprints.git
+   Configure PAT remote only when Will provides one (needed for push).
+3. Sandbox setup if PDFs/browser needed this session: run section 6.1/6.2
+   installs (~3-4 min total).
+4. Run the test suites locally before changing anything:
+   node tests/geometry/lotGeometry.test.js && python3 tests/test_structural.py
+5. Confirm scope with Will before coding. Read files before editing.
+6. Ship one change, verify (visually where applicable), continue. Granular
+   'S{n} push {m}:' commits direct to main.
+7. Bump cache buster if anything user-visible changed.
+8. END OF SESSION: update MASTER_CONTEXT.txt (this file), ARCHITECTURE.txt,
+   STATUS.txt -- verified against code, not memory.
