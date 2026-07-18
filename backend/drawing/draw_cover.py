@@ -255,16 +255,18 @@ def draw_cover_sheet(fig, params, calc, project_info=None, cover_image_b64=None,
         ("A-4", "DETAILS"),
         ("A-5", "SITE PLAN"),
     ]
+    _n_idx = len(sheets)
+    _rh = row_h if _n_idx <= 6 else row_h * 5.0 / (_n_idx - 1)
     dy = info_y - 5.5
     for i, (num, title) in enumerate(sheets):
         if i % 2 == 0:
-            ax.add_patch(patches.Rectangle((idx_x + 0.2, dy - 0.5), idx_w - 0.4, row_h,
+            ax.add_patch(patches.Rectangle((idx_x + 0.2, dy - 0.5), idx_w - 0.4, _rh,
                          fc='#f5f4f0', ec='none'))
         ax.text(idx_x + 1.5, dy, num, fontsize=label_fs, fontweight='bold',
                 fontfamily='monospace', color=BRAND["green"])
         ax.text(idx_x + 5, dy, title, fontsize=label_fs, fontfamily='monospace',
                 color=BRAND["dark"])
-        dy -= row_h
+        dy -= _rh
 
     # S58: Compliance summary stamp
     if compliance_summary:
