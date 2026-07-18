@@ -139,12 +139,15 @@ RULE: geometry changes happen in lotGeometry.js WITH tests first, then call
 sites. Production call sites in steps.js/sitePlanView.js NOT yet swapped to
 the module -- that is S85 work requiring visual verification.
 
-KNOWN QUANTIFIED BUG (S84 harness, 48 warnings): positioning measures house
-offset from tightEdges().left; renderer draws at leftEdgeAtY(midY)+offset.
-Agree on rectangles, diverge ~2.6 ft on tapered lots. Fix S85: pick ONE
-definition (recommend leftEdgeAtY(midY), converting stored offset at stash
-time), make harness warnings = 0, verify visually on 10 Chichester + one
-tapered lot.
+RESOLVED S85 (pushes 2, live-verified): houseOffsetSide is RENDERER-SPACE --
+the renderer (and draw_site_plan.py) draw house left edge at
+leftEdgeAtY(dist+hd/2)+offset; positionHouse() still uses tightEdges() for
+fit/centering but CONVERTS the returned offset to that reference at stash
+time, so intended==rendered by construction (old bug scaled as
+edgeSlope*(hd/2-2); measured up to 5.7ft, not just the 2.6ft fixture case).
+Renderer semantics unchanged -> old saved offsets render as before. Geometry
+suite H5 is now a HARD check (2764/0/0). Call sites swapped to
+window.lotGeometry (loaded in index.html, v=s85a).
 
 ENGINE RULES (app.js reducer): houseDistFromStreet clamped >= setbackFront
 UNLESS _autoHouseDist exists; setting _autoHouseDist force-syncs
@@ -325,11 +328,15 @@ fine-grained repo-scoped replacement (repeatedly advised).
 ================================================================================
 
 S85 SCOPE (in order):
-  1. tests/pdf/render_review.py harness: named param sets -> PDFs -> 150 DPI
-     PNGs in one command (unlocks visual review instantly each session)
-  2. Divergence fix (position vs render, 2.6ft) -- harness warnings to 0,
-     swap steps.js/sitePlanView.js geometry call sites to lotGeometry.js,
-     Will visually verifies 10 Chichester + one tapered lot, bump cache buster
+  1. DONE S85: render_review.py harness (8 sets incl. zones/stairs/slope)
+  2. DONE S85: divergence fix, live-verified via DOM extraction
+  2b. DONE S85: elevation grade fixes (sign inverted in all 4 PDF views vs
+      calc; line anchored to calc ref, piers land ON grade; side views anchor
+      at depicted post under lateral slope; h=null zone crash fix; bench
+      default via _gradeStyle param). tests/pdf/legibility_check.py added:
+      L3 collision+font oracle; pro reference benchmark: 1-2 real collisions
+      per set, type ~0.3% of sheet width (we match normalized; sheet SIZE
+      differs: ours 14x8.5in vs pro 36x24 ARCH D -- Will to decide)
   3. Fuzz loop: L1 crash oracle + L3 consistency oracle (incl. text-collision
      detector) over random configs; failing seeds saved as fixtures
   4. Golden-file PDF regression (6-8 canonical configs)

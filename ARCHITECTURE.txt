@@ -42,11 +42,12 @@ DATA FLOW:
 RENDERER (sitePlanView.js): house X = leftEdgeAtY(houseMidY) + houseOffsetSide.
 PDF (draw_site_plan.py): same values, same leftEdgeAtY approach.
 
-KNOWN QUANTIFIED BUG (S84 harness): positioning measures offset from
-tightEdges().left, renderer draws at leftEdgeAtY(midY) + offset. Agree on
-rectangles; diverge ~2.6 ft on tapered lots (worse on flag lots). Fix in
-S85: make both sides use ONE definition (recommend leftEdgeAtY(midY), i.e.
-convert the stored offset at stash time), verify visually.
+RESOLVED S85: houseOffsetSide is RENDERER-SPACE. positionHouse() converts
+its tightEdges-based placement to the leftEdgeAtY(midY) reference at stash
+time (see lotGeometry.js OFFSET CONTRACT header). intended==rendered by
+construction; H5 in the geometry suite is a hard check. steps.js and
+sitePlanView.js call sites now delegate to window.lotGeometry (index.html
+loads lotGeometry.js, cache buster s85a).
 
 PURE GEOMETRY MODULE (S84): backend/static/js/lotGeometry.js is the faithful
 extraction of all of the above math. Tests: tests/geometry/ (2700+ invariant
@@ -113,3 +114,9 @@ STANDING RULES (binding)
 - Bump cache buster on production-visible pushes.
 - Update THIS FILE and STATUS.txt at end of every session. Session
   narratives go in docs/history/, and are historical record, not truth.
+- S85 elevation grade: slope sign convention = calc_engine/engine.js
+  ("left-to-right" = DOWNHILL to the right; "front-to-back" = front is the
+  LOW side). PDF grade lines are anchored to the calc reference (deck center
+  S/N, house face E/W; depicted post for lateral slopes in side views) so
+  pier bottoms land exactly on the drawn grade. Grade styles via _gradeStyle
+  param: bench (default), planted, continuous, skip (legacy).
