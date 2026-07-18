@@ -33,6 +33,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 
 from drawing.calc_engine import calculate_structure
 from drawing.permit_spec import build_permit_spec
+from drawing.sheet import sheet_size, render_scale
 from drawing.permit_checker import run_checks, report_to_dict, get_compliance_summary
 from drawing.draw_plan import draw_plan_and_framing, format_feet_inches
 from drawing.draw_elevations import draw_elevations_sheet
@@ -230,25 +231,25 @@ def generate_blueprint_pdf(params: dict) -> tuple:
         ("A-4", "STRUCTURAL DETAILS", draw_details_sheet),
     ]
 
-    with PdfPages(str(permit_path)) as pdf:
-        fig0 = plt.figure(figsize=(14, 8.5)); fig0.set_facecolor('white')
+    with PdfPages(str(permit_path)) as pdf, render_scale():
+        fig0 = plt.figure(figsize=sheet_size()); fig0.set_facecolor('white')
         _compliance = get_compliance_summary(permit_report)
         draw_cover_sheet(fig0, params, calc, pi, cover_img, compliance_summary=_compliance)
         pdf.savefig(fig0, dpi=200); plt.close(fig0)
 
         for sheet_num, sheet_name, draw_fn in permit_sheets:
-            fig = plt.figure(figsize=(14, 8.5)); fig.set_facecolor('white')
+            fig = plt.figure(figsize=sheet_size()); fig.set_facecolor('white')
             draw_fn(fig, params, calc, spec)
             draw_title_block(fig, sheet_num, sheet_name, calc, pi)
             pdf.savefig(fig, dpi=200); plt.close(fig)
 
         # A-5: Site plan (was A-6 before S50)
-        fig5 = plt.figure(figsize=(14,8.5)); fig5.set_facecolor('white')
+        fig5 = plt.figure(figsize=sheet_size()); fig5.set_facecolor('white')
         draw_site_plan(fig5,params,calc); draw_title_block(fig5,"A-5","SITE PLAN",calc,pi)
         pdf.savefig(fig5,dpi=200); plt.close(fig5)
 
         # A-6: Compliance checklist (S66)
-        fig6 = plt.figure(figsize=(14,8.5)); fig6.set_facecolor('white')
+        fig6 = plt.figure(figsize=sheet_size()); fig6.set_facecolor('white')
         draw_checklist_sheet(fig6,params,calc,spec)
         draw_title_block(fig6,"A-6","DECK ATTACHMENT SHEET",calc,pi)
         pdf.savefig(fig6,dpi=200); plt.close(fig6)
@@ -261,8 +262,8 @@ def generate_blueprint_pdf(params: dict) -> tuple:
             print(f"COS attachment sheet error: {e}")
 
     # -- Materials & Cost Estimate (separate PDF) --
-    with PdfPages(str(materials_path)) as pdf:
-        fig_m = plt.figure(figsize=(14, 8.5)); fig_m.set_facecolor('white')
+    with PdfPages(str(materials_path)) as pdf, render_scale():
+        fig_m = plt.figure(figsize=sheet_size()); fig_m.set_facecolor('white')
         draw_materials_sheet(fig_m, params, calc)
         draw_title_block(fig_m, "", "MATERIALS & COST ESTIMATE", calc, pi)
         pdf.savefig(fig_m, dpi=200); plt.close(fig_m)
