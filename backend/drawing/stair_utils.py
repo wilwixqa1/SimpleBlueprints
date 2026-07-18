@@ -258,14 +258,29 @@ def compute_stair_geometry(template: str, height: float, stair_width: float = 4,
 def transform_stair_point(lx, ly, anchor_x, anchor_y, angle_deg):
     """Transform a stair-local point to world coordinates.
     Stair-local: +Y = away from house, +X = right.
-    World: same axes as plan view (X = left-right, Y = front-back).
+    World: plan-view feet, +Y = away from house.
+
+    S85: this must mirror planView.js txPt() EXACTLY. The frontend maps
+    local coords through per-exit-side axis swaps (screen coords, y-down);
+    those mappings are NOT pure rotations once re-expressed in our y-up
+    world (handedness flips). The old rotation-matrix port inverted the
+    left/right cases, drawing zone-attached stairs INTO their zones
+    (found via the S85 legibility oracle: 'DOWN' x zone-label collisions).
+    Frontend (authoritative), converted to y-up world:
+      front (0):   (ax + lx, ay + ly)
+      back (180):  (ax - lx, ay - ly)
+      left (270):  (ax - ly, ay + lx)
+      right (90):  (ax + ly, ay + lx)
+    Arbitrary angles collapse to 'front', matching planView.js exitSide.
     """
-    rad = math.radians(angle_deg)
-    cos_a = math.cos(rad)
-    sin_a = math.sin(rad)
-    wx = anchor_x + lx * cos_a - ly * sin_a
-    wy = anchor_y + lx * sin_a + ly * cos_a
-    return wx, wy
+    side = get_stair_exit_side(angle_deg)
+    if side == "back":
+        return anchor_x - lx, anchor_y - ly
+    if side == "left":
+        return anchor_x - ly, anchor_y + lx
+    if side == "right":
+        return anchor_x + ly, anchor_y + lx
+    return anchor_x + lx, anchor_y + ly
 
 
 def transform_stair_rect(rect, anchor_x, anchor_y, angle_deg):

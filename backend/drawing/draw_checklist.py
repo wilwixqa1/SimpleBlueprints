@@ -148,9 +148,11 @@ def draw_checklist_sheet(fig, params, calc, spec=None):
     found_x = 7.5
     ax2.plot([found_x, found_x], [plan_y - 0.5, plan_y + plan_h + 0.5],
              color=dk, lw=1.2, ls='--')
-    ax2.text(found_x, plan_y + plan_h + 0.8, 'Line of foundation below',
+    # S85: label at the BOTTOM of the line -- at the top it collided with the
+    # ledger-extension note on every configuration (legibility oracle finding)
+    ax2.text(found_x, plan_y - 0.8, 'Line of foundation below',
              fontsize=4.5, color=BRAND["mute"], fontfamily='monospace',
-             fontstyle='italic', ha='center')
+             fontstyle='italic', ha='center', va='top')
 
     # Deck floor
     deck_start = ledger_x + 0.5
