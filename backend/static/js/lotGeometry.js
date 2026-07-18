@@ -19,12 +19,18 @@
  * Loaded in the browser via <script> (attaches to window.lotGeometry) and in
  * Node via require() for the test harness (tests/geometry/).
  *
- * KNOWN DISCREPANCY (documented S84, fix scheduled S85):
- *   positionHouse() measures offset from tightEdges().left (tightest span
- *   across three Y scans), but the renderer places the house at
- *   leftEdgeAtY(midY) + offset (single mid-Y scan). These agree on
- *   rectangles and diverge on tapered lots. See tests/geometry/ "consistency"
- *   section, which measures the divergence per lot shape.
+ * OFFSET CONTRACT (S85 -- the divergence fix):
+ *   houseOffsetSide is defined in RENDERER space: the renderer (and the PDF,
+ *   draw_site_plan.py) draw the house left edge at
+ *       leftEdgeAtY(houseDistFromStreet + houseDepth/2) + houseOffsetSide.
+ *   positionHouse() still uses tightEdges() internally to decide WHERE the
+ *   house should go (fit/centering, "never push to a lot edge"), but the
+ *   offset it RETURNS is converted to the leftEdgeAtY(midY) reference at
+ *   stash time, so intended position == rendered position by construction.
+ *   (Pre-S85 it returned a tightEdges().left-relative offset, which diverged
+ *   from the renderer by ~2.6 ft on tapered/flag lots -- 48 S84 warnings.)
+ *   Renderer semantics are unchanged, so previously saved offsets render
+ *   exactly as they always did.
  * ========================================================================== */
 (function (root, factory) {
   if (typeof module === "object" && module.exports) {
@@ -279,6 +285,14 @@
     var hw2 = opts.hw, hd2 = opts.hd;
     var newDist, newOffset;
 
+    /* S85: convert a tightEdges-relative placement into the stored
+     * renderer-space offset (see OFFSET CONTRACT in the header). */
+    function toStored(offTight, teLeft, d) {
+      var houseLeftX = teLeft + offTight;                 // intended left edge
+      var le = leftEdgeAtY(verts, d + hd2 / 2);           // renderer reference
+      return { offset: Math.round((houseLeftX - le) * 10) / 10, houseLeftX: houseLeftX };
+    }
+
     function placeAt(px, py, methodName) {
       var d = Math.max(5, Math.round(py - hd2 / 2));
       // NOTE: address-point path in steps.js uses py directly (not py-hd/2);
@@ -296,7 +310,9 @@
         centered = true;
       }
       if (off < 2) off = 2;
-      return { offset: off, dist: d, method: methodName + (centered ? "+centeredX" : "") };
+      var st = toStored(off, te.left, d);
+      return { offset: st.offset, dist: d, houseLeftX: st.houseLeftX,
+               method: methodName + (centered ? "+centeredX" : "") };
     }
 
     if (opts.centroid && verts && verts.length >= 3 &&
@@ -312,10 +328,13 @@
       return r;
     }
 
-    // Last resort: center on lot
-    newOffset = Math.max(5, Math.round((lotW - hw2) / 2));
+    // Last resort: center on lot (bbox space). S85: also convert to
+    // renderer space so the fallback truly renders centered on tapered lots.
     newDist = Math.min(Math.round(lotD * 0.3), 35);
-    return { offset: newOffset, dist: newDist, method: "centeredFallback" };
+    var fbLeft = Math.max(5, Math.round((lotW - hw2) / 2));
+    var fbLe = (verts && verts.length >= 3) ? leftEdgeAtY(verts, newDist + hd2 / 2) : 0;
+    newOffset = Math.round((fbLeft - fbLe) * 10) / 10;
+    return { offset: newOffset, dist: newDist, houseLeftX: fbLeft, method: "centeredFallback" };
   }
 
   /* Where the RENDERER will actually draw the house left edge, given the

@@ -249,21 +249,13 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
   var hd = p.houseDepth || 30;
   var houseOffsetVal = p.houseOffsetSide || 20;
 
-  // Find the left boundary X at a given Y by scanning polygon edges
+  // Find the left boundary X at a given Y by scanning polygon edges.
+  // S85: delegates to the shared module (window.lotGeometry) -- single
+  // source of truth with steps.js positioning and the geometry tests.
   function leftEdgeAtY(yVal) {
     var scanVerts = verts; // S72: verts are the polygon (pre-rotated in data layer if applicable)
     if (!p.lotVertices || scanVerts.length < 3) return 0; // rectangle: left edge is x=0
-    var minX = Infinity;
-    var nScan = scanVerts.length;
-    for (var ei = 0; ei < nScan; ei++) {
-      var a = scanVerts[ei], b = scanVerts[(ei + 1) % nScan];
-      var yLo = Math.min(a[1], b[1]), yHi = Math.max(a[1], b[1]);
-      if (yVal < yLo || yVal > yHi || yLo === yHi) continue;
-      var t = (yVal - a[1]) / (b[1] - a[1]);
-      var xAt = a[0] + t * (b[0] - a[0]);
-      if (xAt < minX) minX = xAt;
-    }
-    return minX === Infinity ? 0 : minX;
+    return window.lotGeometry.leftEdgeAtY(scanVerts, yVal);
   }
 
   // S73: Single path for house positioning. After rotation (if any),

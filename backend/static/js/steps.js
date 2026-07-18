@@ -1456,115 +1456,48 @@ function StepContent(props) {
           var lotW2 = Math.round(Math.max.apply(null, lotVerts2.map(function(v) { return v[0]; })));
           var lotD2 = Math.round(Math.max.apply(null, lotVerts2.map(function(v) { return v[1]; })));
 
-          // Point-in-polygon test
-          var _pointInPoly = function(px, py, polyVerts) {
-            var inside = false;
-            var n = polyVerts.length;
-            for (var i = 0, j = n - 1; i < n; j = i++) {
-              var xi = polyVerts[i][0], yi = polyVerts[i][1];
-              var xj = polyVerts[j][0], yj = polyVerts[j][1];
-              if (((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / (yj - yi) + xi)) {
-                inside = !inside;
-              }
-            }
-            return inside;
-          };
-
-          // Tightest polygon edges across house height (for tapered lots)
-          var _tightEdges = function(polyV, yTop, yMid, yBot) {
-            var bestL = 0, bestR = Infinity, bestSpan = Infinity;
-            var ys = [yTop, yMid, yBot];
-            for (var si = 0; si < ys.length; si++) {
-              var sy = ys[si], slx = Infinity, srx = -Infinity;
-              for (var ei = 0; ei < polyV.length; ei++) {
-                var pa = polyV[ei], pb = polyV[(ei + 1) % polyV.length];
-                var ylo = Math.min(pa[1], pb[1]), yhi = Math.max(pa[1], pb[1]);
-                if (sy < ylo || sy > yhi || ylo === yhi) continue;
-                var tt = (sy - pa[1]) / (pb[1] - pa[1]);
-                var xx = pa[0] + tt * (pb[0] - pa[0]);
-                if (xx < slx) slx = xx;
-                if (xx > srx) srx = xx;
-              }
-              if (slx === Infinity) slx = 0;
-              if (srx === -Infinity) continue;
-              var span = srx - slx;
-              if (span < bestSpan) { bestSpan = span; bestL = slx; bestR = srx; }
-            }
-            return { left: bestL, right: bestR, span: bestSpan };
-          };
-
-          // S79: House positioning with improved fallback behavior.
-          // Priority: Solar centroid > address point > center fallback.
-          // Key rule: dimensions are sacred, position is flexible.
-          // Never push house to lot edge. If it doesn't fit, center it.
+          // S85: positioning ladder now lives in lotGeometry.js
+          // (window.lotGeometry.positionHouse). Priority is unchanged:
+          // Solar centroid > address point > center fallback. Key rule:
+          // dimensions are sacred, position is flexible, never push house
+          // to a lot edge. The returned offset is RENDERER-space
+          // (leftEdgeAtY(midY) reference) per the S85 offset contract, so
+          // the site plan draws the house exactly where positioning intended.
           var newDist, newOffset;
-          var positioned = false;
 
-          if (lotVerts2 && lotVerts2.length >= 3 && _pointInPoly(centroidX, centroidY, lotVerts2)) {
-            // Centroid inside lot -- position from centroid
-            newDist = Math.max(5, Math.round(centroidY - hd2 / 2));
-            if (newDist + hd2 > lotD2 - 2) newDist = Math.max(5, lotD2 - hd2 - 2);
-            var houseCY = newDist + hd2 / 2;
-            var _te = _tightEdges(lotVerts2, newDist + 2, houseCY, newDist + hd2 - 2);
-            var availSpan = _te.right - _te.left;
-            newOffset = Math.max(2, Math.round(centroidX - hw2 / 2 - _te.left));
-            // S79: Improved clamping -- never push to edge, center if doesn't fit
-            var maxOffset = Math.max(2, Math.round(availSpan - hw2 - 2));
-            if (newOffset > maxOffset) {
-              // House overflows right side: center horizontally instead of clamping to edge
-              newOffset = Math.max(2, Math.round((availSpan - hw2) / 2));
-              console.log("S79: House didn't fit at centroid X, centered horizontally (span=" + availSpan.toFixed(0) + " hw=" + hw2 + ")");
+          // Address point in drawing space (computed up front; positionHouse
+          // uses it only if the centroid path does not apply)
+          var pLotX = null, pLotY = null;
+          var rawC2 = data.raw_coords;
+          if (rawC2 && rawC2.length >= 3 && data.location.lat && data.location.lng) {
+            var mLatR = Infinity, mLngR = Infinity;
+            for (var ci3 = 0; ci3 < rawC2.length; ci3++) {
+              if (rawC2[ci3][1] < mLatR) mLatR = rawC2[ci3][1];
+              if (rawC2[ci3][0] < mLngR) mLngR = rawC2[ci3][0];
             }
-            if (newOffset < 2) newOffset = 2;
-            positioned = true;
-            console.log("S79: House positioned from centroid: (" + centroidX.toFixed(1) + "," + centroidY.toFixed(1) + ") offset=" + newOffset + " dist=" + newDist);
+            var addrX = (data.location.lng - mLngR) * 364000.0 * Math.cos(mLatR * Math.PI / 180);
+            var addrY = (data.location.lat - mLatR) * 364000.0;
+            // Rotate address point through same S79 transform
+            if (_s79Rotated) {
+              var adx = addrX - _s79Cx, ady = addrY - _s79Cy;
+              addrX = _s79Cx + adx * _s79Cos - ady * _s79Sin - _s79Mx;
+              addrY = _s79Cy + adx * _s79Sin + ady * _s79Cos - _s79My;
+            }
+            pLotX = addrX;
+            pLotY = addrY;
           }
 
-          if (!positioned) {
-            // Fallback: address point
-            var rawC2 = data.raw_coords;
-            var pLotX = null, pLotY = null;
-            if (rawC2 && rawC2.length >= 3 && data.location.lat && data.location.lng) {
-              var mLatR = Infinity, mLngR = Infinity;
-              for (var ci3 = 0; ci3 < rawC2.length; ci3++) {
-                if (rawC2[ci3][1] < mLatR) mLatR = rawC2[ci3][1];
-                if (rawC2[ci3][0] < mLngR) mLngR = rawC2[ci3][0];
-              }
-              var addrX = (data.location.lng - mLngR) * 364000.0 * Math.cos(mLatR * Math.PI / 180);
-              var addrY = (data.location.lat - mLatR) * 364000.0;
-              // Rotate address point through same S79 transform
-              if (_s79Rotated) {
-                var adx = addrX - _s79Cx, ady = addrY - _s79Cy;
-                addrX = _s79Cx + adx * _s79Cos - ady * _s79Sin - _s79Mx;
-                addrY = _s79Cy + adx * _s79Sin + ady * _s79Cos - _s79My;
-              }
-              pLotX = addrX;
-              pLotY = addrY;
-            }
-            if (pLotX !== null && pLotY !== null && lotVerts2 && lotVerts2.length >= 3) {
-              newDist = Math.max(5, Math.round(pLotY));
-              if (newDist + hd2 > lotD2 - 2) newDist = Math.max(5, lotD2 - hd2 - 2);
-              var houseCY = newDist + hd2 / 2;
-              var _te = _tightEdges(lotVerts2, newDist + 2, houseCY, newDist + hd2 - 2);
-              var availSpan = _te.right - _te.left;
-              newOffset = Math.max(2, Math.round(pLotX - hw2 / 2 - _te.left));
-              var maxOffset = Math.max(2, Math.round(availSpan - hw2 - 2));
-              if (newOffset > maxOffset) {
-                newOffset = Math.max(2, Math.round((availSpan - hw2) / 2));
-              }
-              if (newOffset < 2) newOffset = 2;
-              positioned = true;
-              console.log("S79: House positioned from address point: (" + pLotX.toFixed(1) + "," + pLotY.toFixed(1) + ") offset=" + newOffset + " dist=" + newDist);
-            }
-          }
-
-          if (!positioned) {
-            // Last resort: center house on lot
-            newOffset = Math.max(5, Math.round((lotW2 - hw2) / 2));
-            newDist = Math.min(Math.round(lotD2 * 0.3), 35);
-            console.log("S79: House positioned from fallback (centered)");
-          }
-
+          var placed = window.lotGeometry.positionHouse({
+            verts: lotVerts2, lotW: lotW2, lotD: lotD2,
+            hw: hw2, hd: hd2,
+            centroid: [centroidX, centroidY],
+            addrPoint: (pLotX !== null && pLotY !== null) ? [pLotX, pLotY] : null
+          });
+          newDist = placed.dist;
+          newOffset = placed.offset;
+          console.log("S85: House positioned via lotGeometry.positionHouse: method=" + placed.method +
+            " offset=" + newOffset + " dist=" + newDist +
+            " houseLeftX=" + (placed.houseLeftX != null ? placed.houseLeftX.toFixed(1) : "?"));
           u("houseDistFromStreet", newDist);
           u("houseOffsetSide", newOffset);
           u("_autoHouseOffset", newOffset);
@@ -1609,7 +1542,8 @@ function StepContent(props) {
               continue;
             }
             // S79: Point-in-polygon check uses UNROTATED vertices (Overpass centroids are in original space)
-            if (unrotatedVerts && unrotatedVerts.length >= 3 && !_pointInPoly(b2.centroid_ft[0], b2.centroid_ft[1], unrotatedVerts)) {
+            // S85: delegated to window.lotGeometry.pointInPolygon (shared module)
+            if (unrotatedVerts && unrotatedVerts.length >= 3 && !window.lotGeometry.pointInPolygon(b2.centroid_ft[0], b2.centroid_ft[1], unrotatedVerts)) {
               console.log("Skipped " + (mappedType || b2.type) + " " + b2.osm_id + ": centroid outside lot polygon (neighbor's structure)");
               continue;
             }
@@ -1649,7 +1583,7 @@ function StepContent(props) {
             _confLevel = "medium";
             _confMessages.push("Street edge detected from address data only. Verify the street is on the correct side.");
           }
-          if (!positioned) {
+          if (placed.method === "centeredFallback") {
             _confLevel = "medium";
             _confMessages.push("House position is approximate. Drag to adjust if needed.");
           }

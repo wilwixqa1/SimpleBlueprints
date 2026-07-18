@@ -137,8 +137,12 @@ Object.keys(SHAPES).forEach(function (shapeName) {
       hw: hw, hd: hd, centroid: [cd[0], cd[1]], addrPoint: null
     });
 
-    // H1: sane bounds
-    ok(tag + " H1 offset>=2", placed.offset >= 2, "offset=" + placed.offset);
+    // H1: intended house left edge respects the tight span (S85 contract:
+    // placed.offset is renderer-space, so bounds are checked on houseLeftX)
+    var hcyPre = placed.dist + hd / 2;
+    var te = G.tightEdges(dv, placed.dist + 2, hcyPre, placed.dist + hd - 2);
+    ok(tag + " H1 houseLeftX >= tight left+2", placed.houseLeftX >= te.left + 2 - 0.01,
+      "houseLeftX=" + placed.houseLeftX.toFixed(1) + " teLeft=" + te.left.toFixed(1));
     ok(tag + " H2 dist>=5", placed.dist >= 5, "dist=" + placed.dist);
     ok(tag + " H3 fits in bbox depth", placed.dist + hd <= bb.maxY + 0.5,
       "dist=" + placed.dist + " lotD=" + bb.maxY.toFixed(0));
@@ -151,16 +155,13 @@ Object.keys(SHAPES).forEach(function (shapeName) {
         "method=" + placed.method + " center=(" + hcx.toFixed(1) + "," + hcy.toFixed(1) + ")");
     } else { passed++; }
 
-    // H5: CONSISTENCY -- positioning space vs renderer space.
-    // positionHouse measures offset from tightEdges().left; the renderer
-    // draws at leftEdgeAtY(midY)+offset. Measure the divergence.
-    var te = G.tightEdges(dv, placed.dist + 2, hcy, placed.dist + hd - 2);
-    var intendedX = te.left + placed.offset;
-    var divergence = Math.abs(intendedX - hx);
-    if (divergence > 2) {
-      warn(tag + " H5 position/render divergence",
-        divergence.toFixed(1) + "ft (intendedX=" + intendedX.toFixed(1) + " renderX=" + hx.toFixed(1) + ")");
-    } else { passed++; }
+    // H5: CONSISTENCY -- intended position vs renderer position.
+    // S85 contract: stored offset is renderer-space, so the renderer must
+    // reproduce houseLeftX exactly (0.1 ft rounding slack). HARD check now,
+    // not a warning: this is the bug the S85 fix eliminates.
+    var divergence = Math.abs(placed.houseLeftX - hx);
+    ok(tag + " H5 position==render", divergence <= 0.11,
+      divergence.toFixed(2) + "ft (intendedX=" + placed.houseLeftX.toFixed(1) + " renderX=" + hx.toFixed(1) + ")");
   }
 });
 
