@@ -20,7 +20,7 @@ from pdfminer.high_level import extract_pages
 from pdfminer.layout import LTTextLine, LTTextContainer, LTChar
 
 DEFAULT_FLOOR_PT = 4.0     # below this, flag as tiny
-OVERLAP_MIN_FRAC = 0.15    # intersection >= 15% of the smaller bbox = overlap
+OVERLAP_MIN_FRAC = 0.30    # >=30% of smaller bbox; below that is line-spacing/touching, not collision (S85 calibration: artifacts cluster 22-24%, real hits 38%+)
 IGNORE_SHORT = 1           # ignore fragments of <= N chars for overlap pairs
 
 

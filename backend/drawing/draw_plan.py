@@ -108,7 +108,10 @@ def draw_scale_bar(ax, x, y, total_ft=12):
     for i in range(segments + 1):
         ax.text(x + i * seg, y - 0.2, str(int(i * seg)),
                 ha='center', va='top', fontsize=4, color=BRAND["dark"])
-    ax.text(x, y - 0.6, 'GRAPHIC SCALE (FEET)', fontsize=3.5, color=BRAND["mute"])
+    # S85: caption on its own row below the tick numerals -- it previously
+    # shared the '0' tick's position and printed as '0RAPHIC SCALE...'
+    ax.text(x, y - 0.85, 'GRAPHIC SCALE (FEET)', fontsize=3.5,
+            va='top', color=BRAND["mute"])
 
 
 def format_feet_inches(feet):
@@ -310,9 +313,11 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
             continue
         _wax, _way, _ang = rs["world_anchor_x"], rs["world_anchor_y"], rs["angle"]
         sb = sg["bbox"]
-        # Transform all 4 corners of stair bbox to world coords
+        # S85: extents include the 3ft grade landing pad drawn beyond the
+        # last run (pad_d=3.0 below) -- main dims must clear pad labels too
+        _pad_ext = 3.25
         for lx, ly in [(sb["minX"], sb["minY"]), (sb["maxX"], sb["minY"]),
-                        (sb["maxX"], sb["maxY"]), (sb["minX"], sb["maxY"])]:
+                        (sb["maxX"], sb["maxY"] + _pad_ext), (sb["minX"], sb["maxY"] + _pad_ext)]:
             wx, wy = transform_stair_point(lx, ly, _wax, _way, _ang)
             stair_x_min = min(stair_x_min, wx)
             stair_x_max = max(stair_x_max, wx)
@@ -347,9 +352,11 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
         # House
         ax.add_patch(patches.Rectangle((0, -house_depth), W, house_depth,
                      fc=BRAND["house"], ec=BRAND["dark"], lw=1.5))
-        ax.text(W / 2, -house_depth / 2 + 0.5, 'EXISTING SINGLE',
+        # S85: label sits in the lower 2/3 of the house band -- the upper
+        # band doubles as beam post-spacing dim space (was colliding)
+        ax.text(W / 2, -house_depth * 0.62 + 0.5, 'EXISTING SINGLE',
                 ha='center', fontsize=6.5, color=BRAND["mute"])
-        ax.text(W / 2, -house_depth / 2 - 0.8, 'FAMILY RESIDENCE',
+        ax.text(W / 2, -house_depth * 0.62 - 0.8, 'FAMILY RESIDENCE',
                 ha='center', fontsize=6.5, color=BRAND["mute"])
 
         # Deck body
@@ -851,21 +858,22 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
                 if s_loc == "front":
                     p1x, _ = transform_stair_point(r0["x"], 0, _wax, _way, rs["angle"])
                     p2x, _ = transform_stair_point(r0["x"] + r0["w"], 0, _wax, _way, rs["angle"])
+                    # S85: at the deck edge (conventional opening dim)
                     draw_dimension_h(ax, p1x, p2x, _way,
                                      f'{format_feet_inches(sw_ft)} OPENING',
-                                     offset=max(D * 0.08, 1.2), color='#c62828', fontsize=4.5)
+                                     offset=1.0, color='#c62828', fontsize=4.5)
                 elif s_loc == "left":
                     _, p1y = transform_stair_point(r0["x"], 0, _wax, _way, rs["angle"])
                     _, p2y = transform_stair_point(r0["x"] + r0["w"], 0, _wax, _way, rs["angle"])
                     draw_dimension_v(ax, _wax, min(p1y, p2y), max(p1y, p2y),
                                      f'{format_feet_inches(sw_ft)} OPENING',
-                                     offset=-3.5, color='#c62828', fontsize=4.5)
+                                     offset=-1.0, color='#c62828', fontsize=4.5)
                 elif s_loc == "right":
                     _, p1y = transform_stair_point(r0["x"], 0, _wax, _way, rs["angle"])
                     _, p2y = transform_stair_point(r0["x"] + r0["w"], 0, _wax, _way, rs["angle"])
                     draw_dimension_v(ax, _wax, min(p1y, p2y), max(p1y, p2y),
                                      f'{format_feet_inches(sw_ft)} OPENING',
-                                     offset=max(W * 0.08, 3), color='#c62828', fontsize=4.5)
+                                     offset=1.0, color='#c62828', fontsize=4.5)
 
         # S68: Stair notes box (plan view only, only when stairs exist)
         if not is_framing and all_stairs:
@@ -886,10 +894,17 @@ def draw_plan_and_framing(fig, params, calc, spec=None):
                               ec=BRAND["dark"], lw=0.4))
 
         # Dimensions (zone 0 overall)
+        # S85: offsets clear the STAIR-INCLUSIVE composite extents. Previously
+        # the width dim line crossed front-stair graphics and the depth dim
+        # landed inside right-attached zones (Will's screenshot review).
+        _dim_top_clear = max(bbox["y"] + bbox["d"], stair_y_max) - D + 1.5
+        _dim_right_clear = max(bbox["x"] + bbox["w"], stair_x_max) - W + 1.5
         draw_dimension_h(ax, 0, W, D, format_feet_inches(W),
-                         offset=max(D * 0.15, 2), color=BRAND["red"], fontsize=7)
+                         offset=max(D * 0.15, 2, _dim_top_clear),
+                         color=BRAND["red"], fontsize=7)
         draw_dimension_v(ax, W, 0, D, format_feet_inches(D),
-                         offset=max(W * 0.04, 1.2), color=BRAND["blue"], fontsize=7)
+                         offset=max(W * 0.04, 1.2, _dim_right_clear),
+                         color=BRAND["blue"], fontsize=7)
 
         # S47: North arrow in upper-left margin, scale bar below house
         draw_north_arrow(ax, min(bbox["x"], stair_x_min) - margin_x_left + 2,
