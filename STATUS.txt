@@ -1,31 +1,47 @@
 SIMPLEBLUEPRINTS STATUS
-Session: S85 (in progress; may end abruptly -- Claude vision outage mid-session)
-Cache buster: s85a (lotGeometry.js script tag + lazy-loader bump, pushed S85)
+Session: S85 (closed -- ended due to Claude vision outage; see below)
+Cache buster: s85b
 
-SHIPPED THIS SESSION (pushes 1-3, CI green, LIVE verified via DOM extraction):
-1. tests/pdf/render_review.py harness (8 named param sets -> PDFs -> 150dpi PNGs)
-2. Position/render divergence FIXED: offset now renderer-space (leftEdgeAtY(midY),
-   converted at stash time); steps.js/sitePlanView.js swapped to window.lotGeometry;
-   geometry suite 2764/0/0 (H5 divergence is now a HARD check)
-3. Elevation grade fixes: l2r/r2l sign was inverted in ALL 4 PDF views vs
-   calc/frontend; grade line now anchored to calc reference (piers land ON grade,
-   was up to 19.2in float/bury); side views anchor at depicted post for lateral
-   slopes; h=null zone crash fixed (draw_elevations.py:83 .get default trap);
-   bench grade style default (_gradeStyle: skip|continuous|bench|planted)
-4. tests/pdf/legibility_check.py: L3 text-collision + font-size oracle, works on
-   any PDF incl. reference blueprints (2 pro sets measured, in docs/history refs)
+SHIPPED S85 (pushes 1-10, all CI green):
+1-3. render_review harness (8 sets); divergence fix (renderer-space offset,
+   live-verified via DOM); elevation grade fixes (sign inverted in all 4 PDF
+   views; anchored to calc ref; side views anchor at depicted post); h=null
+   zone crash fix; bench grade default; legibility oracle
+4-6. STATUS/MASTER_CONTEXT/ARCHITECTURE updates; photoreal-3D logged deferred
+7. UX: first wizard screen shows address form immediately (no intermediate
+   button; chat demoted to optional) -- live DOM-verified
+8. Quarantined stale S73 context file pushed by Will's PARALLEL session
+   (docs/history/S73_MASTER_CONTEXT_stale.txt). GTM plan left at root.
+9. Zone-stair world transform fixed: rotation-matrix port inverted left/right
+   exit sides -- PDF drew zone stairs INSIDE zones; now mirrors planView.js
+   txPt exactly. A-6 foundation-label collision fixed (was on EVERY config).
+10. Legibility round 2: main dims clear stair+landing-pad extents; OPENING
+   dims at deck edge; scale-bar caption fix; house label below dim band;
+   detector threshold calibrated to 30%.
+LEGIBILITY SCORE vs pro references (Loucks/Ilaria, in S85 chat + measured):
+   refs = 1-2 genuine collisions/set. Ours: 4 sets at 0, 3 sets at 2,
+   4-zone torture case at 10 (annotation crowding -- next).
 
-TOP PRIORITIES (remaining S85 / next session):
-1. WHEN VISION RETURNS: visual pass on reference blueprints (Loucks/Ilaria, in
-   chat uploads); eye-verify grade fixes; fix A-6 cantilever-note collision
-   (appears on EVERY set) + zone-label/DOWN collisions (detector = judge)
-2. Sheet size decision for Will: our type is proportionally equal to pro refs
-   (~0.3% of sheet width) but we render 14x8.5in vs their 36x24 ARCH D
-3. Config matrix battle-test (Will's spec): 1-zone/2-zone x stairs from
-   main/zone/main+both zones/INTERIOR-ANCHORED (anchorX/Y path untested, run
-   FIRST); judges = crash + 143 checks + legibility thresholds + visual sample
-4. Fuzz loop (L1 crash oracle); golden files; frontend elevationView bench grade
+!! VISUAL REVIEW GAP: pushes 9-10 verified by oracles + suites + CI ONLY.
+   Claude's image viewing broke mid-S85 (likely context-budget cutoff of
+   tool-result image payloads in a very long conversation; chat-uploaded
+   images still worked). FIRST TASK S86: rasterize + eyeball pushes 9-10
+   output (zones_stairs_lcr A-1, slope15 A-2), confirm with Will.
 
-NEXT SESSION: read MASTER_CONTEXT.txt sec 5 (offset contract), sec 11.
-PENDING ON WILL: revoke classic PAT used S85, mint fine-grained; sheet size call.
-BLOCKERS: Claude vision outage (rasterize works, viewing returns empty).
+TOP PRIORITIES (S86):
+1. Visual re-verification of pushes 9-10 (above) + Will's screenshot gate
+2. Elevation ANNOTATION COLUMN: reserved right-margin text zone per view,
+   leader lines, wrap not overflow (fixes Will's screenshot findings:
+   callouts crossing panels, clipped mid-word, text over railing linework).
+   Add detector checks: text-outside-panel, text-clipped-at-axes.
+3. Sheet size decision (Will): 14x8.5in vs ARCH D 36x24 -- type is
+   proportionally equal to refs; absolute print size is the gap
+4. Config matrix battle-test: 1/2 zones x stairs main/zone/both/INTERIOR-
+   ANCHORED (anchorX/Y path untested -- run FIRST); judges: crash + 143
+   checks + legibility thresholds (<=2/set) + visual sample
+5. 4-zone torture case annotation crowding (10 collisions)
+
+NEXT SESSION: paste kickoff referencing this file; read MASTER_CONTEXT sec 5.
+PENDING ON WILL: revoke classic PAT used S85; sheet size call; point the
+parallel (GTM) session at current MASTER_CONTEXT.txt before it pushes code.
+BLOCKERS: none (vision expected back in fresh session).
