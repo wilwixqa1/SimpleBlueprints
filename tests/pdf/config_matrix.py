@@ -245,19 +245,31 @@ def build_matrix():
                     {**_base(width=24, depth=14),
                      "zones": [{"id": 1, "type": "cutout", "attachEdge": "front",
                                 "attachOffset": 7, "w": 10, "d": 8, "attachTo": 0}]}))
-    # notch cut FOR the stairs: stair descends in the notch (shallow edge)
+    # notch cut FOR the stairs: stair descends IN the notch, hosted at the notch
+    # edge. S90: use the REAL deckStairs input -- the legacy flat-param stair path
+    # produces NO geometry, so the stair silently never rendered (the matrix's
+    # "stair" coverage was hollow). Notch sized to the stair width (the realistic
+    # case), matching the S90 visual-confirm fixture.
     configs.append(("m_notch_stair_in_notch",
-                    _notch("front", 8, 6, off=6, hasStairs=True, stairAnchorX=10,
-                           stairAnchorY=8, stairAngle=0, stairTemplate="straight",
-                           stairWidth=4, numStringers=3)))
+                    _notch("front", 4, 6, off=8, hasStairs=True,
+                           deckStairs=[{"id": 1, "zoneId": 0, "anchorX": 10,
+                                        "anchorY": 8, "angle": 0,
+                                        "template": "straight", "width": 4,
+                                        "numStringers": 3}])))
     configs.append(("m_notch_stair_in_notch_widelanding",
-                    _notch("front", 8, 6, off=6, hasStairs=True, stairAnchorX=10,
-                           stairAnchorY=8, stairAngle=0, stairTemplate="wideLanding",
-                           stairLandingDepth=4, stairWidth=5, numStringers=4)))
-    # notch PLUS a normal front stair elsewhere (independent features)
+                    _notch("front", 5, 6, off=7.5, hasStairs=True,
+                           deckStairs=[{"id": 1, "zoneId": 0, "anchorX": 10,
+                                        "anchorY": 8, "angle": 0,
+                                        "template": "wideLanding", "width": 5,
+                                        "numStringers": 4, "landingDepth": 4}])))
+    # notch PLUS a normal (edge-anchored) front stair elsewhere -- independent
+    # features. Uses location="front" so it exercises the not-yet-cutout-aware
+    # placement (anchors at full depth, the phantom edge) on a notched deck.
     configs.append(("m_notch_plus_front_stair",
                     _notch("front", 6, 5, off=2, hasStairs=True,
-                           stairLocation="front", stairWidth=4, numStringers=3)))
+                           deckStairs=[{"id": 1, "zoneId": 0, "location": "front",
+                                        "width": 4, "numStringers": 3,
+                                        "template": "straight"}])))
     # notch on a FREESTANDING deck (exercises diagonal bracing + notch together)
     fs = _notch("front", 8, 6, off=6)
     fs["attachment"] = "freestanding"
