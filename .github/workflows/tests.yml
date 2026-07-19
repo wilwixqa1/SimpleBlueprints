@@ -39,3 +39,8 @@ jobs:
 
       - name: Future products logic tests
         run: python3 tests/test_future_products.py
+
+      - name: Text-over-linework differential (S87 oracle, 2 canonical fixtures)
+        run: |
+          pip install httpx python-multipart itsdangerous anthropic fastapi stripe psycopg2-binary
+          SBP_SHEET=arch_d python3 tests/pdf/linework_check.py basic_rect_ledger zones_stairs_lcr
