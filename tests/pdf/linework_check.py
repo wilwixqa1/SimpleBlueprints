@@ -35,6 +35,13 @@ sys.path.insert(0, str(HERE))
 
 import matplotlib  # noqa: E402
 matplotlib.use("Agg")
+# S87: pin to matplotlib's BUNDLED fonts so text bboxes measure identically
+# on every machine (sandbox vs CI runner system fonts differ -> baseline
+# counts drifted +/-2 and long notes lines wrapped differently).
+matplotlib.rcParams["font.family"] = "sans-serif"
+matplotlib.rcParams["font.sans-serif"] = ["DejaVu Sans"]
+matplotlib.rcParams["font.monospace"] = ["DejaVu Sans Mono"]
+matplotlib.rcParams["font.serif"] = ["DejaVu Serif"]
 import numpy as np  # noqa: E402
 
 MIN_RUN_PX = 9.0        # display px a segment must run inside a text box
