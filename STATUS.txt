@@ -3,6 +3,58 @@ REPORTING NOTE (Will, S88): non-technical owner. LEAD summaries with plain-Engli
 "what this does + why"; codes (G5/B9/B10) are secondary labels only. End every
 session with a retrospective (section 9 rule).
 
+============================ SESSION S90 (CLOSED) ============================
+Full handoff + guardrails + detailed TODO: docs/S90_HANDOFF.md  (READ IT FIRST in S91)
+Pushed to main: commits 20c2703 (push 1) + 4d80b5e (push 2) on top of S89 21ae477.
+Backend + tests only. Cache buster: s87a (UNCHANGED -- no production frontend touched).
+
+SHIPPED S90 (all CI green, on main):
+- P0 VISUAL CONFIRM done (vision back up): notched framing + notch-hosted stair read
+  correctly on the real A-2 sheet (notch outline, joist clip, stepped beam+connectors,
+  DBL HEADER, single strip post).
+- push 1: FIXED coincident-post bug. A notch strip exactly 4 ft wide made
+  _posts_for_segment stack TWO posts at the same x -> over-counted posts/piers/footings
+  in the materials list. Fix = single centered post when the two end posts would be
+  < 2 ft apart (MIN_POST_SEP). Wider segments UNCHANGED (flat never reaches this code;
+  deep-notch wings/strip byte-identical). +4 regression checks in test_beam_layout.
+- push 2: matrix notch+stair configs were HOLLOW -- they used the legacy flat-param
+  stair path which returns NO geometry, so the stairs never rendered on any sheet.
+  Switched all 3 to real deckStairs=[{...}] (geom=True now). Matrix still 18/0.
+
+CRITICAL PROCESS LESSON (S90 burned hours circling on this -- see handoff sec 0):
+  * VISUAL checks: use tests/pdf/render_review.py, NOT ad-hoc pdftoppm on /tmp/blueprints.
+  * Select PDFs by returned permit_id, NEVER by ls -S / size / recency (wrong config).
+  * Map pages by RENDERED TITLE, never a fixed index (framing = p2 plain / p3 notched;
+    page set is config-dependent).
+  * Full-sheet view before any crop; never present an unconfirmed crop.
+  * "numerically verified" != "visually confirmed" -- never claim the latter without a
+    clean, correctly-identified image (S90's worst miss: described the notes page /
+    cut-off crops as if they were the framing).
+  * Keep the target fixture (notched deck + notch-hosted stair via deckStairs); don't
+    drift to a plain rectangle and lose the thread.
+
+FLAT HASH CAVEAT (NEW): S89's 57aaf8095e046067 does NOT reproduce cross-container
+(poppler/font AA). This env = 9766a0ce039d19a9, deterministic, correct. Treat the pixel
+hash as a WITHIN-SESSION before/after invariant, not a portable constant. Real fix =
+golden-file PDF regression (backlog).
+
+TOP TODO S91 (full list in docs/S90_HANDOFF.md):
+  P1 STAIRS (north star = edge-stairs first): (P1.2) make placement cutout-aware --
+     get_stair_placement_for_zone anchors a front stair at anchor_y=D (phantom edge);
+     anchor to the REAL notched edge instead (S90 faked this with a manual anchor).
+     (P1.3) unify site-plan stair (draw_site_plan ~L516-550 crude routine) to
+     resolve_all_stairs. (P1.4 OPEN WILL DECISION) A-2 stair as dashed reference vs
+     full treads (there is already a dedicated stair-detail sheet; recommend dashed).
+     Reconcile the EXISTING DN arrow (~L915) vs the stale "no DN" TODO.
+  P2 convert m_2zone_zonestairs_main_interior to deckStairs; site-plan true notched
+     outline; steel calc wiring; engine.js frontend mirror.
+  P3 global cantilever enforcement (Will decision re shallow decks); cant. label.
+  Carryover: B7/B8 grade line; G8/G9/G10; golden-file PDF regression; B11; calibration.
+
+PENDING ON WILL: A-2 stair representation call (dashed vs full treads). Others from S89
+still open (B7/B8 convention; shallow-deck cantilever; pricing; PPRBD mixed-size set).
+=============================================================================
+
 ============================ SESSION S89 (CLOSED) ============================
 Full handoff + detailed TODO: docs/S89_HANDOFF.md  (READ IT FIRST in S90)
 Pushed to main: commits acf20e0..21fc7e0 (S89 push 1-5). Backend-only.
