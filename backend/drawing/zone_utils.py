@@ -216,18 +216,33 @@ def _subtract_segments(start, end, blockers):
     return result
 
 
-def get_exposed_edges(params):
+def get_exposed_edges(params, stair_openings=None):
     """
     Compute exposed edges that need railing.
     S61: Chamfer-aware. Generates edges from chamfered vertex lists instead of
     rectangles. Diagonal chamfer edges are always exposed. Axis-aligned edges
     go through the standard overlap subtraction with neighboring zones.
 
+    S91 (P1.4a): Cutout-aware. When the main deck (zone 0) has a front-reaching
+    cutout, zone 0's edges are built from beam_layout.notched_deck_polygon so the
+    rail WRAPS the notch (front-left run, notch side walls, notch-back, front-
+    right run) instead of drawing one straight line across the phantom pre-notch
+    front edge. Flat / interior-well decks are unaffected (notched_deck_polygon
+    returns None -> the normal rectangle/chamfer path).
+
+    stair_openings: optional list of (edge_y, x0, x1) horizontal spans where a
+    stair descends through an exposed edge (e.g. the notch-back edge). Any
+    horizontal exposed edge at edge_y has that span removed so no rail is drawn
+    across the stair opening. None / empty -> no subtraction (flat behavior).
+
     Returns list of {"x1", "y1", "x2", "y2", "dir": "h"|"v"|"d"}.
     Excludes house-wall edges (y=0 for ledger) and shared interior edges.
     """
+    from .beam_layout import notched_deck_polygon
+
     attachment = params.get("attachment", "ledger")
     add_rects = get_additive_rects(params)
+    cut_rects = get_cutout_rects(params)
 
     # Phase 1: Build edges from chamfered vertices for each zone
     all_edges = []
@@ -235,14 +250,22 @@ def get_exposed_edges(params):
         r = ar["rect"]
         rid = ar["id"]
         x, y, w, d = r["x"], r["y"], r["w"], r["d"]
-        corners = _get_zone_corners(params, rid)
-        verts = _chamfered_vertices(x, y, w, d, corners)
+        # P1.4a: main deck follows a front cutout (wraps the notch). Falls back
+        # to the chamfered rectangle when there is no front-reaching cutout.
+        notch_verts = notched_deck_polygon(w, d, cut_rects) if rid == 0 else None
+        if notch_verts is not None:
+            verts = notch_verts
+        else:
+            corners = _get_zone_corners(params, rid)
+            verts = _chamfered_vertices(x, y, w, d, corners)
 
         for vi in range(len(verts)):
             v1 = verts[vi]
             v2 = verts[(vi + 1) % len(verts)]
             dx = abs(v1[0] - v2[0])
             dy = abs(v1[1] - v2[1])
+            if dx < 0.01 and dy < 0.01:
+                continue  # degenerate (duplicate vertex from the notch polyline)
             if dx < 0.01:
                 edir = "v"
             elif dy < 0.01:
@@ -328,5 +351,29 @@ def get_exposed_edges(params):
                 for s_start, s_end in segments:
                     if s_end - s_start > 0.05:
                         exposed.append({"x1": e["x1"], "y1": s_start, "x2": e["x2"], "y2": s_end, "dir": "v"})
+
+    # Phase 3 (P1.4a): remove rail across stair openings. Each opening is a
+    # horizontal span (edge_y, x0, x1) where a stair descends through an exposed
+    # edge (the notch-back edge for a notch-hosted stair). No opening -> no-op,
+    # so flat / stair-less decks are unchanged.
+    if stair_openings:
+        result = []
+        for e in exposed:
+            if e["dir"] != "h":
+                result.append(e)
+                continue
+            ey = e["y1"]
+            ex0 = min(e["x1"], e["x2"])
+            ex1 = max(e["x1"], e["x2"])
+            blockers = [(o[1], o[2]) for o in stair_openings
+                        if abs(o[0] - ey) < 0.01]
+            if not blockers:
+                result.append(e)
+                continue
+            for s_start, s_end in _subtract_segments(ex0, ex1, blockers):
+                if s_end - s_start > 0.05:
+                    result.append({"x1": s_start, "y1": ey,
+                                   "x2": s_end, "y2": ey, "dir": "h"})
+        exposed = result
 
     return exposed

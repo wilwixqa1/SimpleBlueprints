@@ -121,6 +121,48 @@ check("P1.2 front stair offset onto solid wing: anchor_y == 14",
       bool(res_off) and abs(res_off[0]["world_anchor_y"] - 14.0) < 1e-6,
       f"anchor_y={res_off[0]['world_anchor_y'] if res_off else 'NO STAIR'}")
 
+# --- P1.4a: railing wraps the notch (not one straight front edge) -----------
+from drawing.zone_utils import get_exposed_edges  # noqa: E402
+
+# Matched notch/stair fixture: front cutout {x:8,y:8,w:4,d:6}, notch back y=8.
+mnotch = _base(zones=[_cutout("front", 4, 6, off=8)])
+
+
+def _has_straight_front(edges, D=14.0):
+    # the old bug: a single horizontal edge spanning the whole front at y==D
+    for e in edges:
+        if e["dir"] == "h" and abs(e["y1"] - D) < 0.01:
+            if abs(min(e["x1"], e["x2"])) < 0.01 and abs(max(e["x1"], e["x2"]) - 20.0) < 0.01:
+                return True
+    return False
+
+
+ee = get_exposed_edges(mnotch)
+check("P1.4a notch: no single straight front edge (0..20 @ y=14)",
+      not _has_straight_front(ee))
+# Front runs stop at the notch mouth (x=8 and x=12), leaving the notch open.
+front_hs = sorted([(round(min(e["x1"], e["x2"]), 1), round(max(e["x1"], e["x2"]), 1))
+                   for e in ee if e["dir"] == "h" and abs(e["y1"] - 14.0) < 0.01])
+check("P1.4a notch: front rail is two runs [0,8] and [12,20]",
+      front_hs == [(0.0, 8.0), (12.0, 20.0)], str(front_hs))
+# Notch side walls present (vertical edges at x=8 and x=12 from y=8 to y=14).
+walls = sorted([round(e["x1"], 1) for e in ee if e["dir"] == "v"
+                and abs(min(e["y1"], e["y2"]) - 8.0) < 0.01
+                and abs(max(e["y1"], e["y2"]) - 14.0) < 0.01])
+check("P1.4a notch: both notch side walls railed (x=8, x=12)",
+      walls == [8.0, 12.0], str(walls))
+
+# With the stair filling the notch, the notch-back edge (y=8) carries no rail.
+ee_open = get_exposed_edges(mnotch, stair_openings=[(8.0, 8.0, 12.0)])
+back = [e for e in ee_open if e["dir"] == "h" and abs(e["y1"] - 8.0) < 0.01]
+check("P1.4a notch+stair: no rail across the notch-back opening", not back,
+      f"{len(back)} back-edge(s) remain")
+
+# Flat deck unchanged: still one straight front edge, no notch wrap.
+ee_flat = get_exposed_edges(_base())
+check("P1.4a flat deck: straight front edge preserved (no regression)",
+      _has_straight_front(ee_flat))
+
 print()
 if FAILS:
     print(f"NOTCH POSTS: {len(FAILS)} FAILURE(S): {FAILS}")

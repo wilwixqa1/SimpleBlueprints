@@ -358,12 +358,32 @@ def draw_plan_and_framing(fig, params, calc, spec=None, panels=None):
     # S21: Zone-aware plan view data
     add_rects = get_additive_rects(params)
     cut_rects = get_cutout_rects(params)
-    exp_edges = get_exposed_edges(params)
     bbox = get_bounding_box(params)
 
     # S22: Adaptive margins - wider multi-zone decks need proportionally more room
     # S68: Expand bounds to include stair geometry extents
     all_stairs_pre = resolve_all_stairs(params, calc)
+
+    # P1.4a: on a notched deck the guardrail wraps the notch (see
+    # get_exposed_edges). Where a front stair descends through the notch, drop
+    # the rail across that opening. Gated to notched decks so flat decks are
+    # byte-identical. front_edge_profile gives the real (pulled-in) edge y that
+    # a front stair anchors to; the opening is the stair's x-footprint there.
+    _stair_openings = None
+    if cut_rects:
+        from .beam_layout import front_edge_profile
+        _prof = front_edge_profile(float(calc["width"]), float(calc["depth"]), cut_rects)
+        _has_front_cut = len(_prof) > 1 or (_prof and abs(_prof[0][2] - float(calc["depth"])) > 1e-6)
+        if _has_front_cut:
+            _stair_openings = []
+            for rs in all_stairs_pre:
+                if int(round(rs.get("angle", 0))) % 360 != 0:
+                    continue  # front stairs only
+                sw = float(rs["stair"].get("width", 4))
+                ax_c = rs["world_anchor_x"]
+                ey = rs["world_anchor_y"]
+                _stair_openings.append((ey, ax_c - sw / 2.0, ax_c + sw / 2.0))
+    exp_edges = get_exposed_edges(params, stair_openings=_stair_openings)
     stair_x_min, stair_x_max = bbox["x"], bbox["x"] + bbox["w"]
     stair_y_min, stair_y_max = bbox["y"], bbox["y"] + bbox["d"]
     for rs in all_stairs_pre:

@@ -103,10 +103,11 @@ PARAM_SETS = {
         "projectInfo": {"name": "Render Review - Straight Stair",
                         "address": "Test Fixture", "applicant": "S85 Harness"},
     },
-    # 3b. S90 target fixture: notched deck (front cutout, back edge at y=8) with a
-    # location-derived front stair (NO explicit anchor) centered in the notch.
-    # Exercises P1.2: the stair must sit at the notch edge (y=8), not float at
-    # full depth (y=14) over the cutout void.
+    # 3b. Realistic notch-hosted stair: notch width == stair width (both 4 ft),
+    # so the stair fills the notch with no phantom void beside it. Front cutout
+    # {x:8,y:8,w:4,d:6} -> notch back at y=8; front stair centered (x=10) fills
+    # x[8,12]. Exercises P1.2 (anchor at notch back) and P1.4a (rail wraps the
+    # notch, opening at the stair).
     "notch_front_stair": {
         "width": 20, "depth": 14, "height": 4,
         "attachment": "ledger", "beamType": "dropped",
@@ -114,7 +115,7 @@ PARAM_SETS = {
         "railType": "fortress", "snowLoad": "moderate", "frostZone": "cold",
         "houseWidth": 40, "houseDepth": 30,
         "zones": [{"id": 1, "type": "cutout", "attachEdge": "front",
-                   "attachOffset": 6, "w": 8, "d": 6, "attachTo": 0}],
+                   "attachOffset": 8, "w": 4, "d": 6, "attachTo": 0}],
         "hasStairs": True, "stairLocation": "front", "stairWidth": 4,
         "numStringers": 3,
         "deckStairs": [{
