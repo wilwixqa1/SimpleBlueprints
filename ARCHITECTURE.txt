@@ -142,6 +142,42 @@ arch_d 36x24. Override per-render with SBP_SHEET env var or set_active().
 main.py wraps both PdfPages blocks in `with render_scale():` and creates every
 figure at figsize=sheet_size().
 
+SCALE FIT (S87, draw_plan.py + sheet.py): plan/framing panels no longer draw
+at a fixed extent with a hard-coded "1/4"" label (that label was FALSE -- true
+print was ~0.54 in/ft). sheet.py STANDARD_SCALES lists architect's-ruler
+scales largest-first; fit_scale(span_x,span_y,box_w,box_h,snap=True) returns
+the largest standard scale that fits a panel box, with its label. draw_plan.py
+default (SBP_FIT unset or "snap") picks that scale, CENTERS content by padding
+the axis limits, and prints the TRUE scale label. SBP_FIT=fill (raw fill, non-
+standard) and SBP_FIT=legacy (old fixed extent) are debug overrides. WATCH: a
+no-zone deck too big for 1/4" on the HALF panel can snap below PPRBD's 1/4"
+min; add a permit-checker rule if it ever appears (complex decks get full-width
+sheets so they're safe).
+
+THE DETECTOR SUITE (deterministic visual oracles -- the project's answer to
+vision-dependence; each catches a CLASS of defect on every push):
+  tests/pdf/legibility_check.py (S85): text-over-TEXT collisions. BLIND to
+    text-over-drawing (that gap hid the S86 loads-over-house bug).
+  tests/pdf/linework_check.py (S87): text-over-LINEWORK. Scans each text bbox
+    vs Line2D segments + visible patch edges in display space. DIFFERENTIAL:
+    linework_baseline.json grandfathers conventional on-line labels per
+    fixture/page; CI fails only ABOVE baseline. MUST pin fonts (DejaVu, set in
+    the module) + matplotlib version (3.10.8, pinned in CI) or counts drift
+    across machines. Record a new baseline with --record-baseline when the
+    layout legitimately changes.
+  tests/test_post_grade.py (S87): every pier ground point sits ON the drawn
+    grade (spies draw_grade_line + _draw_underground_footing, replays the
+    profile math). KNOWN table holds documented open bugs (B7/B8) with exact
+    expected fail counts; CI fails on ANY deviation up OR down.
+  tests/pdf/fuzz_configs.py (S87): seeded UI-shaped random configs vs crash
+    judge; failing seeds -> tests/pdf/fuzz_fixtures/ as permanent reproducers.
+  NEXT to build (S88, same pattern as linework_check): text-outside-panel,
+  text-clipped-at-edge, callout-into-neighbor-view.
+PATTERN for a new bbox oracle: monkeypatch the draw primitive OR hook
+PdfPages.savefig to scan live figures; work in DISPLAY space; exclude
+intentional cases (white-bbox whiteout text, leader-terminus grazes, tiny
+anti-alias grazes); use a differential baseline; PIN fonts + mpl version.
+
 COMPLEXITY BRANCH (main.py generate_blueprint_pdf): _complex = deck has >=1
 zone. The permit sheet sequence is data-driven:
   simple:  A-1 DECK PLAN & FRAMING (combined), A-2 elev, A-3 notes, A-4

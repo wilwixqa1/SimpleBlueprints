@@ -1,0 +1,106 @@
+S88 KICKOFF PROMPT -- paste the text between the lines as the first message
+of the next session. No file uploads needed; the repo carries all context.
+--------------------------------------------------------------------------------
+You are Claude, working with Will Wendt on SimpleBlueprints
+(simpleblueprints.xyz). This is session S88 of an ongoing engineering
+collaboration; the public repo is the single source of truth for all
+context. Do not rely on memory of prior sessions.
+
+READ THIS FIRST -- S88 RUNS DIFFERENTLY (the vision-first experiment):
+Claude's image VIEW tool reliably dies partway through each session and does
+not recover until a fresh session. The best current theory (MASTER_CONTEXT
+6.4) is that TOTAL SESSION CONTEXT SIZE triggers it -- not image count. Every
+past session spent its context on housekeeping (clone, read 4 files, suites,
+renders) BEFORE any visual review, so vision was usually already dead by the
+time it mattered. S88 TESTS THE FIX: do the vision-dependent looking FIRST,
+while context is still light.
+
+So the OPENING SEQUENCE is deliberately minimal:
+1. git clone https://github.com/wilwixqa1/SimpleBlueprints.git
+2. Install the PDF toolchain (pip install matplotlib==3.10.8 numpy==2.4.4
+   httpx python-multipart itsdangerous anthropic fastapi stripe
+   psycopg2-binary reportlab pypdf pillow --break-system-packages; ensure
+   poppler/pdftoppm). Pinned matplotlib/numpy matter -- the linework baseline
+   is version-sensitive.
+3. IMMEDIATELY render the sheets that need eyes and VIEW them, before reading
+   the long context files:
+     SBP_SHEET=arch_d python3 tests/pdf/render_review.py zones_stairs_lcr
+     SBP_SHEET=arch_d python3 tests/pdf/render_review.py basic_rect_ledger
+   View the plan, framing, elevation, notes, details, site, and checklist
+   pages you want to check (the S88 visual queue below). Tell me plainly, up
+   front, whether vision works and HOW MANY views you got before it dropped
+   (if it does) -- that result is data for the 6.4 theory; record it in the
+   S88 session record either way.
+4. THEN read STATUS.txt, then MASTER_CONTEXT.txt (pay attention to: 6.4 the
+   vision strategy, 8B loop doctrine, 9 rules incl. FULL-STACK CONSISTENCY,
+   10D the S87 record + KEY INSIGHT, 11B the TODO), then ARCHITECTURE.txt.
+5. Run suites: geometry 2764/0/0, structural 52, future products 50/0/1,
+   plus the S87 oracles: python3 tests/test_post_grade.py (0 unexpected),
+   SBP_SHEET=arch_d python3 tests/pdf/linework_check.py basic_rect_ledger
+   zones_stairs_lcr (OK vs baseline), SBP_SHEET=arch_d python3
+   tests/pdf/fuzz_configs.py 8 (0 failures).
+
+THE STRATEGIC FRAME (Will established this in S87 -- internalize it):
+The project's #1 throughput bottleneck is vision-dependence. The durable fix
+is NOT rationing vision -- it is NEEDING LESS of it by converting recurring
+eye-judgments into oracles. A vision check catches a problem ONCE, now; an
+oracle catches that whole CLASS on every push forever. S87 proved an entire
+productive session is possible with near-zero vision (11 pushes, 3 bugs
+found) BECAUSE the oracles + coordinate spies did the seeing. So when you hit
+any visual check, first ask: "is this a geometric FACT (automatable) or
+genuine AESTHETIC TASTE (needs eyes)?" Automate the facts; reserve eyes/ Will
+for taste. See 10D KEY INSIGHT for the three categories.
+
+SESSION SCOPE: work MASTER_CONTEXT 11B (the S88 QUEUE), roughly in order.
+Items are tagged [O]=oracle-only/no vision, [V]=needs vision. When vision is
+dead, do the [O] items -- they're also the highest-leverage ones:
+
+  1. [O] BUILD THREE MORE DETECTORS (top leverage -- drains the eyes-needed
+     queue). Same bbox-crossing shape and differential-baseline pattern as
+     tests/pdf/linework_check.py (PIN fonts + mpl version or it's non-
+     deterministic -- the S87 push 8-9 lesson):
+       - text-outside-panel   (text bbox beyond its axes/panel rect)
+       - text-clipped-at-edge (text bbox crossing sheet trim / panel border)
+       - callout-into-neighbor-view (view-A text over view-B extent -- the
+         elevation defect Will screenshotted back in S85)
+     These make the elevation annotation work self-verifying.
+  2. [O] FIX B9: numeric frostZone/snowLoad are silently mis-interpreted
+     (calc looks up by category STRING, defaults on a number; checker reads
+     the number as inches -> mismatch, no error). Normalize inputs in
+     calc_engine; gate on the 52 structural tests. Correctness landmine for
+     any non-UI caller incl. the AI helper -- do it early.
+  3. [O] FIX B7/B8 (the post-to-grade bugs test_post_grade.py caught): piers
+     float above bench pads on side slopes (B7) / punch below the grade line
+     on front-back slopes (B8). ASK WILL THE CONVENTION QUESTION FIRST (see
+     backlog B7/B8), then fix, then zero the KNOWN table in the same push.
+  4. [V] CONFIG MATRIX with an INTERIOR-ANCHORED stair -- carried since S86,
+     still never run. The anchorX/anchorY/angle path is exercised NOWHERE;
+     expect B3-class bugs (post through stair landing). Crash/oracle half
+     needs no vision; add a numeric post-in-landing check (post xy inside a
+     landing rect = math). Only the final "looks right" sample needs eyes.
+  5. [V] BROAD 36x24 VISUAL PASS: elevations, notes, details, site plan,
+     checklist + simple-deck versions -- lightly checked since the arch_d
+     flip. Do this in the vision-first window; batch it.
+  (full list, incl. elevation annotation, framing-schedule caveat, golden
+   files, and the PENDING WILL VISUAL GATES from S87, is in 11B.)
+
+TWO S87 VISUAL GATES STILL OPEN for Will (surface these early):
+  - Bless the 3-zone framing sheet by eye (0 collisions by oracle).
+  - Once Railway has deployed S87: live zone-cap poke -- add 3 zones, confirm
+    the "+" edge handles vanish and the hint text reads right; ask the AI
+    chat for a 4th zone and confirm it declines gracefully.
+
+STANDING RULES (full set in MASTER_CONTEXT 9): granular 'S88 push N:' commits
+direct to main once Will provides a PAT in chat (use it, no security
+lectures). FULL-STACK CONSISTENCY (S87): any rule/limit/behavior change gets
+traced through UI + reducer + AI helper (prompt AND actions) + backend policy
++ a shared constant before shipping; the AI must never promise what the UI
+refuses. Nothing examiner-facing ships without Will's visual approval. Bump
+the frontend cache buster ONLY if you touch frontend (currently s87a). Poll
+CI after each push (authenticate the GitHub API with the PAT from the remote
+URL; ~75-110s sleep catches the run). Update STATUS.txt + MASTER_CONTEXT.txt
++ ARCHITECTURE.txt at session end, verified against code.
+
+Begin with the minimal setup + vision check (steps 1-3), report what vision
+did, then the baseline report. Ask at most one focused question if blocked.
+--------------------------------------------------------------------------------

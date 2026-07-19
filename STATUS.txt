@@ -1,49 +1,65 @@
 SIMPLEBLUEPRINTS STATUS
-Session: S86 (closed clean; vision dropped ~10 views in, workaround used)
-Cache buster: s85b  (S86 touched NO frontend -> no bump needed)
+Session: S87 (closed clean; vision died after 1 view -- earliest yet; whole
+session done via oracles + coordinate spies + Will's pasted screenshots)
+Cache buster: s87a  (S87 push 4 bumped it for the zone-cap frontend changes)
 
-SHIPPED S86 (pushes 1-5, all CI green, HEAD 0675910):
-1. Sheet size centralized in backend/drawing/sheet.py + render_scale() shim
-   that scales fonts proportionally to sheet width. No-op at 14x8.5
-   (verified 24/24 pages pixel-identical). Sizes: letter/tabloid/arch_c/
-   arch_d; SBP_SHEET env or set_active() overrides.
-2. Framing member callouts reflowed OFF the geometry into leaders.
-3. COMPLEXITY BRANCH: decks with >=1 zone split DECK PLAN (A-1) and DECK
-   FRAMING (A-2) onto separate FULL-WIDTH sheets; rest renumbered A-3..A-7.
-   Sheet numbering data-driven in main.py; cover drawing-index + notes prose
-   follow it. Simple (no-zone) decks keep combined A-1, proven byte-identical.
-4. Cover drawing-index row height adapts to sheet count; DEFAULT SHEET SIZE
-   FLIPPED TO ARCH D 36x24 (matches the CO Springs reference sets).
-5. Zone-wing specs printed below each wing; beam group right-anchored tight
-   to the drawing's left edge; DECK LOADS rebuilt as a titled table (green
-   header, aligned cols, ruled total) anchored lower-left.
+SHIPPED S87 (pushes 1-11, all CI green):
+1.  DECK LOADS table moved to a reserved band BELOW the house block on framing
+    sheets (was printing ON TOP of the house -- Will caught it by eye; the old
+    legibility oracle was blind to text-over-drawing). Scale bar moved below it.
+2.  FILL THE SHEET (Option A, Will's pick): plan/framing panels print at the
+    LARGEST STANDARD architect's scale that fits, content centered, and the
+    scale label now states the TRUE printed scale. The old "1/4\"" label was
+    FALSE (panels printed ~0.54 in/ft) -- a scale ruler would mis-measure every
+    deck. 16x12 now prints true 1/2"=1'-0".
+3.  Framing collision fixes: footing dims joined the corner dim string; house
+    labels re-anchored to house bottom; stair DOWN slid off the OPENING dim.
+    3-zone torture case 10 collisions -> 0.
+4.  3-ZONE CAP, full stack: one shared constant (window.MAX_ADD_ZONES/atZoneCap),
+    reducer guard, "+" handles hidden at cap, hint text, AI action guard + AI
+    PROMPT told the limit, backend stays permissive for old saved projects.
+5.  STANDING RULE added: FULL-STACK CONSISTENCY (MASTER_CONTEXT 9 + ARCHITECTURE).
+6.  THREE PERMANENT ORACLES, all in CI:
+    - text-over-linework detector (tests/pdf/linework_check.py) -- fixes the
+      blind spot that hid #1; differential baseline, fonts+mpl pinned.
+    - post-to-grade test (tests/test_post_grade.py) -- every pier sits ON the
+      drawn grade; FOUND B7 + B8 on day one.
+    - fuzz loop (tests/pdf/fuzz_configs.py) -- 60/60 configs clean; surfaced B9.
 
-STATE: complex set zones_stairs_lcr = 0 text collisions across all 8 sheets.
-Simple set = 0 collisions, byte-identical to pre-S86. Will approved plan +
-framing + cover visually (via pasted screenshots; my view tool was down).
+STATE: all suites green (2764/0 geometry, 52/0 structural, 50/0/1 future
+products, post-grade 0 unexpected, linework at baseline, fuzz smoke clean).
 
-TOP PRIORITIES (S87) -- see MASTER_CONTEXT 11B for the full list:
-1. FILL THE SHEET: small decks read small on 36x24; bump scale (3/8") for
-   small decks and/or vertically center the drawing. Touches all sheets;
-   needs working vision. TASTE CALL -> prototype + Will's pick.
-2. BROAD 36x24 VISUAL PASS on the other sheets (elevations, notes, details,
-   site, checklist, simple-deck versions) -- only plan/framing/cover were
-   closely verified in S86.
-3. MANY-ZONE scaling: verify zones_four_stairs_four; per-wing callouts may
-   need a consolidated framing schedule at 4 zones.
+THREE BUGS FOUND BY THE NEW ORACLES (none blind-fixed; see MASTER_CONTEXT
+backlog B7/B8/B9): B7 piers float above bench pads on side slopes (+2.1ft);
+B8 piers punch below the grade line on front-back slopes (-1.05ft) -- both need
+a drawing-CONVENTION CALL from Will; B9 numeric frost/snow inputs silently
+mis-interpreted (calc-vs-checker mismatch, no error) -- fixable directly.
 
-JURISDICTION (corrected S86): target is COLORADO SPRINGS (partner Billy
-operates there), NOT Brookhaven/Islip. The reference sets are CO Springs /
-PPRBD. is_colorado_springs() + append_cos_attachment() already exist; the
-PPRBD attachment is the official letter-size form appended as-is.
+THE BIG STRATEGIC POINT (Will, S87): the project's throughput bottleneck is
+vision-dependence. The fix is NOT rationing vision -- it's NEEDING it less by
+turning eye-judgments into oracles (each one then checks that whole class on
+every push forever). See MASTER_CONTEXT 10D KEY INSIGHT + rewritten 6.4.
 
-PENDING ON WILL: real test address -> Will gave two REAL CO Springs
-addresses: Ilaria (4739 Sweetgrass Lane, Colorado Springs CO 80922; the wood-
-deck reference set) and Welborn (steel-deck project; street address TBD from
-Will). Contractor pricing ($49/$99?); confirm mixed page sizes (36x24 drawings
-+ letter PPRBD form) are fine for PPRBD submission.
-NOTE: Will is KEEPING the classic PAT (his decision -- do NOT re-raise
-revoking it). A genuine real-address run needs the live Realie/Overpass APIs
-(keys live on Railway), so it happens on simpleblueprints.xyz or a keyed env,
-not the bare sandbox -- drive the live site headless (6.2) against these.
-BLOCKERS: none. NEXT SESSION: paste the prompt from S87_KICKOFF.txt.
+TOP PRIORITIES (S88) -- full list in MASTER_CONTEXT 11B:
+1. [no vision] BUILD 3 MORE DETECTORS: text-outside-panel, text-clipped-at-edge,
+   callout-into-neighbor-view. Same shape as linework_check.py. Highest leverage.
+2. [no vision] FIX B9 (calc_engine input normalization).
+3. [no vision] FIX B7/B8 -- but get Will's convention call FIRST.
+4. [vision] CONFIG MATRIX with an INTERIOR-ANCHORED stair (B3 probe, still
+   never run). Crash/oracle half needs no vision; only the final look does.
+NOTE the S88 VISION-FIRST EXPERIMENT (6.4): if doing visual work, render+view
+the needed sheets FIRST, before heavy context accumulates. Untried; report result.
+
+JURISDICTION: COLORADO SPRINGS / PPRBD (partner Billy operates there). Reference
+sets = All Things Architecture (CO Springs). is_colorado_springs() +
+append_cos_attachment() exist; PPRBD attachment is the letter-size official form.
+
+PENDING ON WILL: (a) bless the 3-zone framing sheet by eye + live zone-cap poke
+(see MASTER_CONTEXT "PENDING WILL VISUAL GATES"); (b) B7/B8 convention call;
+(c) Welborn street address (Ilaria = 4739 Sweetgrass Lane, CO Springs 80922 is
+in hand); (d) contractor pricing ($49/$99?); (e) confirm PPRBD accepts a mixed-
+size set (36x24 drawings + letter form). Will is KEEPING the classic PAT -- do
+NOT re-raise revoking it. Real-address runs need live Realie/Overpass keys
+(Railway), so run on simpleblueprints.xyz / headless live site, not bare sandbox.
+
+BLOCKERS: none. NEXT SESSION: paste the prompt from S88_KICKOFF.txt.

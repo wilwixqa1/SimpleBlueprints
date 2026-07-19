@@ -211,28 +211,62 @@ and VISION. Three capabilities every session should know:
   session branches ever; granular pushes ARE the session history.
   git remote set-url origin https://<PAT>@github.com/wilwixqa1/SimpleBlueprints.git
 
-6.4 VISION OUTAGE MODE (learned S85 -- the failure and the workarounds)
-- Claude's image VIEWING can die mid-session in very long conversations
-  while image GENERATION keeps working. S85 evidence: worked for 40+ views
-  (32-page review, before/afters, grade styles), then every view returned
-  empty for the rest of the session, including trivial synthetic test
-  images. Likely cause: context-budget cutoff of tool-result image payloads
-  as the conversation grows. It does NOT recover within the session
-  (context only grows); a FRESH session restores it.
-- FIRST MOVE each session: render one PNG and view it. If vision is dead,
-  know it before planning visual work.
-- Workarounds when vision is down, in order of strength:
+6.4 VISION OUTAGE MODE + STRATEGY (S85 first observed; corrected S87)
+- THE FAILURE: Claude's image VIEWING dies mid-session while image
+  GENERATION keeps working (PDFs render, pdftoppm makes PNGs fine; the
+  view tool just returns EMPTY). Does NOT recover within a session; a
+  FRESH session restores it.
+- CROSS-SESSION PATTERN (this is the important correction): it is NOT a
+  fixed image count and NOT per-image depletion. S85 = worked for 40+
+  views then died. S86 = ~10 then died. S87 = died after just ONE view.
+  What predicts death is total SESSION CONTEXT SIZE, not images viewed:
+  S87's context was already heavy (clone + 4 context files + suites +
+  multiple renders) BEFORE the single view. Best current model: once
+  cumulative context crosses some threshold, tool-result image payloads
+  stop coming back. THIS IS THEORY, NOT CONFIRMED FACT -- Claude cannot
+  introspect the real mechanism. Do NOT write it as certain, and do not
+  let a wrong theory ossify; it just happens to fit 3 sessions.
+- THE STRATEGIC CONSEQUENCE (drives how S88+ should be run): if the driver
+  is context size, the fix is TWO-PRONGED and neither prong needs the
+  theory to be exactly right:
+  1. VISION-FIRST SESSION ORDERING (untried experiment -- DO THIS S88).
+     Every session so far front-loaded HOUSEKEEPING (clone, read 4 files,
+     run suites, render) and only THEN did visual review -- by which point
+     context is already heavy and vision is often dead. FLIP IT: the very
+     first actions of a vision-needing session are (i) clone, (ii) render
+     ONLY the handful of sheets that need eyes, (iii) VIEW THEM -- before
+     reading MASTER_CONTEXT, before suites, before anything else. If the
+     theory holds, this buys several good reviews instead of zero. Cheap
+     to try; high payoff; falsifiable.
+  2. NEED VISION LESS by building oracles (the durable fix -- see the S87
+     KEY INSIGHT in 10D). Convert every recurring EYE-judgment that is
+     really a geometric fact into a detector. Done so far: legibility
+     (text-over-text, S85), text-over-linework (S87 p6), post-on-grade
+     (S87 p10). Next to build: text-outside-panel, text-clipped-at-edge,
+     callout-into-neighbor-view. Each one permanently removes a reason to
+     need eyes.
+  3. SMALLER IMAGES (minor, independent lever): review PNGs are 5400x3600.
+     Rendering at 96 DPI instead of 150, or CROPPING to the region under
+     review instead of viewing a whole 36x24 sheet, is cheaper per image =
+     more views before the threshold. Low cost, worth doing.
+- FIRST MOVE each session that needs vision: render one PNG and view it,
+  BEFORE heavy context accumulates (see ordering above). If dead, know it
+  before planning visual work.
+- WORKAROUNDS when vision is down, in order of strength:
   (a) Will screenshots into chat -- CHAT-UPLOADED IMAGES STILL REACH CLAUDE
-      (different pathway than tool results). This drove S85's entire
-      legibility round.
-  (b) Deterministic oracles: legibility_check.py, instrumented coordinate
-      dumps (6.7), DOM extraction from the live site (6.5), suite runs.
-  (c) NEVER claim visual verification without actually seeing. Say plainly
-      which pushes lack eyes (S85 pushes 9-10 shipped oracle-only; visual
-      re-verification is S86 task #1).
-- Budget vision spend: every image viewed consumes context. Front-load the
-  must-see reviews; use crops of the relevant region instead of full sheets
-  when possible; prefer numeric checks where they are equivalent.
+      (different pathway than tool results; works even with view dead).
+      Drove S85's legibility round and S87's push-1 catch.
+  (b) COORDINATE SPIES: monkeypatch the draw primitive (ax.text,
+      draw_grade_line, _draw_underground_footing, add_patch) to record
+      exact positions, then assert geometric facts numerically. This
+      carried nearly all of S87 blind -- collision fixes, the loads-table
+      clearance, the post-to-grade test. It is SLOWER than a glance but
+      SUFFICIENT for anything decomposable into coordinates.
+  (c) Other oracles: legibility_check.py, linework_check.py, DOM
+      extraction from the live site (6.5), suite runs.
+  (d) NEVER claim visual verification without actually seeing. State
+      plainly which pushes lack eyes and queue them for Will's screenshot
+      or the next vision-up window.
 
 6.5 HEADLESS BROWSER: HARD-WON S85 PATTERNS
 - The sandbox KILLS background processes between tool invocations. Run
@@ -693,59 +727,216 @@ tightened next doc pass: front-load must-see views; avoid pouring big PDFs into
 a render-heavy session; prefer crops.
 
 --------------------------------------------------------------------------------
-11B. CURRENT TODO (verified against code at S86 close -- supersedes the S86 QUEUE)
+10D. S87 SESSION RECORD (fill-the-sheet + zone cap + 3 permanent oracles; 11
+     pushes, all CI green)
+--------------------------------------------------------------------------------
+THEME: shipped the S87 queue's visual item #1, added a full-stack product rule,
+and -- most importantly -- built THREE permanent oracles that between them found
+THREE real bugs (B7/B8/B9) on their first day. Vision died after ONE view early
+in the session (earliest yet), so nearly all of this was done blind, judged by
+oracles + coordinate spies + Will's chat-pasted screenshots. That it was
+possible AT ALL is the headline: the oracle-first way of working carried an
+entire productive session with functionally no vision.
+
+  push 1 (f7d05d1): DECK LOADS table given a RESERVED BAND below the house block
+          on framing sheets (was printing ON TOP of the house + framing drawing
+          -- Will caught it by eye from a screenshot; the legibility oracle was
+          BLIND to it because it only sees text-over-text, not text-over-drawing.
+          This blind spot is exactly what push 6 fixes). Scale bar moved beneath
+          the band. Verified by coordinate spy: table top -6.7ft, house bottom
+          -6.0ft, clear. Also shipped INERT scale-fit machinery (fit_scale() +
+          STANDARD_SCALES registry in sheet.py; SBP_FIT env gate) used by p2.
+  push 2 (079b4bc): FILL THE SHEET = Option A (Will's pick). Plan/framing panels
+          now print at the LARGEST STANDARD ARCHITECTURAL SCALE that fits the
+          panel (snap default), content centered, scale label states the TRUE
+          printed scale. THE OLD 1/4" LABEL WAS FALSE -- panels printed ~0.54
+          in/ft while claiming 1/4"; a contractor's scale ruler would mis-measure
+          every deck. Now 16x12 prints true 1/2"=1'-0"; a 12x10 snaps to 1/2"
+          (bigger); a 28x14 correctly falls to 1/4". SBP_FIT=fill|legacy remain
+          debug overrides. WATCH: a no-zone deck too big for 1/4" on the HALF
+          panel could snap below PPRBD's 1/4" minimum -- rare (complex decks get
+          full-width sheets); flagged in-code, add a permit-checker rule if seen.
+  push 3 (1c841b1): FRAMING COLLISION FIXES. Footing-spacing dims joined the
+          corner dims as one continuous string (the deep 2nd row interleaved with
+          house labels); house labels re-anchored to house BOTTOM (dims anchor
+          top -- can no longer interleave), single-line "EXISTING RESIDENCE"
+          fallback for shallow bands; the stair DOWN label slides 72% downhill
+          along its run off the deck-edge OPENING dim. 3-zone torture case: 10
+          genuine collisions (S85) -> 0.
+  push 4 (898d4e0): 3-ZONE CAP, FULL STACK (the model application of the rule in
+          section 9). window.MAX_ADD_ZONES + window.atZoneCap in zoneUtils.js =
+          SINGLE SOURCE OF TRUTH. addZone reducer guard = mechanical choke point.
+          Edge "+" handles hidden at cap (planView). Hint text explains the
+          limit. AI zoneAdd action guarded AND the backend AI prompt (main.py)
+          told the limit so the assistant EXPLAINS rather than silently failing a
+          promise. Backend rendering stays PERMISSIVE (old 4-zone saved projects
+          still render -- cap is creation-time). Cache buster s85b -> s87a.
+          5-assertion unit check; cutouts correctly don't count.
+  push 5 (e435067): STANDING RULE -- FULL-STACK CONSISTENCY (section 9).
+  push 6-9 (linework): TEXT-OVER-LINEWORK DETECTOR (tests/pdf/linework_check.py)
+          -- the fix for the oracle blind spot that hid the push-1 bug. Render-
+          time scan: every text bbox vs every Line2D segment + visible patch
+          edge, DISPLAY space. Calibrated exclusions (E1 white-bbox text =
+          intentional whiteout; E2 leader-terminus graze; E3 tiny anti-alias
+          graze). DIFFERENTIAL: per-fixture/page BASELINE (linework_baseline.json)
+          grandfathers the ~25-48 conventional on-line labels each sheet legit-
+          imately has; CI fails only ABOVE baseline. PROVEN: re-introduced the
+          S86 bug in-memory -> +14 plan-page flags incl. 'EXISTING SINGLE'/
+          'FAMILY RESIDENCE' over patch edges. push 7-9 = CI hardening: runner
+          needs reportlab/pypdf/pillow (7); pinned matplotlib BUNDLED DejaVu
+          fonts inside the scan (8 -- runner system fonts measured boxes
+          differently, +/-2 drift + rewrapped notes); pinned matplotlib==3.10.8
+          numpy==2.4.4 in CI + stamped baseline with mpl version (9). LESSON:
+          any pixel/bbox baseline oracle MUST pin fonts + lib versions or it's
+          non-deterministic across machines.
+  push 10 (post-grade): POST-TO-GRADE CONSISTENCY TEST (tests/test_post_grade.py)
+          -- S85 hand-check codified permanently + in CI. Spies draw_grade_line
+          and _draw_underground_footing, replays grade profile math (linear/
+          bench-pad/continuous), asserts every pier ground point sits ON the
+          drawn grade within 1e-3 ft. FOUND 2 REAL BUGS (B7/B8). They need eyes +
+          a convention call, so recorded as a KNOWN table with EXACT expected
+          failure counts; CI fails on ANY deviation (new = regression; FEWER = a
+          fix landed, tighten the table same push).
+  push 11 (fuzz): FUZZ LOOP (tests/pdf/fuzz_configs.py). Seeded, UI-shaped random
+          configs through the full pipeline; crash judge (pipeline runs permit_
+          checker internally -> a raising checker IS a crash). Failing seeds dump
+          to tests/pdf/fuzz_fixtures/ as permanent reproducers. 60/60 clean; only
+          flags = 4 LEGITIMATE IRC "engineer required" errors on 17-20ft-deep
+          configs (correct, graceful). CI smoke = 8 seeds. Fixing the generator
+          surfaced B9.
+
+BUG FOUND THIS SESSION not in the elevation backlog:
+  B9 NUMERIC frostZone/snowLoad silently mis-interpreted. Wizard sends CATEGORY
+     STRINGS ("warm"/"moderate"/"cold"/"severe", "light"/"moderate"/"heavy").
+     calc_engine FROST_DEPTHS/SNOW_LOADS look up by string, default to 30"/
+     unknown on a NUMBER; the permit checker reads the number as required-inches
+     -> guaranteed calc-vs-checker mismatch, NO error raised. UI users unaffected
+     (UI always sends strings); exposure = any NON-UI caller (API, future code,
+     AI helper). FIX: input normalization in calc_engine (accept int inches OR
+     category, canonicalize once), gated by the 52 structural tests. NOT done --
+     fresh-session task. My fuzz gen + post-grade test hit this first because I
+     wrote numerics; both now corrected. The signal: an easy caller mistake the
+     system swallows silently.
+
+VISION THIS SESSION: worked for exactly ONE view (opening A-1), then every view
+returned empty -- incl. trivial synthetic images, retested to session end. See
+rewritten 6.4. The one-view-then-dead pattern + S85 (40+ then dead) + S86 (~10
+then dead) is consistent with a CONTEXT-SIZE threshold, not per-image depletion
+and not a fixed count (today's context was already heavy from clone + 4 files +
+suites + renders before the first view). THEORY, not confirmed -- don't write it
+as certain.
+
+KEY INSIGHT (Will's framing -- drives the S88 plan): the throughput bottleneck
+for this whole project is vision-dependence. The answer is NOT "use vision more
+sparingly so it lasts" -- it's "NEED vision less" by converting eye-judgments
+into oracles. Three categories of visual judgment:
+  (a) TRULY REQUIRES VISION (stays manual, but RARE): holistic aesthetic/taste
+      -- "does the sheet look balanced/professional as a whole," "does it read
+      like the reference sets." Not decomposable into numeric checks. Batch for
+      Will or a lean vision-first window.
+  (b) AUTOMATABLE, wrongly still using eyes (the expensive middle -- DRAIN THIS):
+      any text-vs-geometry fact. text-over-linework (DONE p6), post-on-grade
+      (DONE p10). STILL TO BUILD, named in S85+today: text-outside-panel, text-
+      clipped-at-panel-edge, callout-spills-into-neighbor-view. All bbox-crossing
+      facts = same shape as the linework detector.
+  (c) VISION MERELY SPEEDS UP (convenience, not a gate): debugging "where is it
+      wrong." Coordinate spies substitute (slower but sufficient -- proven all
+      session).
+WHY IT COMPOUNDS: a vision check is a ONE-TIME look at problems that exist NOW.
+An oracle catches that whole CLASS on EVERY push forever, incl. regressions
+nobody would re-screenshot. Every detector built permanently shrinks the eyes-
+needed queue -- for Claude AND Will. The queue that makes building feel slow is
+mostly (b) masquerading as (a).
+
+--------------------------------------------------------------------------------
+11B. CURRENT TODO (verified against code at S87 close -- supersedes the S87 QUEUE)
 --------------------------------------------------------------------------------
 DONE in S86: sheet-size parameter + arch_d default; proportional font scaling;
-complex split-sheet layout + data-driven numbering; framing callouts to
-leaders; wing specs below wings; DECK LOADS table; simple path byte-identical;
-cover-index fit. All on main, CI green (HEAD 0675910).
+complex split-sheet layout; framing callouts to leaders; wing specs below wings;
+DECK LOADS table; simple path byte-identical; cover-index fit.
+DONE in S87 (all on main, CI green): FILL THE SHEET (true standard scales +
+honest labels, Option A); DECK LOADS off the house block; framing collisions
+10->0; 3-zone cap full-stack; FULL-STACK CONSISTENCY standing rule; three
+permanent oracles (text-over-linework, post-to-grade, fuzz), all in CI.
 
-S87 QUEUE (in order; items 1-3 are visual -> need working vision):
-  1. FILL THE SHEET (top design lever). Small decks read small on 36x24. Bump
-     scale (e.g. 3/8") for small decks and/or vertically center the drawing in
-     the axes. Touches every draw_* sheet. TASTE CALL -> prototype 2-3 options,
-     Will picks; do not loop.
-  2. BROAD 36x24 VISUAL PASS on sheets only lightly checked in S86: elevations
-     (A-3 complex), general notes, structural details, site plan, checklist,
-     and the simple-deck versions of every sheet. Confirm the arch_d flip +
-     font scaling broke no sheet's layout. (S86 closely verified only plan,
-     framing, and cover.)
-  3. MANY-ZONE SCALING: render zones_four_stairs_four as a complex set. The S86
-     per-wing "spec below wing" + leadered beam group likely won't scale past
-     ~2 zones; if 4 zones crowd, move zone member specs into a consolidated
-     FRAMING SCHEDULE table (reference convention) instead of per-wing leaders.
-  4. ELEVATION ANNOTATION (old S86 item 2, NOT done -- we pivoted to layout):
-     reserved right-margin text column + leaders; detector checks text-outside-
-     panel and text-clipped-at-axes. May be lighter now that elevations get a
-     full sheet at 36x24 -- verify the dense case first before building.
-  5. CONFIG MATRIX BATTLE TEST: {1,2 zones} x stairs {main / one zone / both} +
-     >=1 INTERIOR-ANCHORED stair (anchorX/anchorY/angle path still exercised
-     NOWHERE -- run FIRST, highest info value, expect B3-class bugs). Judges per
-     config: L1 crash, 143 permit checks, legibility <=2, one visual sample.
-  6. FUZZ LOOP (not built): random valid configs -> crash + consistency oracles;
-     failing seeds saved as fixtures.
-  7. GOLDEN-FILE PDF regression (not built): 6-8 canonical configs, pixel diff,
-     bless-on-approve.
-  8. TEXT-OVER-LINEWORK detector (oracle blind spot hit in S86): would let Claude
-     self-verify callout placement without Will's screenshots. Optional but high
-     value for vision-down sessions.
-  9. Sub-legible "tiny" text pass: ~15 lines render <4pt across the set (small
-     dimension/notes text). Minor legibility polish.
- 10. Post-to-grade consistency check as a PERMANENT test (S85 ad hoc).
- 11. Frontend elevationView.js bench-grade parity (PDF-first satisfied; frontend
-     still draws old grade treatment). Bump cache buster when frontend changes.
- 12. B1 remainder: full variable-height zone elevation rendering (crash fixed
-     S85, not visually verified).
- 13. Grade style D 'planted' promotion (Will: "C for now, D later").
- 14. Chat-address safety net on step 0 (smaller need post S85 push 7).
+HOW TO RUN S88 (procedural -- read before picking a task):
+  * VISION-FIRST EXPERIMENT (see 6.4). If S88 does ANY visual work, the FIRST
+    actions are: clone, render only the sheets needing eyes, VIEW them -- BEFORE
+    reading this file in full, before suites. Test whether early-context vision
+    survives longer. Report the result in the S88 record either way.
+  * The [O] items below need NO vision and should proceed regardless of vision
+    state. Prefer them when vision is dead.
 
-PDF BUG BACKLOG (unchanged from S85 unless noted):
+S88 QUEUE (ordered by leverage; V=needs vision, O=oracle-only/no vision):
+  1. [O] BUILD THE NEXT DETECTORS (highest strategic leverage -- drains the
+     eyes-needed queue; see 10D KEY INSIGHT (b)). Three, all the same bbox-
+     crossing shape as linework_check.py, all differential-baseline'd the same
+     way (PIN fonts + mpl version -- the push 8-9 lesson):
+       - text-outside-panel: text bbox beyond its axes/panel rectangle.
+       - text-clipped-at-edge: text bbox crossing the sheet trim / panel border.
+       - callout-into-neighbor-view: view-A text overlapping view-B extent (the
+         elevation defect Will screenshotted in S85).
+     Makes the elevation annotation work (item 6) self-verifying; cuts S88+
+     visual burden materially.
+  2. [O] FIX B9 (numeric frost/snow silent mismatch -- see 10D + backlog). Small
+     calc_engine input normalization; gate on the 52 structural tests. Early --
+     it's a correctness landmine for any non-UI caller incl. the AI helper.
+  3. [O] FIX B7/B8 (post-to-grade bugs the new test caught -- see backlog).
+     Needs a DRAWING-CONVENTION CALL from Will first, THEN fix, THEN zero the
+     KNOWN table in test_post_grade.py in the same push.
+  4. [V] CONFIG MATRIX BATTLE TEST (carried from S87, still not run): {1,2 zones}
+     x stairs {main/one zone/both} + >=1 INTERIOR-ANCHORED stair (anchorX/anchorY/
+     angle path exercised NOWHERE -- highest info value, expect B3-class bugs).
+     Judges: crash, permit checks, legibility<=2, linework baseline, post-grade.
+     The crash/oracle half needs NO vision; only the final "looks right" sample
+     does. Add a numeric post-in-landing check for B3 (post xy inside any stair-
+     landing rect = math, no eyes).
+  5. [V] BROAD 36x24 VISUAL PASS on sheets lightly checked since the arch_d flip:
+     elevations, notes, details, site plan, checklist + simple-deck versions. Do
+     in the vision-first window; batch it -- mostly category-(a) aesthetic.
+  6. [V/O] ELEVATION ANNOTATION column (reserved right-margin text + leaders).
+     Build item-1 detectors FIRST so it's self-verifying; may be lighter now
+     elevations get a full 36x24 sheet -- check the dense case before building.
+  7. [O] MANY-ZONE FRAMING SCHEDULE -- ONLY if the config matrix shows per-wing
+     specs crowd past ~2 zones. NOTE: S87 found the 3-zone case is CLEAN (0
+     collisions) with per-wing specs, so the schedule table may NOT be needed.
+     This CORRECTS the earlier S86/S87 assumption that 4 zones required a
+     schedule. Confirm with the matrix before building.
+  8. [O] GOLDEN-FILE PDF regression (not built): 6-8 canonical configs, pixel
+     diff, bless-on-approve. PIN fonts + mpl version or it's non-deterministic.
+  9. [V] Sub-legible "tiny" text pass: ~11-16 lines render <4pt per sheet. Minor.
+ 10. [V] Frontend elevationView.js bench-grade parity (PDF-first satisfied;
+     frontend still draws the old grade treatment). Cache buster on change.
+ 11. B1 remainder: variable-height zone elevation rendering (crash fixed S85,
+     not visually verified).
+ 12. Grade style D 'planted' promotion (Will: "C for now, D later").
+
+PENDING WILL VISUAL GATES (from S87 -- machine-verified, not yet eyes):
+  - 3-zone framing sheet after the collision fixes (0 collisions by oracle;
+    file was PUSH3_3zone_A2_framing_0collisions.png in outputs). Bless by eye.
+  - LIVE zone-cap poke once Railway deploys: add 3 zones -> "+" handles vanish,
+    hint reads right; ask AI chat for a 4th -> it declines gracefully.
+
+PDF BUG BACKLOG:
   B2 site plan shows only one stair -- OPEN (zones_stairs_lcr site plan repro).
-  B3 deck post through stair landing -- OPEN; interior-anchor matrix (item 5) is
-     the probe.
+  B3 deck post through stair landing -- OPEN; config matrix (item 4) is the
+     probe; add a numeric post-in-landing check there.
   B4 L-shape floating/clipping boards -- OPEN.
   B5 stair arrow direction -- likely fixed S85 push 9; needs visual confirm.
   B6 platform stair landing rails -- OPEN.
+  B7 [S87 post-grade] bench-pad vs pier anchoring: S/N elevations, lateral (l2r)
+     slope, "bench" style -- piers inside the house-cut span anchor to the
+     natural slope and float above the drawn bench pad (worst +2.1 ft). In
+     test_post_grade.py KNOWN (bench slope15_l2r, bench slope15_freestanding, 6
+     each). NEEDS Will's convention call (pad follows piers, or piers step to
+     pad?), then fix + zero the KNOWN entries.
+  B8 [S87 post-grade] depth-plane mismatch: front-to-back slopes draw the S/N
+     grade line at deck-CENTER elevation while piers ground at their true front-
+     plane elevation -> piers punch -1.05 ft below the drawn line. In KNOWN
+     (bench slope10_f2b, continuous slope10_f2b, 6 each). NEEDS decision: draw
+     S/N grade at pier plane, or project piers to center? Then fix + zero KNOWN.
+  B9 [S87 fuzz] numeric frostZone/snowLoad silently mis-interpreted -- see 10D.
+     Fix = calc_engine input normalization. S88 item 2.
 
 DECISIONS / PENDING ON WILL:
   - Sheet size: RESOLVED (arch_d 36x24 default).
