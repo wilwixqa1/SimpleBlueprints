@@ -46,6 +46,7 @@ from drawing.calc_engine import calculate_structure  # noqa: E402
 from drawing.stair_utils import (  # noqa: E402
     get_stair_placement, compute_stair_geometry,
 )
+from drawing.zone_utils import get_cutout_rects  # noqa: E402  (S89 B10)
 
 FIX_DIR = HERE / "matrix_fixtures"
 
@@ -103,18 +104,39 @@ def _landing_rects_deck(calc, params):
 
 
 def _main_post_xy(calc, params):
-    """Main-deck post (x,y) centers in deck coords. x = post_positions along
-    width; y = the beam line (depth-1.5 for ledger). Freestanding decks get a
-    house-side row at y~0 too, but landings extend OUTWARD (+Y), so only the
-    outer beam row can plausibly collide -- we include both to be safe."""
-    xs = calc.get("post_positions", [])
-    depth = float(calc.get("depth", params.get("depth", 12)))
-    attachment = params.get("attachment", "ledger")
-    beam_y = depth - 1.5
-    pts = [(x, beam_y) for x in xs]
-    if attachment != "ledger":
-        pts += [(x, 1.5) for x in xs]  # inner beam row on freestanding
+    """Main-deck post (x,y) centers in deck coords. S89: use the true beam
+    layout positions (a notched deck steps the beam, so posts are NOT all at
+    depth-1.5); fall back to the flat beam line only when no layout is present.
+    Freestanding decks also get a house-side row at y~1.5; landings extend
+    OUTWARD (+Y) so mainly the outer row can collide, but include both."""
+    layout = calc.get("beam_layout") or {}
+    if layout.get("post_xy"):
+        pts = [(float(x), float(y)) for (x, y) in layout["post_xy"]]
+    else:
+        xs = calc.get("post_positions", [])
+        depth = float(calc.get("depth", params.get("depth", 12)))
+        pts = [(x, depth - 1.5) for x in xs]
+    if params.get("attachment", "ledger") != "ledger":
+        pts += [(x, 1.5) for (x, _y) in pts]  # inner beam row on freestanding
     return pts
+
+
+def check_post_in_cutout(calc, params):
+    """S89 (B10): every main-deck support post must sit over real deck, never
+    inside a cutout/notch. Returns the list of (post_xy, cutout_rect) hits;
+    empty = correct."""
+    layout = calc.get("beam_layout") or {}
+    post_xy = layout.get("post_xy") or [(px, None) for px in calc.get("post_positions", [])]
+    cuts = get_cutout_rects(params)
+    hits = []
+    for (px, py) in post_xy:
+        for cr in cuts:
+            r = cr["rect"]
+            in_x = r["x"] <= px <= r["x"] + r["w"]
+            in_y = (py is None) or (r["y"] <= py <= r["y"] + r["d"])
+            if in_x and in_y:
+                hits.append(((round(px, 2), py), r))
+    return hits
 
 
 def check_post_in_landing(calc, params):
@@ -203,20 +225,75 @@ def build_matrix():
     p["stairLandingDepth"] = 5
     configs.append(("m_0zone_B3_probe_deep_interior", p))
 
+    # === S89 (B10): NOTCHED / CUTOUT decks -- with and without stairs. ===
+    # These are the configs the notch fix must hold on: no post in a cutout,
+    # beam follows the real edge, full pipeline renders. The stair variants are
+    # the realistic "notch cut FOR the stairs" case.
+    def _notch(edge, w, d, off=0, **extra):
+        z = {"id": 1, "type": "cutout", "attachEdge": edge, "attachOffset": off,
+             "w": w, "d": d, "attachTo": 0}
+        base = _base(width=20, depth=14)
+        base["zones"] = [z]
+        base.update(extra)
+        return base
+
+    configs.append(("m_notch_front_deep_bare", _notch("front", 8, 6, off=6)))
+    configs.append(("m_notch_front_shallow_bare", _notch("front", 8, 1, off=6)))
+    configs.append(("m_notch_frontleft_bare", _notch("front-left", 6, 5)))
+    configs.append(("m_notch_frontright_bare", _notch("front-right", 6, 5)))
+    configs.append(("m_notch_wide_deep_bare",
+                    {**_base(width=24, depth=14),
+                     "zones": [{"id": 1, "type": "cutout", "attachEdge": "front",
+                                "attachOffset": 7, "w": 10, "d": 8, "attachTo": 0}]}))
+    # notch cut FOR the stairs: stair descends in the notch (shallow edge)
+    configs.append(("m_notch_stair_in_notch",
+                    _notch("front", 8, 6, off=6, hasStairs=True, stairAnchorX=10,
+                           stairAnchorY=8, stairAngle=0, stairTemplate="straight",
+                           stairWidth=4, numStringers=3)))
+    configs.append(("m_notch_stair_in_notch_widelanding",
+                    _notch("front", 8, 6, off=6, hasStairs=True, stairAnchorX=10,
+                           stairAnchorY=8, stairAngle=0, stairTemplate="wideLanding",
+                           stairLandingDepth=4, stairWidth=5, numStringers=4)))
+    # notch PLUS a normal front stair elsewhere (independent features)
+    configs.append(("m_notch_plus_front_stair",
+                    _notch("front", 6, 5, off=2, hasStairs=True,
+                           stairLocation="front", stairWidth=4, numStringers=3)))
+    # notch on a FREESTANDING deck (exercises diagonal bracing + notch together)
+    fs = _notch("front", 8, 6, off=6)
+    fs["attachment"] = "freestanding"
+    configs.append(("m_notch_freestanding", fs))
+    # notch + an add-zone (L-shape wing) to stress composite outline
+    configs.append(("m_notch_plus_zone",
+                    _notch("front-right", 5, 5,
+                           zones=None) if False else {
+                        **_base(width=20, depth=14),
+                        "zones": [
+                            {"id": 1, "type": "cutout", "attachEdge": "front-left",
+                             "attachOffset": 0, "w": 5, "d": 5, "attachTo": 0},
+                            {"id": 2, "type": "add", "attachEdge": "right",
+                             "attachOffset": 0, "w": 6, "d": 8},
+                        ]}))
+
     return configs
 
 
 KNOWN_POST_IN_LANDING = {
-    # Configs where an interior-anchored stair's LANDING deliberately overlaps
-    # the beam-post row -- a real bug class (B10) needing a design call from
-    # Will (clamp the anchor so a landing can't cross the beam line, or
-    # relocate the overlapped post). Recorded with the exact expected hit count
-    # so CI fails on ANY DEVIATION: a NEW collision = regression; FEWER here =
-    # a fix landed, tighten this table same push. A realistic interior anchor
-    # (exit within ~1 ft of the outer edge) produces ZERO hits (proven
-    # in-session), so only the deep probe is grandfathered.
+    # SYNTHETIC probe: a stair forced to a deep INTERIOR anchor (angle set
+    # directly, bypassing the UI's edge-snap) so its landing overlaps the beam-
+    # post row on a FULL-RECTANGLE deck. This is NOT the B10 cutout bug -- the
+    # post here sits over real deck (there IS deck above it); it's a landing/
+    # post draw overlap on a state the real UI resists (interior stairs snap to
+    # an edge within 1 ft, else fall back to a front edge). Kept as a crash +
+    # detector fixture. Recorded with its exact hit count so CI fails on ANY
+    # deviation. Real B10 (a post over an empty cutout) is guarded separately by
+    # KNOWN_POST_IN_CUTOUT below (expected 0 everywhere after the S89 fix).
     "m_0zone_B3_probe_deep_interior": 1,
 }
+
+# S89 (B10): expected post-in-CUTOUT hits. The fix guarantees ZERO for every
+# config -- a post over an empty notch is always a real structural bug, so any
+# nonzero here is a regression (there is no grandfathered case).
+KNOWN_POST_IN_CUTOUT = {}
 
 
 def run_matrix(verbose=False):
@@ -225,12 +302,12 @@ def run_matrix(verbose=False):
     results = []
     failures = []
     for name, params in build_matrix():
-        entry = {"name": name, "crash": None, "post_in_landing": []}
-        # --- POST-IN-LANDING (independent of render; pure math) ---
+        entry = {"name": name, "crash": None, "post_in_landing": [], "post_in_cutout": []}
+        # --- POST-IN-LANDING + POST-IN-CUTOUT (independent of render; math) ---
         try:
             calc = calculate_structure(dict(params))
-            hits = check_post_in_landing(calc, dict(params))
-            entry["post_in_landing"] = hits
+            entry["post_in_landing"] = check_post_in_landing(calc, dict(params))
+            entry["post_in_cutout"] = check_post_in_cutout(calc, dict(params))
         except Exception as e:  # calc itself blowing up is a crash too
             entry["crash"] = f"calc: {e}"
         # --- CRASH JUDGE (full pipeline incl. permit checker) ---
@@ -245,11 +322,16 @@ def run_matrix(verbose=False):
         n_hits = len(entry["post_in_landing"])
         entry["known"] = known
         entry["hits"] = n_hits
-        # A config passes if it doesn't crash AND its post-in-landing hit count
-        # exactly matches its KNOWN count. More = regression; fewer = a fix
-        # landed (tighten the KNOWN table in the same push).
+        # post-in-cutout: expected count (0 unless grandfathered, which is none)
+        cut_known = KNOWN_POST_IN_CUTOUT.get(name, 0)
+        n_cut = len(entry["post_in_cutout"])
+        entry["cut_known"] = cut_known
+        entry["cut_hits"] = n_cut
+        # A config passes if it doesn't crash AND both the landing and cutout
+        # hit counts exactly match their KNOWN counts. More = regression.
         pil_ok = (n_hits == known)
-        ok = entry["crash"] is None and pil_ok
+        pic_ok = (n_cut == cut_known)
+        ok = entry["crash"] is None and pil_ok and pic_ok
         if not ok:
             failures.append(entry)
         results.append(entry)
@@ -265,6 +347,8 @@ def run_matrix(verbose=False):
                 print(f"      crash: {entry['crash']}")
             for post, land in entry["post_in_landing"]:
                 print(f"      post {post} inside landing {land}")
+            for post, rect in entry["post_in_cutout"]:
+                print(f"      post {post} inside CUTOUT {rect}  <-- B10 regression")
     return results, failures
 
 
