@@ -439,12 +439,18 @@ def draw_plan_and_framing(fig, params, calc, spec=None, panels=None):
         # House
         ax.add_patch(patches.Rectangle((0, -house_depth), W, house_depth,
                      fc=BRAND["house"], ec=BRAND["dark"], lw=1.5))
-        # S85: label sits in the lower 2/3 of the house band -- the upper
-        # band doubles as beam post-spacing dim space (was colliding)
-        ax.text(W / 2, -house_depth * 0.62 + 0.5, 'EXISTING SINGLE',
-                ha='center', fontsize=6.5, color=BRAND["mute"])
-        ax.text(W / 2, -house_depth * 0.62 - 0.8, 'FAMILY RESIDENCE',
-                ha='center', fontsize=6.5, color=BRAND["mute"])
+        # S87: labels anchor to the house BOTTOM; dim rows anchor to the house
+        # top -- the two can no longer interleave (the old proportional -0.62
+        # placement threaded between dim rows at house_depth ~7). Shallow house
+        # bands get a single-line fallback.
+        if house_depth >= 6:
+            ax.text(W / 2, -house_depth + 2.0, 'EXISTING SINGLE',
+                    ha='center', fontsize=6.5, color=BRAND["mute"])
+            ax.text(W / 2, -house_depth + 0.8, 'FAMILY RESIDENCE',
+                    ha='center', fontsize=6.5, color=BRAND["mute"])
+        else:
+            ax.text(W / 2, -house_depth + 0.9, 'EXISTING RESIDENCE',
+                    ha='center', fontsize=6.5, color=BRAND["mute"])
 
         # Deck body
         if is_framing:
@@ -731,13 +737,15 @@ def draw_plan_and_framing(fig, params, calc, spec=None, panels=None):
                         draw_dimension_h(ax, px, W, dim_y_base, format_feet_inches(W - px),
                                          offset=-1.8, color='#555', fontsize=4.5)
 
-            # Footing center-to-center spacing (below post dims)
+            # Footing center-to-center spacing -- S87: same row as the corner
+            # dims (one continuous professional dim string: edge-post-...-edge).
+            # The old deeper row (offset -3.5) interleaved with the house labels.
             if len(pp) > 1:
                 for i in range(len(pp) - 1):
                     spacing = pp[i + 1] - pp[i]
                     draw_dimension_h(ax, pp[i], pp[i + 1], dim_y_base,
                                      format_feet_inches(spacing),
-                                     offset=-3.5, color='#777', fontsize=4)
+                                     offset=-1.8, color='#777', fontsize=4)
 
             # Beam setback dimension (right side, vertical)
             draw_dimension_v(ax, W, D - beam_setback, D,
@@ -860,7 +868,19 @@ def draw_plan_and_framing(fig, params, calc, spec=None, panels=None):
                     a_from, a_to = _tp(cx_r, ry + 0.3), _tp(cx_r, ry + rh - 0.3)
                 ax.annotate('', xy=a_to, xytext=a_from,
                             arrowprops=dict(arrowstyle='->', color=BRAND["dark"], lw=0.8))
-                dn_cx, dn_cy = _tp(cx_r, cy_r)
+                # S87: DOWN sits 72% downhill along the run (was run center) --
+                # short runs put the center on top of the deck-edge OPENING dim.
+                if ddir == "+y":
+                    dn_lx, dn_ly = cx_r, ry + rh * 0.72
+                elif ddir == "-y":
+                    dn_lx, dn_ly = cx_r, ry + rh * 0.28
+                elif ddir == "+x":
+                    dn_lx, dn_ly = rx + rw * 0.72, cy_r
+                elif ddir == "-x":
+                    dn_lx, dn_ly = rx + rw * 0.28, cy_r
+                else:
+                    dn_lx, dn_ly = cx_r, cy_r
+                dn_cx, dn_cy = _tp(dn_lx, dn_ly)
                 ax.text(dn_cx, dn_cy, 'DOWN', ha='center', va='center', fontsize=4,
                         fontweight='bold', color=BRAND["dark"],
                         bbox=dict(boxstyle='square,pad=0.15', fc='white', ec='none', alpha=0.9))
