@@ -105,6 +105,11 @@ TESTS AND CI (S84)
 ================================================================================
 STANDING RULES (binding)
 ================================================================================
+- FULL-STACK CONSISTENCY (S87): trace every rule/limit/behavior change through
+  all layers it touches -- UI (visible, explained states, no silent no-ops),
+  reducer choke point, AI helper prompt + action handlers, backend policy
+  (reject vs permissive for saved data), one shared constant. The AI must
+  never promise what the UI refuses. Model: the 3-zone cap (S87 push 4).
 - lotVertices set LAST in u() sequences.
 - Never confirm visual fixes from text extraction alone.
 - Fix PDF before frontend. Ship one change, verify, continue.

@@ -422,6 +422,17 @@ S85 LESSONS LEARNED (encode these):
 ================================================================================
 
 CODE:
+- FULL-STACK CONSISTENCY (Will's standing rule, S87): any change to a rule,
+  limit, or behavior must be traced through EVERY layer it touches before
+  shipping -- UI affordances (buttons/handles visibly disabled with a short
+  explanation, never silent no-ops), the state reducer (the mechanical choke
+  point), the AI helper (BOTH its backend prompt knowledge and its frontend
+  action handlers -- the AI must never promise what the UI refuses), backend
+  validation/rendering (decide explicitly: reject vs stay permissive for
+  existing saved data), and shared constants (one source of truth, e.g.
+  window.MAX_ADD_ZONES, so layers cannot drift apart). Work the touchpoint
+  list explicitly in-session before writing code. Model: the S87 3-zone cap
+  (push 4).
 - Never confirm a visual fix from text extraction alone. Rasterize and view
   (6.1), and for examiner-facing output ask Will to verify visually.
 - Anti-anchoring: when Will pushes back twice, STOP coding, list all
