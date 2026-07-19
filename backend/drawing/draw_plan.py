@@ -388,12 +388,39 @@ def draw_plan_and_framing(fig, params, calc, spec=None, panels=None):
     margin_x_right = max(eff_w * 0.15, 4)  # tighter for title block strip, but enough for callouts
     margin_y = max(eff_d * 0.30, 6)  # S57: enough for title and stair extents
     house_depth = min(D * 0.5, 8)
+    # S87: framing sheets get a reserved bottom band for the DECK LOADS table
+    # (it previously printed on top of the house block -- Will's screenshot).
+    # Applied to every panel on the sheet so scale bars stay aligned.
+    _loads_band = 5.2 if "framing" in panels else 0.0
+
+    # S87 prototype: SBP_FIT=snap enforces the largest STANDARD architectural
+    # scale that fits the panel and centers the content (honest scale label);
+    # SBP_FIT=fill stretches to the raw fill ratio (max paper, no ruler scale).
+    # Unset = legacy behavior, byte-identical to S86.
+    import os as _os
+    _fit_mode = _os.environ.get('SBP_FIT', '')
 
     for ax, title, is_framing in _panel_iter:
-        ax.set_xlim(min(bbox["x"], stair_x_min) - margin_x_left,
-                   max(bbox["x"] + bbox["w"], stair_x_max) + margin_x_right)
-        ax.set_ylim(-house_depth - margin_y * 0.4,
-                   max(bbox["y"] + bbox["d"], stair_y_max) + margin_y)
+        _nx0 = min(bbox["x"], stair_x_min) - margin_x_left
+        _nx1 = max(bbox["x"] + bbox["w"], stair_x_max) + margin_x_right
+        _ny0 = -house_depth - _loads_band - margin_y * 0.4
+        _ny1 = max(bbox["y"] + bbox["d"], stair_y_max) + margin_y
+        _scale_txt = 'SCALE: 1/4" = 1' + "'" + '-0"'
+        if _fit_mode in ('snap', 'fill'):
+            from .sheet import fit_scale
+            _fig = ax.figure
+            _pos = ax.get_position()
+            _bw = _pos.width * _fig.get_figwidth()
+            _bh = _pos.height * _fig.get_figheight()
+            _sc, _lbl = fit_scale(_nx1 - _nx0, _ny1 - _ny0, _bw, _bh,
+                                  snap=(_fit_mode == 'snap'))
+            _padx = max((_bw / _sc - (_nx1 - _nx0)) / 2, 0)
+            _pady = max((_bh / _sc - (_ny1 - _ny0)) / 2, 0)
+            _nx0 -= _padx; _nx1 += _padx
+            _ny0 -= _pady; _ny1 += _pady
+            _scale_txt = ('SCALE: ' + _lbl) if _lbl else 'SCALE: SEE GRAPHIC BAR'
+        ax.set_xlim(_nx0, _nx1)
+        ax.set_ylim(_ny0, _ny1)
         ax.set_aspect('equal')
         ax.axis('off')
         ax.set_facecolor('white')
@@ -403,7 +430,6 @@ def draw_plan_and_framing(fig, params, calc, spec=None, panels=None):
         title_y = _view_top + margin_y - 0.5
         ax.text(bbox["x"], title_y, title, fontsize=10, fontweight='bold',
                 fontfamily='monospace', color=BRAND["dark"])
-        _scale_txt = 'SCALE: 1/4" = 1' + "'" + '-0"'
         ax.text(bbox["x"], title_y - 1.2, _scale_txt, fontsize=5.5,
                 fontfamily='monospace', color=BRAND["mute"])
 
@@ -629,10 +655,10 @@ def draw_plan_and_framing(fig, params, calc, spec=None, panels=None):
             _row_h = 0.52
             _lb_w = 6.6
             _lb_h = _hdr_h + len(_rows) * _row_h + 0.25
-            # S86: lower-left, anchored to the drawing's left edge and sitting
-            # just above the scale bar in the open band beneath the framing.
+            # S87: table sits in its own reserved band BELOW the house block
+            # (was printing on top of the house -- see _loads_band above).
             _lb_x = bbox["x"]
-            _lb_y = -house_depth - margin_y * 0.35 + 1.0
+            _lb_y = -house_depth - 0.7 - _lb_h
             # body + header bar
             ax.add_patch(patches.Rectangle((_lb_x, _lb_y), _lb_w, _lb_h,
                          fc='white', ec=BRAND["dark"], lw=0.6, zorder=5))
@@ -1003,7 +1029,7 @@ def draw_plan_and_framing(fig, params, calc, spec=None, panels=None):
         draw_north_arrow(ax, min(bbox["x"], stair_x_min) - margin_x_left + 2,
                          _view_top + margin_y - 2.5,
                          angle=params.get("northAngle", 0) or 0)
-        draw_scale_bar(ax, bbox["x"], -house_depth - margin_y * 0.35)
+        draw_scale_bar(ax, bbox["x"], -house_depth - _loads_band - margin_y * 0.35)
 
 # ============================================================
 # TEST: Generate 3 configs

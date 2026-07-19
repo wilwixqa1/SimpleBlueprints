@@ -53,6 +53,36 @@ if _ACTIVE not in SHEET_SIZES:
     _ACTIVE = "letter"
 
 
+# S87: standard architect's-ruler scales (in/ft, label), largest first.
+# Professional sets print at one of these and STATE it; anything else is
+# unmeasurable with a scale ruler. PPRBD floor for deck plans is 1/4".
+STANDARD_SCALES = [
+    (3.0,    '3" = 1\'-0"'),
+    (1.5,    '1-1/2" = 1\'-0"'),
+    (1.0,    '1" = 1\'-0"'),
+    (0.75,   '3/4" = 1\'-0"'),
+    (0.5,    '1/2" = 1\'-0"'),
+    (0.375,  '3/8" = 1\'-0"'),
+    (0.25,   '1/4" = 1\'-0"'),
+    (0.1875, '3/16" = 1\'-0"'),
+    (0.125,  '1/8" = 1\'-0"'),
+]
+
+
+def fit_scale(span_x_ft, span_y_ft, box_w_in, box_h_in, snap=True):
+    """Largest scale (in/ft) at which a span_x x span_y ft drawing fits a
+    box_w x box_h inch axes box. snap=True returns the largest STANDARD
+    architectural scale that fits (with its label); snap=False returns the
+    raw fill ratio (label None)."""
+    raw = min(box_w_in / max(span_x_ft, 1e-9), box_h_in / max(span_y_ft, 1e-9))
+    if not snap:
+        return raw, None
+    for s, label in STANDARD_SCALES:
+        if s <= raw + 1e-9:
+            return s, label
+    return raw, None
+
+
 def set_active(name):
     """Select the active sheet size by registry key. Returns (W, H)."""
     global _ACTIVE
