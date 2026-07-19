@@ -1,0 +1,13 @@
+{
+ "_meta": {
+  "matplotlib": "3.10.8",
+  "note": "regenerate baseline (--record-baseline) whenever the pinned matplotlib version changes"
+ },
+ "basic_rect_ledger": {
+  "basic_rect_ledger:p3|G5-outside-panel": 13
+ },
+ "zones_stairs_lcr": {
+  "zones_stairs_lcr:p4|G5-outside-panel": 14,
+  "zones_stairs_lcr:p4|G7-into-neighbor": 2
+ }
+}
