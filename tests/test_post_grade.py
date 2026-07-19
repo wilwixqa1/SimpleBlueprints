@@ -33,7 +33,7 @@ TOL_FT = 1e-3
 BASE = {
     "width": 16, "depth": 12, "height": 4, "attachment": "ledger",
     "joistDir": "width", "joistSpacing": 16, "beamType": "dropped",
-    "deckingType": "composite", "frostZone": 36, "snowLoad": 40,
+    "deckingType": "composite", "frostZone": "cold", "snowLoad": "moderate",
     "zones": [], "deckStairs": [], "hasStairs": False,
 }
 

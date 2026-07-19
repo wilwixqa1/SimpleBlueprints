@@ -47,3 +47,6 @@ jobs:
         run: |
           pip install httpx python-multipart itsdangerous anthropic fastapi stripe psycopg2-binary reportlab pypdf pillow
           SBP_SHEET=arch_d python3 tests/pdf/linework_check.py basic_rect_ledger zones_stairs_lcr
+
+      - name: Fuzz smoke (S87, 8 seeded configs, crash judge)
+        run: SBP_SHEET=arch_d python3 tests/pdf/fuzz_configs.py 8
