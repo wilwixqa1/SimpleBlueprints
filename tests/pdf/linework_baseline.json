@@ -1,4 +1,8 @@
 {
+ "_meta": {
+  "matplotlib": "3.10.8",
+  "note": "regenerate baseline (--record-baseline) whenever the pinned matplotlib version changes"
+ },
  "basic_rect_ledger": {
   "basic_rect_ledger:p1": 1,
   "basic_rect_ledger:p2": 6,

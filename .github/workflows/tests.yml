@@ -29,7 +29,7 @@ jobs:
           node-version: "22"
 
       - name: Install Python deps (calc engine imports matplotlib via drawing pkg)
-        run: pip install matplotlib numpy
+        run: pip install matplotlib==3.10.8 numpy==2.4.4  # pinned: linework baseline is version-sensitive (S87)
 
       - name: Geometry invariants (site plan math, 2700+ checks)
         run: node tests/geometry/lotGeometry.test.js
