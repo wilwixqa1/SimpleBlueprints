@@ -1,9 +1,47 @@
 SIMPLEBLUEPRINTS STATUS
-REPORTING NOTE (Will's request, S88): Will is the non-technical owner. In any
-summary Will reads, LEAD with plain-English "what this does for the product and
-why it matters"; keep internal codes (G5, B9, etc.) as secondary labels only,
-never as the headline. Do an end-of-session retrospective (section 9 rule).
-Session: S88 (closed clean; VISION-FIRST EXPERIMENT SUCCEEDED -- 17/17 views,
+REPORTING NOTE (Will, S88): non-technical owner. LEAD summaries with plain-English
+"what this does + why"; codes (G5/B9/B10) are secondary labels only. End every
+session with a retrospective (section 9 rule).
+
+============================ SESSION S89 (CLOSED) ============================
+Full handoff + detailed TODO: docs/S89_HANDOFF.md  (READ IT FIRST in S90)
+Pushed to main: commits acf20e0..21fc7e0 (S89 push 1-5). Backend-only.
+Cache buster: s87a (UNCHANGED -- no production frontend touched).
+
+SHIPPED S89 (B10 notched-deck framing, all CI green, on main):
+- NEW backend/drawing/beam_layout.py: cutout-aware beam+posts follow the real
+  notched edge with automatic IRC quarter-span cantilever (shallow notch absorbed,
+  deep notch steps the beam). No post left over the void. Engine decision, NO UI.
+- calc_engine (wood) wired to it; NO-ZONE PERMIT SET BYTE-IDENTICAL (hash
+  57aaf8095e046067). draw_plan: notched outline + joists, stepped beam, doubled
+  header; plan bracing -> dashed bay-marker + "SEE ELEVATIONS" keynote (X on elevs).
+- config_matrix 8->18 configs (10 notch/stair) + check_post_in_cutout judge; fixed
+  _main_post_xy (was hardcoding post y=depth-1.5). test_beam_layout + test_notch_posts new.
+
+VERIFIED: flat byte-identical, geometry proven, matrix 18/0, geometry 2764/0, all
+suites green.  NOT verified: VISUAL eyeball of notched framing -- vision tool went
+down mid-session. => S90 P0 = visual confirm (see handoff).
+
+TOP TODO S90 (see docs/S89_HANDOFF.md for full list):
+  P0 visual-confirm notched framing + stair-in-notch (vision back up).
+  P1 STAIRS (north star = edge-stairs first): (a) make get_stair_placement
+     cutout-aware (front stair anchors at full depth, floats on notched decks);
+     (b) unify site-plan stair (draw_site_plan ~L516-550 uses its own crude
+     stairLocation-only, full-deck-depth, tread=10" routine) to resolve_all_stairs
+     + real anchor; (c) add "DN" arrow/label on plan.
+  P2 site-plan true notched outline; steel calc wiring; engine.js frontend mirror.
+  P3 global cantilever enforcement (needs Will decision re shallow decks); cant. label.
+  Carryover: B7/B8 grade line; G8/G9/G10; golden-file PDF regression; B11; calibration.
+
+KEY LEARNINGS (do not rehash): interior stairs SNAP to edges / never notch the deck
+(notch = cutout tool only; S88 "interior stair" was a red herring). Auto-cantilever
+= engine calc, no UI. Pro convention: stairs descend from EDGE (norm); bracing X on
+elevations, dashed+keynote on plan. Flat hash 57aaf8095e046067 sacred. Vision can
+drop mid-session -> verify via geometry Path.contains_point + flat hash + matrix,
+NOT pixel color (AA-confounded). Test realistic full configs early (the notch+stair
+sweep caught the _main_post_xy bug). PAT: Will provides in-session, NEVER store it.
+=============================================================================
+
 zero drops. Strongest data yet for the context-size theory: front-loading the
 visual review before heavy context bought a full visual pass with no outage.)
 Cache buster: s87a  (unchanged -- S88 touched no production frontend)
