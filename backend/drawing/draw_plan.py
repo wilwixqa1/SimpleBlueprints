@@ -20,6 +20,7 @@ from .calc_engine import calculate_structure
 from .stair_utils import (get_stair_placement, get_stair_exit_side, resolve_all_stairs,
                           transform_stair_point, transform_stair_rect)
 from .zone_utils import get_additive_rects, get_cutout_rects, get_exposed_edges, get_bounding_box, _chamfered_vertices
+from .beam_layout import notched_deck_polygon, notch_headers  # S89: notch-aware outline
 
 # ============================================================
 # DRAWING CONSTANTS
@@ -455,8 +456,16 @@ def draw_plan_and_framing(fig, params, calc, spec=None, panels=None):
         # Deck body
         if is_framing:
             # S61: Zone 0 framing area (chamfer-aware)
+            # S89: if a front cutout notches the deck, the outline (and the
+            # joist clip, which keys off it) follows the real notched shape so
+            # there is no deck or joists drawn over the void. No cutout -> the
+            # exact chamfer rectangle as before (flat decks unchanged).
             _main_corners = params.get("mainCorners")
-            _z0_verts = _chamfered_vertices(0, 0, W, D, _main_corners)
+            _notch_verts = notched_deck_polygon(W, D, cut_rects)
+            if _notch_verts is not None:
+                _z0_verts = _notch_verts
+            else:
+                _z0_verts = _chamfered_vertices(0, 0, W, D, _main_corners)
             _z0_clip = Polygon(_z0_verts, closed=True,
                          fc='#fcfaf5', ec=BRAND["dark"], lw=2)
             ax.add_patch(_z0_clip)
@@ -563,6 +572,27 @@ def draw_plan_and_framing(fig, params, calc, spec=None, panels=None):
                     ln, = ax.plot([jx, jx], [0.1, beam_y], color=BRAND["light"], lw=0.4)
                     ln.set_clip_path(_z0_clip)
 
+            # S89: doubled header + doubled joists framing each front notch,
+            # per standard practice (rim/header closes the opening, joists
+            # double at the inside corners of the L-junction).
+            _headers = notch_headers(W, D, cut_rects)
+            for _hdr in _headers:
+                _hx0, _hx1, _hy = _hdr["x0"], _hdr["x1"], _hdr["y"]
+                # doubled header along the bottom of the notch (two close lines)
+                for _dy in (-0.06, -0.20):
+                    ax.plot([_hx0, _hx1], [_hy + _dy, _hy + _dy],
+                            color=BRAND["dark"], lw=1.5, solid_capstyle='butt')
+                # doubled joist at each inside corner (heavier vertical)
+                for _hx in (_hx0, _hx1):
+                    ax.plot([_hx, _hx], [0.1, _hy], color=BRAND["dark"], lw=1.4)
+                # label
+                ax.text((_hx0 + _hx1) / 2, _hy - 0.55, 'DBL HEADER',
+                        ha='center', va='top', fontsize=3.0,
+                        fontfamily='monospace', color=BRAND["dark"],
+                        fontstyle='italic',
+                        bbox=dict(boxstyle='square,pad=0.15', fc='white',
+                                  ec='none', alpha=0.85))
+
             # S58: Joist hanger symbols at ledger connections
             if attachment == "ledger":
                 _hh = 0.35  # hanger symbol height
@@ -595,23 +625,50 @@ def draw_plan_and_framing(fig, params, calc, spec=None, panels=None):
                     ha='center', fontsize=6, fontfamily='monospace', color='#666')
 
             # Beam (clipped to chamfer polygon)
-            _bl1, = ax.plot([1, W - 1], [beam_y, beam_y], color=BRAND["beam"], lw=4)
-            _bl2, = ax.plot([1, W - 1], [beam_y - 0.12, beam_y - 0.12], color=BRAND["beam"], lw=0.5)
-            _bl3, = ax.plot([1, W - 1], [beam_y + 0.12, beam_y + 0.12], color=BRAND["beam"], lw=0.5)
-            _bl1.set_clip_path(_z0_clip)
-            _bl2.set_clip_path(_z0_clip)
-            _bl3.set_clip_path(_z0_clip)
+            # S89: cutout-aware. Flat decks draw the legacy single beam
+            # (byte-identical); notched decks draw stepped segments that follow
+            # the real edge, joined by vertical connectors at each step.
+            _bseg = calc.get("beam_layout") or {}
+            if not _bseg.get("stepped"):
+                _bl1, = ax.plot([1, W - 1], [beam_y, beam_y], color=BRAND["beam"], lw=4)
+                _bl2, = ax.plot([1, W - 1], [beam_y - 0.12, beam_y - 0.12], color=BRAND["beam"], lw=0.5)
+                _bl3, = ax.plot([1, W - 1], [beam_y + 0.12, beam_y + 0.12], color=BRAND["beam"], lw=0.5)
+                _bl1.set_clip_path(_z0_clip)
+                _bl2.set_clip_path(_z0_clip)
+                _bl3.set_clip_path(_z0_clip)
+            else:
+                _segs = _bseg["segments"]
+                for _sg in _segs:
+                    _sx0 = max(0.5, _sg["x0"]); _sx1 = min(W - 0.5, _sg["x1"])
+                    _sby = _sg["beam_y"]
+                    for _dy, _lw in ((0.0, 4), (-0.12, 0.5), (0.12, 0.5)):
+                        _bl, = ax.plot([_sx0, _sx1], [_sby + _dy, _sby + _dy],
+                                       color=BRAND["beam"], lw=_lw)
+                        _bl.set_clip_path(_z0_clip)
+                for _i in range(len(_segs) - 1):
+                    _xb = _segs[_i]["x1"]
+                    _ya, _yb = _segs[_i]["beam_y"], _segs[_i + 1]["beam_y"]
+                    _cn, = ax.plot([_xb, _xb], [min(_ya, _yb), max(_ya, _yb)],
+                                   color=BRAND["beam"], lw=4)
+                    _cn.set_clip_path(_z0_clip)
             # S86: beam label -> left margin on a leader (was on the beam)
             _margin_callout(ax, 1.5, beam_y, _mLx, _cy_beam,
                             _wrap(spec["labels"]["beam"]),
                             ha='right', color='#8B6914', weight='bold')
 
             # Posts + piers (clipped to chamfer polygon)
-            for px in calc["post_positions"]:
-                _pp, = ax.plot(px, beam_y, 'o', ms=5, color=BRAND["post"],
+            # S89: each post at its true (x, beam_y) from the layout, so a
+            # notched deck has none over empty space. Flat decks: unchanged.
+            if not _bseg.get("stepped"):
+                _post_iter = [(px, beam_y) for px in calc["post_positions"]]
+            else:
+                _post_iter = [(px, _sg["beam_y"])
+                              for _sg in _bseg["segments"] for px in _sg["posts"]]
+            for _px, _py in _post_iter:
+                _pp, = ax.plot(_px, _py, 'o', ms=5, color=BRAND["post"],
                         mec=BRAND["dark"], mew=0.8)
                 _pp.set_clip_path(_z0_clip)
-                pier = plt.Circle((px, beam_y), calc["footing_diam"] / 24,
+                pier = plt.Circle((_px, _py), calc["footing_diam"] / 24,
                                   fill=False, ec=BRAND["dark"], lw=0.5, ls='--')
                 ax.add_patch(pier)
                 pier.set_clip_path(_z0_clip)
@@ -700,22 +757,25 @@ def draw_plan_and_framing(fig, params, calc, spec=None, panels=None):
 
 
 
-            # S68: FREESTANDING DIAGONAL BRACING on framing plan
+            # S68/S89: FREESTANDING DIAGONAL BRACING on framing plan.
+            # Per structural-drawing convention the brace itself is shown on the
+            # ELEVATIONS (crossing lines); on the plan the braced bay is denoted
+            # by a light dashed line between posts + a keynote -- not a bold X
+            # in the deck plane (which reads like a beam/joist).
             if attachment != "ledger" and len(calc["post_positions"]) >= 2:
                 _pp_brace = calc["post_positions"]
                 for _bi in range(len(_pp_brace) - 1):
                     _bx1 = _pp_brace[_bi]
                     _bx2 = _pp_brace[_bi + 1]
-                    # X-brace between adjacent posts (plan view shows as diagonals)
-                    ax.plot([_bx1, _bx2], [beam_y, beam_y - 3],
-                            color=BRAND["dark"], lw=0.6, ls='--', dashes=(3, 2))
-                    ax.plot([_bx1, _bx2], [beam_y - 3, beam_y],
-                            color=BRAND["dark"], lw=0.6, ls='--', dashes=(3, 2))
-                # Label
-                ax.text(W / 2, beam_y - 4.5,
-                        '2x4 PT DIAGONAL BRACING (TYP.) - SEE ELEVATIONS',
+                    # single thin dashed diagonal along the beam = braced bay marker
+                    ax.plot([_bx1, _bx2], [beam_y, beam_y - 0.6],
+                            color=BRAND["mute"], lw=0.4, ls='--', dashes=(2, 2),
+                            zorder=3)
+                # Keynote (references the elevations, where the X is drawn)
+                ax.text(W / 2, beam_y - 1.4,
+                        'DIAGONAL BRACING (TYP.) - SEE ELEVATIONS',
                         ha='center', fontsize=3.0, fontfamily='sans-serif',
-                        color=BRAND["dark"], fontstyle='italic',
+                        color=BRAND["mute"], fontstyle='italic',
                         bbox=dict(boxstyle='square,pad=0.15', fc='white',
                                   ec=BRAND["border"], lw=0.3, alpha=0.9))
 
