@@ -1,4 +1,8 @@
 SIMPLEBLUEPRINTS STATUS
+REPORTING NOTE (Will's request, S88): Will is the non-technical owner. In any
+summary Will reads, LEAD with plain-English "what this does for the product and
+why it matters"; keep internal codes (G5, B9, etc.) as secondary labels only,
+never as the headline. Do an end-of-session retrospective (section 9 rule).
 Session: S88 (closed clean; VISION-FIRST EXPERIMENT SUCCEEDED -- 17/17 views,
 zero drops. Strongest data yet for the context-size theory: front-loading the
 visual review before heavy context bought a full visual pass with no outage.)

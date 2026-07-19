@@ -495,6 +495,36 @@ WORKFLOW:
 - Direct feedback over flattery. Honest technical assessment. When
   something isn't done, say it isn't done.
 - No emdashes in prose Will will share externally.
+- END-OF-SESSION RETROSPECTIVE (Will's standing request, S88): before writing
+  the session record, do a short, HONEST "how could this session have gone
+  better?" review and record the answer in the S{n} record. Keep it broad but
+  answer specific questions, not a vague reflection (vague ones get rubber-
+  stamped; specific ones get answered). At minimum ask:
+    1. LIVE-SITE CHECK timing: should we have run a live-site DOM/browser check
+       (tests/live/, see 6.5 + the WHEN-TO-USE list below) and didn't? Or did
+       we set up the browser/Postgres and it turned out unneeded? (This is the
+       running example because S88 stood the stack up somewhat speculatively.)
+    2. WASTED SETUP: did we install/build/configure anything that turned out
+       unnecessary, or in an order that cost effort?
+    3. BETTER SEQUENCING: was there an ordering or approach that would have
+       caught a problem sooner or saved a round-trip? (e.g. vision-first
+       ordering, S88 -- proven; or "should have asked Will the convention call
+       before building the fix, not after".)
+  Add new example questions over time as patterns emerge. The point is to LEARN
+  across sessions instead of repeating the same misjudgment cold each time.
+- WHEN TO RUN A LIVE-SITE CHECK (tests/live/, headless browser + local Postgres
+  against a running server -- see 6.5 for setup). DO use it when:
+    * we changed something a USER clicks or sees and it's deployed, and we want
+      to confirm it truly behaves in a real browser (not just in the code) --
+      e.g. the S87 zone-cap limit, verified live S88.
+    * we want a REAL-ADDRESS end-to-end run (type a real address -> real lot
+      pulled -> blueprint generated); needs live Realie/Overpass keys, so run
+      against simpleblueprints.xyz or a keyed env, cannot be faked in the sandbox.
+    * code LOOKS right but we suspect the live site misbehaves -- the only way
+      to know is to run it for real.
+  DON'T bother for: PDF bug fixes, drawing/aesthetic changes, or building the
+  bbox detectors -- none of that touches the live site; keep those lightweight.
+  It's occasional, NOT every-session. (S88 lesson: don't stand it up speculatively.)
 
 ================================================================================
 10. S84 SESSION RECORD (what changed this session)
@@ -933,6 +963,27 @@ METHOD NOTE (reinforces 8B + the S87 KEY INSIGHT): three of the four pushes were
 oracle-building or oracle-run, and TWO real bugs (B9 earlier via fuzz, B10 now)
 were found by machines, not eyes. The eye-queue keeps shrinking: G5/G6/G7/G11
 are now permanent detectors, so a normal push needs essentially no vision.
+
+RETROSPECTIVE (first run of the new end-of-session review, rule in section 9):
+  1. LIVE-SITE CHECK timing: MIXED. The live zone-cap check (push 4) was worth
+     doing -- it's a real Will-gate and it passed. BUT I stood up the browser +
+     Postgres somewhat speculatively and mid-session, without flagging to Will
+     first that it was optional polish on already-tested code. Better: decide
+     up front whether a live check is warranted, tell Will, then do it.
+  2. WASTED SETUP: minor. The database/browser install was justified in the end,
+     but I reached for it before confirming it was the highest-value use of the
+     time. Nothing installed was thrown away unused.
+  3. BETTER SEQUENCING: the biggest miss is a REPEAT of an S87 pattern -- I built
+     the B9 fix and found B10 before getting Will's decisions queued, and the two
+     convention bugs (B7/B8, now + B10) are STILL blocked on Will. Surfacing the
+     decision questions at the very TOP of the session (or ending a prior session
+     by teeing them up) would let fixes ship the moment Will answers instead of
+     waiting a whole session. Also: JARGON. I used internal G5/G9/B-number
+     shorthand in the Will-facing summaries; Will (non-technical owner) found it
+     opaque and lost track of what we were building and why. FIX: in any summary
+     Will reads, lead with plain-English "what this does for the product," keep
+     the codes as secondary labels only. This cost a full round-trip of "what
+     have we been doing?" that clearer reporting would have prevented.
 
 --------------------------------------------------------------------------------
 10E. VISION-DEPENDENCY INVENTORY (S87 -- the map for eliminating eye-checks)
