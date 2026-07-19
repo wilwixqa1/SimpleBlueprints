@@ -87,8 +87,15 @@
   }
   function stairRects(st) {
     var dr = deckRect(st);
+    var zr = zoneRects(st);
     var run = Math.max(3, Math.ceil((st.deck.h / 7.5)) * (10 / 12)); // ft
     return (st.stairs || []).map(function (s) {
+      if (s.zone != null && zr[s.zone]) {
+        var r = zr[s.zone];
+        if (r.edge === 'left') return { x: r.x - run, y: r.y + r.d / 2 - 2, w: run, d: 4, treadsAlong: 'x' };
+        if (r.edge === 'right') return { x: r.x + r.w, y: r.y + r.d / 2 - 2, w: run, d: 4, treadsAlong: 'x' };
+        return { x: r.x + r.w / 2 - 2, y: r.y + r.d, w: 4, d: run, treadsAlong: 'y' };
+      }
       if (s.edge === 'left') return { x: dr.x - run, y: dr.y + dr.d / 2 - 2, w: run, d: 4, treadsAlong: 'x' };
       if (s.edge === 'right') return { x: dr.x + dr.w, y: dr.y + dr.d / 2 - 2, w: run, d: 4, treadsAlong: 'x' };
       return { x: dr.x + dr.w / 2 - 2, y: dr.y + dr.d, w: 4, d: run, treadsAlong: 'y' };
@@ -158,7 +165,8 @@
     g += '</g>';
     var inner = '<rect x="10" y="10" width="380" height="240" fill="#0e2f4d"/>' + g +
       '<text x="200" y="238" font-family="Barlow Condensed, sans-serif" font-size="15" font-weight="700" fill="#e9f1f8" text-anchor="middle" letter-spacing="3">PROPOSED DECK · ' + (st.address || 'YOUR ADDRESS') .toUpperCase().slice(0, 44) + '</text>' +
-      txt(200, 24, 'PERMIT DRAWING SET', 8, LINE, 'middle', ' letter-spacing="4"');
+      txt(200, 24, 'PERMIT DRAWING SET', 8, LINE, 'middle', ' letter-spacing="4"') +
+      (st.finish ? txt(200, 218, (st.finish.decking || '').toUpperCase() + ' DECKING \u00b7 ' + (st.finish.railing || '').toUpperCase() + ' RAILING', 6.5, LINE, 'middle') : '');
     return frame(inner, wm, 'A-0', 'COVER SHEET');
   }
 

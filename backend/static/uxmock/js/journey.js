@@ -11,6 +11,7 @@
     deck: { off: 14, w: 16, d: 12, h: 36 },
     zones: [], stairs: [],
     snow: 30, frost: 36,
+    finish: { decking: 'PT pine', railing: 'Wood baluster' },
     view: 'plan'
   };
 
@@ -207,7 +208,15 @@
       '<div class="chips" style="margin-top:10px">' +
       '<button class="chip' + (hasZone('left') ? ' on' : '') + '" id="z-left">+ Left wing</button>' +
       '<button class="chip' + (hasZone('right') ? ' on' : '') + '" id="z-right">+ Right wing</button>' +
-      '<button class="chip' + (hasStair() ? ' on' : '') + '" id="st-add">+ Stairs</button>' +
+      '</div>' +
+      '<div class="tb-label" style="margin-top:12px">Stairs \u2014 any edge, any wing</div>' +
+      '<div class="chips" style="margin-top:6px">' +
+      ['front', 'left', 'right'].map(function (e) {
+        return '<button class="chip' + (hasStair(e) ? ' on' : '') + '" data-stair-edge="' + e + '">' + (e === 'front' ? 'Outer' : e.charAt(0).toUpperCase() + e.slice(1)) + '</button>';
+      }).join('') +
+      S.zones.map(function (z, i) {
+        return '<button class="chip' + (hasZoneStair(i) ? ' on' : '') + '" data-stair-zone="' + i + '">Wing ' + (i + 1) + '</button>';
+      }).join('') +
       '</div></div>'));
     // site conditions
     rail.appendChild(el(
@@ -217,6 +226,14 @@
       '<div class="slider-row"><label>Frost depth</label><select id="cond-frost" style="grid-column:2/4;border:1px solid var(--ruling);border-radius:3px;padding:7px;font-family:var(--mono);font-size:12px;background:var(--paper)">' +
       opt(24, '24 in', S.frost) + opt(36, '36 in — typical', S.frost) + opt(48, '48 in — cold climate', S.frost) + '</select></div>' +
       '<p style="font-size:11.5px;color:var(--mut);margin-top:4px">The only two questions the code needs from you. Everything else is calculated.</p></div>'));
+    // finishes
+    rail.appendChild(el(
+      '<div class="card"><h3>Finishes</h3>' +
+      '<div class="slider-row"><label>Decking</label><select id="fin-deck" style="grid-column:2/4;border:1px solid var(--ruling);border-radius:3px;padding:7px;font-family:var(--mono);font-size:12px;background:var(--paper)">' +
+      fopt('PT pine', S.finish.decking) + fopt('Cedar', S.finish.decking) + fopt('Composite', S.finish.decking) + '</select></div>' +
+      '<div class="slider-row"><label>Railing</label><select id="fin-rail" style="grid-column:2/4;border:1px solid var(--ruling);border-radius:3px;padding:7px;font-family:var(--mono);font-size:12px;background:var(--paper)">' +
+      fopt('Wood baluster', S.finish.railing) + fopt('Metal baluster', S.finish.railing) + fopt('Cable', S.finish.railing) + '</select></div>' +
+      '<p style="font-size:11.5px;color:var(--mut);margin-top:4px">Cosmetic \u2014 shown on the cover sheet and materials list. Structure is unaffected.</p></div>'));
     // live spec
     rail.appendChild(el('<div class="card"><h3>Structure <span class="stamp-ok" id="spec-stamp">SIZED TO IRC 2021</span></h3><div class="spec-rows" id="spec-rows"></div></div>'));
     // AI helper (history persists in S._chat across re-renders)
@@ -237,7 +254,14 @@
     });
     $('z-left').addEventListener('click', function () { toggleZone('left'); });
     $('z-right').addEventListener('click', function () { toggleZone('right'); });
-    $('st-add').addEventListener('click', function () { toggleStair(); });
+    rail.querySelectorAll('[data-stair-edge]').forEach(function (b) {
+      b.addEventListener('click', function () { toggleStair(b.getAttribute('data-stair-edge')); });
+    });
+    rail.querySelectorAll('[data-stair-zone]').forEach(function (b) {
+      b.addEventListener('click', function () { toggleZoneStair(+b.getAttribute('data-stair-zone')); });
+    });
+    $('fin-deck').addEventListener('change', function () { S.finish.decking = this.value; });
+    $('fin-rail').addEventListener('change', function () { S.finish.railing = this.value; });
     $('cond-snow').addEventListener('change', function () { S.snow = +this.value; onDesignChange(); });
     $('cond-frost').addEventListener('change', function () { S.frost = +this.value; onDesignChange(); });
     $('ai-go').addEventListener('click', aiSend);
@@ -254,17 +278,33 @@
       '<output id="dk-' + k + '-o">' + val + unit + '</output></div>';
   }
   function opt(v, label, cur) { return '<option value="' + v + '"' + (v === cur ? ' selected' : '') + '>' + label + '</option>'; }
+  function fopt(v, cur) { return '<option value="' + v + '"' + (v === cur ? ' selected' : '') + '>' + v + '</option>'; }
   function hasZone(edge) { return S.zones.some(function (z) { return z.edge === edge; }); }
-  function hasStair() { return S.stairs.length > 0; }
+  function hasStair(edge) {
+    if (edge == null) return S.stairs.length > 0;
+    return S.stairs.some(function (st) { return st.edge === edge && st.zone == null; });
+  }
+  function hasZoneStair(i) { return S.stairs.some(function (st) { return st.zone === i; }); }
   function toggleZone(edge) {
-    if (hasZone(edge)) S.zones = S.zones.filter(function (z) { return z.edge !== edge; });
+    if (hasZone(edge)) {
+      var idx = S.zones.findIndex(function (z) { return z.edge === edge; });
+      S.zones = S.zones.filter(function (z) { return z.edge !== edge; });
+      S.stairs = S.stairs.filter(function (st) { return st.zone == null; }).concat(
+        S.stairs.filter(function (st) { return st.zone != null && st.zone !== idx; })
+          .map(function (st) { return { zone: st.zone > idx ? st.zone - 1 : st.zone }; }));
+    }
     else if (S.zones.length >= 3) { toast('Wing limit: 3 (matches the production zone cap).'); return; }
     else S.zones.push({ edge: edge, w: 8, d: 8 });
     renderAct2();
   }
-  function toggleStair() {
-    if (hasStair()) S.stairs = [];
-    else S.stairs = [{ edge: 'front' }];
+  function toggleStair(edge) {
+    if (hasStair(edge)) S.stairs = S.stairs.filter(function (st) { return !(st.edge === edge && st.zone == null); });
+    else S.stairs.push({ edge: edge });
+    renderAct2();
+  }
+  function toggleZoneStair(i) {
+    if (hasZoneStair(i)) S.stairs = S.stairs.filter(function (st) { return st.zone !== i; });
+    else S.stairs.push({ zone: i });
     renderAct2();
   }
 
@@ -320,11 +360,21 @@
       if (/stair/.test(q) && !hasStair()) { S.stairs = [{ edge: 'front' }]; extra += ' + stairs'; }
       return { changed: true, text: 'Done — deck set to ' + S.deck.w + "' × " + S.deck.d + "'" + (extra ? ', ' + extra.replace(/^\s\+\s/, 'added ') : '') + '. Structure has been re-sized below.', act: 'setSize(' + S.deck.w + ',' + S.deck.d + ')' + extra };
     }
+    if (/remove (all )?stairs/.test(q)) { S.stairs = []; return { changed: true, text: 'All stairs removed.', act: 'removeStairs()' }; }
     if (/stair/.test(q)) {
-      if (!hasStair()) { S.stairs = [{ edge: 'front' }]; return { changed: true, text: 'Added stairs on the outer edge. At ' + S.deck.h + '" high that\u2019s ' + Math.max(3, Math.round(S.deck.h / 7.5)) + ' risers.', act: 'addStair(front)' }; }
-      return { changed: false, text: 'You already have stairs. Say \u201cremove stairs\u201d to take them off.' };
+      var wingM = q.match(/wing\s*(\d)/) || (/left wing/.test(q) ? [0, findWing('left')] : null) || (/right wing/.test(q) ? [0, findWing('right')] : null);
+      if (wingM && wingM[1] != null && wingM[1] !== -1) {
+        var wi = typeof wingM[1] === 'number' ? wingM[1] : (+wingM[1] - 1);
+        if (wi < 0 || wi >= S.zones.length) return { changed: false, text: 'That wing doesn\u2019t exist yet \u2014 add it first.' };
+        if (hasZoneStair(wi)) return { changed: false, text: 'Wing ' + (wi + 1) + ' already has stairs.' };
+        S.stairs.push({ zone: wi });
+        return { changed: true, text: 'Added stairs on wing ' + (wi + 1) + '\u2019s outer edge.', act: 'addStair(wing ' + (wi + 1) + ')' };
+      }
+      var edge = /left/.test(q) ? 'left' : /right/.test(q) ? 'right' : 'front';
+      if (hasStair(edge)) return { changed: false, text: 'There are already stairs on that edge \u2014 you can have one set per edge plus one per wing.' };
+      S.stairs.push({ edge: edge });
+      return { changed: true, text: 'Added stairs on the ' + (edge === 'front' ? 'outer' : edge) + ' edge. At ' + S.deck.h + '" high that\u2019s ' + Math.max(3, Math.round(S.deck.h / 7.5)) + ' risers.', act: 'addStair(' + edge + ')' };
     }
-    if (/remove stairs/.test(q)) { S.stairs = []; return { changed: true, text: 'Stairs removed.', act: 'removeStair()' }; }
     if (/wing|zone/.test(q)) {
       if (S.zones.length >= 3) return { changed: false, text: 'You\u2019re at the 3-wing limit — same cap as production. Remove one first.' };
       var edge = /right/.test(q) ? 'right' : 'left';
@@ -344,6 +394,7 @@
     }
     return { changed: false, text: 'I can set sizes (\u201c18 by 14\u201d), add wings or stairs, set the height, or explain any structural callout. What would you like?' };
   }
+  function findWing(edge) { return S.zones.findIndex(function (z) { return z.edge === edge; }); }
   function escapeHtml(s) { return s.replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
 
   // ---------- ACT III: your plans ----------
@@ -378,6 +429,8 @@
       '<div class="spec-row"><span class="sr-k">Deck</span><span class="sr-v">' + S.deck.w + "' × " + S.deck.d + "' · " + S.deck.h + '" HIGH</span></div>' +
       '<div class="spec-row"><span class="sr-k">Total area</span><span class="sr-v">' + spec.area + ' SF</span></div>' +
       '<div class="spec-row"><span class="sr-k">Structure</span><span class="sr-v">' + spec.rows[0].v + ' / ' + spec.rows[1].v + '</span></div>' +
+      '<div class="spec-row"><span class="sr-k">Finishes</span><span class="sr-v">' + S.finish.decking + ' / ' + S.finish.railing + '</span></div>' +
+      '<div class="spec-row"><span class="sr-k">Stairs</span><span class="sr-v">' + (S.stairs.length || 'None') + (S.stairs.length ? ' SET' + (S.stairs.length > 1 ? 'S' : '') : '') + '</span></div>' +
       '<div class="spec-row"><span class="sr-k">Jurisdiction</span><span class="sr-v">' + (S.jurisdiction ? S.jurisdiction.replace('Regional Building Department', 'RBD') : '—') + '</span></div>' +
       '</div></div>'));
     rail.appendChild(el(
