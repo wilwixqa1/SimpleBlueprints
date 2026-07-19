@@ -164,7 +164,8 @@
     }
     g += '</g>';
     var inner = '<rect x="10" y="10" width="380" height="240" fill="#0e2f4d"/>' + g +
-      '<text x="200" y="238" font-family="Barlow Condensed, sans-serif" font-size="15" font-weight="700" fill="#e9f1f8" text-anchor="middle" letter-spacing="3">PROPOSED DECK · ' + (st.address || 'YOUR ADDRESS') .toUpperCase().slice(0, 44) + '</text>' +
+      '<text x="130" y="220" font-family="Barlow Condensed, sans-serif" font-size="13" font-weight="700" fill="#e9f1f8" text-anchor="middle" letter-spacing="2">PROPOSED DECK</text>' +
+      '<text x="130" y="232" font-family="' + MONO + '" font-size="7" fill="' + LINE + '" text-anchor="middle">' + (st.address || 'YOUR ADDRESS').toUpperCase().slice(0, 34) + '</text>' +
       txt(200, 24, 'PERMIT DRAWING SET', 8, LINE, 'middle', ' letter-spacing="4"') +
       (st.finish ? txt(200, 218, (st.finish.decking || '').toUpperCase() + ' DECKING \u00b7 ' + (st.finish.railing || '').toUpperCase() + ' RAILING', 6.5, LINE, 'middle') : '');
     return frame(inner, wm, 'A-0', 'COVER SHEET');
@@ -206,8 +207,14 @@
     });
     g += '</g>';
     g += dimH(f.sx(dr.x), f.sx(dr.x + dr.w), f.sy(dr.y + dr.d) - 8, st.deck.w + "'-0\"", f);
+    var dxr = f.sx(dr.x + dr.w) + 12;
+    g += '<g stroke="' + CYAN + '" stroke-width=".7" fill="none"><path d="M' + dxr + ' ' + f.sy(dr.y + dr.d) + ' V' + f.sy(dr.y) + ' M' + (dxr - 3) + ' ' + f.sy(dr.y + dr.d) + ' H' + (dxr + 3) + ' M' + (dxr - 3) + ' ' + f.sy(dr.y) + ' H' + (dxr + 3) + '"/></g>' +
+      txt(dxr + 4, (f.sy(dr.y + dr.d) + f.sy(dr.y)) / 2, st.deck.d + "'-0\"", 7, CYAN);
     var spec = window.SBPSpec ? window.SBPSpec.compute(st) : null;
-    if (spec) g += txt(30, 222, 'JOISTS: ' + spec.rows[0].v + '  (' + spec.rows[0].cite + ')', 7, CYAN);
+    if (spec) {
+      g += txt(30, 216, 'JOISTS: ' + spec.rows[0].v + '  (' + spec.rows[0].cite + ')', 7, CYAN);
+      g += txt(30, 226, 'DECKING: ' + ((st.finish && st.finish.decking) || 'PT PINE').toUpperCase() + ' · GUARDS: ' + spec.rows[5].v.toUpperCase(), 6.5, INK);
+    }
     return frame(g, wm, 'A-1', 'DECK PLAN');
   }
 
@@ -217,6 +224,11 @@
     var spec = SBPSpec.compute(st);
     var g = '<g stroke="' + INK + '" fill="none">';
     g += '<rect x="' + f.sx(dr.x) + '" y="' + f.sy(dr.y + dr.d) + '" width="' + (dr.w * f.s) + '" height="' + (dr.d * f.s) + '" stroke-width="1.2" stroke-dasharray="4 3"/>';
+    var nj = Math.max(3, Math.floor(dr.w / 1.333));
+    for (var ji = 1; ji < nj; ji++) {
+      var jjx = f.sx(dr.x + dr.w * ji / nj);
+      g += '<line x1="' + jjx + '" y1="' + f.sy(dr.y + dr.d) + '" x2="' + jjx + '" y2="' + f.sy(dr.y) + '" stroke="' + RUL + '" stroke-width=".5"/>';
+    }
     // beam line near outer edge
     var by = f.sy(dr.y + dr.d - 1);
     g += '<line x1="' + f.sx(dr.x - 1) + '" y1="' + by + '" x2="' + f.sx(dr.x + dr.w + 1) + '" y2="' + by + '" stroke-width="2.6"/>';
@@ -325,6 +337,12 @@
     g += txt(f.sx(dr.x + dr.w / 2), f.sy(dr.y + dr.d / 2), 'DECK', 6.5, CYAN, 'middle');
     g += '</g>';
     g += txt(f.sx((lot[0][0] + lot[lot.length - 1][0]) / 2), f.sy(0) + 12, (st.street || 'STREET').toUpperCase(), 6.5, MUT, 'middle');
+    g += txt(f.sx(dr.x + dr.w / 2), f.sy(0) + 2, st.setbacks.front + "' FRONT SETBACK", 5.5, CYAN, 'middle');
+    g += txt(f.sx(h.x) - 4, f.sy(h.y + h.d / 2), st.setbacks.side + "' SIDE", 5.5, CYAN, 'end');
+    g += txt(f.sx(dr.x + dr.w / 2), f.sy(dr.y + dr.d) - 4, st.setbacks.rear + "' REAR SETBACK", 5.5, CYAN, 'middle');
+    var _la = (st.parcel && st.parcel.lotArea) || st.lotArea || 9480;
+    g += txt(28, 222, 'LOT AREA: ' + _la.toLocaleString() + ' SF \u00b7 ZONING: ' + (((st.parcel && st.parcel.zoning) || st.zoning || 'R1-6') + '').split(' ')[0], 6.5, INK);
+    g += txt(28, 232, 'SCALE: 1" = 20\'-0"', 6.5, MUT);
     // north arrow
     var na = (st.north || 0) * Math.PI / 180;
     var nx = 366, ny = 44;

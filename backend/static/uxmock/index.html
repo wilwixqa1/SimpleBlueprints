@@ -66,7 +66,7 @@
         <input type="text" name="address" placeholder="4739 Sweetgrass Ln, Colorado Springs, CO" autocomplete="street-address" aria-label="Property address">
         <button class="btn primary" type="submit">Find my lot</button>
       </div>
-      <p class="addr-alt">No address handy? <a href="/mock/app?mode=survey">Upload a survey</a> or <a href="/mock/app?mode=manual">draw your lot manually</a>. Free to design — pay only to download.</p>
+      <p class="addr-alt">Have a property survey? <a href="/mock/app?mode=survey">Uploading it</a> is the most accurate start. Lookup can't find you and no survey? <a href="/mock/app?mode=manual">Draw your lot manually</a>. Free to design — pay only to download.</p>
     </form>
   </div>
 
@@ -126,8 +126,9 @@
 <section class="section" id="sheets" aria-labelledby="sheets-h" style="background:var(--paper);max-width:none">
   <div style="max-width:1160px;margin:0 auto">
     <div class="sec-head"><span class="sec-no">SEC. 02</span><h2 id="sheets-h">What your building department gets</h2></div>
-    <p style="max-width:64ch;margin-bottom:26px;color:#454d3f;font-size:15px">A complete permit submission set. Every sheet carries a title block with your address and parcel number, and every structural member cites the 2021 IRC section it was sized from.</p>
+    <p style="max-width:64ch;margin-bottom:26px;color:#454d3f;font-size:15px">A complete permit submission set. Every sheet carries a title block with your address and parcel number, and every structural member cites the 2021 IRC section it was sized from. These aren't stock previews — the sheets below are drawn live from a real design session, the same way yours will be.</p>
     <div class="sheets-strip" id="sample-sheets"><!-- filled by JS --></div>
+    <p style="margin-top:14px;font-family:var(--mono);font-size:11px;color:var(--mut)">CLICK THE LARGE SHEET · THE FULL SET REDRAWS FROM YOUR DESIGN AS YOU WORK</p>
   </div>
 </section>
 
@@ -225,11 +226,15 @@
 document.addEventListener('DOMContentLoaded', function () {
   var demo = SBPSheets.demoState();
   var strip = document.getElementById('sample-sheets');
-  SBPSheets.sheetList().forEach(function (s) {
+  var featured = 'plan';
+  var list = SBPSheets.sheetList().slice().sort(function (a, b) {
+    return (a.id === featured ? -1 : 0) - (b.id === featured ? -1 : 0);
+  });
+  list.forEach(function (s) {
     var d = document.createElement('div');
-    d.className = 'sheet-thumb';
+    d.className = 'sheet-thumb' + (s.id === featured ? ' feature' : '');
     d.innerHTML = SBPSheets.render(s.id, demo, { thumb: true }) +
-      '<div class="st-cap"><b>' + s.no + '</b><span>' + s.name + '</span></div>';
+      '<div class="st-cap"><b>' + s.no + '</b><span>' + s.name + (s.id === featured ? ' · DRAWN FROM A LIVE DESIGN' : '') + '</span></div>';
     strip.appendChild(d);
   });
 });

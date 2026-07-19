@@ -67,10 +67,14 @@
         '<p style="font-size:11.5px;color:var(--mut);margin-top:10px">We search public parcel records for your lot lines, setbacks, and house footprint. Nothing is submitted anywhere.</p>' +
         '</div>'));
       rail.appendChild(el(
-        '<div class="card"><h3>Other ways in</h3><div class="chips">' +
-        '<button class="chip" id="alt-survey">Upload a survey (AI reads it)</button>' +
-        '<button class="chip" id="alt-manual">Draw my lot manually</button></div>' +
-        '<p style="font-size:11.5px;color:var(--mut);margin-top:10px">Fallbacks for thin records. Address lookup is the fast path.</p></div>'));
+        '<div class="card"><h3>Other ways in</h3>' +
+        '<button class="opt-row" id="alt-survey">' +
+        '<span class="or-head"><span class="or-title">Upload a survey</span><span class="or-tag">BEST OPTION IF YOU HAVE ONE</span></span>' +
+        '<span class="or-desc">Your property survey is the most accurate source there is. Our AI reads the lot lines, dimensions, house, and north arrow off the page \u2014 you just confirm.</span></button>' +
+        '<button class="opt-row" id="alt-manual">' +
+        '<span class="or-head"><span class="or-title">Draw my lot manually</span><span class="or-tag">LAST RESORT</span></span>' +
+        '<span class="or-desc">Use this only if the address lookup can\u2019t find your parcel and you don\u2019t have a survey. You\u2019ll sketch the lot and place the house yourself.</span></button>' +
+        '<p style="font-size:11.5px;color:var(--mut);margin-top:10px">Whichever way in, you confirm everything on the canvas before designing.</p></div>'));
       $('addr-go').addEventListener('click', function () { lookup($('addr-in').value || '4739 Sweetgrass Ln, Colorado Springs, CO'); });
       $('addr-in').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('addr-go').click(); });
       $('alt-survey').addEventListener('click', surveyFlow);
