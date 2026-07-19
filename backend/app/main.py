@@ -2763,5 +2763,53 @@ async def root(request: Request):
         return FileResponse(str(index_path), media_type="text/html")
     return {"message": "SimpleBlueprints API is running"}
 
+# ============================================================
+# S88.5 UX MOCK (revert block -- delete this block + backend/static/uxmock/
+# to remove entirely). Clean-sheet journey prototype mounted at /mock.
+# Mock data only: no PDF, no compliance, no auth, no payments.
+# ============================================================
+import asyncio as _uxmock_asyncio
+
+_UXMOCK_PARCEL = {
+    "address": "4739 Sweetgrass Ln, Colorado Springs, CO 80922",
+    "parcelId": "53-081-04-039",
+    "jurisdiction": "Pikes Peak Regional Building Department",
+    "lotVertices": [[0, 0], [4, 68], [38, 112], [96, 96], [104, 22], [88, 0]],
+    "lotArea": 9480,
+    "setbacks": {"front": 25, "side": 5, "rear": 15},
+    "house": {"x": 26, "y": 30, "w": 44, "d": 30},
+    "northAngle": 12,
+    "zoning": "R1-6 Single-Family Residential",
+    "confidence": {"lot": "high", "house": "high", "street": "verified"},
+}
+
+@app.get("/mock")
+async def uxmock_landing():
+    return FileResponse(str(_STATIC_DIR / "uxmock" / "index.html"), media_type="text/html")
+
+@app.get("/mock/app")
+async def uxmock_app():
+    return FileResponse(str(_STATIC_DIR / "uxmock" / "app.html"), media_type="text/html")
+
+@app.get("/api/mock/parcel")
+async def uxmock_parcel(address: str = ""):
+    await _uxmock_asyncio.sleep(1.4)
+    d = dict(_UXMOCK_PARCEL)
+    if address.strip():
+        d["address"] = address.strip()
+        d["demo_note"] = "Demo mode: showing sample parcel data for any address."
+    return JSONResponse(d)
+
+@app.get("/api/mock/extract")
+async def uxmock_extract():
+    await _uxmock_asyncio.sleep(2.2)
+    d = dict(_UXMOCK_PARCEL)
+    d["source"] = "survey_extraction"
+    d["confidence"] = {"lot": "high", "house": "medium", "north": "low"}
+    return JSONResponse(d)
+# ============================================================
+# END S88.5 UX MOCK revert block
+# ============================================================
+
 # /js/ mount removed S26   all JS now served via /static/js/ (S25 mount)
 app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static-all")
