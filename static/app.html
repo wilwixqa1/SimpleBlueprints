@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Design your deck | SimpleBlueprints</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='4' fill='%2317456e'/><path d='M7 24 V10 h18 v14 z M7 17 h18 M13 10 v14' stroke='white' stroke-width='1.6' fill='none'/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Public+Sans:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/site.css">
+</head>
+<body>
+<div class="app-shell">
+
+  <div class="app-top">
+    <a class="wordmark" href="/">
+      <span class="wm-main" style="font-size:18px">SimpleBlueprints</span>
+    </a>
+    <nav class="acts-nav" aria-label="Journey">
+      <button class="anav active" id="nav-act1">I · Your property</button>
+      <button class="anav" id="nav-act2" disabled>II · Your deck</button>
+      <button class="anav" id="nav-act3" disabled>III · Your plans</button>
+    </nav>
+    <span class="mono" style="font-size:10px;color:var(--mut)">UX MOCK · NO DATA SAVED</span>
+  </div>
+
+  <main class="app-main" id="app-main">
+    <!-- STAGE: the drawing sheet -->
+    <section class="stage" aria-label="Drawing stage">
+      <div class="sheet">
+        <div class="stage-canvas" id="stage-canvas">
+          <div class="canvas-hud" id="canvas-hud"></div>
+          <svg id="stage-svg" viewBox="0 0 900 620" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Property and deck design canvas"></svg>
+        </div>
+        <!-- SIGNATURE: the live title block. It fills in as the set comes into existence. -->
+        <div class="titleblock" id="titleblock">
+          <div class="tb-cell"><span class="tb-label">Project address</span><div class="tb-val empty" id="tb-address">— pending lookup —</div></div>
+          <div class="tb-cell"><span class="tb-label">Parcel / zoning</span><div class="tb-val empty" id="tb-parcel">—</div></div>
+          <div class="tb-cell"><span class="tb-label">Proposed deck</span><div class="tb-val empty" id="tb-deck">—</div></div>
+          <div class="tb-cell"><span class="tb-label">Drawing set</span><div class="tb-val empty" id="tb-set">0 OF 7 SHEETS</div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RAIL: context-sensitive per act -->
+    <aside class="rail" id="rail" aria-label="Controls"></aside>
+  </main>
+</div>
+
+<div id="lightbox-root"></div>
+
+<script src="/static/js/spec.js"></script>
+<script src="/static/js/sheets.js"></script>
+<script src="/static/js/canvas.js"></script>
+<script src="/static/js/journey.js"></script>
+</body>
+</html>
