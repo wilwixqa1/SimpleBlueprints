@@ -393,12 +393,15 @@ def draw_plan_and_framing(fig, params, calc, spec=None, panels=None):
     # Applied to every panel on the sheet so scale bars stay aligned.
     _loads_band = 5.2 if "framing" in panels else 0.0
 
-    # S87 prototype: SBP_FIT=snap enforces the largest STANDARD architectural
-    # scale that fits the panel and centers the content (honest scale label);
-    # SBP_FIT=fill stretches to the raw fill ratio (max paper, no ruler scale).
-    # Unset = legacy behavior, byte-identical to S86.
+    # S87 (Will's pick, Option A): panels print at the largest STANDARD
+    # architectural scale that fits, content centered, and the scale label
+    # states the TRUE printed scale (the old hard-coded 1/4" label was false;
+    # panels actually printed at ~0.54 in/ft). SBP_FIT=fill|legacy overrides
+    # for debugging. NOTE: a no-zone deck too big for 1/4" on the half panel
+    # snaps below the PPRBD 1/4" minimum -- rare (complex decks get full-width
+    # sheets); revisit with a permit-checker flag if it shows up in practice.
     import os as _os
-    _fit_mode = _os.environ.get('SBP_FIT', '')
+    _fit_mode = _os.environ.get('SBP_FIT', 'snap')
 
     for ax, title, is_framing in _panel_iter:
         _nx0 = min(bbox["x"], stair_x_min) - margin_x_left
