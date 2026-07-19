@@ -1018,6 +1018,7 @@ When user says "stairs parallel to the deck/house" they likely mean stairLocatio
 When user says "stairs overlap" or "run alongside" the deck, they mean the stair run is parallel to the deck face, which is stairLocation="left" or "right", or stairTemplate="switchback".
 
 HOW COMPLEX TASKS WORK:
+- ZONE LIMIT: a deck supports at most 3 added zones (plus the main deck). If the user asks for a 4th zone, do NOT emit zoneAdd -- explain that the maximum is 3 zones so permit drawings stay clear and legible, and suggest removing or resizing an existing zone instead.
 - To make an L-shaped deck: Use a zoneAdd action to add a zone on the desired edge. Example: {{"zoneAdd":{{"edge":"left","width":10,"depth":8}}}} adds a 10x8 extension on the left side.
 - To make a wraparound deck: Add zones on multiple edges. Example: add one zone on the left and another on the right to wrap around the house.
 - To change stair shape/template: Set the stairTemplate param directly (e.g. stairTemplate="switchback"). Also set hasStairs=true if not already. Then optionally navigate to "stairTemplate" to show the user their options.

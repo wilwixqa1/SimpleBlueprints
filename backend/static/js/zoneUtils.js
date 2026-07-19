@@ -10,6 +10,10 @@
      validateZone, addZoneDefaults, buildZoneCalcParams
 */
 
+// S87: single source of truth for the zone cap (UI, reducer, AI action all read this)
+window.MAX_ADD_ZONES = 3;
+window.atZoneCap = function(p) { return ((p && p.zones) || []).filter(function(z){ return z.type === "add"; }).length >= window.MAX_ADD_ZONES; };
+
 (function() {
   "use strict";
 

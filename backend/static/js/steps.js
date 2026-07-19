@@ -1715,6 +1715,9 @@ function StepContent(props) {
       }
       // S56: Zone add action - creates L-shaped, wraparound, extensions
       if (act.zoneAdd) {
+        if (window.atZoneCap && window.atZoneCap(p)) {
+          // S87: 3-zone cap (AI action path) -- skip only this action
+        } else {
         var za = act.zoneAdd;
         var newZoneId = p.nextZoneId;
         addZone(za.parentId || 0, za.edge || "left");
@@ -1722,6 +1725,7 @@ function StepContent(props) {
           if (za.width) updateZone(newZoneId, "w", za.width);
           if (za.depth) updateZone(newZoneId, "d", za.depth);
         }, 100);
+        }
       }
       // S56: Cutout add action - creates notches in deck
       if (act.cutoutAdd) {

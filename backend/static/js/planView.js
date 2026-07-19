@@ -170,6 +170,7 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, remo
 // Compute add/cut/chamfer button positions
   var addBtns = _pvUM(function() {
     if (zoneMode !== "add" || mode !== "plan") return [];
+    if (window.atZoneCap && window.atZoneCap(p)) return []; // S87: 3-zone cap
     if (!hasZones) {
       // Default: 3 add buttons on zone 0 edges (front, left, right)
       return [
