@@ -849,6 +849,67 @@ needed queue -- for Claude AND Will. The queue that makes building feel slow is
 mostly (b) masquerading as (a).
 
 --------------------------------------------------------------------------------
+10E. VISION-DEPENDENCY INVENTORY (S87 -- the map for eliminating eye-checks)
+--------------------------------------------------------------------------------
+Built by auditing every distinct thing we've used a SCREENSHOT to verify across
+S85/S86/S87, sorted into GEOMETRIC (a bbox/coordinate fact -> buildable as an
+oracle -> stops needing eyes) vs AESTHETIC (holistic taste -> stays manual,
+batch for Will or a vision-first window). This is the detector-building backlog
+in priority order and the standing map; when a new visual check recurs, add it
+here and classify it. "Automate the facts; reserve eyes for taste."
+
+GEOMETRIC -- BUILDABLE AS ORACLES (drain these; each removes an eye-check):
+  G1 text-over-text .................. DONE, legibility_check.py (S85)
+  G2 text-over-linework .............. DONE, linework_check.py (S87 p6)
+  G3 pier-not-on-grade ............... DONE, test_post_grade.py (S87 p10)
+  G4 pipeline crash on odd configs ... DONE, fuzz_configs.py (S87 p11)
+  --- NOT YET BUILT (S88 item 1; all same bbox pattern as linework_check) ---
+  G5 text-outside-panel: callout text bbox extends beyond its view/axes rect.
+     EVIDENCE: S85 elevations -- South view callout text overflowed into the
+     North view's quadrant ("...POST BASE AND | ...POST CAP..." spanned the
+     gutter). RECURRING across elevation sheets.
+  G6 text-clipped-at-panel-edge: text bbox crosses the sheet trim / panel
+     border (text runs off the edge, printing partial words). EVIDENCE: S85
+     North elevation -- callouts clipped mid-word at the axes edge ("...Z' POST
+     BASE AND", "DEEP (3 PLCS)" fragments).
+  G7 callout-into-neighbor-view: view-A text bbox overlaps view-B's drawing
+     extent (distinct from G5: not off its own panel, but INTO another view's
+     space on a shared multi-view sheet). EVIDENCE: same S85 elevation combined
+     sheet. G5+G7 often co-occur; build together.
+  G8 text-below-legible-size: any text rendering < 4pt at final sheet scale.
+     EVIDENCE: S85/S86 zone-wing member specs at ~3.5pt; ~11-16 lines/set flag.
+     PARTIAL: legibility_check already REPORTS a "tiny lines" count as a side
+     signal; promote it to a first-class differential check with a baseline.
+  G9 garbled/overprinted composed text: two text elements printing on the same
+     spot so glyphs interleave. EVIDENCE: S85 graphic scale caption rendered
+     "0RAPHIC SCA6E (FEET)" -- tick numerals printed over the caption. This is
+     a SUBSET of G1 (text-over-text) but at intra-label scale; verify G1 with a
+     tightened threshold catches it, else a dedicated check.
+  G10 dimension-line-through-graphics: a dimension line/arrow crossing drawing
+     geometry it shouldn't (stairs, house). EVIDENCE: S85 plan -- red 18'-0"
+     dim ran straight through the left stair graphics; dim offsets didn't clear
+     stair-inclusive bbox. Largely FIXED in code (S85 push 10 + S87 push 3) but
+     never made a permanent check -- codify: dim segment vs stair/house rects.
+  G11 post-inside-stair-landing (bug B3 probe): a deck post xy falling inside a
+     stair-landing rectangle. Pure coordinate math. Build alongside the S88
+     config matrix (item 4) as the B3 detector.
+
+AESTHETIC -- STAYS MANUAL (rare; batch for Will or a lean vision-first window):
+  A1 "does the drawing sit well-proportioned / fill the sheet like the
+     reference sets" (the fill-the-sheet judgment -- S87 shipped the mechanism,
+     but whether a given sheet LOOKS balanced is still an eye call).
+  A2 "does the title block / cover read professional."
+  A3 "does the overall sheet read clean or busy" -- global visual weight, the
+     thing Will means by "still seems difficult to read" even when collisions
+     are at 0. This is the residue that genuinely resists automation.
+  A4 first-look correctness sniff on a NEW config class (does the drawing even
+     depict the right thing) -- eyes are fastest here, though specific defects
+     found this way should then be converted to a G-oracle.
+NOTE: A1-A4 are FEW and INTERMITTENT. Once G5-G11 exist, a normal push needs
+essentially no eyes; the aesthetic checks are a periodic review, not a per-push
+gate. That is the whole point -- the eye-queue shrinks to just genuine taste.
+
+--------------------------------------------------------------------------------
 11B. CURRENT TODO (verified against code at S87 close -- supersedes the S87 QUEUE)
 --------------------------------------------------------------------------------
 DONE in S86: sheet-size parameter + arch_d default; proportional font scaling;
@@ -869,15 +930,15 @@ HOW TO RUN S88 (procedural -- read before picking a task):
 
 S88 QUEUE (ordered by leverage; V=needs vision, O=oracle-only/no vision):
   1. [O] BUILD THE NEXT DETECTORS (highest strategic leverage -- drains the
-     eyes-needed queue; see 10D KEY INSIGHT (b)). Three, all the same bbox-
-     crossing shape as linework_check.py, all differential-baseline'd the same
-     way (PIN fonts + mpl version -- the push 8-9 lesson):
-       - text-outside-panel: text bbox beyond its axes/panel rectangle.
-       - text-clipped-at-edge: text bbox crossing the sheet trim / panel border.
-       - callout-into-neighbor-view: view-A text overlapping view-B extent (the
-         elevation defect Will screenshotted in S85).
-     Makes the elevation annotation work (item 6) self-verifying; cuts S88+
-     visual burden materially.
+     eyes-needed queue; see 10E VISION-DEPENDENCY INVENTORY for the full sorted
+     map and the EVIDENCE behind each). Priority order from the inventory:
+     G5 text-outside-panel, G6 text-clipped-at-edge, G7 callout-into-neighbor-
+     view (build G5+G7 together -- they co-occur on elevation sheets), then G8
+     tiny-text (promote legibility's side signal), G9 garbled-overprint (check
+     if a tightened G1 covers it), G10 dim-through-graphics (codify the existing
+     fix), G11 post-in-landing (with the config matrix, item 4). All share the
+     bbox-crossing shape and differential-baseline pattern of linework_check.py
+     (PIN fonts + mpl version -- the push 8-9 lesson).
   2. [O] FIX B9 (numeric frost/snow silent mismatch -- see 10D + backlog). Small
      calc_engine input normalization; gate on the 52 structural tests. Early --
      it's a correctness landmine for any non-UI caller incl. the AI helper.

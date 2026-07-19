@@ -55,15 +55,14 @@ SESSION SCOPE: work MASTER_CONTEXT 11B (the S88 QUEUE), roughly in order.
 Items are tagged [O]=oracle-only/no vision, [V]=needs vision. When vision is
 dead, do the [O] items -- they're also the highest-leverage ones:
 
-  1. [O] BUILD THREE MORE DETECTORS (top leverage -- drains the eyes-needed
-     queue). Same bbox-crossing shape and differential-baseline pattern as
-     tests/pdf/linework_check.py (PIN fonts + mpl version or it's non-
-     deterministic -- the S87 push 8-9 lesson):
-       - text-outside-panel   (text bbox beyond its axes/panel rect)
-       - text-clipped-at-edge (text bbox crossing sheet trim / panel border)
-       - callout-into-neighbor-view (view-A text over view-B extent -- the
-         elevation defect Will screenshotted back in S85)
-     These make the elevation annotation work self-verifying.
+  1. [O] BUILD MORE DETECTORS (top leverage -- drains the eyes-needed queue).
+     MASTER_CONTEXT 10E is the VISION-DEPENDENCY INVENTORY: every visual check
+     we've ever used a screenshot for, sorted into geometric (buildable) vs
+     aesthetic (stays manual), with the evidence and a priority order. Build the
+     geometric ones G5-G11 in that order, starting with G5 text-outside-panel +
+     G7 callout-into-neighbor-view (they co-occur on elevations). Same bbox/
+     differential-baseline pattern as tests/pdf/linework_check.py (PIN fonts +
+     mpl version or it's non-deterministic -- the S87 push 8-9 lesson).
   2. [O] FIX B9: numeric frostZone/snowLoad are silently mis-interpreted
      (calc looks up by category STRING, defaults on a number; checker reads
      the number as inches -> mismatch, no error). Normalize inputs in
