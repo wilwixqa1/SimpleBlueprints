@@ -85,9 +85,26 @@ dead, do the [O] items -- they're also the highest-leverage ones:
 
 TWO S87 VISUAL GATES STILL OPEN for Will (surface these early):
   - Bless the 3-zone framing sheet by eye (0 collisions by oracle).
-  - Once Railway has deployed S87: live zone-cap poke -- add 3 zones, confirm
-    the "+" edge handles vanish and the hint text reads right; ask the AI
-    chat for a 4th zone and confirm it declines gracefully.
+  - Once Railway has deployed S87: live zone-cap poke. THIS IS AUTOMATABLE
+    with Playwright (see below) -- do it as a DOM assertion, not by asking
+    Will to click: add 3 zones, assert the "+" edge handles are gone from the
+    DOM and the hint text reads the cap message; drive the AI chat to request
+    a 4th zone and assert no zone was added. Only fall back to Will's manual
+    poke if the live APIs block the headless run.
+
+PLAYWRIGHT (installed, v1.56.0; MASTER_CONTEXT 6.2/6.5 has the patterns):
+  - A fresh sandbox needs the browser binary once: playwright install chromium
+    (~2 min). The Python API imports without it; driving a browser needs it.
+  - USE IT AS A MEASUREMENT tool, NOT a vision workaround: a screenshot still
+    has to route through the view tool (which dies mid-session), so Playwright
+    does NOT give Claude working eyes. What it gives is the LIVE-SITE geometric
+    check -- read DOM element positions / computed styles / console logs and
+    ASSERT facts (same spirit as the PDF detectors, measured in-browser). This
+    is how S85 verified the house-offset fix on production.
+  - Good S88 jobs: the zone-cap DOM assertion above; a real-address end-to-end
+    run (needs live Realie/Overpass keys on Railway -> run against
+    simpleblueprints.xyz or a keyed env, NOT the bare sandbox -- 6.2).
+    Sandbox-only runs are limited to fixture-intercepted wizard flows (6.5).
 
 STANDING RULES (full set in MASTER_CONTEXT 9): granular 'S88 push N:' commits
 direct to main once Will provides a PAT in chat (use it, no security
