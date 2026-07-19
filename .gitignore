@@ -8,3 +8,4 @@ node_modules/
 .vercel/
 !backend/drawing/jurisdiction/*.pdf
 tests/pdf/matrix_fixtures/
+SimpleBlueprints/
