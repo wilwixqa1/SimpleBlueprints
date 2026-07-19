@@ -1,65 +1,75 @@
 SIMPLEBLUEPRINTS STATUS
-Session: S87 (closed clean; vision died after 1 view -- earliest yet; whole
-session done via oracles + coordinate spies + Will's pasted screenshots)
-Cache buster: s87a  (S87 push 4 bumped it for the zone-cap frontend changes)
+Session: S88 (closed clean; VISION-FIRST EXPERIMENT SUCCEEDED -- 17/17 views,
+zero drops. Strongest data yet for the context-size theory: front-loading the
+visual review before heavy context bought a full visual pass with no outage.)
+Cache buster: s87a  (unchanged -- S88 touched no production frontend)
 
-SHIPPED S87 (pushes 1-11, all CI green):
-1.  DECK LOADS table moved to a reserved band BELOW the house block on framing
-    sheets (was printing ON TOP of the house -- Will caught it by eye; the old
-    legibility oracle was blind to text-over-drawing). Scale bar moved below it.
-2.  FILL THE SHEET (Option A, Will's pick): plan/framing panels print at the
-    LARGEST STANDARD architect's scale that fits, content centered, and the
-    scale label now states the TRUE printed scale. The old "1/4\"" label was
-    FALSE (panels printed ~0.54 in/ft) -- a scale ruler would mis-measure every
-    deck. 16x12 now prints true 1/2"=1'-0".
-3.  Framing collision fixes: footing dims joined the corner dim string; house
-    labels re-anchored to house bottom; stair DOWN slid off the OPENING dim.
-    3-zone torture case 10 collisions -> 0.
-4.  3-ZONE CAP, full stack: one shared constant (window.MAX_ADD_ZONES/atZoneCap),
-    reducer guard, "+" handles hidden at cap, hint text, AI action guard + AI
-    PROMPT told the limit, backend stays permissive for old saved projects.
-5.  STANDING RULE added: FULL-STACK CONSISTENCY (MASTER_CONTEXT 9 + ARCHITECTURE).
-6.  THREE PERMANENT ORACLES, all in CI:
-    - text-over-linework detector (tests/pdf/linework_check.py) -- fixes the
-      blind spot that hid #1; differential baseline, fonts+mpl pinned.
-    - post-to-grade test (tests/test_post_grade.py) -- every pier sits ON the
-      drawn grade; FOUND B7 + B8 on day one.
-    - fuzz loop (tests/pdf/fuzz_configs.py) -- 60/60 configs clean; surfaced B9.
+SHIPPED S88 (pushes 1-4, all CI green):
+1.  PANEL-OVERFLOW DETECTOR (tests/pdf/panel_check.py) -- G5 text-outside-panel,
+    G6 clipped-at-edge (clip_on + sheet-trim), G7 callout-into-neighbor-view, one
+    bbox scan, differential baseline (panel_baseline.json), fonts+mpl pinned+
+    stamped, a --selftest that proves all three kinds on synthetic S85-bug shapes
+    with no false positive. In CI. Drains inventory items G5/G6/G7 at once.
+2.  B9 FIXED: resolve_frost_depth/resolve_snow_load in calc_engine are the single
+    source of truth (number=literal inches/psf, category=table lookup). Routed
+    calc_engine + permit_checker + permit_spec through them so calc-vs-checker
+    defaults CANNOT diverge again. Steel load_case derived from resolved snow psf.
+    Regression test (tests/test_frost_snow_normalize.py) locks calc==checker for
+    both category AND numeric inputs incl. the exact 30-vs-36 silent mismatch.
+    Gated on the 52 structural tests. In CI.
+3.  CONFIG MATRIX (tests/pdf/config_matrix.py) -- first-ever exercise of the
+    main-deck PARAMETRIC stair path (stairAnchorX/Y/Angle). 8 configs {0,1,2
+    zones} x stair placements, each interior-anchored. Crash judge (full pipeline
+    incl. permit checker) + numeric POST-IN-LANDING (B3/G11) check. In CI.
+4.  ZONE-CAP LIVE GATE AUTOMATED (tests/live/zone_cap_dom.py) -- headless browser
+    against a running server asserts the shipped window.atZoneCap/MAX_ADD_ZONES
+    behave at the cap (false 0/2, true 3/4, cutouts excluded), the exact function
+    planView edge handles + hint text gate on. Passed live against s87a. NOT in CI
+    (runner has no chromium/Postgres); tests/live/README.txt has the run recipe.
 
 STATE: all suites green (2764/0 geometry, 52/0 structural, 50/0/1 future
-products, post-grade 0 unexpected, linework at baseline, fuzz smoke clean).
+products, post-grade 64/0 unexpected, linework at baseline 25+41, panel at
+baseline 13+16, fuzz smoke 8/0, config matrix 8/0 with B10 grandfathered).
 
-THREE BUGS FOUND BY THE NEW ORACLES (none blind-fixed; see MASTER_CONTEXT
-backlog B7/B8/B9): B7 piers float above bench pads on side slopes (+2.1ft);
-B8 piers punch below the grade line on front-back slopes (-1.05ft) -- both need
-a drawing-CONVENTION CALL from Will; B9 numeric frost/snow inputs silently
-mis-interpreted (calc-vs-checker mismatch, no error) -- fixable directly.
+NEW BUG FOUND (B10, by the config matrix's post-in-landing check): a deeply
+interior-anchored main stair's LANDING overlaps the beam-post row -> a post is
+drawn inside the landing. REALISTIC interior anchors (exit within ~1 ft of the
+outer edge) stay clean; only the extreme overlap-the-beam case fires. Like
+B7/B8 it needs a DESIGN CALL from Will (clamp the anchor so a landing can't
+cross the beam line, or relocate the overlapped post), so it's recorded as a
+KNOWN entry with regression sensitivity proven both ways; CI fails on any
+deviation.
 
-THE BIG STRATEGIC POINT (Will, S87): the project's throughput bottleneck is
-vision-dependence. The fix is NOT rationing vision -- it's NEEDING it less by
-turning eye-judgments into oracles (each one then checks that whole class on
-every push forever). See MASTER_CONTEXT 10D KEY INSIGHT + rewritten 6.4.
+TWO S87 WILL-GATES, now both MACHINE-ADVANCED:
+- 3-zone framing sheet: I VIEWED it this session (vision-first) -- reads clean,
+  joist directions consistent, matches the oracle's 0 collisions. READY FOR
+  WILL'S BLESS by eye.
+- Live zone-cap poke: AUTOMATED and PASSED live (push 4). Residual manual bit is
+  only a screenshot confirming the "+" handles are physically gone + the hint
+  renders (the gating function is proven; the pixel render is not).
 
-TOP PRIORITIES (S88) -- full list in MASTER_CONTEXT 11B:
-1. [no vision] BUILD 3 MORE DETECTORS: text-outside-panel, text-clipped-at-edge,
-   callout-into-neighbor-view. Same shape as linework_check.py. Highest leverage.
-2. [no vision] FIX B9 (calc_engine input normalization).
-3. [no vision] FIX B7/B8 -- but get Will's convention call FIRST.
-4. [vision] CONFIG MATRIX with an INTERIOR-ANCHORED stair (B3 probe, still
-   never run). Crash/oracle half needs no vision; only the final look does.
-NOTE the S88 VISION-FIRST EXPERIMENT (6.4): if doing visual work, render+view
-the needed sheets FIRST, before heavy context accumulates. Untried; report result.
+TOP PRIORITIES (S89) -- full list in MASTER_CONTEXT 11B:
+1. [needs Will] B7/B8 convention call, THEN fix + zero the KNOWN table. Blocked
+   on Will since S87.
+2. [needs Will] B10 design call (clamp anchor vs relocate post), THEN fix + zero
+   its KNOWN entry.
+3. [no vision] REMAINING DETECTORS from 10E: G8 tiny-text (promote legibility's
+   side signal), G9 garbled-overprint (check if tightened G1 covers it), G10
+   dim-through-graphics (codify the existing fix). Same bbox/baseline shape.
+4. [no vision] GOLDEN-FILE PDF regression (item 8), pin fonts+mpl.
+NOTE the vision-first experiment WORKED -- keep front-loading any visual review.
 
 JURISDICTION: COLORADO SPRINGS / PPRBD (partner Billy operates there). Reference
 sets = All Things Architecture (CO Springs). is_colorado_springs() +
 append_cos_attachment() exist; PPRBD attachment is the letter-size official form.
 
-PENDING ON WILL: (a) bless the 3-zone framing sheet by eye + live zone-cap poke
-(see MASTER_CONTEXT "PENDING WILL VISUAL GATES"); (b) B7/B8 convention call;
-(c) Welborn street address (Ilaria = 4739 Sweetgrass Lane, CO Springs 80922 is
-in hand); (d) contractor pricing ($49/$99?); (e) confirm PPRBD accepts a mixed-
-size set (36x24 drawings + letter form). Will is KEEPING the classic PAT -- do
-NOT re-raise revoking it. Real-address runs need live Realie/Overpass keys
-(Railway), so run on simpleblueprints.xyz / headless live site, not bare sandbox.
+PENDING ON WILL: (a) bless the 3-zone framing sheet by eye (I viewed it, reads
+clean); (b) B7/B8 convention call; (c) B10 design call (NEW this session);
+(d) Welborn street address (Ilaria = 4739 Sweetgrass Lane, CO Springs 80922 in
+hand); (e) contractor pricing ($49/$99?); (f) confirm PPRBD accepts a mixed-size
+set (36x24 drawings + letter form). Will is KEEPING the classic PAT -- do NOT
+re-raise revoking it. Real-address runs need live Realie/Overpass keys (Railway),
+so run on simpleblueprints.xyz / headless live site, not bare sandbox.
 
-BLOCKERS: none. NEXT SESSION: paste the prompt from S88_KICKOFF.txt.
+BLOCKERS: none. NEXT SESSION: paste the prompt from S88_KICKOFF.txt (update it
+first if the vision-first ordering or the B7/B8/B10 gate list has changed).

@@ -94,13 +94,27 @@ BACKEND
   endpoints scoped by user_id.
 
 ================================================================================
-TESTS AND CI (S84)
+TESTS AND CI (S84; oracle stack extended S87-S88)
 ================================================================================
-- node tests/geometry/lotGeometry.test.js  (site plan math invariants)
-- python3 tests/test_structural.py         (IRC known-answer, S60 baseline)
+- node tests/geometry/lotGeometry.test.js  (site plan math invariants, 2764)
+- python3 tests/test_structural.py         (IRC known-answer, S60 baseline, 52)
 - python3 tests/test_future_products.py    (shed/pergola logic, dormant)
-- .github/workflows/tests.yml runs all three on every push to main.
-- Golden-file PDF regression: planned S85 (see S84_PLAN.txt Track A 2.3).
+- python3 tests/test_post_grade.py         (S87: every pier on the drawn grade)
+- python3 tests/test_frost_snow_normalize.py (S88: frost/snow resolver, B9 fix,
+                                              calc==checker for cat + numeric)
+- SBP_SHEET=arch_d python3 tests/pdf/linework_check.py <fixtures>  (S87: text-
+                                              over-linework, differential baseline)
+- python3 tests/pdf/panel_check.py --selftest; then <fixtures>  (S88: panel
+                                              overflow G5/G6/G7, self-proving)
+- SBP_SHEET=arch_d python3 tests/pdf/config_matrix.py  (S88: parametric stair
+                                              path + post-in-landing G11/B3)
+- SBP_SHEET=arch_d python3 tests/pdf/fuzz_configs.py 8  (S87: crash judge)
+- .github/workflows/tests.yml runs ALL of the above on every push to main.
+  CI pins matplotlib==3.10.8 numpy==2.4.4 (bbox baselines are version-sensitive).
+- tests/live/  (S88): headless-browser DOM assertions against a RUNNING server;
+  NOT in CI (runner has no chromium/Postgres). zone_cap_dom.py verifies the
+  shipped atZoneCap/MAX_ADD_ZONES at the cap. See tests/live/README.txt.
+- Golden-file PDF regression: still planned (11B item 4). PIN fonts + mpl.
 
 ================================================================================
 STANDING RULES (binding)
@@ -171,8 +185,21 @@ vision-dependence; each catches a CLASS of defect on every push):
     expected fail counts; CI fails on ANY deviation up OR down.
   tests/pdf/fuzz_configs.py (S87): seeded UI-shaped random configs vs crash
     judge; failing seeds -> tests/pdf/fuzz_fixtures/ as permanent reproducers.
-  NEXT to build (S88, same pattern as linework_check): text-outside-panel,
-  text-clipped-at-edge, callout-into-neighbor-view.
+  tests/pdf/panel_check.py (S88): PANEL OVERFLOW. One bbox scan covering G5
+    text-outside-panel (bbox beyond its own axes rect), G6 clipped-at-edge
+    (clip_on overflow -> partial words, OR crossing the sheet trim), G7 callout-
+    into-neighbor (escaped bbox landing in another axes rect). Differential
+    baseline panel_baseline.json; a --selftest proves all three on synthetic
+    bug shapes so it's self-verifying in CI. Same font/mpl pin discipline.
+  tests/pdf/config_matrix.py (S88): exercises the main-deck PARAMETRIC stair
+    path (stairAnchorX/Y/Angle -- unused before S88). Crash judge (full pipeline
+    incl. checker) + POST-IN-LANDING (G11): transforms landing rects into the
+    deck frame and asserts no post center falls inside. KNOWN_POST_IN_LANDING
+    holds B10 (deep interior-anchored landing over the beam row) with the exact
+    expected hit count; CI fails on ANY deviation.
+  NEXT to build (S89, same pattern): G8 tiny-text (promote legibility's side
+  signal), G9 garbled-overprint (check if a tightened G1 covers it), G10 dim-
+  through-graphics (codify the existing fix).
 PATTERN for a new bbox oracle: monkeypatch the draw primitive OR hook
 PdfPages.savefig to scan live figures; work in DISPLAY space; exclude
 intentional cases (white-bbox whiteout text, leader-terminus grazes, tiny
