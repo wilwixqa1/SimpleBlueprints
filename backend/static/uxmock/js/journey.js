@@ -437,20 +437,18 @@
     var sc = $('stage-canvas');
     if (stageHTML === null) stageHTML = sc.innerHTML;
     var stFull = fullState();
-    var grid = '<div class="preview-grid">' + SBPSheets.sheetList().map(function (s) {
-      return '<div class="pv-sheet" data-sheet="' + s.id + '">' + SBPSheets.render(s.id, stFull) +
-        '<div class="st-cap"><b>' + s.no + '</b><span>' + s.name + '</span></div></div>';
-    }).join('') + '</div>';
-    sc.innerHTML = grid;
-    sc.querySelectorAll('.pv-sheet').forEach(function (n) {
-      n.addEventListener('click', function () { openLightbox(n.getAttribute('data-sheet')); });
+    // instant placeholders: local SVG facsimiles, swapped for real renders below
+    S._display = SBPSheets.sheetList().map(function (sh) {
+      return { no: sh.no, name: sh.name, svg: SBPSheets.render(sh.id, stFull) };
     });
+    drawPreviewGrid(sc, 'DRAWING YOUR SET THROUGH THE REAL PIPELINE\u2026');
+    fetchRealSheets(sc);
 
     rail.innerHTML = '';
     var spec = SBPSpec.compute(S);
     rail.appendChild(el(
-      '<div class="card"><h3>Your drawing set <span class="stamp-ok">8 SHEETS · DRAWN</span></h3>' +
-      '<p style="font-size:13px;color:#454d3f">Every sheet above was drawn from your design just now. Click any sheet to inspect it. Revise anything in Act II and the set redraws.</p></div>'));
+      '<div class="card"><h3>Your drawing set <span class="stamp-ok">DRAWN FROM YOUR DESIGN</span></h3>' +
+      '<p style="font-size:13px;color:#454d3f">Instant previews appear first; within a few seconds each sheet is re-rendered by the same production pipeline that generates the final PDF. Click any sheet to inspect it. Revise anything in Act II and the set redraws.</p></div>'));
     rail.appendChild(el(
       '<div class="card"><h3>Summary</h3><div class="spec-rows">' +
       '<div class="spec-row"><span class="sr-k">Deck</span><span class="sr-v">' + S.deck.w + "' × " + S.deck.d + "' · " + S.deck.h + '" HIGH</span></div>' +
@@ -477,11 +475,46 @@
   function fullState() {
     return Object.assign({}, S, { street: S.street, address: S.address });
   }
-  function openLightbox(id) {
+  function drawPreviewGrid(sc, note) {
+    var grid = '<div class="preview-grid">' + S._display.map(function (d, i) {
+      var inner = d.png ? '<img src="data:image/png;base64,' + d.png + '" style="width:100%;display:block" alt="' + d.name + '">' : (d.svg || '<div style="padding:30px;font-family:var(--mono);font-size:11px;color:var(--warn)">RENDER ERROR: ' + (d.error || '') + '</div>');
+      return '<div class="pv-sheet" data-idx="' + i + '">' + inner +
+        '<div class="st-cap"><b>' + d.no + '</b><span>' + d.name + (d.png ? ' \u00b7 REAL RENDER' : '') + '</span></div></div>';
+    }).join('') + '</div>' +
+      (note ? '<div style="padding:0 18px 14px;font-family:var(--mono);font-size:10.5px;color:var(--mut)" id="pv-note">' + note + '</div>' : '');
+    sc.innerHTML = grid;
+    sc.querySelectorAll('.pv-sheet').forEach(function (n) {
+      n.addEventListener('click', function () { openLightbox(+n.getAttribute('data-idx')); });
+    });
+  }
+  function fetchRealSheets(sc) {
+    var payload = {
+      address: S.address, street: S.street, lot: S.lot, setbacks: S.setbacks,
+      house: S.house, north: S.north, deck: S.deck, zones: S.zones,
+      stairs: S.stairs, snow: S.snow, frost: S.frost, finish: S.finish
+    };
+    fetch('/api/mock/render-sheets', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (resp) {
+        if (S.act !== 3) return; // navigated away
+        S._display = resp.sheets;
+        drawPreviewGrid(sc, 'RENDERED BY THE PRODUCTION DRAWING PIPELINE \u00b7 ' + resp.sheets.filter(function (x) { return x.png; }).length + ' SHEETS');
+        var tbs = $('tb-set'); if (tbs) { tbs.textContent = resp.sheets.length + ' OF ' + resp.sheets.length + ' SHEETS \u00b7 REAL RENDER'; }
+        if (S.zones.length) toast('Note: wings aren\u2019t mapped to the real pipeline yet \u2014 renders show the main deck.');
+      })
+      .catch(function (e) {
+        if (S.act !== 3) return;
+        var note = $('pv-note'); if (note) note.textContent = 'REAL-PIPELINE RENDER UNAVAILABLE (' + e.message + ') \u00b7 SHOWING LOCAL PREVIEWS';
+      });
+  }
+  function openLightbox(idx) {
+    var d = S._display[idx]; if (!d) return;
     var root = $('lightbox-root');
-    var s = SBPSheets.sheetList().filter(function (x) { return x.id === id; })[0];
-    root.innerHTML = '<div class="lightbox" id="lb"><div class="lb-inner">' + SBPSheets.render(id, fullState()) +
-      '<div class="st-cap" style="border-top:1px solid var(--ruling);padding:8px 12px;font-family:var(--mono);font-size:11px;color:var(--mut);display:flex;justify-content:space-between"><b>' + s.no + '</b><span>' + s.name + ' — CLICK ANYWHERE TO CLOSE</span></div></div></div>';
+    var inner = d.png ? '<img src="data:image/png;base64,' + d.png + '" style="width:100%;display:block" alt="' + d.name + '">' : (d.svg || '');
+    root.innerHTML = '<div class="lightbox" id="lb"><div class="lb-inner">' + inner +
+      '<div class="st-cap" style="border-top:1px solid var(--ruling);padding:8px 12px;font-family:var(--mono);font-size:11px;color:var(--mut);display:flex;justify-content:space-between"><b>' + d.no + '</b><span>' + d.name + ' — CLICK ANYWHERE TO CLOSE</span></div></div></div>';
     $('lb').addEventListener('click', function () { root.innerHTML = ''; });
   }
 

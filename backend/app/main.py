@@ -2807,6 +2807,100 @@ async def uxmock_extract():
     d["source"] = "survey_extraction"
     d["confidence"] = {"lot": "high", "house": "medium", "north": "low"}
     return JSONResponse(d)
+
+
+@app.post("/api/mock/render-sheets")
+def uxmock_render_sheets(p: dict):
+    """Render the mock design through the REAL production drawing pipeline.
+
+    Maps the mock's three-act state onto DeckParams, runs calculate_structure +
+    build_permit_spec, then draws each sheet with the production matplotlib
+    renderers and returns low-dpi PNGs (base64). Sync def on purpose: FastAPI
+    runs it in the threadpool, keeping matplotlib off the event loop.
+    v1 mapping scope: main deck, deck-edge stairs, site plan, conditions,
+    finishes, project info. Wings/zones not yet mapped (renders omit them).
+    """
+    import base64
+    from io import BytesIO
+
+    deck = p.get("deck") or {}
+    house = p.get("house") or {}
+    sb = p.get("setbacks") or {}
+    finish = p.get("finish") or {}
+    addr = (p.get("address") or "").strip()
+    parts = [a.strip() for a in addr.split(",")]
+    city = parts[1] if len(parts) > 1 else ""
+    state_zip = (parts[2].split() if len(parts) > 2 else [])
+    params = DeckParams().dict()
+    params.update({
+        "width": float(deck.get("w", 16)),
+        "depth": float(deck.get("d", 12)),
+        "height": float(deck.get("h", 36)) / 12.0,
+        "houseWidth": float(house.get("w", 44)),
+        "houseDepth": float(house.get("d", 30)),
+        "houseOffsetSide": float(house.get("x", 26)),
+        "deckOffset": float(deck.get("off", 14)) + float(deck.get("w", 16)) / 2.0 - float(house.get("w", 44)) / 2.0,
+        "lotVertices": p.get("lot"),
+        "setbackFront": float(sb.get("front", 25)),
+        "setbackSide": float(sb.get("side", 5)),
+        "setbackRear": float(sb.get("rear", 15)),
+        "northAngle": float(p.get("north", 0)),
+        "streetName": p.get("street") or "Street",
+        "snowLoad": p.get("snow", 30),
+        "frostZone": p.get("frost", 36),
+        "deckingType": "composite" if "composite" in (finish.get("decking", "") or "").lower() else "wood",
+        "projectInfo": {
+            "owner": "", "address": parts[0] if parts else "",
+            "city": city,
+            "state": state_zip[0] if state_zip else "",
+            "zip": state_zip[1] if len(state_zip) > 1 else "",
+        },
+    })
+    deck_stairs = [
+        {"id": i, "zoneId": 0,
+         "location": s.get("edge", "front"),
+         "width": 4, "numStringers": 3}
+        for i, s in enumerate(p.get("stairs") or []) if s.get("zone") is None
+    ]
+    if deck_stairs:
+        params["deckStairs"] = deck_stairs
+        params["hasStairs"] = True
+        params["stairLocation"] = deck_stairs[0]["location"]
+
+    calc = calculate_structure(params)
+    spec = build_permit_spec(params, calc)
+    pi = params["projectInfo"]
+
+    body_sheets = [
+        ("A-1", "DECK PLAN & FRAMING", draw_plan_and_framing),
+        ("A-2", "ELEVATIONS", draw_elevations_sheet),
+        ("A-3", "GENERAL NOTES", draw_notes_sheet),
+        ("A-4", "STRUCTURAL DETAILS", draw_details_sheet),
+        ("A-5", "SITE PLAN", lambda f_, p_, c_, s_: draw_site_plan(f_, p_, c_)),
+        ("A-6", "DECK ATTACHMENT SHEET", lambda f_, p_, c_, s_: draw_checklist_sheet(f_, p_, c_, s_)),
+    ]
+    out = []
+
+    def _png(fig):
+        buf = BytesIO()
+        fig.savefig(buf, format="png", dpi=40, facecolor="white")
+        plt.close(fig)
+        return base64.b64encode(buf.getvalue()).decode("ascii")
+
+    with render_scale():
+        fig0 = plt.figure(figsize=sheet_size()); fig0.set_facecolor("white")
+        draw_cover_sheet(fig0, params, calc, pi, None)
+        out.append({"no": "A-0", "name": "COVER SHEET", "png": _png(fig0)})
+        for sheet_num, sheet_name, draw_fn in body_sheets:
+            fig = plt.figure(figsize=sheet_size()); fig.set_facecolor("white")
+            try:
+                draw_fn(fig, params, calc, spec)
+                draw_title_block(fig, sheet_num, sheet_name, calc, pi)
+                out.append({"no": sheet_num, "name": sheet_name, "png": _png(fig)})
+            except Exception as e:
+                plt.close(fig)
+                out.append({"no": sheet_num, "name": sheet_name, "error": str(e)[:200]})
+    return JSONResponse({"renderer": "production-pipeline", "sheets": out})
 # ============================================================
 # END S88.5 UX MOCK revert block
 # ============================================================
