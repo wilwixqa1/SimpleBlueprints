@@ -56,5 +56,8 @@ jobs:
           python3 tests/pdf/panel_check.py --selftest
           SBP_SHEET=arch_d python3 tests/pdf/panel_check.py basic_rect_ledger zones_stairs_lcr
 
+      - name: Config matrix + post-in-landing B3/G11 (S88, interior-anchored stair path)
+        run: SBP_SHEET=arch_d python3 tests/pdf/config_matrix.py
+
       - name: Fuzz smoke (S87, 8 seeded configs, crash judge)
         run: SBP_SHEET=arch_d python3 tests/pdf/fuzz_configs.py 8

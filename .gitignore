@@ -7,3 +7,4 @@ node_modules/
 .next/
 .vercel/
 !backend/drawing/jurisdiction/*.pdf
+tests/pdf/matrix_fixtures/
