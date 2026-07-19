@@ -37,6 +37,9 @@ jobs:
       - name: Structural verification (IRC known-answer tests, S60 baseline)
         run: python3 tests/test_structural.py
 
+      - name: Post-to-grade consistency (S87, elevations invariant)
+        run: python3 tests/test_post_grade.py
+
       - name: Future products logic tests
         run: python3 tests/test_future_products.py
 
