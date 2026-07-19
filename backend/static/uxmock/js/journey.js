@@ -124,6 +124,7 @@
   }
   function applyParcel(d) {
     S.parcel = d;
+    S._sbOrig = Object.assign({}, d.setbacks);
     S.lot = d.lotVertices; S.setbacks = d.setbacks; S.house = d.house;
     S.north = d.northAngle; S.street = 'Sweetgrass Lane'; S.jurisdiction = d.jurisdiction;
     S.address = d.address;
@@ -147,11 +148,14 @@
       '<div class="spec-row"><span class="sr-k">Zoning</span><span class="sr-v">' + (S.parcel ? S.parcel.zoning.split(' ')[0] : '—') + '</span></div>' +
       '<div class="spec-row"><span class="sr-k">Lot boundary</span><span class="sr-v" style="color:var(--ok)">' + conf.lot.toUpperCase() + ' CONFIDENCE</span></div>' +
       '<div class="spec-row"><span class="sr-k">House footprint</span><span class="sr-v" style="color:var(--ok)">' + conf.house.toUpperCase() + ' CONFIDENCE</span></div>' +
-      '</div></div>'));
+      '</div>' +
+      '<button class="btn quiet" id="re-search" style="width:100%;justify-content:center;margin-top:12px">Wrong address? Search again</button></div>'));
     rail.appendChild(el(
       '<div class="card"><h3>Setbacks (from zoning)</h3>' +
       sbSlider('front', 'Front', S.setbacks.front) + sbSlider('side', 'Sides', S.setbacks.side) + sbSlider('rear', 'Rear', S.setbacks.rear) +
-      '<p style="font-size:11.5px;color:var(--mut);margin-top:6px">Pulled from your zoning district. Adjust if your jurisdiction told you otherwise.</p></div>'));
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;gap:8px">' +
+      '<p style="font-size:11.5px;color:var(--mut);margin:0">Pulled from your zoning district. Adjust if your jurisdiction told you otherwise.</p>' +
+      '<button class="btn quiet" id="sb-reset" style="white-space:nowrap">Reset to lookup</button></div></div>'));
     var goCard = el(
       '<div class="card"><button class="btn primary" id="confirm-go" style="width:100%;justify-content:center">That\u2019s my house — design my deck</button>' +
       '<p style="font-size:11.5px;color:var(--mut);margin-top:8px;text-align:center">You can come back and adjust any of this later.</p></div>');
@@ -161,6 +165,25 @@
         S.setbacks[k] = +this.value; $('sb-' + k + '-o').value = this.value + "'";
         SBPCanvas.render();
       });
+    });
+    $('sb-reset').addEventListener('click', function () {
+      if (!S._sbOrig) return;
+      S.setbacks = Object.assign({}, S._sbOrig);
+      [['front', 'front'], ['side', 'side'], ['rear', 'rear']].forEach(function (pair) {
+        var inp = $('sb-' + pair[0]); if (inp) { inp.value = S.setbacks[pair[1]]; $('sb-' + pair[0] + '-o').value = S.setbacks[pair[1]] + "'"; }
+      });
+      SBPCanvas.render();
+      toast('Setbacks reset to the lookup values.');
+    });
+    $('re-search').addEventListener('click', function () {
+      // keep the typed address for editing; clear everything derived from it
+      S.parcel = null; S.lot = null; S.house = null; S.north = 0; S._sbOrig = null;
+      S.setbacks = { front: 25, side: 5, rear: 15 };
+      S.zones = []; S.stairs = []; S._chat = null;
+      S.deck = { off: 14, w: 16, d: 12, h: 36 };
+      updateTitleblock(); setActNav();
+      renderAct1();
+      toast('Cleared. Search a different address or pick another way in.');
     });
     $('confirm-go').addEventListener('click', function () { go(2); });
   }
