@@ -16,6 +16,19 @@ Usage:
 import math
 
 
+def _resolve_snow_psf(value):
+    """B9: ground snow psf from category string or numeric psf (delegates to
+    calc_engine's single source of truth)."""
+    from .calc_engine import resolve_snow_load
+    return resolve_snow_load(value)
+
+
+def _resolve_frost_in(value):
+    """B9: frost depth inches from category string or numeric inches."""
+    from .calc_engine import resolve_frost_depth
+    return resolve_frost_depth(value)
+
+
 # ============================================================
 # HARDWARE SELECTION TABLES
 # ============================================================
@@ -139,9 +152,8 @@ def build_permit_spec(params, calc):
         "TL": TL,
         "ledger_capacity": ledger_capacity,
         "snow_load": params.get("snowLoad", "none"),
-        # Raw ground snow PSF from params (not derived from LL)
-        "ground_snow": {"none": 0, "light": 20, "moderate": 40, "heavy": 60}.get(
-            params.get("snowLoad", "none"), 0),
+        # Raw ground snow PSF (B9: resolver handles category OR numeric psf)
+        "ground_snow": _resolve_snow_psf(params.get("snowLoad", "none")),
     }
 
     # --- Joists ---
@@ -389,6 +401,9 @@ def build_permit_spec(params, calc):
     }
 
     # --- Frost / Snow ---
+    # frost_zone kept as the raw param for the notes/spec display; downstream
+    # depth math routes through resolve_frost_depth (B9), so a numeric value
+    # here is interpreted consistently everywhere.
     spec["frost_zone"] = params.get("frostZone", "cold")
 
     # --- Warnings from calc engine ---

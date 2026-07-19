@@ -165,10 +165,11 @@ def get_config_tags(params, calc):
     if calc.get("height", 4) > 8:
         tags.append("height_over_8ft")
 
-    snow = params.get("snowLoad", "none")
-    if snow != "none":
+    from .calc_engine import resolve_snow_load
+    snow_raw = params.get("snowLoad", "none")
+    if resolve_snow_load(snow_raw) > 0:
         tags.append("snow_any")
-        tags.append(f"snow_{snow}")
+        tags.append(f"snow_{snow_raw}")
 
     decking = params.get("deckingType", "composite")
     tags.append(f"decking_{decking}")
@@ -452,9 +453,9 @@ def check_beam_span(params, calc, spec):
 )
 def check_footing_frost(params, calc, spec):
     footing_depth = calc.get("footing_depth", 36)
-    from .calc_engine import FROST_DEPTHS
+    from .calc_engine import resolve_frost_depth
     frost_zone = params.get("frostZone", "cold")
-    required = FROST_DEPTHS.get(frost_zone, 36)
+    required = resolve_frost_depth(frost_zone)
 
     if footing_depth < required:
         return CheckResult(

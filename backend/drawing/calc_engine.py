@@ -365,6 +365,56 @@ def auto_select_beam(beam_span, joist_span, design_load, species="dfl_hf_spf"):
 FROST_DEPTHS = {"warm": 12, "moderate": 24, "cold": 36, "severe": 48}
 SNOW_LOADS = {"none": 0, "light": 20, "moderate": 40, "heavy": 60}
 
+# S88 B9 FIX: single source of truth for interpreting frostZone / snowLoad.
+# The wizard always sends CATEGORY STRINGS, but any non-UI caller (API,
+# AI helper, future code) may send a NUMBER. Before this, calc_engine and
+# permit_checker each did TABLE.get(value, <their own default>): a numeric
+# input missed the table and silently fell to DIFFERENT defaults on each
+# side (calc 30" vs checker 36" for frost), producing a guaranteed calc-vs-
+# checker mismatch with NO error raised. These resolvers canonicalize once:
+# a number is taken literally (inches / ground-snow psf); a known category
+# is looked up; anything else falls to the shared default below. Every read
+# site -- calc AND checker -- MUST route through these so defaults cannot
+# drift apart again.
+DEFAULT_FROST_CATEGORY = "cold"    # 36" -- conservative shared default
+DEFAULT_SNOW_CATEGORY = "none"     # 0 psf -- shared default
+
+
+def _as_number(value):
+    """Return value as a float if it IS numeric (int/float or numeric str),
+    else None. Booleans are not treated as numbers."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        s = value.strip()
+        try:
+            return float(s)
+        except ValueError:
+            return None
+    return None
+
+
+def resolve_frost_depth(value):
+    """Frost depth in inches from a frostZone param that may be a category
+    string ('warm'/'moderate'/'cold'/'severe') OR a literal number of inches.
+    Unknown -> DEFAULT_FROST_CATEGORY depth. Never raises."""
+    n = _as_number(value)
+    if n is not None:
+        return n
+    return FROST_DEPTHS.get(value, FROST_DEPTHS[DEFAULT_FROST_CATEGORY])
+
+
+def resolve_snow_load(value):
+    """Ground snow load in psf from a snowLoad param that may be a category
+    string ('none'/'light'/'moderate'/'heavy') OR a literal psf number.
+    Unknown -> DEFAULT_SNOW_CATEGORY. Never raises."""
+    n = _as_number(value)
+    if n is not None:
+        return n
+    return SNOW_LOADS.get(value, SNOW_LOADS[DEFAULT_SNOW_CATEGORY])
+
 
 def get_joist_spans_for_load(design_load, species="dfl_hf_spf"):
     """Look up IRC joist spans by design load and species.
@@ -415,8 +465,8 @@ def calculate_steel_structure(params):
     height = params["height"]
     attachment = params["attachment"]
     joist_spacing = params.get("joistSpacing", 16)
-    snow = SNOW_LOADS.get(params.get("snowLoad", "moderate"), 0)
-    frost = FROST_DEPTHS.get(params.get("frostZone", "cold"), 30)
+    snow = resolve_snow_load(params.get("snowLoad", "moderate"))
+    frost = resolve_frost_depth(params.get("frostZone", "cold"))
     beam_type = params.get("beamType", "dropped")
     gauge = params.get("steelGauge", "16")
     steel_beam_pref = params.get("steelBeamType", "auto")
@@ -442,9 +492,16 @@ def calculate_steel_structure(params):
     LL = max(40, snow)
     TL = LL + DL
 
-    # Map to CCRR load case
-    load_case_map = {"none": "50", "light": "75", "moderate": "75", "heavy": "100"}
-    load_case = load_case_map.get(params.get("snowLoad", "moderate"), "75")
+    # Map to CCRR load case. Base tier from the GROUND SNOW psf (works for
+    # both category and numeric inputs -- B9), then TL thresholds raise it.
+    if snow <= 0:
+        load_case = "50"
+    elif snow <= 20:
+        load_case = "75"
+    elif snow <= 40:
+        load_case = "75"
+    else:
+        load_case = "100"
     if TL > 100:
         load_case = "125"
     if TL > 125:
@@ -640,8 +697,8 @@ def calculate_structure(params):
     height = params["height"]
     attachment = params["attachment"]
     joist_spacing = params["joistSpacing"]
-    snow = SNOW_LOADS.get(params["snowLoad"], 0)
-    frost = FROST_DEPTHS.get(params["frostZone"], 30)
+    snow = resolve_snow_load(params["snowLoad"])
+    frost = resolve_frost_depth(params["frostZone"])
 
     # Beam type: "dropped" (default, below joists) or "flush" (inline with joists)
     beam_type = params.get("beamType", "dropped")

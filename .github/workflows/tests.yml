@@ -40,6 +40,9 @@ jobs:
       - name: Post-to-grade consistency (S87, elevations invariant)
         run: python3 tests/test_post_grade.py
 
+      - name: Frost/snow input normalization (S88 B9, calc-vs-checker agreement)
+        run: python3 tests/test_frost_snow_normalize.py
+
       - name: Future products logic tests
         run: python3 tests/test_future_products.py
 
