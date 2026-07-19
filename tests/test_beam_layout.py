@@ -15,7 +15,7 @@ BACKEND = Path(__file__).resolve().parents[1] / "backend"
 sys.path.insert(0, str(BACKEND))
 
 from drawing.beam_layout import (  # noqa: E402
-    compute_beam_layout, front_edge_profile, _legacy_posts,
+    compute_beam_layout, front_edge_profile, _legacy_posts, _posts_for_segment,
 )
 
 FAILS = []
@@ -81,6 +81,29 @@ for name, cuts in [("deep", deep_cuts), ("shallow", shallow_cuts)]:
     worst = max(s["max_cant"] for s in lay["segments"])
     check(f"{name}: no overhang over cantilever_max (worst={worst})",
           not lay["over_limit"])
+
+# --- 5. S90: short segments never emit coincident/near-coincident posts ------
+# The exactly-4-ft strip (a realistic "notch sized to a 4 ft stair") used to
+# stack two posts at the same x, over-counting posts/piers. Now: one centered.
+for sw in [3.0, 4.0, 4.5, 5.0, 5.9]:
+    posts = _posts_for_segment(0.0, sw, 8.0)
+    uniq = len({round(p, 3) for p in posts})
+    check(f"short seg {sw}ft: single centered post (no dup)",
+          len(posts) == 1 and abs(posts[0] - sw / 2.0) < 1e-6,
+          f"{posts}")
+# 6 ft segment keeps the legacy two end posts (unchanged behavior).
+check("6ft seg: legacy two end posts [2,4]",
+      _posts_for_segment(0.0, 6.0, 8.0) == [2.0, 4.0],
+      str(_posts_for_segment(0.0, 6.0, 8.0)))
+# deep-notch 8 ft strip unchanged (previously visually confirmed).
+check("8ft seg (x[6,14]): unchanged [8,12]",
+      _posts_for_segment(6.0, 14.0, 8.0) == [8.0, 12.0],
+      str(_posts_for_segment(6.0, 14.0, 8.0)))
+# End-to-end: the realistic 4 ft notch strip yields NO duplicate post_xy.
+_strip = compute_beam_layout(20, 14, [_cut(8, 8, 4, 6)], 3, cantilever_max=3.125)
+_pxy = _strip["post_xy"]
+check("4ft notch strip: no duplicate post positions",
+      len(_pxy) == len(set(_pxy)), str(_pxy))
 
 print()
 if FAILS:

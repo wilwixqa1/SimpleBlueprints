@@ -38,6 +38,7 @@ import math
 
 EPS = 1e-6
 DEFAULT_SETBACK = 1.5  # ft the beam sits in from the edge it supports (legacy)
+MIN_POST_SEP = 2.0  # ft; below this the two end posts collapse to one (S90)
 
 
 def front_edge_profile(width, depth, cut_rects):
@@ -102,10 +103,20 @@ def _legacy_posts(width, num_posts):
 
 def _posts_for_segment(x0, x1, max_beam_span):
     """Post x-positions along one beam segment so no post-to-post span exceeds
-    ``max_beam_span``. Mirrors the legacy 2-in-from-each-end inset."""
+    ``max_beam_span``. Mirrors the legacy 2-ft-in-from-each-end inset.
+
+    S90: guard the degenerate short segment. With the 2 ft end inset the two end
+    posts sit ``seg_w - 4`` apart, so a segment near 4 ft wide put TWO posts at
+    (nearly) the same x -- e.g. an exactly-4-ft notch strip stacked both posts at
+    the midpoint, over-counting posts/piers/footings in the materials list. When
+    the end posts would be closer than ``MIN_POST_SEP`` a single centered post is
+    used instead. Segments wide enough for distinct posts are UNCHANGED (the
+    interior-count formula is untouched), so previously-verified layouts -- flat
+    (which never reaches here) and the deep-notch 6 ft wings / 8 ft strip --
+    render identically."""
     seg_w = x1 - x0
-    if seg_w < 4.0:
-        # Segment too short for the 2ft insets: a single centered post.
+    if seg_w - 4.0 < MIN_POST_SEP - EPS:
+        # Too short for two distinct, sensibly-spaced end posts: one centered.
         return [round(x0 + seg_w / 2.0, 2)]
     n = max(2, math.ceil(seg_w / max_beam_span - EPS) + 1)
     return [round(x0 + 2 + i * (seg_w - 4) / (n - 1), 2) for i in range(n)]
