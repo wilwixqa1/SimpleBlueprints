@@ -103,6 +103,28 @@ PARAM_SETS = {
         "projectInfo": {"name": "Render Review - Straight Stair",
                         "address": "Test Fixture", "applicant": "S85 Harness"},
     },
+    # 3b. S90 target fixture: notched deck (front cutout, back edge at y=8) with a
+    # location-derived front stair (NO explicit anchor) centered in the notch.
+    # Exercises P1.2: the stair must sit at the notch edge (y=8), not float at
+    # full depth (y=14) over the cutout void.
+    "notch_front_stair": {
+        "width": 20, "depth": 14, "height": 4,
+        "attachment": "ledger", "beamType": "dropped",
+        "joistSpacing": 16, "deckingType": "composite",
+        "railType": "fortress", "snowLoad": "moderate", "frostZone": "cold",
+        "houseWidth": 40, "houseDepth": 30,
+        "zones": [{"id": 1, "type": "cutout", "attachEdge": "front",
+                   "attachOffset": 6, "w": 8, "d": 6, "attachTo": 0}],
+        "hasStairs": True, "stairLocation": "front", "stairWidth": 4,
+        "numStringers": 3,
+        "deckStairs": [{
+            "id": 1, "zoneId": 0, "location": "front", "width": 4,
+            "template": "straight", "offset": 0,
+            "numStringers": 3, "_landsOnZoneId": None,
+        }],
+        "projectInfo": {"name": "Render Review - Notch + Front Stair",
+                        "address": "Test Fixture", "applicant": "S91 Harness"},
+    },
     # 4. Site plan on the S84/S85 canonical trapezoid lot (the divergence case).
     "trapezoid_siteplan": {
         "width": 16, "depth": 12, "height": 4,

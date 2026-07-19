@@ -66,11 +66,37 @@ def get_stair_exit_side(angle: float) -> str:
     return get_stair_exit_side(snapped)
 
 
-def get_stair_placement_for_zone(stair: dict, zone_rect: dict) -> dict:
+def _front_edge_y_for_span(front_profile, x0, x1, default_depth):
+    """Shallowest (minimum) front-edge y across the x-span ``[x0, x1]``.
+
+    ``front_profile`` is beam_layout.front_edge_profile() output: left-to-right
+    ``(a, b, edge_y)`` segments where ``edge_y`` is how far the deck extends
+    toward the yard at that x (``depth`` on solid deck, pulled inward at a
+    front-reaching cutout). A stair must land on solid deck, so across its
+    footprint we take the SHALLOWEST solid edge (the smallest edge_y) -- this is
+    the notch-back edge when the footprint overlaps a notch, so the stair sits at
+    the real edge instead of floating at full depth over the void.
+    """
+    eps = 1e-9
+    ey = None
+    for (a, b, e) in front_profile:
+        if b > x0 + eps and a < x1 - eps:  # segment overlaps the footprint
+            ey = e if ey is None else min(ey, e)
+    return ey if ey is not None else default_depth
+
+
+def get_stair_placement_for_zone(stair: dict, zone_rect: dict,
+                                 front_profile=None) -> dict:
     """Compute stair anchor in zone-local coords. Mirrors frontend getStairPlacementForZone.
 
     stair: dict with keys location, offset, anchorX, anchorY, angle, width, ...
     zone_rect: dict with keys x, y, w, d (world-space zone rectangle)
+    front_profile: optional beam_layout.front_edge_profile() output for the deck
+        this zone lives on. When supplied (main deck / zone 0), a location-derived
+        FRONT stair anchors at the REAL front edge across its footprint rather
+        than at full depth -- so on a notched deck the stair sits at the notch
+        edge instead of floating over the cutout void (P1.2). Ignored for the
+        explicit-anchor path and for non-front locations.
     Returns: { anchor_x, anchor_y, angle } in zone-local coords
     """
     ax = stair.get("anchorX")
@@ -85,7 +111,14 @@ def get_stair_placement_for_zone(stair: dict, zone_rect: dict) -> dict:
     loc = stair.get("location", "front")
 
     if loc == "front":
-        return {"anchor_x": W / 2 + off, "anchor_y": D, "angle": 0}
+        anchor_x = W / 2 + off
+        anchor_y = D
+        if front_profile:
+            sw = float(stair.get("width", 4))
+            anchor_y = _front_edge_y_for_span(front_profile,
+                                              anchor_x - sw / 2.0,
+                                              anchor_x + sw / 2.0, D)
+        return {"anchor_x": anchor_x, "anchor_y": anchor_y, "angle": 0}
     if loc == "right":
         return {"anchor_x": W, "anchor_y": D / 2 + off, "angle": 90}
     if loc == "left":
@@ -460,6 +493,14 @@ def resolve_all_stairs(params: dict, calc: dict) -> list:
     # Zone 0 is always { x:0, y:0, w:W, d:D }
     zone_rects[0] = {"x": 0, "y": 0, "w": float(calc["width"]), "d": float(calc["depth"])}
 
+    # P1.2: real front-edge profile of the MAIN deck, so a location-derived front
+    # stair on zone 0 lands on the notch edge instead of floating at full depth
+    # over a front cutout. Constant per call; cutouts live on the main deck only.
+    from .beam_layout import front_edge_profile
+    from .zone_utils import get_cutout_rects
+    main_front_profile = front_edge_profile(
+        float(calc["width"]), float(calc["depth"]), get_cutout_rects(params))
+
     resolved = []
     for stair in deck_stairs:
         zone_id = stair.get("zoneId", 0)
@@ -471,8 +512,11 @@ def resolve_all_stairs(params: dict, calc: dict) -> list:
         elev = resolve_stair_elevation(stair, params)
         stair_rise = elev["totalRise"]
 
-        # Compute placement in zone-local coords
-        placement = get_stair_placement_for_zone(stair, zr)
+        # Compute placement in zone-local coords. The main-deck front profile is
+        # supplied only for zone 0 (cutouts live there); additive zones get None,
+        # preserving prior behavior. (P1.2)
+        front_profile = main_front_profile if zone_id == 0 else None
+        placement = get_stair_placement_for_zone(stair, zr, front_profile)
 
         # Convert to world coords
         wax = zr["x"] + placement["anchor_x"]
