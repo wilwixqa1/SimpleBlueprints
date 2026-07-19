@@ -8,6 +8,8 @@
 
 import math
 
+from .beam_layout import compute_beam_layout  # S89: cutout-aware beam+posts
+
 # ============================================================
 # IRC 2021 TABLE R507.6: MAXIMUM DECK JOIST SPANS
 # ============================================================
@@ -782,7 +784,23 @@ def calculate_structure(params):
         else:
             post_positions.append(round(2 + i * (width - 4) / (num_posts - 1), 2))
 
-    total_posts = num_posts if attachment == "ledger" else num_posts * 2
+    # S89: cutout-aware beam + post layout (fix B10 / B4-B6). On a plain deck
+    # (no front cutout) this reproduces post_positions above byte-for-byte, so
+    # the no-zone permit set is unchanged; on a notched deck the beam follows
+    # the real edge and no post is left over empty space. cantilever_max = the
+    # IRC 2021 R507.6 one-quarter-back-span allowance.
+    from .zone_utils import get_cutout_rects  # local: avoid import cycle
+    _cut_rects = get_cutout_rects(params)
+    _cantilever_max = round(joist_span / 4.0, 2)
+    beam_layout = compute_beam_layout(
+        width, depth, _cut_rects, num_posts,
+        cantilever_max=_cantilever_max, setback=1.5, max_beam_span=8.0)
+    # Derive post x-positions from the layout (identical to the legacy list on a
+    # plain deck). Keeps every downstream reader working; the (x,y) lives in
+    # beam_layout for the drawing + the post-in-notch oracle.
+    post_positions = [px for (px, _py) in beam_layout["post_xy"]]
+
+    total_posts = len(post_positions) if attachment == "ledger" else len(post_positions) * 2
 
     # S34: Slope-adjusted post heights per position (mirrors frontend engine.js)
     slope_pct = params.get("slopePercent", 0) / 100
@@ -923,6 +941,7 @@ def calculate_structure(params):
         "width": width, "depth": depth, "height": height, "area": round(area, 1), "lot_area": lot_area,
         "attachment": attachment, "beam_type": beam_type, "LL": LL, "DL": DL, "TL": TL,
         "species": species,
+        "beam_layout": beam_layout,  # S89: cutout-aware beam segments + post (x,y)
         "joist_size": joist_size, "joist_spacing": joist_spacing,
         "joist_span": round(joist_span, 1), "num_joists": num_joists,
         "beam_size": beam_size, "beam_span": round(beam_span, 1),
