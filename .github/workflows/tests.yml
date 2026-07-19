@@ -42,5 +42,5 @@ jobs:
 
       - name: Text-over-linework differential (S87 oracle, 2 canonical fixtures)
         run: |
-          pip install httpx python-multipart itsdangerous anthropic fastapi stripe psycopg2-binary
+          pip install httpx python-multipart itsdangerous anthropic fastapi stripe psycopg2-binary reportlab pypdf pillow
           SBP_SHEET=arch_d python3 tests/pdf/linework_check.py basic_rect_ledger zones_stairs_lcr
