@@ -52,15 +52,29 @@ TWO S87 WILL-GATES, now both MACHINE-ADVANCED:
   only a screenshot confirming the "+" handles are physically gone + the hint
   renders (the gating function is proven; the pixel render is not).
 
-TOP PRIORITIES (S89) -- full list in MASTER_CONTEXT 11B:
-1. [needs Will] B7/B8 convention call, THEN fix + zero the KNOWN table. Blocked
-   on Will since S87.
-2. [needs Will] B10 design call (clamp anchor vs relocate post), THEN fix + zero
-   its KNOWN entry.
-3. [no vision] REMAINING DETECTORS from 10E: G8 tiny-text (promote legibility's
-   side signal), G9 garbled-overprint (check if tightened G1 covers it), G10
-   dim-through-graphics (codify the existing fix). Same bbox/baseline shape.
-4. [no vision] GOLDEN-FILE PDF regression (item 8), pin fonts+mpl.
+TOP PRIORITIES (S89) -- full list + the phased B10 plan in MASTER_CONTEXT 11B.
+DECISIONS ARE IN (Will, S88, confirmed against the two ALL THINGS ARCHITECTURE
+reference sets Loucks + Ilaria -- real approved PPRBD deck permits). Implement:
+1. [O] FIX B7/B8 (sloped-grade drawing): one honest continuous grade line that
+   follows the real slope, every post grounded at its TRUE point -- no averaging
+   (B8), no floating over a bench pad (B7). Reference sets use NO bench pad, so
+   also consider deleting the bench-pad code path. Then zero the KNOWN table.
+2. [mostly O + 1 visual] FIX B10 -- REVISED. The S88 "forbid interior stairs"
+   idea was WRONG; Will corrected it. Interior/notched stairs (deck overhangs the
+   sides, puzzle-piece footprint) are REAL and must be SUPPORTED. Real bug: when
+   the deck notches inward, a support post is left at the old edge, standing in
+   the landing where no deck exists above it. Fix: posts follow the REAL notched
+   edge. Phased plan in 11B: analyze (no vision) -> build + numeric check (no
+   vision) -> visual confirm. BACKUP if Claude's view is dead: Will photographs
+   the 3D view rotated to look UP from under the deck + the 2D framing view;
+   next-session-Claude gives Will exact click-by-click setup. Likely ties to
+   B4/B6 (L-shape / wraparound).
+3. [O] Remaining detectors G8/G9/G10 (G5/G6/G7/G11 done S88).
+4. [O] Golden-file PDF regression.
+NEW from the reference-set review: B11 (cantilever at a house bump-out -- ledger
+can't attach to a fireplace/bay projection, needs a separate beam in framing;
+we likely don't handle it) + calibration notes (LVL/MicroLlam beams, 4x4-vs-6x6
+posts, Simpson models) to make our output read like the pro sets. See backlog.
 NOTE the vision-first experiment WORKED -- keep front-loading any visual review.
 
 JURISDICTION: COLORADO SPRINGS / PPRBD (partner Billy operates there). Reference

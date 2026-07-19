@@ -9,3 +9,4 @@ node_modules/
 !backend/drawing/jurisdiction/*.pdf
 tests/pdf/matrix_fixtures/
 SimpleBlueprints/
+!docs/reference_sets/*.pdf

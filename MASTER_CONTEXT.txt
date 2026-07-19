@@ -1064,14 +1064,58 @@ HOW TO RUN S89 (procedural -- read before picking a task):
     front so they can ship the moment the answer lands.
 
 S89 QUEUE (ordered by leverage; V=needs vision, O=oracle-only/no vision):
-  1. [needs Will, then O] FIX B7/B8 (post-to-grade bugs -- see backlog). Needs
-     the DRAWING-CONVENTION CALL from Will first (bench pad follows piers vs
-     piers step to pad; front-back grade at pier plane vs project piers to
-     center), THEN fix, THEN zero the KNOWN table in test_post_grade.py same push.
-  2. [needs Will, then O] FIX B10 (post-in-landing on deep interior-anchored
-     stairs -- NEW S88, see backlog). Needs the DESIGN CALL (clamp the anchor so
-     a landing can't cross the beam line, vs relocate the overlapped post), THEN
-     fix, THEN zero the KNOWN entry in config_matrix.py same push.
+  DECISIONS ARE IN (Will, S88, confirmed against the two ALL THINGS ARCHITECTURE
+  reference sets -- Loucks + Ilaria -- which are real approved PPRBD deck permits
+  and the exact bar we target). No more waiting on Will for these; implement.
+
+  1. [O -- DECIDED] FIX B7/B8 (sloped-grade post drawing). CONVENTION = the
+     professional sets' approach: ONE honest, continuous grade line that follows
+     the real slope, with EVERY post run down to meet the drawn grade at its TRUE
+     ground point. No averaging to deck center (kills B8); no floating above a
+     separately-drawn bench pad (kills B7). Both bugs collapse to a single rule:
+     "the drawn grade line must pass through the actual bottom-of-post point for
+     every post." This is exactly what test_post_grade.py already measures, so:
+     implement the honest-grade drawing, then ZERO the B7+B8 KNOWN entries in
+     test_post_grade.py same push. NOTE: the reference sets use NO bench-pad
+     treatment at all -- they just follow natural grade. So consider whether the
+     whole bench-pad code path (the source of B7) should be SIMPLIFIED/removed in
+     favor of the clean natural-grade approach. Simpler-code question, do it here.
+  2. [MOSTLY O, one visual confirm -- REVISED, see plan below] FIX B10. The S88
+     framing "clamp/forbid interior stairs" was WRONG -- Will corrected it. An
+     interior/notched stair (stairs meeting the deck at an inside point, deck
+     overhanging on the sides, a puzzle-piece footprint rather than a clean
+     rectangle) is a REAL, buildable shape and must be SUPPORTED, not forbidden.
+     The actual bug: when the deck notches inward for the stairs, our code leaves
+     a support POST behind at the old rectangle edge, so it stands in the stair
+     landing where NO DECK exists above it. A post only exists to hold up deck
+     above it. CORRECT FIX: when the deck notches/wraps for an interior stair,
+     posts must be placed along the REAL (notched) deck edge -- none left where
+     there's no deck above. This is bigger than B7/B8 and likely connects to the
+     open L-shape / wraparound shape bugs (B4, B6). Do NOT rush it. PHASED PLAN:
+
+     PHASE 1 ANALYZE (NO vision): read how the deck FOOTPRINT, its edges, and
+       post_positions are computed when the shape isn't a clean rectangle (stair
+       notched inward). Answer in the code: do posts move with the notched edge?
+       does the overhang region get its own support/beam? Use the coordinate
+       spies (6.7) to trace actual post xy vs the real deck edge. Write the plain
+       diagnosis (today's behavior vs correct) BEFORE editing.
+     PHASE 2 BUILD (NO vision): implement "posts follow the real notched edge; no
+       post where there's no deck above." Extend config_matrix.py to test several
+       notched/wraparound shapes and assert numerically every post sits under
+       actual deck (not just "not in a landing"). Math judge = works vision-down.
+     PHASE 3 CONFIRM LOOKS RIGHT (the ONLY vision step -- has a backup):
+       Render the fixed notched-stair deck and VIEW it vision-first (before heavy
+       context -- that ordering worked S88). IF CLAUDE'S VIEW WORKS: done.
+       IF VIEW IS DEAD -> BACKUP = WILL'S PHOTOS. Chat-pasted images reach Claude
+       even when the live view tool is dead (different pathway -- proven S88 when
+       Will shared the reference PDFs). Next-session-Claude MUST give Will EXACT,
+       click-by-click instructions: which settings to enter, where to drag the
+       stair, then screenshot (a) the 3D view ROTATED TO LOOK UP FROM UNDER THE
+       DECK (shows any post standing in the landing / floating with no deck above
+       -- the money shot) and (b) the 2D framing/plan view (same check from
+       above). Set up the exact test config FOR Will; don't make him guess.
+     Only after Phase 3 passes (Claude's eyes OR Will's photos) do we zero the
+     B10 KNOWN entry in config_matrix.py.
   3. [O] BUILD THE REMAINING DETECTORS (drains the last of the eyes-needed
      queue; see 10E). G5/G6/G7/G11 are DONE (S88). Still to build: G8 tiny-text
      (promote legibility's side signal to a first-class differential check), G9
@@ -1113,27 +1157,48 @@ PDF BUG BACKLOG:
      slope, "bench" style -- piers inside the house-cut span anchor to the
      natural slope and float above the drawn bench pad (worst +2.1 ft). In
      test_post_grade.py KNOWN (bench slope15_l2r, bench slope15_freestanding, 6
-     each). NEEDS Will's convention call (pad follows piers, or piers step to
-     pad?), then fix + zero the KNOWN entries.
+     each). DECIDED S88 (Will, confirmed vs the ALL THINGS ARCHITECTURE reference
+     sets): draw ONE honest continuous grade line following the real slope, every
+     post grounded at its TRUE point -- no floating, no separate bench pad. The
+     reference sets use NO bench-pad treatment at all. FIX = implement honest
+     grade + consider removing the bench-pad code path entirely, then zero KNOWN.
   B8 [S87 post-grade] depth-plane mismatch: front-to-back slopes draw the S/N
      grade line at deck-CENTER elevation while piers ground at their true front-
      plane elevation -> piers punch -1.05 ft below the drawn line. In KNOWN
-     (bench slope10_f2b, continuous slope10_f2b, 6 each). NEEDS decision: draw
-     S/N grade at pier plane, or project piers to center? Then fix + zero KNOWN.
+     (bench slope10_f2b, continuous slope10_f2b, 6 each). DECIDED S88 (same rule
+     as B7): draw the grade at the TRUE pier plane, no averaging to center. FIX +
+     zero KNOWN, same push as B7 (one honest-grade change fixes both).
   B9 [S87 fuzz] numeric frostZone/snowLoad silently mis-interpreted -- FIXED
      S88 push 2. resolve_frost_depth/resolve_snow_load in calc_engine are the
      single source of truth; calc_engine + permit_checker + permit_spec all
      route through them. Regression test tests/test_frost_snow_normalize.py.
-  B10 [S88 config matrix] post-in-landing on deep interior-anchored stairs:
-     when a main-deck stair is anchored well INSIDE the outer edge (stairAnchorY
-     pulled in) with a landing template, the landing rect overlaps the beam-post
-     row and a post is drawn INSIDE the landing. Realistic interior anchors (exit
-     within ~1 ft of the outer edge) and normal edge anchors stay CLEAN -- only
-     the extreme overlap-the-beam case fires. In config_matrix.py KNOWN_POST_IN_
-     LANDING (m_0zone_B3_probe_deep_interior: 1). NEEDS Will's DESIGN CALL: clamp
-     the anchor so a landing can't cross the beam line, OR relocate the overlapped
-     post. Then fix + zero the KNOWN entry same push. This is the B3-class bug the
-     never-run parametric stair path was expected to surface.
+  B10 [S88 config matrix] post left in a stair landing on NOTCHED/interior-stair
+     decks. ORIGINAL S88 framing ("deep interior anchor = illegal, clamp it") was
+     WRONG -- Will corrected it S88. An interior/notched stair (stairs meet the
+     deck at an inside point, deck overhangs on the sides -- a puzzle-piece
+     footprint, e.g. a wraparound into a corner) is a REAL buildable shape and
+     must be SUPPORTED. The real bug: when the deck notches inward for the stair,
+     our code leaves a support post at the OLD rectangle edge, so it stands in the
+     landing where NO deck exists above it (a post only holds up deck above it).
+     FIX = when the deck notches/wraps, place posts along the REAL notched edge;
+     none where there's no deck above. Bigger than B7/B8; likely tied to B4/B6
+     (L-shape / wraparound). See S89 QUEUE item 2 for the phased plan (analyze ->
+     build -> visual confirm w/ Will-photo backup). In config_matrix.py KNOWN
+     (m_0zone_B3_probe_deep_interior: 1) until fixed. OPEN QUESTION for the fix
+     (ask Will if unclear from code): on a notched deck, do the overhanging side
+     edges get their OWN posts+beam, or is the overhang unsupported cantilever?
+  B11 [S88 reference-set review] CANTILEVER at a house bump-out not handled: when
+     a section of the house projects out (fireplace on Ilaria, patio door on
+     Loucks), the deck ledger CANNOT attach to the bump-out; it needs a SEPARATE
+     BEAM spanning past it, shown in the framing plan (Will's annotation on both
+     reference PDFs). We likely don't generate this today. Real structural case
+     for CO Springs decks. Verify current behavior, then support it. Medium.
+  CALIBRATION NOTES (S88, from the reference sets -- match the pros' output):
+     reference sets use MicroLlam / LVL engineered beams (e.g. "(3) 1 3/4 x 11
+     7/8 2.0E MicroLlam") and size posts by load (4x4 for light, 6x6 for main).
+     Post base/cap models: Simpson ABU66Z/ABU44Z bases, BCS2 caps. Pier sizes
+     vary (12"/16"/20"/21" dia x 30" deep). Useful for making our labels/specs
+     read like theirs. Not a bug -- a "look like the reference sets" calibration.
 
 DECISIONS / PENDING ON WILL:
   - Sheet size: RESOLVED (arch_d 36x24 default).
