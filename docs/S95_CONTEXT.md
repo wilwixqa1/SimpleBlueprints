@@ -312,7 +312,65 @@ one) — a differentiator; keep it sharp.
 
 ## 4. TODO (priority order; each: WHAT/WHY · WHERE · HOW · VERIFY)
 
-### P1 — notch↔stair coupling in the editor (top; BLOCKED on Will's UX call)
+### P0 — LABELED FRAMING + CUT LIST / MATERIAL LIST (NEW; Will: "the thing I
+### wanna add the most" — TOP PRIORITY, RESEARCH FIRST)
+- WHAT/WHY: Will shared competitor screenshots (end of S94; not in the repo,
+  described here because you cannot see them): (1) an interactive 3D framing
+  view where EVERY individual member carries a label chip — J1/J2/J10... for
+  joists, BK1/BK2/BK3 for blocking, S1 for stair stringers; (2) a print sheet
+  combining a labeled joist-layout plan with a CUT LIST table keyed to those
+  labels (columns: LABEL, QTY, SIZE, LENGTH, USE — e.g. "J1 | 12 | 2x8 |
+  104-5/8" | FLOOR JOIST"), a MATERIAL LIST (qty/size/length totals), and a
+  summary block (DECK AREA, DECK PERIMETER, CONCRETE VOLUME, CONCRETE BAGS —
+  "37 - 30kg Bags"); plus dimensioned elevations. Also an email from William
+  Pappas: "the building department wants to see a drawing of the structural
+  framing. it doesnt have to be super perfect but they do require a sketch
+  for the permit." NOTE: our existing framing sheet already satisfies that
+  permit requirement — the FEATURE is the per-member labeling + cut list
+  layer that makes the set buildable, not just permittable. Serves both
+  north-star audiences (contractor: cut/shop list; homeowner: complete
+  packet). Will may share more detail — check the conversation start.
+- WHAT EXISTS TODAY (verified S94 close): framing plan with GROUP callouts
+  only (matches the pro reference sets' style — '(2) P.T. 2X10',
+  'P.T. 2x8 @ 16" O.C.'); a separate 1-page materials PDF
+  (`draw_materials.py::draw_materials_sheet`, aggregate quantities) that
+  mirrors the frontend estimator (`engine.js::estMaterials` — LOCKSTEP
+  obligation if quantities logic changes). NO per-member labels, NO cut list,
+  NO lengths-per-label, NO perimeter/concrete-bags summary.
+- HOW (Will's explicit sequencing): RESEARCH FIRST, build second.
+  1. Re-read the reference sets for member-labeling conventions (S94 finding:
+     they label groups, not individuals; no cut-list table observed — so the
+     cut list likely EXCEEDS local pro practice, a differentiator like our
+     guard rail detail).
+  2. Web-search: PPRBD framing-plan submittal requirements (their plan-review
+     guide lists what the framing drawing must show); AWC DCA-6 prescriptive
+     deck guide (canonical member sizing/span reference); cut-list and
+     member-tagging conventions in deck/framing software (the screenshots
+     resemble products in the RoomSketcher/decks.com/StruCalc space); whether
+     any jurisdiction requires cut lists (almost certainly not — frame it as
+     build-value, keep the permit sheets uncluttered).
+  3. Hunt for MORE professional docs (Will asked explicitly) — real submitted
+     deck sets with cut lists, framing-package examples from lumberyards
+     (84 Lumber / Home Depot deck packages include cut lists).
+  4. Then design: likely a NEW sheet (or the materials PDF upgraded into a
+     labeled cut-list sheet) + optional member labels on the existing framing
+     sheet. DESIGN QUESTION for Will: labels on the permit framing sheet
+     itself (competitor style, busier) vs. a separate labeled shop-drawing
+     sheet (keeps the permit sheet clean). Member lengths largely already
+     exist implicitly (beam_layout/joist math, stair_utils stringer lengths);
+     the work is grouping identical members into label classes, stable label
+     assignment, and the table renderer.
+- WHERE: `backend/drawing/draw_materials.py` (cut-list computation + sheet),
+  `backend/drawing/draw_plan.py` framing panel (member labels, if Will wants
+  them there), `backend/drawing/beam_layout.py` (member geometry source),
+  `engine.js` (frontend estimator mirror — lockstep), possibly the 3D view
+  label chips later (deck3d — coordinate with §8 mock-session activity).
+- VERIFY: cut-list totals reconcile with the existing materials estimate
+  (same lumber totals two ways = strong cross-check); parity with engine.js;
+  add the new sheet to the structural golden; legibility gate on the table;
+  Will's eyes on a render vs. the competitor screenshot.
+
+### P1 — notch↔stair coupling in the editor (BLOCKED on Will's UX call)
 - WHAT/WHY: notch and its stair must stay locked (same width, x-aligned); no
   orphan/misaligned notch creatable. Today convention only.
 - WHERE: frontend editor (`app.js` / wizard). The in-product cutout+stair
