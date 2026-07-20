@@ -127,7 +127,7 @@ window.buildDeckScene = function(scene, p, c, THREE) {
 // S20: Get zone geometry from zoneUtils
   var addRects = hasZones ? window.getAdditiveRects(pForZones) : [{ id: 0, zone: { type: "add" }, rect: { x: 0, y: 0, w: W, d: D } }];
   var composite = hasZones ? window.getCompositeOutline(pForZones) : [{ x: 0, y: 0, w: W, d: D }];
-  var exposedEdges = hasZones ? window.getExposedEdges(pForZones) : [];
+  var exposedEdges = hasZones ? window.getExposedEdges(pForZones, window.computeStairOpenings ? window.computeStairOpenings(pForZones) : null) : [];  // P1.a: open rail at stairs
   var bbox = hasZones ? window.getBoundingBox(pForZones) : { x: 0, y: 0, w: W, d: D };
 
 // S20: World offset   center bounding box at origin
@@ -204,7 +204,9 @@ window.buildDeckScene = function(scene, p, c, THREE) {
       stairGap: stairDef.stairGap != null ? stairDef.stairGap : 0.5
     });
     if (!_sg) return;
-    var _stPl = window.getStairPlacementForZone(stairDef, zr);
+    var _fp = (stairDef.zoneId === 0 && window.frontEdgeProfile && window.getCutoutRects)
+      ? window.frontEdgeProfile(p.width || W, p.depth || D, window.getCutoutRects(pForZones)) : null;  // P1.a: notch-aware anchor (zone 0 only)
+    var _stPl = window.getStairPlacementForZone(stairDef, zr, _fp);
     var _exit = _stPl.angle === 90 ? "right" : _stPl.angle === 270 ? "left" : _stPl.angle === 180 ? "back" : "front";
     var _zwx = cx + zr.x, _zwz = cz + zr.y;
     var _wax = _zwx + _stPl.anchorX, _waz = _zwz + _stPl.anchorY;

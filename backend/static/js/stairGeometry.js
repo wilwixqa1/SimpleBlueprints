@@ -142,19 +142,93 @@ function snapStairToEdge(ax, ay, W, D, threshold) {
 }
 
 // ============================================================
+// FRONT-EDGE PROFILE (P1.a) -- JS port of beam_layout.front_edge_profile.
+// Left-to-right [x0, x1, edgeY] segments across [0, width]; edgeY is how far
+// the deck reaches toward the yard at that x (depth on solid deck, pulled in
+// at a front-reaching cutout). cutRects entries: { rect:{x,y,w,d} } or {x,y,w,d}.
+// Kept a line-by-line mirror of the Python so the two don't drift (see the
+// cross-check in the JS test suite).
+// ============================================================
+var FE_EPS = 1e-6;
+function frontEdgeProfile(width, depth, cutRects) {
+  var fronts = [];  // [x0, x1, edgeY] reductions from front-reaching cutouts
+  (cutRects || []).forEach(function(cr) {
+    var r = cr.rect || cr;
+    if (r.y + r.d >= depth - FE_EPS) {            // far side hits the front edge
+      var x0 = Math.max(0, +r.x);
+      var x1 = Math.min(+width, +r.x + +r.w);
+      if (x1 > x0 + FE_EPS) fronts.push([x0, x1, +r.y]);  // edge pulled in to r.y
+    }
+  });
+  // Breakpoints = every cutout edge, plus the deck ends (dedup via keyed object).
+  var xsSet = {}; xsSet["0"] = 0; xsSet[String(+width)] = +width;
+  fronts.forEach(function(f) { xsSet[String(f[0])] = f[0]; xsSet[String(f[1])] = f[1]; });
+  var xs = Object.keys(xsSet).map(function(k) { return xsSet[k]; })
+                 .sort(function(a, b) { return a - b; });
+  var segs = [];
+  for (var i = 0; i < xs.length - 1; i++) {
+    var a = xs[i], b = xs[i + 1];
+    if (b - a < FE_EPS) continue;
+    var mid = (a + b) / 2;
+    var ey = +depth;
+    fronts.forEach(function(f) {
+      if (f[0] - FE_EPS <= mid && mid <= f[1] + FE_EPS) ey = Math.min(ey, f[2]);
+    });
+    segs.push([a, b, ey]);
+  }
+  // Merge adjacent segments at the same edge level.
+  var merged = [];
+  segs.forEach(function(s) {
+    var last = merged[merged.length - 1];
+    if (last && Math.abs(last[2] - s[2]) < FE_EPS && Math.abs(last[1] - s[0]) < FE_EPS) {
+      last[1] = s[1];
+    } else {
+      merged.push([s[0], s[1], s[2]]);
+    }
+  });
+  return merged;
+}
+
+// JS port of stair_utils._front_edge_y_for_span: shallowest (min) front-edge y
+// across [x0, x1] -- the notch-back edge when the stair footprint overlaps a
+// notch, so the stair sits at the real edge instead of floating over the void.
+function _frontEdgeYForSpan(frontProfile, x0, x1, defaultDepth) {
+  var eps = 1e-9;
+  var ey = null;
+  (frontProfile || []).forEach(function(seg) {
+    var a = seg[0], b = seg[1], e = seg[2];
+    if (b > x0 + eps && a < x1 - eps) ey = (ey === null) ? e : Math.min(ey, e);
+  });
+  return ey === null ? defaultDepth : ey;
+}
+
+// ============================================================
 // STAIR PLACEMENT -- zone-aware (S64)
 // stair = { location, offset, anchorX, anchorY, angle, width, ... }
 // zoneRect = { x, y, w, d } from getZoneRect
+// frontProfile (P1.a): optional frontEdgeProfile() output for the deck this
+//   zone lives on. Supplied for the main deck (zone 0) only; when present, a
+//   location-derived FRONT stair anchors at the REAL front edge across its
+//   footprint (notch-back) instead of at full depth over a cutout void.
+//   Mirrors backend get_stair_placement_for_zone (P1.2).
 // Returns { anchorX, anchorY, angle } in ZONE-LOCAL coords
 // ============================================================
-function getStairPlacementForZone(stair, zoneRect) {
+function getStairPlacementForZone(stair, zoneRect, frontProfile) {
   if (stair.anchorX != null && stair.anchorY != null && stair.angle != null) {
     return { anchorX: stair.anchorX, anchorY: stair.anchorY, angle: stair.angle };
   }
   var W = zoneRect.w, D = zoneRect.d;
   var off = stair.offset || 0;
   var loc = stair.location || "front";
-  if (loc === "front") return { anchorX: W / 2 + off, anchorY: D, angle: 0 };
+  if (loc === "front") {
+    var anchorX = W / 2 + off;
+    var anchorY = D;
+    if (frontProfile) {
+      var sw = +(stair.width != null ? stair.width : 4);
+      anchorY = _frontEdgeYForSpan(frontProfile, anchorX - sw / 2, anchorX + sw / 2, D);
+    }
+    return { anchorX: anchorX, anchorY: anchorY, angle: 0 };
+  }
   if (loc === "right") return { anchorX: W, anchorY: D / 2 + off, angle: 90 };
   if (loc === "left")  return { anchorX: 0, anchorY: D / 2 + off, angle: 270 };
   return { anchorX: W / 2, anchorY: D, angle: 0 };
@@ -164,4 +238,5 @@ function getStairPlacementForZone(stair, zoneRect) {
 window.computeStairGeometry = computeStairGeometry;
 window.getStairPlacement = getStairPlacement;
 window.getStairPlacementForZone = getStairPlacementForZone;
+window.frontEdgeProfile = frontEdgeProfile;
 window.snapStairToEdge = snapStairToEdge;

@@ -40,7 +40,8 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, remo
   }, [pForZones, hasZones, c.W, c.D]);
   var exposedEdges = _pvUM(function() {
     if (!hasZones) return [];
-    return window.getExposedEdges(pForZones);
+    var _op = window.computeStairOpenings ? window.computeStairOpenings(pForZones) : null;  // P1.a: open rail at stairs
+    return window.getExposedEdges(pForZones, _op);
   }, [pForZones, hasZones, c.W, c.D]);
   var addRects = allRects.filter(function(r) { return r.zone.type !== "cutout"; });
   var cutRects = allRects.filter(function(r) { return r.zone.type === "cutout"; });
@@ -353,7 +354,9 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, remo
         if (!zr) return null;
         const stairGeom = window.computeStairGeometry({ template: stairDef.template || "straight", height: p.height, stairWidth: stairDef.width || 4, numStringers: stairDef.numStringers || 3, runSplit: stairDef.runSplit ? stairDef.runSplit/100 : null, landingDepth: stairDef.landingDepth || null, stairGap: stairDef.stairGap != null ? stairDef.stairGap : 0.5 });
         if (!stairGeom) return null;
-        const placement = window.getStairPlacementForZone(stairDef, zr);
+        const _fp = (stairDef.zoneId === 0 && window.frontEdgeProfile && window.getCutoutRects)
+          ? window.frontEdgeProfile(p.width, p.depth, window.getCutoutRects(_pz)) : null;  // P1.a: notch-aware anchor (zone 0 only)
+        const placement = window.getStairPlacementForZone(stairDef, zr, _fp);
         const exitSide = placement.angle === 90 ? "right" : placement.angle === 270 ? "left" : placement.angle === 180 ? "back" : "front";
         const ox = dx + (zr.x + placement.anchorX) * sc;
         const oy = pad + (zr.y + placement.anchorY) * sc + (exitSide === "front" ? 1 : exitSide === "back" ? -1 : 0);

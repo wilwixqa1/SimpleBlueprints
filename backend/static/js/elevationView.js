@@ -180,7 +180,9 @@ function ElevationView({ c, p }) {
       if (!_zr || _nRisers === 0) return;
 
       // Get placement in zone-local coords
-      var _placement = window.getStairPlacementForZone ? window.getStairPlacementForZone(_s, _zr) : null;
+      var _fp = (_zoneId === 0 && window.frontEdgeProfile && window.getCutoutRects)
+        ? window.frontEdgeProfile(W, D, window.getCutoutRects(Object.assign({}, p, { deckWidth: W, deckDepth: D }))) : null;  // P1.a: notch-aware anchor (zone 0 only)
+      var _placement = window.getStairPlacementForZone ? window.getStairPlacementForZone(_s, _zr, _fp) : null;
       if (!_placement) return;
 
       // World-space anchor

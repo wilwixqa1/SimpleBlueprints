@@ -24,8 +24,8 @@
 -->
 <script type="text/babel" src="/static/js/steelDeckData.js?v=s75a"></script>
 <script type="text/babel" src="/static/js/engine.js?v=s81e.1"></script>
-<script type="text/babel" src="/static/js/stairGeometry.js?v=s75a"></script>
-<script type="text/babel" src="/static/js/zoneUtils.js?v=s87a"></script>
+<script type="text/babel" src="/static/js/stairGeometry.js?v=s92a"></script>
+<script type="text/babel" src="/static/js/zoneUtils.js?v=s92a"></script>
 <script type="text/babel" src="/static/js/home.js?v=s75a"></script>
 <script src="/static/js/lotGeometry.js?v=s85a"></script>
 <script type="text/babel" src="/static/js/app.js?v=s87a"></script>
@@ -64,7 +64,7 @@
     if (loading) return new Promise(function(resolve) { callbacks.push(resolve); });
     loading = true;
 
-    var v = "v=s87a";
+    var v = "v=s92a";
     return loadScript("https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js")
       .then(function() {
         // Views can load in parallel (stairGeometry + zoneUtils already loaded)
