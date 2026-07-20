@@ -569,7 +569,7 @@
         var cW = wrap.clientWidth || 820, cH = wrap.clientHeight || 520;
         var scene = new THREE.Scene();
         var cam = new THREE.PerspectiveCamera(45, cW / cH, 0.1, 200);
-        if (!T3.orbit.dist) T3.orbit.dist = Math.max(c.W, c.D, c.H * 2) * 1.8;
+        if (!T3.orbit.dist) T3.orbit.dist = Math.max(c.W, c.D, c.H * 2) * 2.15;
         var ren = new THREE.WebGLRenderer({ antialias: true });
         ren.setSize(cW, cH);
         ren.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));

@@ -1266,7 +1266,7 @@ function Deck3D({ c, p }) {
     // Scene + renderer
     const scene = new THREE.Scene();
     const cam = new THREE.PerspectiveCamera(45, cW / cH, 0.1, 200);
-    if (!window._deckOrbit) orbit.current.dist = Math.max(W, D, H * 2) * 1.8;
+    if (!window._deckOrbit) orbit.current.dist = Math.max(W, D, H * 2) * 2.15;
     const ren = new THREE.WebGLRenderer({ antialias: true }); ren.setSize(cW, cH); ren.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     ren.shadowMap.enabled = true; ren.shadowMap.type = THREE.PCFSoftShadowMap;
     el.innerHTML = ""; el.appendChild(ren.domElement);
@@ -1332,7 +1332,7 @@ window.capture3D = function(p, c) {
       var hasZones2 = pForZones.zones && pForZones.zones.length > 0;
       var bbox2 = hasZones2 ? window.getBoundingBox(pForZones) : { x: 0, y: 0, w: W, d: D };
       var maxDim = Math.max(bbox2.w, bbox2.d, H * 2, p.houseWidth || 30);
-      var dist = maxDim * 1.6;
+      var dist = maxDim * 1.85;
       var phi = 0.62;
       var theta;
       switch (result.exitSide) {
