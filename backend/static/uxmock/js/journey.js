@@ -46,7 +46,7 @@
       b.disabled = i > S.act && !(i === 2 && S.lot) && !(i === 3 && S.act >= 2);
     });
   }
-  function go(act) { S.act = act; setActNav(); updateTitleblock(); renderAct(); }
+  function go(act) { hide3D(); S.act = act; setActNav(); updateTitleblock(); renderAct(); }
   [1, 2, 3].forEach(function (i) {
     $('nav-act' + i).addEventListener('click', function () { if (!this.disabled) go(i); });
   });
@@ -226,7 +226,7 @@
     SBPCanvas.setMode('design');
     hud().innerHTML = '';
     var hudMsg = S.view === 'site' ? 'Site view: drag the deck to place it on your lot. Setback conflicts show in red.'
-      : S.view === 'axon' ? '3D view: use the sliders or switch to Deck view to edit.'
+      : S.view === 'axon' ? 'Production 3D: drag to orbit, scroll to zoom. Use the sliders or Deck view to edit.'
       : 'Drag the green handles to resize. Drag stairs along their edge. Click + to add a zone.';
     hud().appendChild(el('<div class="hud-note" id="viol-note">' + hudMsg + '</div>'));
     hud().appendChild(el('<div class="view-toggle"><button id="vt-deck" class="' + (S.view === 'deck' ? 'on' : '') + '">Deck</button><button id="vt-site" class="' + (S.view === 'site' ? 'on' : '') + '">Site</button><button id="vt-axon" class="' + (S.view === 'axon' ? 'on' : '') + '">3D</button></div>'));
@@ -348,6 +348,7 @@
     SBPCanvas.setState(S);
     refreshSpec();
     updateTitleblock();
+    if (S.view === 'axon') show3D(); else hide3D();
   }
   function dSlider(k, label, val, min, max, unit) {
     return '<div class="slider-row"><label for="dk-' + k + '">' + label + '</label>' +
@@ -393,6 +394,7 @@
     SBPCanvas.setState(S);
     refreshSpec();
     updateTitleblock();
+    rebuild3DSoon();
   }
   window.addEventListener('sbp-canvas-change', onDesignChange);
 
@@ -495,6 +497,113 @@
   function findWing(edge) { return S.zones.findIndex(function (z) { return z.edge === edge; }); }
   function escapeHtml(s) { return s.replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
 
+  // ---------- 3D: production deck3d.js hookup ----------
+  var T3 = { state: 'idle', ready: null, anim: 0, ren: null, timer: null,
+             orbit: { theta: -0.6, phi: 0.5, dist: 0, drag: false, lx: 0, ly: 0 } };
+  function loadScript(src) {
+    return new Promise(function (res, rej) {
+      var sc = document.createElement('script');
+      sc.src = src; sc.onload = res; sc.onerror = function () { rej(new Error('load failed: ' + src)); };
+      document.head.appendChild(sc);
+    });
+  }
+  function ensure3D() {
+    if (T3.state === 'ready') return Promise.resolve();
+    if (T3.ready) return T3.ready;
+    T3.state = 'loading';
+    window.React = window.React || { useEffect: function () {}, useRef: function (v) { return { current: v || null }; }, createElement: function () { return null; } };
+    T3.ready = loadScript('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js')
+      .then(function () { return loadScript('https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js'); })
+      .then(function () {
+        var deps = ['lotGeometry', 'steelDeckData', 'zoneUtils', 'stairGeometry', 'engine'];
+        return deps.reduce(function (chain, n) {
+          return chain.then(function () { return loadScript('/static/js/' + n + '.js'); });
+        }, Promise.resolve());
+      })
+      .then(function () { return fetch('/static/js/deck3d.js').then(function (r) { if (!r.ok) throw new Error('deck3d fetch'); return r.text(); }); })
+      .then(function (code) {
+        var out = Babel.transform(code, { presets: ['react'] }).code;
+        (0, eval)(out);
+        if (!window.buildDeckScene || !window.calcStructure) throw new Error('production 3D modules missing');
+        T3.state = 'ready';
+      })
+      .catch(function (e) { T3.state = 'failed'; T3.ready = null; throw e; });
+    return T3.ready;
+  }
+  function stop3D() {
+    if (T3.anim) cancelAnimationFrame(T3.anim);
+    T3.anim = 0;
+    if (T3.ren) { try { T3.ren.dispose(); } catch (e) {} T3.ren = null; }
+  }
+  function hide3D() {
+    stop3D();
+    var w2 = $('three-wrap'); if (w2) w2.remove();
+    var sv = $('stage-svg'); if (sv) sv.style.display = '';
+  }
+  function show3D() {
+    var sc = $('stage-canvas'); if (!sc) return;
+    var sv = $('stage-svg'); if (sv) sv.style.display = 'none';
+    var wrap = $('three-wrap');
+    if (!wrap) {
+      wrap = el('<div id="three-wrap" style="position:absolute;inset:0;background:#f5f2eb;display:flex;align-items:center;justify-content:center"><span style="font-family:var(--mono);font-size:12px;color:var(--mut);letter-spacing:2px">LOADING PRODUCTION 3D\u2026</span></div>');
+      sc.appendChild(wrap);
+    }
+    ensure3D()
+      .then(function () { if (S.act === 2 && S.view === 'axon') return mount3D($('three-wrap')); })
+      .catch(function () {
+        hide3D();
+        toast('3D engine unavailable here \u2014 showing schematic view.');
+      });
+  }
+  function mount3D(wrap) {
+    if (!wrap) return;
+    return fetch('/api/mock/prod-params', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(buildPayload()) })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (pp) {
+        if (S.act !== 2 || S.view !== 'axon' || !$('three-wrap')) return;
+        var c = window.calcStructure(pp);
+        stop3D();
+        wrap.innerHTML = '';
+        wrap.style.display = 'block';
+        var cW = wrap.clientWidth || 820, cH = wrap.clientHeight || 520;
+        var scene = new THREE.Scene();
+        var cam = new THREE.PerspectiveCamera(45, cW / cH, 0.1, 200);
+        if (!T3.orbit.dist) T3.orbit.dist = Math.max(c.W, c.D, c.H * 2) * 1.8;
+        var ren = new THREE.WebGLRenderer({ antialias: true });
+        ren.setSize(cW, cH);
+        ren.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        ren.shadowMap.enabled = true; ren.shadowMap.type = THREE.PCFSoftShadowMap;
+        wrap.appendChild(ren.domElement);
+        if (window.setupSceneEnv) window.setupSceneEnv(scene, pp, THREE);
+        window.buildDeckScene(scene, pp, c, THREE);
+        var cv = ren.domElement, o = T3.orbit;
+        cv.addEventListener('mousedown', function (e) { o.drag = true; o.lx = e.clientX; o.ly = e.clientY; });
+        cv.addEventListener('mousemove', function (e) {
+          if (!o.drag) return;
+          o.theta -= (e.clientX - o.lx) * 0.005;
+          o.phi = Math.max(0.1, Math.min(1.4, o.phi - (e.clientY - o.ly) * 0.005));
+          o.lx = e.clientX; o.ly = e.clientY;
+        });
+        cv.addEventListener('mouseup', function () { o.drag = false; });
+        cv.addEventListener('mouseleave', function () { o.drag = false; });
+        cv.addEventListener('wheel', function (e) { e.preventDefault(); o.dist = Math.max(8, Math.min(80, o.dist + e.deltaY * 0.03)); }, { passive: false });
+        var lookY = c.H / 2 + 1;
+        (function anim() {
+          T3.anim = requestAnimationFrame(anim);
+          cam.position.set(o.dist * Math.sin(o.phi) * Math.cos(o.theta), o.dist * Math.cos(o.phi) + lookY, o.dist * Math.sin(o.phi) * Math.sin(o.theta));
+          cam.lookAt(0, lookY, 0);
+          ren.render(scene, cam);
+        })();
+        T3.ren = ren;
+        wrap.appendChild(el('<div style="position:absolute;left:12px;bottom:10px;font-family:var(--mono);font-size:10.5px;color:var(--mut);pointer-events:none">PRODUCTION 3D \u00b7 DRAG TO ORBIT \u00b7 SCROLL TO ZOOM</div>'));
+      });
+  }
+  function rebuild3DSoon() {
+    if (T3.state !== 'ready' || S.act !== 2 || S.view !== 'axon') return;
+    clearTimeout(T3.timer);
+    T3.timer = setTimeout(function () { var w2 = $('three-wrap'); if (w2 && S.view === 'axon' && S.act === 2) mount3D(w2); }, 450);
+  }
+
   // ---------- ACT III: your plans ----------
   var stageHTML = null;
   function restoreStage() {
@@ -505,6 +614,7 @@
     }
   }
   function renderAct3() {
+    hide3D();
     var sc = $('stage-canvas');
     if (stageHTML === null) stageHTML = sc.innerHTML;
     var stFull = fullState();

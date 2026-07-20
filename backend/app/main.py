@@ -2995,6 +2995,12 @@ def uxmock_spec(p: dict):
                          "area": calc.get("area"), "warnings": calc.get("warnings") or []})
 
 
+@app.post("/api/mock/prod-params")
+def uxmock_prod_params(p: dict):
+    """Mock state -> production DeckParams shape, for the client 3D engine."""
+    return JSONResponse(_uxmock_map_params(p))
+
+
 _UXMOCK_SAMPLE_CACHE = {}
 
 @app.get("/api/mock/sample-sheets")
