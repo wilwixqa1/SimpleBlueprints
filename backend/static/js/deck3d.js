@@ -103,6 +103,18 @@ function addHouse(scene, cfg, mats, THREE) {
   var hZ = cfg.z;
   var deckH = cfg.deckHeight;
 
+  var _photo = _sbp3dTheme() === 'photo';
+  var _frameMat = _photo ? new THREE.MeshStandardMaterial({ color: 0xf4f2ec, roughness: 0.5 }) : null;
+  var _glassMat = _photo ? new THREE.MeshStandardMaterial({ color: 0x74909f, roughness: 0.12, metalness: 0.3 }) : null;
+  function _glazed(x, yC, w, h, isDoor) {
+    var z = hZ + hD + 0.08;
+    var f = new THREE.Mesh(new THREE.BoxGeometry(w + 0.35, h + 0.35, 0.18), _frameMat); f.position.set(x, yC, z); scene.add(f);
+    var g = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.2), _glassMat); g.position.set(x, yC, z + 0.02); scene.add(g);
+    var st = new THREE.Mesh(new THREE.BoxGeometry(0.12, h, 0.24), _frameMat); st.position.set(x, yC, z + 0.03); scene.add(st);
+    if (!isDoor) { var mh = new THREE.Mesh(new THREE.BoxGeometry(w, 0.12, 0.24), _frameMat); mh.position.set(x, yC, z + 0.03); scene.add(mh); }
+    if (isDoor) { var sill = new THREE.Mesh(new THREE.BoxGeometry(w + 0.6, 0.18, 0.3), _frameMat); sill.position.set(x, yC - h / 2 - 0.09, z); scene.add(sill); }
+  }
+
   // House body
   var hm = new THREE.Mesh(new THREE.BoxGeometry(hW, hH, hD), mats.house);
   hm.position.set(hX + hW / 2, hH / 2, hZ + hD / 2);
@@ -125,6 +137,12 @@ function addHouse(scene, cfg, mats, THREE) {
   rg.setAttribute('position', new THREE.BufferAttribute(rv, 3));
   rg.computeVertexNormals();
   scene.add(new THREE.Mesh(rg, mats.roof));
+  if (_photo) { // eave fascia boards for a finished roofline
+    var fasc = new THREE.Mesh(new THREE.BoxGeometry(hW + 2 * ov, 0.55, 0.28), _frameMat);
+    fasc.position.set(hX + hW / 2, ry - 0.1, rz2); scene.add(fasc);
+    var fasc2 = new THREE.Mesh(new THREE.BoxGeometry(hW + 2 * ov, 0.55, 0.28), _frameMat);
+    fasc2.position.set(hX + hW / 2, ry - 0.1, rz1); scene.add(fasc2);
+  }
 
   // Deck access door (always present: the deck exists because of this door)
   if (cfg.showDoor !== false) {
@@ -133,9 +151,13 @@ function addHouse(scene, cfg, mats, THREE) {
     var doorX = cfg.doorX || (hX + hW / 2);
     // Clamp door within house wall bounds
     doorX = Math.max(hX + doorW / 2 + 0.2, Math.min(hX + hW - doorW / 2 - 0.2, doorX));
-    var dm = new THREE.Mesh(new THREE.BoxGeometry(doorW, doorH, 0.15), mats.win);
-    dm.position.set(doorX, deckH + doorH / 2 + 0.2, hZ + hD + 0.1);
-    scene.add(dm);
+    if (_photo) {
+      _glazed(doorX, deckH + doorH / 2 + 0.2, doorW, doorH, true);
+    } else {
+      var dm = new THREE.Mesh(new THREE.BoxGeometry(doorW, doorH, 0.15), mats.win);
+      dm.position.set(doorX, deckH + doorH / 2 + 0.2, hZ + hD + 0.1);
+      scene.add(dm);
+    }
   }
 
   // Upper windows (off by default; we don't know actual window positions)
@@ -143,9 +165,13 @@ function addHouse(scene, cfg, mats, THREE) {
     var winCount = cfg.windowCount || 3;
     for (var wi = 0; wi < winCount; wi++) {
       var wx = (wi + 1) / (winCount + 1);
-      var wm = new THREE.Mesh(new THREE.BoxGeometry(3, 4, 0.15), mats.win);
-      wm.position.set(hX + hW * wx, deckH + 5, hZ + hD + 0.1);
-      scene.add(wm);
+      if (_photo) {
+        _glazed(hX + hW * wx, deckH + 5, 3, 4, false);
+      } else {
+        var wm = new THREE.Mesh(new THREE.BoxGeometry(3, 4, 0.15), mats.win);
+        wm.position.set(hX + hW * wx, deckH + 5, hZ + hD + 0.1);
+        scene.add(wm);
+      }
     }
   }
 }
@@ -203,7 +229,12 @@ window.buildDeckScene = function(scene, p, c, THREE) {
     mats.joist = new THREE.MeshStandardMaterial({ map: _frameTex, roughness: 0.72 });
     mats.stairRiser = new THREE.MeshStandardMaterial({ map: _frameTex, roughness: 0.72 });
     mats.stringer = new THREE.MeshStandardMaterial({ map: _frameTex, roughness: 0.7 });
-    mats.house = new THREE.MeshStandardMaterial({ color: 0xeceae2, roughness: 0.85 });
+    var _sidingTex = _sbp3dCanvasTex(THREE, 128, 128, function (g2, w2, h2) {
+      g2.fillStyle = '#eceae2'; g2.fillRect(0, 0, w2, h2);
+      g2.strokeStyle = '#00000022'; g2.lineWidth = 1.2;
+      for (var sy2 = 7; sy2 < h2; sy2 += 9) { g2.beginPath(); g2.moveTo(0, sy2); g2.lineTo(w2, sy2); g2.stroke(); }
+    }, 3, 2);
+    mats.house = new THREE.MeshStandardMaterial({ map: _sidingTex, roughness: 0.85 });
     mats.roof = new THREE.MeshStandardMaterial({ color: 0x8f8d88, roughness: 0.8 });
   }
 
