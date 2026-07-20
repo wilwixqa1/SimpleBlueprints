@@ -499,7 +499,7 @@
 
   // ---------- 3D: production deck3d.js hookup ----------
   var T3 = { state: 'idle', ready: null, anim: 0, ren: null, timer: null,
-             orbit: { theta: -0.6, phi: 0.5, dist: 0, drag: false, lx: 0, ly: 0 } };
+             orbit: { theta: 0.7, phi: 0.62, dist: 0, drag: false, lx: 0, ly: 0 } };
   function loadScript(src) {
     return new Promise(function (res, rej) {
       var sc = document.createElement('script');

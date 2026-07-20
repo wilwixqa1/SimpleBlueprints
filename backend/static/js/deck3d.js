@@ -1254,7 +1254,7 @@ window.buildDeckScene = function(scene, p, c, THREE) {
 // ============================================================
 function Deck3D({ c, p }) {
   const ref = _d3UR(null); const frameRef = _d3UR(null);
-  const orbit = _d3UR(window._deckOrbit || { theta: -0.6, phi: 0.5, dist: 0, drag: false, lx: 0, ly: 0 });
+  const orbit = _d3UR(window._deckOrbit || { theta: 0.7, phi: 0.62, dist: 0, drag: false, lx: 0, ly: 0 });
   const { W, D, H } = c;
 
   _d3UE(() => {
@@ -1333,7 +1333,7 @@ window.capture3D = function(p, c) {
       var bbox2 = hasZones2 ? window.getBoundingBox(pForZones) : { x: 0, y: 0, w: W, d: D };
       var maxDim = Math.max(bbox2.w, bbox2.d, H * 2, p.houseWidth || 30);
       var dist = maxDim * 1.6;
-      var phi = 0.55;
+      var phi = 0.62;
       var theta;
       switch (result.exitSide) {
         case "right": theta = 0.5;  break;
