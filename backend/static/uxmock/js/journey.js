@@ -508,9 +508,10 @@
     var sc = $('stage-canvas');
     if (stageHTML === null) stageHTML = sc.innerHTML;
     var stFull = fullState();
-    // instant placeholders: local SVG facsimiles, swapped for real renders below
-    S._display = SBPSheets.sheetList().map(function (sh) {
-      return { no: sh.no, name: sh.name, svg: SBPSheets.render(sh.id, stFull) };
+    // neutral rendering skeletons while the real pipeline draws (facsimiles
+    // no longer shown -- they don't match the real output and confuse trust)
+    S._display = SBPSheets.sheetList().slice(0, 7).map(function (sh, i) {
+      return { no: 'A-' + i, name: 'RENDERING\u2026', skeleton: true };
     });
     drawPreviewGrid(sc, 'DRAWING YOUR SET THROUGH THE REAL PIPELINE\u2026');
     fetchRealSheets(sc);
@@ -548,7 +549,9 @@
   }
   function drawPreviewGrid(sc, note) {
     var grid = '<div class="preview-grid">' + S._display.map(function (d, i) {
-      var inner = d.png ? '<img src="data:image/png;base64,' + d.png + '" style="width:100%;display:block" alt="' + d.name + '">' : (d.svg || '<div style="padding:30px;font-family:var(--mono);font-size:11px;color:var(--warn)">RENDER ERROR: ' + (d.error || '') + '</div>');
+      var inner = d.png ? '<img src="data:image/png;base64,' + d.png + '" style="width:100%;display:block" alt="' + d.name + '">'
+        : d.skeleton ? '<div class="pv-skel"><span>DRAWING\u2026</span></div>'
+        : (d.svg || '<div style="padding:30px;font-family:var(--mono);font-size:11px;color:var(--warn)">RENDER ERROR: ' + (d.error || '') + '</div>');
       return '<div class="pv-sheet" data-idx="' + i + '">' + inner +
         '<div class="st-cap"><b>' + d.no + '</b><span>' + d.name + (d.png ? ' \u00b7 REAL RENDER' : '') + '</span></div></div>';
     }).join('') + '</div>' +
@@ -580,7 +583,11 @@
       })
       .catch(function (e) {
         if (S.act !== 3) return;
-        var note = $('pv-note'); if (note) note.textContent = 'REAL-PIPELINE RENDER UNAVAILABLE (' + e.message + ') \u00b7 SHOWING LOCAL PREVIEWS';
+        var stFull = fullState();
+        S._display = SBPSheets.sheetList().map(function (sh) {
+          return { no: sh.no, name: sh.name, svg: SBPSheets.render(sh.id, stFull) };
+        });
+        drawPreviewGrid(sc, 'REAL-PIPELINE RENDER UNAVAILABLE (' + e.message + ') \u00b7 SHOWING LOCAL PREVIEWS');
       });
   }
   function openLightbox(idx) {

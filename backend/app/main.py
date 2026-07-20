@@ -2995,6 +2995,26 @@ def uxmock_spec(p: dict):
                          "area": calc.get("area"), "warnings": calc.get("warnings") or []})
 
 
+_UXMOCK_SAMPLE_CACHE = {}
+
+@app.get("/api/mock/sample-sheets")
+def uxmock_sample_sheets():
+    """Real pipeline renders of the canned demo design, cached per process.
+    Used by the landing hero + sample strip so marketing imagery IS the product."""
+    if "sheets" not in _UXMOCK_SAMPLE_CACHE:
+        demo = {
+            "address": _UXMOCK_PARCEL["address"], "street": "Sweetgrass Lane",
+            "lot": _UXMOCK_PARCEL["lotVertices"], "setbacks": _UXMOCK_PARCEL["setbacks"],
+            "house": _UXMOCK_PARCEL["house"], "north": _UXMOCK_PARCEL["northAngle"],
+            "deck": {"off": 14, "w": 16, "d": 12, "h": 36},
+            "zones": [], "stairs": [{"edge": "right"}], "corners": {},
+            "snow": 30, "frost": 36,
+            "finish": {"decking": "PT pine", "railing": "Wood baluster"},
+        }
+        _UXMOCK_SAMPLE_CACHE["sheets"] = _uxmock_render(demo)
+    return JSONResponse({"renderer": "production-pipeline", "sheets": _UXMOCK_SAMPLE_CACHE["sheets"]})
+
+
 @app.post("/api/mock/render-sheets")
 def uxmock_render_sheets(p: dict):
     """Render the mock design through the REAL production drawing pipeline.
@@ -3003,6 +3023,10 @@ def uxmock_render_sheets(p: dict):
     off the event loop. Zones flip production into its split plan/framing
     complex layout, mirroring generate_blueprint_pdf.
     """
+    return JSONResponse({"renderer": "production-pipeline", "sheets": _uxmock_render(p)})
+
+
+def _uxmock_render(p: dict):
     import base64
     from io import BytesIO
 
@@ -3068,7 +3092,7 @@ def uxmock_render_sheets(p: dict):
             except Exception as e:
                 plt.close(fig)
                 out.append({"no": sheet_num, "name": sheet_name, "error": str(e)[:200]})
-    return JSONResponse({"renderer": "production-pipeline", "sheets": out})
+    return out
 # ============================================================
 # END S88.5 UX MOCK revert block
 # ============================================================
