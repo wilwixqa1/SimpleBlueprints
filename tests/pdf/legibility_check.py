@@ -98,6 +98,52 @@ def check_pdf(path, floor_pt=DEFAULT_FLOOR_PT):
     return grand_overlaps, grand_tiny
 
 
+CONTRAST_DARK_FRAC = 0.45  # >this fraction of dark pixels inside a text line's
+#   box means the text sits on a busy/dark background (e.g. hatching) and reads
+#   poorly. Calibrated (S93): normal text tops out ~0.31; text on the house hatch
+#   measured ~0.58. This is the text-on-hatching detector the pdfminer text-vs-
+#   text pass structurally cannot see.
+
+
+def contrast_flags(path, dpi=100, dark_frac=CONTRAST_DARK_FRAC):
+    """Rasterize each page and flag text lines whose bounding box is mostly dark
+    pixels -- i.e. low-contrast text sitting on hatching / a dark fill. Returns
+    a list of (page_no, dark_fraction, text). Needs pdftoppm + Pillow + numpy.
+    """
+    import os
+    import subprocess
+    import tempfile
+    import numpy as np
+    from PIL import Image
+
+    flags = []
+    pages = list(extract_pages(path))
+    for pageno, layout in enumerate(pages, start=1):
+        with tempfile.TemporaryDirectory() as d:
+            subprocess.run(
+                ["pdftoppm", "-r", str(dpi), "-png",
+                 "-f", str(pageno), "-l", str(pageno), "-singlefile",
+                 path, os.path.join(d, "p")],
+                check=True, capture_output=True)
+            img = np.asarray(Image.open(os.path.join(d, "p.png")).convert("L"))
+        H, W = img.shape
+        sc = dpi / 72.0
+        for line in _iter_text_lines(layout):
+            info = _line_info(line)
+            if not info or len(info["text"]) <= IGNORE_SHORT:
+                continue
+            x0, y0, x1, y1 = info["bbox"]
+            px0, px1 = int(x0 * sc), int(x1 * sc)
+            py0, py1 = int(H - y1 * sc), int(H - y0 * sc)   # PDF y is bottom-up
+            box = img[max(0, py0):py1, max(0, px0):px1]
+            if box.size < 10:
+                continue
+            frac = float((box < 128).mean())
+            if frac > dark_frac:
+                flags.append((pageno, frac, info["text"]))
+    return flags
+
+
 if __name__ == "__main__":
     args = sys.argv[1:]
     floor = DEFAULT_FLOOR_PT
@@ -107,3 +153,10 @@ if __name__ == "__main__":
         print(__doc__); sys.exit(1)
     for f in args:
         check_pdf(f, floor)
+        cf = contrast_flags(f)
+        if cf:
+            print(f"  LOW-CONTRAST text (on hatch/dark bg): {len(cf)}")
+            for pageno, frac, text in cf[:5]:
+                print(f"       p{pageno} {frac*100:.0f}% dark: '{text[:38]}'")
+        else:
+            print("  LOW-CONTRAST text: none")
