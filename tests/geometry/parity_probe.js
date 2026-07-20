@@ -27,4 +27,8 @@ const anchor = window.getStairPlacementForZone(st, { x: 0, y: 0, w: W, d: D }, p
 const openings = window.computeStairOpenings(p);
 const edges = window.getExposedEdges(p, openings);
 
-console.log(JSON.stringify({ profile, anchor, openings, edges }));
+// S94/P0: shared multi-stair resolver (used by the site-plan preview).
+// Mirrors Python stair_utils.resolve_all_stairs; compared 1:1 by the test.
+const resolvedStairs = window.resolveAllStairs(p);
+
+console.log(JSON.stringify({ profile, anchor, openings, edges, resolvedStairs }));

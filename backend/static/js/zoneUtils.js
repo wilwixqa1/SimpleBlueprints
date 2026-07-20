@@ -822,6 +822,113 @@ window.atZoneCap = function(p) { return ((p && p.zones) || []).filter(function(z
   }
 
   window.getEffectiveBeamType = getEffectiveBeamType;
+  // ============================================================
+  // RESOLVE ALL STAIRS (S94/P0) -- JS mirror of Python
+  // stair_utils.resolve_stair_elevation() + resolve_all_stairs().
+  // Single shared resolver so preview sheets (site plan today; a future
+  // consolidation target for plan/3D/elevation, which currently inline
+  // this logic) agree with the PDF pipeline. Keep in lockstep with the
+  // Python: tests/test_frontend_parity.py compares the two directly.
+  //
+  // p is the zone-params shape (deckWidth/deckDepth + height or
+  // deckHeight, zones[], deckStairs[] or legacy hasStairs fields).
+  // Returns [{ stair, zoneRect, worldAnchorX, worldAnchorY, angle,
+  //            exitSide, elevationInfo }]; anchors are deck-LOCAL feet.
+  // ============================================================
+  function resolveStairElevation(stair, p) {
+    var mainH = (p.height != null) ? +p.height
+              : (p.deckHeight != null) ? +p.deckHeight : 4;
+    var zones = p.zones || [];
+    var anchorId = (stair.zoneId != null) ? stair.zoneId : 0;
+    var fromH;
+    if (anchorId === 0) {
+      fromH = mainH;
+    } else {
+      var az = zones.find(function(z) { return z.id === anchorId; });
+      fromH = (az && az.h != null) ? +az.h : mainH;
+    }
+    var landsOn = (stair._landsOnZoneId != null) ? stair._landsOnZoneId : null;
+    var toH, isTransitional;
+    if (landsOn == null) {
+      toH = 0; isTransitional = false;
+    } else if (landsOn === 0) {
+      toH = mainH; isTransitional = true;
+    } else {
+      var lz = zones.find(function(z) { return z.id === landsOn; });
+      if (!lz) { toH = 0; isTransitional = false; }
+      else { toH = (lz.h != null) ? +lz.h : mainH; isTransitional = true; }
+    }
+    return {
+      fromH: fromH, toH: toH, totalRise: Math.abs(fromH - toH),
+      landsOnZoneId: isTransitional ? landsOn : null,
+      isTransitional: isTransitional, directionValid: fromH > toH
+    };
+  }
+
+  function getStairExitSide(angle) {
+    var a = ((Math.round(angle) % 360) + 360) % 360;
+    if (a === 90) return "right";
+    if (a === 180) return "back";
+    if (a === 270) return "left";
+    return "front";
+  }
+
+  function resolveAllStairs(p) {
+    var W = +(p.deckWidth || p.width || 16);
+    var D = +(p.deckDepth || p.depth || 12);
+    var mainH = (p.height != null) ? +p.height
+              : (p.deckHeight != null) ? +p.deckHeight : 4;
+    var ds = p.deckStairs;
+
+    // Backward-compat fallback: no deckStairs array -> legacy flat params.
+    // Mirrors the Python fallback (grade-only by construction). Rise gate
+    // matches compute_stair_info's height <= 0.5 -> None.
+    if (!ds || !ds.length) {
+      if (!p.hasStairs || mainH <= 0.5) return [];
+      var pl = window.getStairPlacement(p, { W: W, D: D });
+      return [{
+        stair: { id: 0, zoneId: 0, location: p.stairLocation || "front",
+                 width: p.stairWidth || 4, numStringers: p.numStringers || 3 },
+        zoneRect: { x: 0, y: 0, w: W, d: D },
+        worldAnchorX: pl.anchorX, worldAnchorY: pl.anchorY,
+        angle: pl.angle, exitSide: getStairExitSide(pl.angle),
+        elevationInfo: { fromH: mainH, toH: 0, totalRise: mainH,
+                         landsOnZoneId: null, isTransitional: false,
+                         directionValid: mainH > 0 }
+      }];
+    }
+
+    // Zone rect lookup from ADDITIVE rects only (a stair anchored to a
+    // cutout zone is orphaned and skipped -- matches the Python).
+    var zoneRects = { 0: { x: 0, y: 0, w: W, d: D } };
+    getAdditiveRects(p).forEach(function(ar) { zoneRects[ar.id] = ar.rect; });
+
+    // P1.2: notch-aware front-edge profile of the MAIN deck (zone 0 only).
+    var mainProfile = (window.frontEdgeProfile)
+      ? window.frontEdgeProfile(W, D, getCutoutRects(p)) : null;
+
+    var resolved = [];
+    ds.forEach(function(stair) {
+      var zoneId = (stair.zoneId != null) ? stair.zoneId : 0;
+      var zr = zoneRects[zoneId];
+      if (!zr) return; // orphaned stair
+      var elev = resolveStairElevation(stair, p);
+      if (elev.totalRise <= 0.5) return; // compute_stair_info -> None gate
+      var fp = (zoneId === 0) ? mainProfile : null;
+      var plz = window.getStairPlacementForZone(stair, zr, fp);
+      resolved.push({
+        stair: stair, zoneRect: zr,
+        worldAnchorX: zr.x + plz.anchorX, worldAnchorY: zr.y + plz.anchorY,
+        angle: plz.angle, exitSide: getStairExitSide(plz.angle),
+        elevationInfo: elev
+      });
+    });
+    return resolved;
+  }
+
+  window.resolveStairElevation = resolveStairElevation;
+  window.getStairExitSide = getStairExitSide;
+  window.resolveAllStairs = resolveAllStairs;
   window.getSharedEdges = getSharedEdges;
   window.classifyHeightDelta = classifyHeightDelta;
   window.suggestRiserPlan = suggestRiserPlan;

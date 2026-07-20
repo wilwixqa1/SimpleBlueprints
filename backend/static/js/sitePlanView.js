@@ -287,85 +287,101 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
   var sbR = p.setbackRear || 0;
   var sbS = p.setbackSide || 0;
 
-  // === STAIR PROJECTION (S31) ===
+  // === STAIR PROJECTIONS (S31; S94/P0: ALL stairs, notch-aware) ===
+  // Was: a single stair drawn from the legacy hasStairs/stairLocation/
+  // stairWidth/stairOffset fields, so the preview lost every stair but the
+  // synced one and put a front stair at full depth even over a front notch.
+  // Now: mirrors the S93 backend site plan (draw_site_plan.py) -- iterate
+  // window.resolveAllStairs (the shared JS mirror of the Python resolver)
+  // and draw every stair at its notch-aware, deck-local anchor. Spec math
+  // (schematic rise 7.5" / tread 10", box orientation per angle, fit-gated
+  // "STAIRS" label at >= 4.5' along the text) is a line-by-line mirror of
+  // the backend's _stair_specs loop; keep the two together.
   var stairEls = [];
-  if (p.hasStairs && p.height > 0) {
+  var stairSpecs = [];
+  var _resolvedStairs = window.resolveAllStairs ? window.resolveAllStairs(pz) : [];
+  var landD = p.hasLanding ? 4 : 0;
+  _resolvedStairs.forEach(function(rs) {
+    var rise = (rs.elevationInfo && rs.elevationInfo.totalRise != null)
+      ? +rs.elevationInfo.totalRise : (p.height || 4);
+    if (rise <= 0) return;
     var riseIn = 7.5, treadIn = 10;
-    var nRisers = Math.ceil((p.height || 4) * 12 / riseIn);
+    var nRisers = Math.ceil(rise * 12 / riseIn);
     var stairRun = (nRisers - 1) * treadIn / 12;
-    var stW = p.stairWidth || 4;
-    var stOff = p.stairOffset || 0;
-    var loc = p.stairLocation || "front";
-    var landD = p.hasLanding ? 4 : 0;
-    var stX, stY, stDrawW, stDrawD;
-
-    // S72: Stair position from deck (already in drawing space)
-    if (loc === "front") {
-      stX = dx + dw / 2 + stOff - stW / 2;
-      stY = dy + dd;
-      stDrawW = stW;
-      stDrawD = stairRun + landD;
-    } else if (loc === "left") {
-      stX = dx - stairRun - landD;
-      stY = dy + dd / 2 + stOff - stW / 2;
-      stDrawW = stairRun + landD;
-      stDrawD = stW;
-    } else {
-      stX = dx + dw;
-      stY = dy + dd / 2 + stOff - stW / 2;
-      stDrawW = stairRun + landD;
-      stDrawD = stW;
+    var stW = +(rs.stair.width != null ? rs.stair.width : (p.stairWidth || 4));
+    var angle = rs.angle || 0;
+    // For a front stair anchorX is the stair CENTRE and anchorY the
+    // (notch-aware) edge; for a side stair anchorX is the edge and anchorY
+    // the stair CENTRE -- exactly as getStairPlacementForZone emits.
+    var aX = dx + rs.worldAnchorX;
+    var aY = dy + rs.worldAnchorY;
+    var loc, stX, stY, stDrawW, stDrawD;
+    if (Math.abs(angle - 90) < 1e-6) {        // right side -> projects +x
+      loc = "right";
+      stX = aX; stY = aY - stW / 2;
+      stDrawW = stairRun + landD; stDrawD = stW;
+    } else if (Math.abs(angle - 270) < 1e-6) { // left side -> projects -x
+      loc = "left";
+      stX = aX - stairRun - landD; stY = aY - stW / 2;
+      stDrawW = stairRun + landD; stDrawD = stW;
+    } else {                                   // front (angle 0) -> projects +y
+      loc = "front";
+      stX = aX - stW / 2; stY = aY;
+      stDrawW = stW; stDrawD = stairRun + landD;
     }
+    stairSpecs.push({ loc: loc, stX: stX, stY: stY, stW: stW,
+                      stDrawW: stDrawW, stDrawD: stDrawD,
+                      stairRun: stairRun, nRisers: nRisers });
+  });
+
+  stairSpecs.forEach(function(s, si) {
+    var loc = s.loc, stX = s.stX, stY = s.stY, stW = s.stW;
+    var stDrawW = s.stDrawW, stDrawD = s.stDrawD;
+    var stairRun = s.stairRun, nRisers = s.nRisers;
 
     stairEls.push(React.createElement("rect", {
-      key: "stair", x: sx(stX), y: sy(stY + stDrawD),
+      key: "stair" + si, x: sx(stX), y: sy(stY + stDrawD),
       width: sw(stDrawW), height: sh(stDrawD),
       fill: "#e8d5b7", fillOpacity: 0.5, stroke: "#8B7355", strokeWidth: 0.8, strokeDasharray: "3,2"
     }));
 
+    // Tread lines (backend gates in FEET: box depth along the run > 2')
     var numLines = Math.min(8, nRisers - 1);
-    if (loc === "front" && sh(stDrawD) > 10) {
-      for (var ti = 1; ti <= numLines; ti++) {
-        var tFrac = ti / (numLines + 1);
+    var ti, tFrac;
+    if (loc === "front" && stDrawD > 2) {
+      for (ti = 1; ti <= numLines; ti++) {
+        tFrac = ti / (numLines + 1);
         var tY = stY + tFrac * stairRun;
         stairEls.push(React.createElement("line", {
-          key: "tread" + ti,
+          key: "tread" + si + "_" + ti,
           x1: sx(stX + 0.3), y1: sy(tY), x2: sx(stX + stW - 0.3), y2: sy(tY),
           stroke: "#8B7355", strokeWidth: 0.4, opacity: 0.5
         }));
       }
-    } else if (loc === "left" && sw(stDrawW) > 10) {
-      for (var ti = 1; ti <= numLines; ti++) {
-        var tFrac = ti / (numLines + 1);
-        var tX = stX + stDrawW - tFrac * stairRun;
+    } else if (loc === "left" && stDrawW > 2) {
+      for (ti = 1; ti <= numLines; ti++) {
+        tFrac = ti / (numLines + 1);
+        var tXl = stX + stDrawW - tFrac * stairRun;
         stairEls.push(React.createElement("line", {
-          key: "tread" + ti,
-          x1: sx(tX), y1: sy(stY + 0.3), x2: sx(tX), y2: sy(stY + stW - 0.3),
+          key: "tread" + si + "_" + ti,
+          x1: sx(tXl), y1: sy(stY + 0.3), x2: sx(tXl), y2: sy(stY + stW - 0.3),
           stroke: "#8B7355", strokeWidth: 0.4, opacity: 0.5
         }));
       }
-    } else if (loc === "right" && sw(stDrawW) > 10) {
-      for (var ti = 1; ti <= numLines; ti++) {
-        var tFrac = ti / (numLines + 1);
-        var tX = stX + tFrac * stairRun;
+    } else if (loc === "right" && stDrawW > 2) {
+      for (ti = 1; ti <= numLines; ti++) {
+        tFrac = ti / (numLines + 1);
+        var tXr = stX + tFrac * stairRun;
         stairEls.push(React.createElement("line", {
-          key: "tread" + ti,
-          x1: sx(tX), y1: sy(stY + 0.3), x2: sx(tX), y2: sy(stY + stW - 0.3),
+          key: "tread" + si + "_" + ti,
+          x1: sx(tXr), y1: sy(stY + 0.3), x2: sx(tXr), y2: sy(stY + stW - 0.3),
           stroke: "#8B7355", strokeWidth: 0.4, opacity: 0.5
         }));
       }
     }
 
-    var labelX = stX + stDrawW / 2;
-    var labelY = stY + stDrawD / 2;
-    if (sh(stDrawD) > 10 && sw(stDrawW) > 14) {
-      stairEls.push(React.createElement("text", {
-        key: "stlbl", x: sx(labelX), y: sy(labelY) + 3, textAnchor: "middle",
-        style: { fontSize: 6, fill: "#8B7355", fontFamily: mono, fontWeight: 700 }
-      }, "STAIRS"));
-    }
-
-    if (p.hasLanding && landD > 0) {
+    // Landing pad
+    if (landD > 0) {
       var lx, ly, lw, ld;
       if (loc === "front") {
         lx = stX; ly = stY + stairRun; lw = stW; ld = landD;
@@ -375,19 +391,37 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
         lx = stX + stairRun; ly = stY; lw = landD; ld = stW;
       }
       stairEls.push(React.createElement("rect", {
-        key: "landing", x: sx(lx), y: sy(ly + ld),
+        key: "landing" + si, x: sx(lx), y: sy(ly + ld),
         width: sw(lw), height: sh(ld),
         fill: "#d5c4a1", fillOpacity: 0.4, stroke: "#8B7355", strokeWidth: 0.6, strokeDasharray: "2,2"
       }));
     }
 
-    if (loc === "front" && sh(stDrawD) > 6) {
+    // Stair label -- S93 backend rule: only when the box is wide enough
+    // ALONG THE TEXT (>= 4.5') to hold "STAIRS"; narrow stairs are
+    // identified by their tread lines instead. White plate keeps it
+    // readable over the tread lines.
+    var boxHoriz = (loc === "front") ? stW : stDrawW;
+    if (boxHoriz >= 4.5 && stDrawD > 2) {
+      var lblX = sx(stX + stDrawW / 2), lblY = sy(stY + stDrawD / 2) + 3;
+      stairEls.push(React.createElement("rect", {
+        key: "stlblbg" + si, x: lblX - 15, y: lblY - 7,
+        width: 30, height: 9, fill: "white", fillOpacity: 0.6
+      }));
       stairEls.push(React.createElement("text", {
-        key: "strun", x: sx(stX + stDrawW) + 4, y: sy(stY + stDrawD / 2) + 3, textAnchor: "start",
+        key: "stlbl" + si, x: lblX, y: lblY, textAnchor: "middle",
+        style: { fontSize: 6, fill: "#8B7355", fontFamily: mono, fontWeight: 700 }
+      }, "STAIRS"));
+    }
+
+    // Run dimension (front only), just past the box -- mirrors backend.
+    if (loc === "front" && stDrawD > 2) {
+      stairEls.push(React.createElement("text", {
+        key: "strun" + si, x: sx(stX + stDrawW + 1.5), y: sy(stY + stDrawD / 2) + 3, textAnchor: "start",
         style: { fontSize: 6, fill: "#8B7355", fontFamily: mono, fontWeight: 600 }
       }, stairRun.toFixed(1) + "'"));
     }
-  }
+  });
 
   // === DISTANCES (bounding box, S30) ===
   var rearGap = viewD - (bbLy + bbD);
@@ -434,13 +468,16 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
   if (p.attachment === "ledger") {
     deckEls.push(React.createElement("line", { key: "ldg", x1: sx(dx), y1: sy(dy), x2: sx(dx + dw), y2: sy(dy), stroke: "#2e7d32", strokeWidth: 2.5 }));
   }
+  // S94/P0: mirror the S93 backend nudge -- sit the label a little below
+  // deck-centre (0.40 of the MAIN deck depth, toward the house) so it clears
+  // a front notch / stair box that dips into the deck at the front edge.
   if (sh(bbD) > 16) {
-    var _dtx = sx(bbLx + bbW / 2), _dty = sy(bbLy + bbD / 2) + 3;
+    var _dtx = sx(dx + dw / 2), _dty = sy(dy + dd * 0.40) + 3;
     deckEls.push(React.createElement("text", { key: "dlbl", x: _dtx, y: _dty, textAnchor: "middle", transform: _combAngle !== 0 ? "rotate(" + _combAngle.toFixed(1) + "," + _dtx.toFixed(1) + "," + _dty.toFixed(1) + ")" : undefined, style: { fontSize: 8, fill: "#3d5a2e", fontFamily: mono, fontWeight: 700 } }, "PROPOSED DECK"));
   }
   if (sh(bbD) > 28) {
     var dimLabel = hasZones ? totalArea.toFixed(0) + " S.F." : dw + "' x " + dd + "'";
-    var _dtx2 = sx(bbLx + bbW / 2), _dty2 = sy(bbLy + bbD / 2) + 13;
+    var _dtx2 = sx(dx + dw / 2), _dty2 = sy(dy + dd * 0.40) + 13;
     deckEls.push(React.createElement("text", { key: "ddim", x: _dtx2, y: _dty2, textAnchor: "middle", transform: _combAngle !== 0 ? "rotate(" + _combAngle.toFixed(1) + "," + _dtx2.toFixed(1) + "," + _dty2.toFixed(1) + ")" : undefined, style: { fontSize: 7, fill: "#5a7a4a", fontFamily: mono } }, dimLabel));
   }
 

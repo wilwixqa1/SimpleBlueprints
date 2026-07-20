@@ -57,6 +57,11 @@ CONFIGS = [
      [_cutout("front", 6, 5, off=7)], []),
     ("front-left notch + front stair", 18, 12,
      [_cutout("front-left", 5, 4)], [_stair(off=-6.5, width=5)]),
+    # S94/P0: multi-stair -- the config class the old single-stair site-plan
+    # preview could not draw. Notch-aligned front stair + a right side stair.
+    ("notch + front stair + right side stair", 20, 14,
+     [_cutout("front", 4, 4, off=8)],
+     [_stair(off=0, width=4), _stair(off=1, width=4, zid=0, loc="right")]),
 ]
 
 
@@ -107,7 +112,55 @@ def _py_openings(W, D, zones, deck_stairs):
     return ops or None
 
 
+def _canon_resolved_py(rs_list):
+    return sorted(
+        (round(r["world_anchor_x"], 2), round(r["world_anchor_y"], 2),
+         int(round(r["angle"])), r["exit_side"],
+         round(float(r["elevation_info"]["totalRise"]), 2))
+        for r in rs_list)
+
+
+def _canon_resolved_js(rs_list):
+    return sorted(
+        (round(r["worldAnchorX"], 2), round(r["worldAnchorY"], 2),
+         int(round(r["angle"])), r["exitSide"],
+         round(float(r["elevationInfo"]["totalRise"]), 2))
+        for r in rs_list)
+
+
+def _check_legacy_fallback():
+    """S94/P0: the resolver's backward-compat path (hasStairs, no deckStairs)
+    must agree between JS resolveAllStairs and Python resolve_all_stairs."""
+    from drawing.stair_utils import resolve_all_stairs, compute_stair_info
+    W, D, H = 20, 14, 5
+    params = {"width": W, "depth": D, "zones": [], "hasStairs": True,
+              "stairLocation": "right", "stairOffset": 2, "stairWidth": 5,
+              "height": H}
+    calc = {"width": W, "depth": D, "stairs": compute_stair_info(H, 5, 3)}
+    py = resolve_all_stairs(params, calc)
+    js_in = {"deckWidth": W, "deckDepth": D, "zones": [], "hasStairs": True,
+             "stairLocation": "right", "stairOffset": 2, "stairWidth": 5,
+             "height": H}
+    out = subprocess.run(["node", str(PROBE), json.dumps(js_in)],
+                         capture_output=True, text=True)
+    if out.returncode != 0:
+        print("  [FAIL] legacy fallback: node error: %s"
+              % out.stderr.strip()[:200])
+        return 1
+    js = json.loads(out.stdout)
+    pyv = _canon_resolved_py(py)
+    jsv = _canon_resolved_js(js["resolvedStairs"])
+    if pyv != jsv:
+        print("  [FAIL] legacy fallback resolvedStairs mismatch")
+        print("         PY: %s" % (pyv,))
+        print("         JS: %s" % (jsv,))
+        return 1
+    print("  [OK  ] legacy hasStairs fallback (resolver)")
+    return 0
+
+
 def _run():
+    from drawing.stair_utils import resolve_all_stairs
     failures = 0
     for name, W, D, zones, stairs in CONFIGS:
         params = {"width": W, "depth": D, "zones": zones}
@@ -140,6 +193,13 @@ def _run():
               int(round(js["anchor"]["angle"])))),
             ("openings", _canon_openings(py_ops), _canon_openings(js["openings"])),
             ("edges", _canon_edges(py_edges), _canon_edges(js["edges"])),
+            # S94/P0: shared multi-stair resolver (site-plan preview path)
+            ("resolvedStairs",
+             _canon_resolved_py(resolve_all_stairs(
+                 {"width": W, "depth": D, "zones": zones,
+                  "deckStairs": stairs, "height": 4},
+                 {"width": W, "depth": D})) if stairs else [],
+             _canon_resolved_js(js["resolvedStairs"])),
         ]
         ok = True
         for label, pyv, jsv in checks:
@@ -151,6 +211,8 @@ def _run():
                 print("         JS: %s" % (jsv,))
         if ok:
             print("  [OK  ] %s" % name)
+
+    failures += _check_legacy_fallback()
 
     print()
     if failures:
