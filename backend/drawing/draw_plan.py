@@ -549,11 +549,17 @@ def draw_plan_and_framing(fig, params, calc, spec=None, panels=None):
                                      format_feet_inches(r["d"]),
                                      offset=0.8, color=BRAND["mute"], fontsize=4.5)
 
-            # Cutouts
+            # Cutouts. S94: zorder=2 lifts the white fill above the zone board
+            # lines (ax.plot defaults to zorder 2; patches default to 1, so the
+            # boards used to paint THROUGH the notch and the stair read as
+            # going UP). Equal zorder draws in insertion order: this patch is
+            # added after the boards (covers them) and before the stair runs
+            # (stair outline/treads/DN arrow still draw on top of it).
             for cr in cut_rects:
                 r = cr["rect"]
                 ax.add_patch(patches.Rectangle((r["x"], r["y"]), r["w"], r["d"],
-                             fc='white', ec=BRAND["dark"], lw=1.5, ls='--'))
+                             fc='white', ec=BRAND["dark"], lw=1.5, ls='--',
+                             zorder=2))
 
         # Ledger
         if attachment == "ledger":
