@@ -236,8 +236,12 @@ def draw_guard_rail_detail(ax, params, calc, spec=None):
                      f'{rail_height}" MIN.\nGUARD HEIGHT\n(IRC R312.1.2)',
                      offset=-1.5, color=BRAND["red"], fontsize=4.5)
 
-    # 4" sphere test: circle stays in the infill; its NOTE moves to the label
-    # column with a red leader (was drawn on top of the balusters -- S94).
+    # 4" sphere test: circle stays in the infill; its NOTE sits on one line
+    # UNDER the drawing with a vertical leader up to the circle. (S94 second
+    # pass: the first version put a 3-line note in the right margin at x=15,
+    # which overflowed the subplot panel by ~70px -- caught by the CI-only
+    # panel_check.py G5 oracle, NOT by the local gate. Run panel_check before
+    # pushing any details-sheet change.)
     sphere_r = 0.35
     baluster_start = 1.5
     baluster_spacing = 0.9
@@ -245,10 +249,10 @@ def draw_guard_rail_detail(ax, params, calc, spec=None):
     sphere_cx = baluster_start + 8 * baluster_spacing + baluster_spacing / 2 + baluster_w / 2
     sphere_cy = (1.05 + rail_visual_h) / 2
     ax.add_patch(plt.Circle((sphere_cx, sphere_cy), sphere_r, fc='white', ec=BRAND["red"], lw=0.8, ls='--'))
-    ax.text(15, 2.0, 'OPENINGS SHALL NOT\nPASS A 4" SPHERE\n(IRC R312.1.3)',
-            fontsize=4.5, color=BRAND["red"], fontweight='bold', va='center')
-    ax.annotate('', xy=(sphere_cx + sphere_r + 0.1, sphere_cy),
-                xytext=(14.8, 2.0),
+    ax.text(7, -1.5, 'OPENINGS SHALL NOT PASS A 4" SPHERE (IRC R312.1.3)',
+            ha='center', fontsize=4.2, color=BRAND["red"], fontweight='bold')
+    ax.annotate('', xy=(sphere_cx, sphere_cy - sphere_r - 0.1),
+                xytext=(sphere_cx, -1.1),
                 arrowprops=dict(arrowstyle='->', color=BRAND["red"], lw=0.5))
 
 

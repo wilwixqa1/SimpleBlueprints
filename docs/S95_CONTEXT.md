@@ -102,8 +102,15 @@ pip install pdfminer.six --break-system-packages    # legibility_check needs it 
 git config user.name "SimpleBlueprints Session"; git config user.email "session@simpleblueprints.xyz"
 ```
 
-### Green gate (run before AND after any change, and AFTER any rebase) — 8 CHECKS
+### Green gate (run before AND after any change, and AFTER any rebase)
+**There is a GitHub Actions CI (`.github/workflows/tests.yml`, S84) that runs
+on every push to main — and Railway AUTODEPLOYS from main with NO gate, so a
+red CI means the live deploy is suspect. The S94 doc omitted CI entirely and
+S94 shipped a panel-overflow regression that only CI caught (fixed in S94
+push 7). Your local gate must be CI-PARITY: the 8 core checks PLUS the 6
+CI-only checks below.**
 ```
+# Core 8:
 python3 tests/test_structural.py            # "All tests passed"
 python3 tests/test_beam_layout.py           # "BEAM LAYOUT: all checks passed"
 python3 tests/test_notch_posts.py           # "NOTCH POSTS: all checks passed"
@@ -111,8 +118,21 @@ python3 tests/pdf/config_matrix.py          # "MATRIX: 18 configs, 0 failure(s)"
 (cd tests/geometry && node lotGeometry.test.js)   # passed: 2764  failed: 0
 python3 tests/test_frontend_parity.py       # "FRONTEND PARITY: all checks passed"
 python3 tests/pdf/golden_structural.py      # "GOLDEN STRUCTURAL: all 15 sheet fingerprints match"
-python3 tests/pdf/legibility_gate.py        # "LEGIBILITY GATE: passed" (~10s, generates PDFs)
+python3 tests/pdf/legibility_gate.py        # "LEGIBILITY GATE: passed"
+# CI-only 6 (MANDATORY before any push touching drawing code):
+python3 tests/test_post_grade.py            # "POST-TO-GRADE: ... 0 unexpected deviations"
+python3 tests/test_frost_snow_normalize.py  # "B9 NORMALIZE: all ... passed"
+python3 tests/test_future_products.py       # "All logic tests passed"
+SBP_SHEET=arch_d python3 tests/pdf/linework_check.py basic_rect_ledger zones_stairs_lcr  # OK vs baseline
+python3 tests/pdf/panel_check.py --selftest && \
+  SBP_SHEET=arch_d python3 tests/pdf/panel_check.py basic_rect_ledger zones_stairs_lcr  # OK vs baseline (G5/G6/G7)
+SBP_SHEET=arch_d python3 tests/pdf/fuzz_configs.py 8   # "FUZZ: 8 configs ... 0 failures"
 ```
+`linework_check`/`panel_check` are BASELINE-DIFFERENTIAL oracles: fix code to
+return to baseline; only re-baseline deliberately with Will's knowledge.
+After pushing, CONFIRM CI WENT GREEN (authenticated GET
+/repos/wilwixqa1/SimpleBlueprints/actions/runs with the session PAT — the
+unauthenticated API is rate-limited from this egress IP).
 
 ### Pushing to main
 Will provides a GitHub PAT in-session. **NEVER store it** (not in files, not in
@@ -442,6 +462,13 @@ now caused TWO escaped defects, S93 + S94)
 
 ## 5. KEY TRAPS & LEARNINGS (don't rediscover these)
 
+- **CI EXISTS and is BIGGER than the local gate — and Railway autodeploys
+  main ungated.** S94 shipped a details-sheet panel overflow that only CI's
+  panel_check G5 oracle caught (the golden doesn't cover details; the
+  legibility gate doesn't measure panel bounds). Run the CI-only checks
+  locally before pushing; confirm CI green after pushing. The failure email's
+  duration display can be misleading — read the run's step list via the API,
+  not the email. [S94]
 - **Rotated text is invisible to the overlap detector — twice burned.** Any
   "0 overlaps" claim is silent about rotated dims. Pixel-count the zone. [S93/S94]
 - **The `view` tool is intermittent for renders** (worked 2×, failed 1× within
