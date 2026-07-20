@@ -172,7 +172,14 @@ def draw_footing_detail(ax, params, calc, spec=None):
 
 
 def draw_guard_rail_detail(ax, params, calc, spec=None):
-    """Guard rail cross section / front view"""
+    """Guard rail cross section / front view.
+
+    S94 legibility + code rework (owner-flagged): the 4\" sphere note used to
+    be drawn INSIDE the rail infill -- red text striped by dark balusters,
+    unreadable. All annotations now live in a right-side label column with
+    leaders, IRC 2021 sections are cited (R312.1.1 guard trigger, R312.1.2
+    height, R312.1.3 opening limit), and the sphere circle stays in the
+    infill with a leader out to its note."""
     ax.set_xlim(-2, 18)
     ax.set_ylim(-2, 10)
     ax.set_aspect('equal')
@@ -182,6 +189,8 @@ def draw_guard_rail_detail(ax, params, calc, spec=None):
     ax.text(-1, 9, 'GUARD RAIL DETAIL', fontsize=9, fontweight='bold',
             fontfamily='monospace', color=BRAND["dark"])
     ax.text(-1, 8.2, 'NOT TO SCALE', fontsize=5, fontfamily='monospace', color=BRAND["mute"])
+    ax.text(-1, 7.5, 'GUARD REQ\'D WHERE WALKING SURFACE >30" ABOVE GRADE (IRC R312.1.1)',
+            fontsize=4, fontfamily='monospace', color=BRAND["mute"])
 
     rail_height = spec["guardrail"]["height"] if spec else calc.get("rail_height", 36)
 
@@ -204,34 +213,43 @@ def draw_guard_rail_detail(ax, params, calc, spec=None):
     # Bottom rail
     ax.add_patch(patches.Rectangle((0, 0.8), 14, 0.25,
                  fc=BRAND["rail"], ec=BRAND["dark"], lw=0.6))
-    ax.text(15, 0.9, 'BOTTOM RAIL', fontsize=4.5, color=BRAND["dark"])
+    ax.text(15, 0.7, 'BOTTOM RAIL', fontsize=4.5, color=BRAND["dark"])
 
     # Balusters
     for bx in np.arange(1.5, 13.5, 0.9):
         ax.add_patch(patches.Rectangle((bx, 1.05), 0.15, rail_visual_h - 0.65,
                      fc=BRAND["rail"], ec=BRAND["rail"], lw=0.3))
 
-    # Rail type label
-    if params.get("railType", params.get("railingType", "fortress")) == "fortress":
+    # Rail type label -- S94: from the spec (single source of truth; the two
+    # details on this sheet used to apply OPPOSITE defaults when railType was
+    # unset, printing FORTRESS on one and WOOD on the other for the same deck).
+    _is_fortress = (spec["guardrail"]["system"] == "Fortress") if spec else (
+        params.get("railType", params.get("railingType", "fortress")) == "fortress")
+    if _is_fortress:
         rail_name = "'FORTRESS'\nFE26 IRON\nRAIL SYSTEM"
     else:
         rail_name = "WOOD\nGUARD RAIL\nSYSTEM"
-    ax.text(15, 3.5, rail_name, fontsize=5, fontweight='bold', color=BRAND["dark"])
+    ax.text(15, 4.2, rail_name, fontsize=5, fontweight='bold', color=BRAND["dark"])
 
-    # Dimensions
-    draw_dimension_v(ax, -0.5, 0, rail_visual_h + 0.4,
-                     f'{rail_height}" MIN.', offset=-1.5, color=BRAND["red"], fontsize=5)
+    # Dimensions -- guard height with its IRC section
+    draw_dimension_v(ax, -0.5, 0.4, rail_visual_h + 0.4,
+                     f'{rail_height}" MIN.\nGUARD HEIGHT\n(IRC R312.1.2)',
+                     offset=-1.5, color=BRAND["red"], fontsize=4.5)
 
-    # 4" sphere test
+    # 4" sphere test: circle stays in the infill; its NOTE moves to the label
+    # column with a red leader (was drawn on top of the balusters -- S94).
     sphere_r = 0.35
     baluster_start = 1.5
     baluster_spacing = 0.9
     baluster_w = 0.15
-    sphere_cx = baluster_start + baluster_spacing / 2 + baluster_w / 2
+    sphere_cx = baluster_start + 8 * baluster_spacing + baluster_spacing / 2 + baluster_w / 2
     sphere_cy = (1.05 + rail_visual_h) / 2
-    ax.add_patch(plt.Circle((sphere_cx, sphere_cy), sphere_r, fc='none', ec=BRAND["red"], lw=0.8, ls='--'))
-    ax.text(sphere_cx + 0.5, sphere_cy - 0.2, '< 4" MUST NOT ALLOW\nPASSAGE OF 4" SPHERE',
-            fontsize=4, color=BRAND["red"])
+    ax.add_patch(plt.Circle((sphere_cx, sphere_cy), sphere_r, fc='white', ec=BRAND["red"], lw=0.8, ls='--'))
+    ax.text(15, 2.0, 'OPENINGS SHALL NOT\nPASS A 4" SPHERE\n(IRC R312.1.3)',
+            fontsize=4.5, color=BRAND["red"], fontweight='bold', va='center')
+    ax.annotate('', xy=(sphere_cx + sphere_r + 0.1, sphere_cy),
+                xytext=(14.8, 2.0),
+                arrowprops=dict(arrowstyle='->', color=BRAND["red"], lw=0.5))
 
 
 def draw_post_beam_detail(ax, params, calc, spec=None):
@@ -322,10 +340,19 @@ def draw_stair_landing_detail(ax, params, calc, spec=None):
     ax.text(-5, 16, 'NOT TO SCALE', fontsize=5, fontfamily='monospace', color=BRAND["mute"])
 
     rail_height = spec["guardrail"]["height"] if spec else calc.get("rail_height", 36)
-    is_fortress = params.get("railType") == "fortress"
+    # S94: from the spec, same as the guard rail detail (this one used to
+    # DEFAULT TO WOOD when railType was unset -- opposite of every other
+    # sheet, so the two details contradicted each other).
+    is_fortress = (spec["guardrail"]["system"] == "Fortress") if spec else (
+        params.get("railType", params.get("railingType", "fortress")) == "fortress")
     is_composite = params.get("deckingType") == "composite"
 
     # === CONCRETE LANDING PAD ===
+    # S94 code fix: the pad used to carry '12" MIN.' on BOTH its width and its
+    # thickness -- the thickness one contradicted the pad's own 'MIN. 4" THICK'
+    # text, and neither stated the actual IRC requirement. Per IRC R311.7.6 a
+    # landing is required at the bottom of the flight, at least as wide as the
+    # stair and not less than 36" deep in the direction of travel.
     pad_x, pad_y = -1, -3
     pad_w, pad_h = 8, 1.2
     ax.add_patch(patches.Rectangle((pad_x, pad_y), pad_w, pad_h,
@@ -335,12 +362,14 @@ def draw_stair_landing_detail(ax, params, calc, spec=None):
         ax.plot([i, i - 0.2], [pad_y, pad_y - 0.25], color=BRAND["mute"], lw=0.3)
     ax.text(pad_x + pad_w / 2, pad_y + pad_h / 2, 'MIN. 4" THICK CONCRETE PAD',
             ha='center', va='center', fontsize=4, color='#444', fontweight='bold')
-    # Pad width dimension
+    # Landing depth in direction of travel (IRC R311.7.6)
     draw_dimension_h(ax, pad_x, pad_x + pad_w, pad_y,
-                     '12" MIN.', offset=-1.5, color=BRAND["red"], fontsize=4.5)
-    # Pad depth dimension (right side)
-    draw_dimension_v(ax, pad_x + pad_w, pad_y, pad_y + pad_h,
-                     '12" MIN.', offset=1.2, color=BRAND["red"], fontsize=4.5)
+                     '36" MIN. IN DIRECTION OF TRAVEL', offset=-1.5,
+                     color=BRAND["red"], fontsize=4.5)
+    # Pad thickness dimension (LEFT side -- the right corner is where the
+    # expansion-bolt callout leader lands; S94)
+    draw_dimension_v(ax, pad_x, pad_y, pad_y + pad_h,
+                     '4" MIN.', offset=-1.2, color=BRAND["red"], fontsize=4.5)
 
     # === 2x6 PT PLATE ON PAD ===
     plate_top = pad_y + pad_h
@@ -474,15 +503,19 @@ def draw_stair_landing_detail(ax, params, calc, spec=None):
         by_bot = by_top - rail_vis_h * (1 - frac * 0.1) + br_y_off
         ax.plot([bx, bx], [by_bot, by_top], color=BRAND["rail"], lw=0.4, alpha=0.6)
 
-    # 4" sphere test circle between balusters
-    sph_frac = 2.5 / n_bal
+    # 4" sphere test circle -- S94: centered in the clear OPENING between two
+    # balusters (frac 6/8 is a gap centre; the old 2.5/8 was exactly baluster
+    # #3's position, so the circle sat ON the baluster, which defeats the
+    # point of the symbol). White fill makes the dashed circle read against
+    # the infill. Chosen gap also clears both handrail posts.
+    sph_frac = 6.0 / n_bal
     sph_x = tr_x1 + sph_frac * (tr_x2 - tr_x1)
     sph_y_top = tr_y1 + sph_frac * (tr_y2 - tr_y1)
     sph_y_bot = sph_y_top - rail_vis_h * (1 - sph_frac * 0.1) + br_y_off
     sph_cy = (sph_y_top + sph_y_bot) / 2
     sph_r = 0.45
-    ax.add_patch(plt.Circle((sph_x, sph_cy), sph_r, fc='none', ec=BRAND["red"], lw=0.8, ls='--'))
-    ax.text(sph_x + 0.8, sph_cy + 0.3, '< 4"', fontsize=3.5, color=BRAND["red"], fontweight='bold')
+    ax.add_patch(plt.Circle((sph_x, sph_cy), sph_r, fc='white', ec=BRAND["red"], lw=0.8, ls='--'))
+    ax.text(sph_x + sph_r + 0.25, sph_cy + 0.55, '< 4"', fontsize=4, color=BRAND["red"], fontweight='bold')
 
     # Rail system label (top-left, above everything)
     if is_fortress:
@@ -494,11 +527,13 @@ def draw_stair_landing_detail(ax, params, calc, spec=None):
                 xytext=(-2, 14.3),
                 arrowprops=dict(arrowstyle='->', color=BRAND["dark"], lw=0.5))
 
-    # "Must not allow passage of 4" sphere" (left side, below rail label)
-    ax.text(-5, sph_cy + 0.3, 'MUST NOT ALLOW PASSAGE\nOF 4" SPHERE',
-            fontsize=3.5, color=BRAND["red"], fontweight='bold')
-    ax.annotate('', xy=(sph_x - sph_r - 0.2, sph_cy),
-                xytext=(-0.5, sph_cy + 0.3),
+    # 4" sphere note -- S94: joined the top-left label column (was floating
+    # mid-left at 3.5pt where it collided with the handrail height dimension).
+    # Leader drops onto the circle's top edge.
+    ax.text(-5, 13.2, 'OPENINGS SHALL NOT PASS\nA 4" SPHERE (IRC R312.1.3)',
+            fontsize=4.2, color=BRAND["red"], fontweight='bold', va='top')
+    ax.annotate('', xy=(sph_x, sph_cy + sph_r + 0.1),
+                xytext=(-1.2, 12.6),
                 arrowprops=dict(arrowstyle='->', color=BRAND["red"], lw=0.5))
 
     # === DIMENSIONS ===
@@ -506,22 +541,29 @@ def draw_stair_landing_detail(ax, params, calc, spec=None):
     _post1_base = stringer_base_y + 1 * rise_vis + tread_thick
     _post1_top = _post1_base + rail_vis_h
     draw_dimension_v(ax, -2, _post1_base, _post1_top,
-                     '34" TO 38"\nHANDRAIL\nHEIGHT',
+                     '34" TO 38"\nHANDRAIL\nHEIGHT\n(IRC R311.7.8.1)',
                      offset=-3.5, color=BRAND["blue"], fontsize=4)
 
-    # Guard height at deck (right side)
-    draw_dimension_v(ax, deck_left_x + deck_w - 0.5, deck_top_y, deck_top_y + rail_vis_h * 0.75,
-                     f'{rail_height}" MIN.',
-                     offset=2, color=BRAND["red"], fontsize=4)
+    # Guard height at deck: NOT dimensioned here (S94). This detail doesn't
+    # draw a deck-level guard, so the old '36" MIN.' rotated dim measured
+    # empty air -- and its rotated label collided with the notes box and the
+    # decking label (rotated text is invisible to the overlap detector, which
+    # is how it survived the first cleanup pass). The deck guard height is
+    # dimensioned, with its IRC section, on the GUARD RAIL DETAIL alongside.
 
-    # Rise/run annotation box (upper right)
-    ax.text(16, 13, "RISE: 4\" TO 7.75\" MIN.\nRUN: 10.5\"\nTREAD NOSINGS\nBETWEEN .75\" AND 1.25\"\nIF TREADS <11\" WITH\nSOLID RISERS",
-            fontsize=3.5, color=BRAND["dark"], fontfamily='monospace', va='top',
+    # Stair notes box (upper right) -- S94: replaced the garbled reference-set
+    # wording ('RISE- 4" TO 7.75", MIN.') with the actual IRC 2021 R311.7
+    # requirements a PPRBD reviewer checks. Lines kept short so the box stays
+    # inside the panel and clear of the decking label below it.
+    ax.text(14.5, 14.2, "STAIR NOTES (IRC R311.7):\n"
+            "MAX RISER 7-3/4\" / MIN TREAD 10\"\n"
+            "DESIGN RUN: 10-1/2\"\n"
+            "RISER/TREAD VARIATION: 3/8\" MAX\n"
+            "NOSING 3/4\"-1-1/4\" IF TREAD <11\"\n"
+            "HANDRAIL REQ'D AT 4+ RISERS,\n"
+            "GRIP 1-1/4\" TO 2\" DIA.",
+            fontsize=3.8, color=BRAND["dark"], fontfamily='monospace', va='top',
             bbox=dict(boxstyle='square,pad=0.3', fc='#fafaf5', ec=BRAND["border"], lw=0.5))
-
-    # 12" min depth label on landing
-    draw_dimension_v(ax, pad_x + pad_w + 0.3, pad_y, pad_y + pad_h,
-                     '12" MIN.', offset=1.2, color=BRAND["red"], fontsize=4)
 
 
 def draw_cantilever_detail(ax, params, calc, spec=None):
