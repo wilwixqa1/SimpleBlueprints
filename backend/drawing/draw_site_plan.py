@@ -321,7 +321,12 @@ def draw_site_plan(fig, params, calc):
             _house_label,
             ha='center', va='center', fontsize=7, fontweight='bold',
             fontfamily='monospace', color=BRAND["dark"], zorder=4,
-            rotation=_text_angle)
+            rotation=_text_angle,
+            # S93: the house is hatched (black diagonals); dark label text on it
+            # was unreadable. A translucent white plate restores contrast while
+            # letting the hatch still read as "existing".
+            bbox=dict(boxstyle='square,pad=0.25', facecolor='white',
+                      edgecolor='none', alpha=0.78))
 
     # S44: Skip house dimension labels on large lots (unreadable, cluttery)
     if not _is_large:
@@ -514,25 +519,13 @@ def draw_site_plan(fig, params, calc):
     else:
         label = f"PROPOSED DECK\n{deck_w}'\u00D7{deck_d}'"
 
-    ax.text(z0_x + deck_w / 2, z0_y + deck_d / 2, label,
+    # S93: sit the label a little below deck-centre so it clears a front notch /
+    # stair at the front edge (and reads lower per owner preference).
+    ax.text(z0_x + deck_w / 2, z0_y + deck_d * 0.40, label,
             ha='center', va='center', fontsize=7, fontweight='bold',
-            fontfamily='monospace', color=BRAND["green"], zorder=5)
-
-    # Deck dimensions (bounding box) - S44: skip on large lots
-    if not _is_large:
-        ax.annotate('', xy=(bb_x + bb_w, bb_y + bb_d + 3),
-                    xytext=(bb_x, bb_y + bb_d + 3),
-                    arrowprops=dict(arrowstyle='<->', color=BRAND["blue"], lw=0.8))
-        ax.text(bb_x + bb_w / 2, bb_y + bb_d + 4.5, f"{bb_w:.0f}'",
-                ha='center', fontsize=6, fontweight='bold', fontfamily='monospace',
-                color=BRAND["blue"])
-
-        ax.annotate('', xy=(bb_x + bb_w + 3, bb_y + bb_d),
-                    xytext=(bb_x + bb_w + 3, bb_y),
-                    arrowprops=dict(arrowstyle='<->', color=BRAND["blue"], lw=0.8))
-        ax.text(bb_x + bb_w + 5, bb_y + bb_d / 2, f"{bb_d:.0f}'",
-                ha='center', fontsize=6, fontweight='bold', fontfamily='monospace',
-                color=BRAND["blue"], rotation=90)
+            fontfamily='monospace', color=BRAND["green"], zorder=5,
+            bbox=dict(boxstyle='square,pad=0.2', facecolor='white',
+                      edgecolor='none', alpha=0.7))
 
     # === STAIR PROJECTIONS (S32; P1.c-remainder: all stairs) ===
     # Was: a single stair read from the legacy hasStairs/stairLocation/stairWidth/
@@ -542,46 +535,80 @@ def draw_site_plan(fig, params, calc):
     # so the site plan agrees with A-1/A-2. Each resolved stair carries a deck-local
     # anchor + angle that is notch-aware on the main deck's front edge. When no
     # deckStairs array is present, resolve_all_stairs falls back to the legacy
-    # single stair, so pre-existing single-stair decks are byte-identical.
+    # single stair.
     from .stair_utils import resolve_all_stairs
     resolved_stairs = resolve_all_stairs(params, calc)
     deck_height = params.get("height", 4)
     has_stairs = bool(resolved_stairs)          # consumed by the legend below
     land_d = 4 if params.get("hasLanding", False) else 0
 
+    # S93: pre-compute each stair's drawn projection rect BEFORE the deck
+    # dimensions, so the dimensions can be pushed clear of the stairs (the depth
+    # dimension used to land on top of a right-side stair's label). Schematic run
+    # math kept local (rise 7.5", tread 10"); the exact run lives on the stair
+    # detail sheet.
+    _stair_specs = []
     for _rs in resolved_stairs:
-        # Schematic run math kept local (rise 7.5", tread 10") rather than the
-        # resolved template run, so a single front/edge stair reproduces the
-        # pre-refactor projection exactly (guarded by the structural golden). The
-        # site plan is a to-grade projection for setbacks; the exact tread run
-        # lives on the stair-detail sheet.
         _rise = float(_rs.get("elevation_info", {}).get("totalRise", deck_height))
         if _rise <= 0:
             continue
-        rise_in = 7.5
-        tread_in = 10
+        rise_in, tread_in = 7.5, 10
         n_risers = math.ceil(_rise * 12 / rise_in)
         stair_run = (n_risers - 1) * tread_in / 12
         st_w = float(_rs["stair"].get("width", params.get("stairWidth", 4)))
         angle = _rs.get("angle", 0)
-        # Anchor in site coords. For a front stair anchor_x is the stair CENTRE and
-        # anchor_y the (notch-aware) edge; for a side stair anchor_x is the edge and
-        # anchor_y the stair CENTRE -- exactly as get_stair_placement_for_zone emits.
+        # For a front stair anchor_x is the stair CENTRE and anchor_y the
+        # (notch-aware) edge; for a side stair anchor_x is the edge and anchor_y
+        # the stair CENTRE -- exactly as get_stair_placement_for_zone emits.
         a_x = z0_x + _rs["world_anchor_x"]
         a_y = z0_y + _rs["world_anchor_y"]
-
-        if abs(angle - 90) < 1e-6:          # right side -> projects +x
+        if abs(angle - 90) < 1e-6:            # right side -> projects +x
             loc = "right"
             st_x, st_y = a_x, a_y - st_w / 2
             st_draw_w, st_draw_d = stair_run + land_d, st_w
-        elif abs(angle - 270) < 1e-6:       # left side -> projects -x
+        elif abs(angle - 270) < 1e-6:         # left side -> projects -x
             loc = "left"
             st_x, st_y = a_x - stair_run - land_d, a_y - st_w / 2
             st_draw_w, st_draw_d = stair_run + land_d, st_w
-        else:                               # front (angle 0) -> projects +y
+        else:                                 # front (angle 0) -> projects +y
             loc = "front"
             st_x, st_y = a_x - st_w / 2, a_y
             st_draw_w, st_draw_d = st_w, stair_run + land_d
+        _stair_specs.append(dict(loc=loc, st_x=st_x, st_y=st_y, st_w=st_w,
+                                 st_draw_w=st_draw_w, st_draw_d=st_draw_d,
+                                 stair_run=stair_run, n_risers=n_risers))
+
+    # How far stairs reach past the deck bbox on the top (front) and right edges,
+    # so the width / depth dimensions can be placed beyond them.
+    _top_reach = max([s["st_y"] + s["st_draw_d"] for s in _stair_specs
+                      if s["loc"] == "front"], default=bb_y + bb_d)
+    _right_reach = max([s["st_x"] + s["st_draw_w"] for s in _stair_specs
+                        if s["loc"] == "right"], default=bb_x + bb_w)
+
+    # Deck dimensions (bounding box) - S44: skip on large lots. S93: offset each
+    # dimension beyond any stair projecting on that edge so the label never
+    # overlaps the stair (was: fixed +3/+5 offsets that collided with stairs).
+    if not _is_large:
+        _wy = max(bb_y + bb_d + 3, _top_reach + 3)
+        ax.annotate('', xy=(bb_x + bb_w, _wy), xytext=(bb_x, _wy),
+                    arrowprops=dict(arrowstyle='<->', color=BRAND["blue"], lw=0.8))
+        ax.text(bb_x + bb_w / 2, _wy + 1.5, f"{bb_w:.0f}'",
+                ha='center', fontsize=6, fontweight='bold', fontfamily='monospace',
+                color=BRAND["blue"])
+
+        _dx = max(bb_x + bb_w + 3, _right_reach + 3)
+        ax.annotate('', xy=(_dx, bb_y + bb_d), xytext=(_dx, bb_y),
+                    arrowprops=dict(arrowstyle='<->', color=BRAND["blue"], lw=0.8))
+        ax.text(_dx + 2, bb_y + bb_d / 2, f"{bb_d:.0f}'",
+                ha='center', va='center', fontsize=6, fontweight='bold',
+                fontfamily='monospace', color=BRAND["blue"], rotation=90)
+
+    # Draw each stair projection.
+    for _s in _stair_specs:
+        loc = _s["loc"]
+        st_x, st_y, st_w = _s["st_x"], _s["st_y"], _s["st_w"]
+        st_draw_w, st_draw_d = _s["st_draw_w"], _s["st_draw_d"]
+        stair_run, n_risers = _s["stair_run"], _s["n_risers"]
 
         # Main stair rect
         stair_rect = patches.Rectangle(
@@ -625,19 +652,25 @@ def draw_site_plan(fig, params, calc):
                 lw=0.6, linestyle='--', zorder=2.5)
             ax.add_patch(land_rect)
 
-        # Stair label
-        if st_draw_w > 3 and st_draw_d > 2:
+        # Stair label -- S93: only when the box is wide enough (along the text) to
+        # hold "STAIRS"; a 4' front stair box is too narrow, so the word used to
+        # spill past the edge. Tread lines + the legend identify narrow stairs. A
+        # translucent white plate keeps it readable over the tread lines.
+        _box_horiz = st_w if loc == "front" else st_draw_w
+        if _box_horiz >= 4.5 and st_draw_d > 2:
             ax.text(st_x + st_draw_w / 2, st_y + st_draw_d / 2,
-                    "STAIRS", ha='center', va='center', fontsize=5,
-                    fontfamily='monospace', color='#8B7355',
-                    fontweight='bold', zorder=2.7)
+                    "STAIRS", ha='center', va='center', fontsize=4.5,
+                    fontfamily='monospace', color='#8B7355', fontweight='bold',
+                    zorder=2.7,
+                    bbox=dict(boxstyle='square,pad=0.1', facecolor='white',
+                              edgecolor='none', alpha=0.6))
 
-        # Run dimension (front only, as before)
+        # Run dimension (front only). Placed just past the stair, clear of the box.
         if loc == "front" and st_draw_d > 2:
-            ax.text(st_x + st_draw_w + 2, st_y + st_draw_d / 2,
-                    f"{stair_run:.1f}'", ha='left', fontsize=5,
-                    fontfamily='monospace', color='#8B7355',
-                    fontweight='bold', zorder=2.7)
+            ax.text(st_x + st_draw_w + 1.5, st_y + st_draw_d / 2,
+                    f"{stair_run:.1f}'", ha='left', va='center', fontsize=4.5,
+                    fontfamily='monospace', color='#8B7355', fontweight='bold',
+                    zorder=2.7)
 
     # === DISTANCE TO PROPERTY LINES (S44: skip on large lots) ===
     if not _is_large:
