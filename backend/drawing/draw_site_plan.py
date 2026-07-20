@@ -466,9 +466,12 @@ def draw_site_plan(fig, params, calc):
 
     for cr in cut_rects:
         r = cr["rect"]
-        # P1.c: a front-reaching cutout is now a real gap in the notched deck
-        # polygon above, so skip the dashed overlay box for it. Interior wells
-        # (cutouts that stop short of the front edge) still get the box.
+        # A front-reaching cutout is a real gap in the notched deck polygon above,
+        # so skip it here. A cutout that stops short of the front edge (an interior
+        # "well") is not a real deck feature on its own -- a notch exists only
+        # because stairs descend through it -- so it's left as the prior dashed
+        # reference box rather than being promoted to a real opening. (Coupling a
+        # notch to its stair is the open product question in the handoff.)
         if r["y"] + r["d"] >= float(deck_d) - 1e-6:
             continue
         rx, ry = z0_x + r["x"], z0_y + r["y"]
@@ -531,45 +534,54 @@ def draw_site_plan(fig, params, calc):
                 ha='center', fontsize=6, fontweight='bold', fontfamily='monospace',
                 color=BRAND["blue"], rotation=90)
 
-    # === STAIR PROJECTION (S32) ===
-    has_stairs = params.get("hasStairs", False)
+    # === STAIR PROJECTIONS (S32; P1.c-remainder: all stairs) ===
+    # Was: a single stair read from the legacy hasStairs/stairLocation/stairWidth/
+    # stairOffset fields, so multi-stair decks lost every stair but the one the
+    # editor synced, and side stairs used a hand-rolled anchor. Now: draw EVERY
+    # stair from resolve_all_stairs(), the same source the plan/framing sheets use,
+    # so the site plan agrees with A-1/A-2. Each resolved stair carries a deck-local
+    # anchor + angle that is notch-aware on the main deck's front edge. When no
+    # deckStairs array is present, resolve_all_stairs falls back to the legacy
+    # single stair, so pre-existing single-stair decks are byte-identical.
+    from .stair_utils import resolve_all_stairs
+    resolved_stairs = resolve_all_stairs(params, calc)
     deck_height = params.get("height", 4)
-    if has_stairs and deck_height > 0:
+    has_stairs = bool(resolved_stairs)          # consumed by the legend below
+    land_d = 4 if params.get("hasLanding", False) else 0
+
+    for _rs in resolved_stairs:
+        # Schematic run math kept local (rise 7.5", tread 10") rather than the
+        # resolved template run, so a single front/edge stair reproduces the
+        # pre-refactor projection exactly (guarded by the structural golden). The
+        # site plan is a to-grade projection for setbacks; the exact tread run
+        # lives on the stair-detail sheet.
+        _rise = float(_rs.get("elevation_info", {}).get("totalRise", deck_height))
+        if _rise <= 0:
+            continue
         rise_in = 7.5
         tread_in = 10
-        n_risers = math.ceil(deck_height * 12 / rise_in)
+        n_risers = math.ceil(_rise * 12 / rise_in)
         stair_run = (n_risers - 1) * tread_in / 12
-        st_w = params.get("stairWidth", 4)
-        st_off = params.get("stairOffset", 0)
-        loc = params.get("stairLocation", "front")
-        land_d = 4 if params.get("hasLanding", False) else 0
+        st_w = float(_rs["stair"].get("width", params.get("stairWidth", 4)))
+        angle = _rs.get("angle", 0)
+        # Anchor in site coords. For a front stair anchor_x is the stair CENTRE and
+        # anchor_y the (notch-aware) edge; for a side stair anchor_x is the edge and
+        # anchor_y the stair CENTRE -- exactly as get_stair_placement_for_zone emits.
+        a_x = z0_x + _rs["world_anchor_x"]
+        a_y = z0_y + _rs["world_anchor_y"]
 
-        if loc == "front":
-            st_x = z0_x + deck_w / 2 + st_off - st_w / 2
-            # P1.c: anchor at the REAL front edge across the stair's footprint --
-            # the notch-back on a notched deck -- so the stair fills the notch and
-            # meets the deck, instead of hanging off the outer edge across the void.
-            # Uses the same front_edge_profile the plan/framing sheets use, so the
-            # site plan agrees with A-1. On a flat deck the profile is full depth,
-            # so st_y == z0_y + deck_d exactly as before (byte-identical).
-            from .beam_layout import front_edge_profile
-            from .stair_utils import _front_edge_y_for_span
-            _prof = front_edge_profile(float(deck_w), float(deck_d), cut_rects)
-            _cx = deck_w / 2 + st_off  # stair centre in deck-local x
-            _edge_y = _front_edge_y_for_span(_prof, _cx - st_w / 2, _cx + st_w / 2, float(deck_d))
-            st_y = z0_y + _edge_y
-            st_draw_w = st_w
-            st_draw_d = stair_run + land_d
-        elif loc == "left":
-            st_x = z0_x - stair_run - land_d
-            st_y = z0_y + deck_d / 2 + st_off - st_w / 2
-            st_draw_w = stair_run + land_d
-            st_draw_d = st_w
-        else:  # right
-            st_x = z0_x + deck_w
-            st_y = z0_y + deck_d / 2 + st_off - st_w / 2
-            st_draw_w = stair_run + land_d
-            st_draw_d = st_w
+        if abs(angle - 90) < 1e-6:          # right side -> projects +x
+            loc = "right"
+            st_x, st_y = a_x, a_y - st_w / 2
+            st_draw_w, st_draw_d = stair_run + land_d, st_w
+        elif abs(angle - 270) < 1e-6:       # left side -> projects -x
+            loc = "left"
+            st_x, st_y = a_x - stair_run - land_d, a_y - st_w / 2
+            st_draw_w, st_draw_d = stair_run + land_d, st_w
+        else:                               # front (angle 0) -> projects +y
+            loc = "front"
+            st_x, st_y = a_x - st_w / 2, a_y
+            st_draw_w, st_draw_d = st_w, stair_run + land_d
 
         # Main stair rect
         stair_rect = patches.Rectangle(
@@ -602,13 +614,13 @@ def draw_site_plan(fig, params, calc):
         # Landing pad
         if land_d > 0:
             if loc == "front":
-                lx, ly, lw, ld = st_x, st_y + stair_run, st_w, land_d
+                lx, ly, lw_, ld = st_x, st_y + stair_run, st_w, land_d
             elif loc == "left":
-                lx, ly, lw, ld = st_x, st_y, land_d, st_w
+                lx, ly, lw_, ld = st_x, st_y, land_d, st_w
             else:
-                lx, ly, lw, ld = st_x + stair_run, st_y, land_d, st_w
+                lx, ly, lw_, ld = st_x + stair_run, st_y, land_d, st_w
             land_rect = patches.Rectangle(
-                (lx, ly), lw, ld,
+                (lx, ly), lw_, ld,
                 fc='#d5c4a1', ec='#8B7355', alpha=0.4,
                 lw=0.6, linestyle='--', zorder=2.5)
             ax.add_patch(land_rect)
@@ -620,7 +632,7 @@ def draw_site_plan(fig, params, calc):
                     fontfamily='monospace', color='#8B7355',
                     fontweight='bold', zorder=2.7)
 
-        # Run dimension
+        # Run dimension (front only, as before)
         if loc == "front" and st_draw_d > 2:
             ax.text(st_x + st_draw_w + 2, st_y + st_draw_d / 2,
                     f"{stair_run:.1f}'", ha='left', fontsize=5,

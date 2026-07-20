@@ -80,14 +80,13 @@ def _front_cutout(w, d, off, zid=1):
             "attachOffset": off, "w": w, "d": d, "attachTo": 0}
 
 
-def _interior_cutout(w, d, off, interiorY, zid=1):
-    return {"id": zid, "type": "cutout", "attachEdge": "interior",
-            "attachOffset": off, "interiorY": interiorY, "w": w, "d": d,
-            "attachTo": 0}
-
-
 def _front_stair(width, off=0, zid=0):
     return {"id": 0, "zoneId": zid, "location": "front", "offset": off,
+            "width": width, "numStringers": 3}
+
+
+def _side_stair(location, width, off=0, zid=0, sid=1):
+    return {"id": sid, "zoneId": zid, "location": location, "offset": off,
             "width": width, "numStringers": 3}
 
 
@@ -110,12 +109,21 @@ CONFIGS = {
         **_sync_legacy(4)),
     "notch_front_stair": _base(
         width=27, depth=12,
-        zones=[_front_cutout(4, 4, off=8)],
-        deckStairs=[_front_stair(4)],
+        zones=[_front_cutout(4, 4, off=11.5)],     # notch centred (x 11.5..15.5)
+        deckStairs=[_front_stair(4)],              # centred stair fills the notch
         **_sync_legacy(4)),
-    "interior_well": _base(
-        width=27, depth=14,
-        zones=[_interior_cutout(5, 4, off=10, interiorY=5)]),
+    # P1.c-remainder coverage: TWO stairs on the main deck (front notch stair that
+    # fills a centred notch + a right side stair). Guards that the site plan draws
+    # EVERY stair, not just the one the legacy fields carried.
+    "multi_stair": _base(
+        width=27, depth=12,
+        zones=[_front_cutout(4, 4, off=11.5)],
+        deckStairs=[_front_stair(4), _side_stair("right", 4)],
+        **_sync_legacy(4)),
+    # A single LEFT side stair: guards side-stair placement/run on the site plan.
+    "side_stair_left": _base(
+        deckStairs=[_side_stair("left", 4, sid=0)],
+        hasStairs=True, stairLocation="left", stairWidth=4, stairOffset=0),
 }
 
 
