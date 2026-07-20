@@ -561,6 +561,7 @@
       .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(function (pp) {
         if (S.act !== 2 || S.view !== 'axon' || !$('three-wrap')) return;
+        window.SBP3D_THEME = 'photo';  // opt into the S88.5 materials theme
         var c = window.calcStructure(pp);
         stop3D();
         wrap.innerHTML = '';
@@ -573,6 +574,8 @@
         ren.setSize(cW, cH);
         ren.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
         ren.shadowMap.enabled = true; ren.shadowMap.type = THREE.PCFSoftShadowMap;
+        if (THREE.ACESFilmicToneMapping) { ren.toneMapping = THREE.ACESFilmicToneMapping; ren.toneMappingExposure = 1.05; }
+        if (THREE.sRGBEncoding) ren.outputEncoding = THREE.sRGBEncoding;
         wrap.appendChild(ren.domElement);
         if (window.setupSceneEnv) window.setupSceneEnv(scene, pp, THREE);
         window.buildDeckScene(scene, pp, c, THREE);

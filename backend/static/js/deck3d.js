@@ -6,6 +6,47 @@
 const { useEffect: _d3UE, useRef: _d3UR } = React;
 
 // ============================================================
+// S88.5: optional "photo" theme. Default 'classic' is pixel-identical
+// to the historical look (production 3D View + PDF cover unchanged).
+// Opt in by setting window.SBP3D_THEME = 'photo' before building.
+// Textures are generated procedurally (no asset files).
+// ============================================================
+function _sbp3dTheme() { return window.SBP3D_THEME || 'classic'; }
+function _sbp3dCanvasTex(THREE, w, h, draw, repX, repY) {
+  var cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+  draw(cv.getContext('2d'), w, h);
+  var t = new THREE.CanvasTexture(cv);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(repX || 1, repY || 1);
+  return t;
+}
+function _sbp3dWoodTex(THREE, base, streak) {
+  return _sbp3dCanvasTex(THREE, 256, 256, function (g, w, h) {
+    g.fillStyle = base; g.fillRect(0, 0, w, h);
+    for (var i = 0; i < 260; i++) {
+      var y = Math.random() * h, len = 30 + Math.random() * 200, x = Math.random() * w;
+      g.strokeStyle = streak; g.globalAlpha = 0.05 + Math.random() * 0.13;
+      g.lineWidth = 0.5 + Math.random() * 1.6;
+      g.beginPath(); g.moveTo(x, y); g.lineTo(x + len, y + (Math.random() - 0.5) * 3); g.stroke();
+    }
+    g.globalAlpha = 0.09; g.strokeStyle = '#00000044';
+    for (var b = 0; b < h; b += 18) { g.beginPath(); g.moveTo(0, b); g.lineTo(w, b); g.stroke(); }
+    g.globalAlpha = 1;
+  }, 2, 2);
+}
+function _sbp3dGrassTex(THREE) {
+  return _sbp3dCanvasTex(THREE, 256, 256, function (g, w, h) {
+    g.fillStyle = '#5f8747'; g.fillRect(0, 0, w, h);
+    for (var i = 0; i < 5200; i++) {
+      var shade = ['#54793e', '#69934f', '#4d7038', '#729c58'][i % 4];
+      g.fillStyle = shade; g.globalAlpha = 0.5;
+      g.fillRect(Math.random() * w, Math.random() * h, 1 + Math.random() * 2, 1 + Math.random() * 3);
+    }
+    g.globalAlpha = 1;
+  }, 12, 12);
+}
+
+// ============================================================
 // setupSceneEnv   Shared environment setup (lights, ground, grid, slope)
 // Used by both interactive Deck3D and capture3D to stay in sync
 // ============================================================
@@ -29,11 +70,11 @@ function setupSceneEnv(scene, p, THREE) {
   fill.position.set(-10, 15, -10);
   scene.add(fill);
 
-  // Ground plane (natural lawn)
-  var gnd = new THREE.Mesh(
-    new THREE.PlaneGeometry(100, 100),
-    new THREE.MeshStandardMaterial({ color: 0x6b8f4a, roughness: 0.95 })
-  );
+  // Ground plane (natural lawn; photo theme uses procedural grass texture)
+  var gndMat = _sbp3dTheme() === 'photo'
+    ? new THREE.MeshStandardMaterial({ map: _sbp3dGrassTex(THREE), roughness: 0.95 })
+    : new THREE.MeshStandardMaterial({ color: 0x6b8f4a, roughness: 0.95 });
+  var gnd = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), gndMat);
   gnd.rotation.x = -Math.PI / 2;
   gnd.receiveShadow = true;
 
@@ -148,6 +189,23 @@ window.buildDeckScene = function(scene, p, c, THREE) {
     stairRiser: new THREE.MeshStandardMaterial({ color: 0xd4b87a, roughness: 0.75 }),
     stringer: new THREE.MeshStandardMaterial({ color: 0x8B6914, roughness: 0.7 }),
   };
+
+// S88.5 photo theme: textured decking, white railing, warmer house
+  if (_sbp3dTheme() === 'photo') {
+    var _isComp = p.deckingType === 'composite';
+    var _deckTex = _sbp3dWoodTex(THREE, _isComp ? '#7a6250' : '#b9905c', _isComp ? '#5c4a3c' : '#8f6b3f');
+    mats.deck = new THREE.MeshStandardMaterial({ map: _deckTex, roughness: 0.62 });
+    mats.stairTread = new THREE.MeshStandardMaterial({ map: _deckTex, roughness: 0.66 });
+    mats.rail = new THREE.MeshStandardMaterial({ color: 0xf4f2ec, roughness: 0.45, metalness: 0.05 });
+    var _frameTex = _sbp3dWoodTex(THREE, '#c9a468', '#a07c46');
+    mats.post = new THREE.MeshStandardMaterial({ map: _frameTex, roughness: 0.7 });
+    mats.beam = new THREE.MeshStandardMaterial({ map: _frameTex, roughness: 0.68 });
+    mats.joist = new THREE.MeshStandardMaterial({ map: _frameTex, roughness: 0.72 });
+    mats.stairRiser = new THREE.MeshStandardMaterial({ map: _frameTex, roughness: 0.72 });
+    mats.stringer = new THREE.MeshStandardMaterial({ map: _frameTex, roughness: 0.7 });
+    mats.house = new THREE.MeshStandardMaterial({ color: 0xeceae2, roughness: 0.85 });
+    mats.roof = new THREE.MeshStandardMaterial({ color: 0x8f8d88, roughness: 0.8 });
+  }
 
   // Helper: create mesh, position it, add to scene (fixes scene.add().position.set() bug)
   function addM(geo, mat, x, y, z, shadow) {
