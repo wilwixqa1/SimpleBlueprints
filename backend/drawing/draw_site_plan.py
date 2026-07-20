@@ -425,6 +425,11 @@ def draw_site_plan(fig, params, calc):
 
     add_rects = get_additive_rects(params)
     cut_rects = get_cutout_rects(params)
+    # P1.c: main-deck outline follows a front cutout (a real notch/gap) so the
+    # stair can fill it and the sheet matches the plan/framing. Returns None on a
+    # flat deck -> the rectangle path below is untouched (byte-identical).
+    from .beam_layout import notched_deck_polygon
+    _notch_verts = notched_deck_polygon(float(deck_w), float(deck_d), cut_rects)
 
     for ar in add_rects:
         r = ar["rect"]
@@ -444,6 +449,14 @@ def draw_site_plan(fig, params, calc):
             poly = plt.Polygon(verts, closed=True,
                                fc='#d4c4a0', ec=BRAND["green"], lw=2, zorder=3)
             ax.add_patch(poly)
+        elif zone_id == 0 and _notch_verts is not None:
+            # P1.c: main deck as a true notched polygon (notch is a real gap), so
+            # the stair drawn in it shows instead of being hidden under a full
+            # rectangle.
+            nverts = [(z0_x + vx, z0_y + vy) for (vx, vy) in _notch_verts]
+            poly = plt.Polygon(nverts, closed=True,
+                               fc='#d4c4a0', ec=BRAND["green"], lw=2, zorder=3)
+            ax.add_patch(poly)
         else:
             rect_patch = patches.Rectangle(
                 (rx, ry), r["w"], r["d"],
@@ -453,6 +466,11 @@ def draw_site_plan(fig, params, calc):
 
     for cr in cut_rects:
         r = cr["rect"]
+        # P1.c: a front-reaching cutout is now a real gap in the notched deck
+        # polygon above, so skip the dashed overlay box for it. Interior wells
+        # (cutouts that stop short of the front edge) still get the box.
+        if r["y"] + r["d"] >= float(deck_d) - 1e-6:
+            continue
         rx, ry = z0_x + r["x"], z0_y + r["y"]
         rect_patch = patches.Rectangle(
             (rx, ry), r["w"], r["d"],
@@ -528,7 +546,18 @@ def draw_site_plan(fig, params, calc):
 
         if loc == "front":
             st_x = z0_x + deck_w / 2 + st_off - st_w / 2
-            st_y = z0_y + deck_d
+            # P1.c: anchor at the REAL front edge across the stair's footprint --
+            # the notch-back on a notched deck -- so the stair fills the notch and
+            # meets the deck, instead of hanging off the outer edge across the void.
+            # Uses the same front_edge_profile the plan/framing sheets use, so the
+            # site plan agrees with A-1. On a flat deck the profile is full depth,
+            # so st_y == z0_y + deck_d exactly as before (byte-identical).
+            from .beam_layout import front_edge_profile
+            from .stair_utils import _front_edge_y_for_span
+            _prof = front_edge_profile(float(deck_w), float(deck_d), cut_rects)
+            _cx = deck_w / 2 + st_off  # stair centre in deck-local x
+            _edge_y = _front_edge_y_for_span(_prof, _cx - st_w / 2, _cx + st_w / 2, float(deck_d))
+            st_y = z0_y + _edge_y
             st_draw_w = st_w
             st_draw_d = stair_run + land_d
         elif loc == "left":
