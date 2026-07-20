@@ -2809,20 +2809,8 @@ async def uxmock_extract():
     return JSONResponse(d)
 
 
-@app.post("/api/mock/render-sheets")
-def uxmock_render_sheets(p: dict):
-    """Render the mock design through the REAL production drawing pipeline.
-
-    Maps the mock's three-act state onto DeckParams, runs calculate_structure +
-    build_permit_spec, then draws each sheet with the production matplotlib
-    renderers and returns low-dpi PNGs (base64). Sync def on purpose: FastAPI
-    runs it in the threadpool, keeping matplotlib off the event loop.
-    v1 mapping scope: main deck, deck-edge stairs, site plan, conditions,
-    finishes, project info. Wings/zones not yet mapped (renders omit them).
-    """
-    import base64
-    from io import BytesIO
-
+def _uxmock_map_params(p: dict) -> dict:
+    """Map the mock's three-act state onto production DeckParams."""
     deck = p.get("deck") or {}
     house = p.get("house") or {}
     sb = p.get("setbacks") or {}
@@ -2856,6 +2844,7 @@ def uxmock_render_sheets(p: dict):
             "zip": state_zip[1] if len(state_zip) > 1 else "",
         },
     })
+    # chamfers -> mainCorners
     corners = p.get("corners") or {}
     mc = {}
     for ck in ("FL", "FR", "BL", "BR"):
@@ -2864,42 +2853,116 @@ def uxmock_render_sheets(p: dict):
             mc[ck] = {"type": "chamfer", "size": float(size)}
     if mc:
         params["mainCorners"] = mc
-
-    deck_stairs = [
-        {"id": i, "zoneId": 0,
-         "location": s.get("edge", "front"),
-         "width": 4, "numStringers": 3}
-        for i, s in enumerate(p.get("stairs") or []) if s.get("zone") is None
-    ]
+    # wings -> production additive zones (left/right sit flush with the outer edge)
+    prod_zones = []
+    for i, z in enumerate(p.get("zones") or []):
+        e = z.get("edge", "rear")
+        zw, zd = float(z.get("w", 8)), float(z.get("d", 8))
+        if e in ("left", "right"):
+            prod_zones.append({"id": i + 1, "type": "add", "attachEdge": e,
+                               "attachOffset": max(0.0, params["depth"] - zd), "w": zw, "d": zd})
+        else:
+            prod_zones.append({"id": i + 1, "type": "add", "attachEdge": "front",
+                               "attachOffset": max(0.0, (params["width"] - zw) / 2.0), "w": zw, "d": zd})
+    if prod_zones:
+        params["zones"] = prod_zones
+    # stairs -> deckStairs (deck edges zoneId 0; wing stairs land on the wing's outer edge)
+    _zone_exit = {"left": "left", "right": "right", "rear": "front"}
+    deck_stairs = []
+    zin = p.get("zones") or []
+    for i, st_ in enumerate(p.get("stairs") or []):
+        if st_.get("zone") is None:
+            deck_stairs.append({"id": len(deck_stairs), "zoneId": 0,
+                                "location": st_.get("edge", "front"), "width": 4, "numStringers": 3})
+        else:
+            zi = int(st_["zone"])
+            if 0 <= zi < len(zin):
+                deck_stairs.append({"id": len(deck_stairs), "zoneId": zi + 1,
+                                    "location": _zone_exit.get(zin[zi].get("edge", "rear"), "front"),
+                                    "width": 4, "numStringers": 3})
     if deck_stairs:
         params["deckStairs"] = deck_stairs
         params["hasStairs"] = True
         params["stairLocation"] = deck_stairs[0]["location"]
         first = next((s for s in (p.get("stairs") or []) if s.get("zone") is None), None)
         if first and first.get("off") is not None:
-            # mock off = feet from edge start; production stairOffset is center-relative
             edge_span = params["width"] if first.get("edge", "front") == "front" else params["depth"]
             params["stairOffset"] = float(first["off"]) - (edge_span - 4.0) / 2.0
+    return params
 
+
+@app.post("/api/mock/spec")
+def uxmock_spec(p: dict):
+    """Live spec card backed by the REAL calc engine (fast, no drawing)."""
+    params = _uxmock_map_params(p)
+    calc = calculate_structure(params)
+    guards = ('%d" required' % calc.get("rail_height", 36)) if calc.get("guard_required") else "Not required (<30\")"
+    rows = [
+        {"k": "Joists", "v": '%s @ %s" O.C.' % (calc["joist_size"], calc["joist_spacing"]), "cite": "IRC R507.5"},
+        {"k": "Beam", "v": str(calc["beam_size"]), "cite": "IRC R507.5.1"},
+        {"k": "Posts", "v": "%d \u00d7 %s, max span %.1f'" % (calc["total_posts"], calc["post_size"], calc["beam_span"]), "cite": "IRC R507.4"},
+        {"k": "Footings", "v": '%d\u00d7 %d" DIA \u00d7 %d" deep' % (calc["num_footings"], calc["footing_diam"], calc["footing_depth"]), "cite": "IRC R507.3 / R403"},
+        {"k": "Ledger", "v": str(calc["ledger_size"]), "cite": "IRC R507.9"},
+        {"k": "Guards", "v": guards, "cite": "IRC R312.1"},
+    ]
+    return JSONResponse({"engine": "calculate_structure", "rows": rows,
+                         "area": calc.get("area"), "warnings": calc.get("warnings") or []})
+
+
+@app.post("/api/mock/render-sheets")
+def uxmock_render_sheets(p: dict):
+    """Render the mock design through the REAL production drawing pipeline.
+
+    Sync def on purpose: FastAPI runs it in the threadpool, keeping matplotlib
+    off the event loop. Zones flip production into its split plan/framing
+    complex layout, mirroring generate_blueprint_pdf.
+    """
+    import base64
+    from io import BytesIO
+
+    params = _uxmock_map_params(p)
     calc = calculate_structure(params)
     spec = build_permit_spec(params, calc)
     pi = params["projectInfo"]
 
-    body_sheets = [
-        ("A-1", "DECK PLAN & FRAMING", draw_plan_and_framing),
-        ("A-2", "ELEVATIONS", draw_elevations_sheet),
-        ("A-3", "GENERAL NOTES", draw_notes_sheet),
-        ("A-4", "STRUCTURAL DETAILS", draw_details_sheet),
-        ("A-5", "SITE PLAN", lambda f_, p_, c_, s_: draw_site_plan(f_, p_, c_)),
-        ("A-6", "DECK ATTACHMENT SHEET", lambda f_, p_, c_, s_: draw_checklist_sheet(f_, p_, c_, s_)),
-    ]
+    def _sheet_site(f_, p_, c_, s_):
+        draw_site_plan(f_, p_, c_)
+
+    def _sheet_checklist(f_, p_, c_, s_):
+        draw_checklist_sheet(f_, p_, c_, s_)
+
+    if params.get("zones"):
+        def _panel_plan(f_, p_, c_, s_):
+            draw_plan_and_framing(f_, p_, c_, s_, panels=("plan",))
+
+        def _panel_framing(f_, p_, c_, s_):
+            draw_plan_and_framing(f_, p_, c_, s_, panels=("framing",))
+
+        body_sheets = [
+            ("A-1", "DECK PLAN", _panel_plan),
+            ("A-2", "DECK FRAMING", _panel_framing),
+            ("A-3", "ELEVATIONS", draw_elevations_sheet),
+            ("A-4", "GENERAL NOTES", draw_notes_sheet),
+            ("A-5", "STRUCTURAL DETAILS", draw_details_sheet),
+            ("A-6", "SITE PLAN", _sheet_site),
+            ("A-7", "DECK ATTACHMENT SHEET", _sheet_checklist),
+        ]
+    else:
+        body_sheets = [
+            ("A-1", "DECK PLAN & FRAMING", draw_plan_and_framing),
+            ("A-2", "ELEVATIONS", draw_elevations_sheet),
+            ("A-3", "GENERAL NOTES", draw_notes_sheet),
+            ("A-4", "STRUCTURAL DETAILS", draw_details_sheet),
+            ("A-5", "SITE PLAN", _sheet_site),
+            ("A-6", "DECK ATTACHMENT SHEET", _sheet_checklist),
+        ]
     out = []
 
     def _png(fig):
         # preview watermark baked into the raster (free-preview / pay-at-download model)
         fig.text(0.5, 0.5, "PREVIEW", rotation=28, ha="center", va="center",
                  fontsize=110, color="#3d5a2e", alpha=0.22, fontweight="bold", zorder=1000)
-        fig.text(0.5, 0.36, "NOT FOR CONSTRUCTION · SIMPLEBLUEPRINTS.XYZ", rotation=28,
+        fig.text(0.5, 0.36, "NOT FOR CONSTRUCTION \u00b7 SIMPLEBLUEPRINTS.XYZ", rotation=28,
                  ha="center", va="center", fontsize=26, color="#3d5a2e", alpha=0.28, zorder=1000)
         buf = BytesIO()
         fig.savefig(buf, format="png", dpi=40, facecolor="white")

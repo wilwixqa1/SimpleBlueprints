@@ -395,12 +395,29 @@
   }
   window.addEventListener('sbp-canvas-change', onDesignChange);
 
+  var specTimer = null, specSeq = 0;
+  function specRowsHTML(rows, area, engine) {
+    return rows.map(function (r) {
+      return '<div class="spec-row"><span class="sr-k">' + r.k + '</span><span class="sr-v">' + r.v + '<span class="sr-cite">' + r.cite + '</span></span></div>';
+    }).join('') + '<div class="spec-row"><span class="sr-k">Area (main)</span><span class="sr-v">' + area + ' SF</span></div>' +
+      '<div class="spec-row"><span class="sr-k">Engine</span><span class="sr-v" style="color:' + (engine ? 'var(--ok)' : 'var(--mut)') + '">' + (engine || 'estimating\u2026') + '</span></div>';
+  }
+  function fetchRealSpec() {
+    var seq = ++specSeq;
+    fetch('/api/mock/spec', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(buildPayload()) })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (d) {
+        if (seq !== specSeq || S.act !== 2) return;
+        var rows = $('spec-rows'); if (!rows) return;
+        rows.innerHTML = specRowsHTML(d.rows, d.area, 'calculate_structure()');
+      })
+      .catch(function () { /* local estimate stays up */ });
+  }
   function refreshSpec() {
     var rows = $('spec-rows'); if (!rows) return;
     var spec = SBPSpec.compute(S);
-    rows.innerHTML = spec.rows.map(function (r) {
-      return '<div class="spec-row"><span class="sr-k">' + r.k + '</span><span class="sr-v">' + r.v + '<span class="sr-cite">' + r.cite + '</span></span></div>';
-    }).join('') + '<div class="spec-row"><span class="sr-k">Total area</span><span class="sr-v">' + spec.area + ' SF</span></div>';
+    rows.innerHTML = specRowsHTML(spec.rows, spec.area, null);
+    if (S.lot) { clearTimeout(specTimer); specTimer = setTimeout(fetchRealSpec, 350); }
     // violation note
     var v = window.SBPCanvas_violations();
     var stamp = $('spec-stamp'), note = $('viol-note');
@@ -540,13 +557,16 @@
       n.addEventListener('click', function () { openLightbox(+n.getAttribute('data-idx')); });
     });
   }
-  function fetchRealSheets(sc) {
-    var payload = {
+  function buildPayload() {
+    return {
       address: S.address, street: S.street, lot: S.lot, setbacks: S.setbacks,
       house: S.house, north: S.north, deck: S.deck, zones: S.zones,
       stairs: S.stairs, snow: S.snow, frost: S.frost, finish: S.finish,
       corners: S.corners
     };
+  }
+  function fetchRealSheets(sc) {
+    var payload = buildPayload();
     fetch('/api/mock/render-sheets', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -556,7 +576,6 @@
         S._display = resp.sheets;
         drawPreviewGrid(sc, 'RENDERED BY THE PRODUCTION DRAWING PIPELINE \u00b7 ' + resp.sheets.filter(function (x) { return x.png; }).length + ' SHEETS');
         var tbs = $('tb-set'); if (tbs) { tbs.textContent = resp.sheets.length + ' OF ' + resp.sheets.length + ' SHEETS \u00b7 REAL RENDER'; }
-        if (S.zones.length) toast('Note: wings aren\u2019t mapped to the real pipeline yet \u2014 renders show the main deck.');
       })
       .catch(function (e) {
         if (S.act !== 3) return;
