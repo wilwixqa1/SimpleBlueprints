@@ -3011,7 +3011,7 @@ def uxmock_sample_sheets():
             "snow": 30, "frost": 36,
             "finish": {"decking": "PT pine", "railing": "Wood baluster"},
         }
-        _UXMOCK_SAMPLE_CACHE["sheets"] = _uxmock_render(demo)
+        _UXMOCK_SAMPLE_CACHE["sheets"] = _uxmock_render(demo, watermark=False)
     return JSONResponse({"renderer": "production-pipeline", "sheets": _UXMOCK_SAMPLE_CACHE["sheets"]})
 
 
@@ -3026,7 +3026,7 @@ def uxmock_render_sheets(p: dict):
     return JSONResponse({"renderer": "production-pipeline", "sheets": _uxmock_render(p)})
 
 
-def _uxmock_render(p: dict):
+def _uxmock_render(p: dict, watermark: bool = True):
     import base64
     from io import BytesIO
 
@@ -3069,11 +3069,13 @@ def _uxmock_render(p: dict):
     out = []
 
     def _png(fig):
-        # preview watermark baked into the raster (free-preview / pay-at-download model)
-        fig.text(0.5, 0.5, "PREVIEW", rotation=28, ha="center", va="center",
-                 fontsize=110, color="#3d5a2e", alpha=0.22, fontweight="bold", zorder=1000)
-        fig.text(0.5, 0.36, "NOT FOR CONSTRUCTION \u00b7 SIMPLEBLUEPRINTS.XYZ", rotation=28,
-                 ha="center", va="center", fontsize=26, color="#3d5a2e", alpha=0.28, zorder=1000)
+        # watermark ONLY on user-specific plan previews (Act III paywall),
+        # never on the demo/sample renders used as site imagery
+        if watermark:
+            fig.text(0.5, 0.5, "PREVIEW", rotation=28, ha="center", va="center",
+                     fontsize=110, color="#3d5a2e", alpha=0.22, fontweight="bold", zorder=1000)
+            fig.text(0.5, 0.36, "NOT FOR CONSTRUCTION \u00b7 SIMPLEBLUEPRINTS.XYZ", rotation=28,
+                     ha="center", va="center", fontsize=26, color="#3d5a2e", alpha=0.28, zorder=1000)
         buf = BytesIO()
         fig.savefig(buf, format="png", dpi=40, facecolor="white")
         plt.close(fig)
