@@ -127,12 +127,13 @@
     S.parcel = d;
     S._sbOrig = Object.assign({}, d.setbacks);
     S.lot = d.lotVertices; S.setbacks = d.setbacks; S.house = d.house;
-    S.north = d.northAngle; S.street = 'Sweetgrass Lane'; S.jurisdiction = d.jurisdiction;
+    S.north = d.northAngle; S.street = d.street || 'Street'; S.jurisdiction = d.jurisdiction;
     S.address = d.address;
     S.deck.off = Math.round((S.house.w - S.deck.w) / 2);
     updateTitleblock();
     SBPCanvas.setState(S);
     if (d.demo_note) toast(d.demo_note);
+    else if (d.real_note) toast(d.real_note);
     renderConfirmRail(d);
   }
   function renderConfirmRail(d) {
@@ -147,8 +148,8 @@
       '<div class="spec-row"><span class="sr-k">Parcel</span><span class="sr-v">' + (S.parcel ? S.parcel.parcelId : '—') + '</span></div>' +
       '<div class="spec-row"><span class="sr-k">Lot area</span><span class="sr-v">' + (S.parcel ? S.parcel.lotArea.toLocaleString() : '—') + ' SF</span></div>' +
       '<div class="spec-row"><span class="sr-k">Zoning</span><span class="sr-v">' + (S.parcel ? S.parcel.zoning.split(' ')[0] : '—') + '</span></div>' +
-      '<div class="spec-row"><span class="sr-k">Lot boundary</span><span class="sr-v" style="color:var(--ok)">' + conf.lot.toUpperCase() + ' CONFIDENCE</span></div>' +
-      '<div class="spec-row"><span class="sr-k">House footprint</span><span class="sr-v" style="color:var(--ok)">' + conf.house.toUpperCase() + ' CONFIDENCE</span></div>' +
+      '<div class="spec-row"><span class="sr-k">Lot boundary</span><span class="sr-v" style="color:var(--ok)">' + conf.lot.toUpperCase() + '</span></div>' +
+      '<div class="spec-row"><span class="sr-k">House footprint</span><span class="sr-v" style="color:' + (conf.house === 'approximate' ? 'var(--mut)' : 'var(--ok)') + '">' + conf.house.toUpperCase() + (conf.house === 'approximate' ? ' \u2014 DRAG TO FIX' : '') + '</span></div>' +
       '</div>' +
       '<button class="btn quiet" id="re-search" style="width:100%;justify-content:center;margin-top:12px">Wrong address? Search again</button></div>'));
     rail.appendChild(el(

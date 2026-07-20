@@ -2791,13 +2791,99 @@ async def uxmock_landing():
 async def uxmock_app():
     return FileResponse(str(_STATIC_DIR / "uxmock" / "app.html"), media_type="text/html")
 
+def _uxmock_hull(pts):
+    """Convex hull (monotone chain). The mock's setback insetting assumes a
+    convex lot; real parcels can be concave, so we hull them for the mock."""
+    pts = sorted(set((round(float(x), 2), round(float(y), 2)) for x, y in pts))
+    if len(pts) <= 3:
+        return [list(p) for p in pts]
+    def cross(o, a, b):
+        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+    lower, upper = [], []
+    for pt2 in pts:
+        while len(lower) >= 2 and cross(lower[-2], lower[-1], pt2) <= 0:
+            lower.pop()
+        lower.append(pt2)
+    for pt2 in reversed(pts):
+        while len(upper) >= 2 and cross(upper[-2], upper[-1], pt2) <= 0:
+            upper.pop()
+        upper.append(pt2)
+    return [list(p) for p in (lower[:-1] + upper[:-1])]
+
+
+def _uxmock_map_realie(r, typed_address):
+    """Map a production _realie_lookup result onto the mock parcel shape."""
+    lot = (r.get("lot") or {})
+    verts = lot.get("vertices") or []
+    if len(verts) < 3:
+        return None
+    hull = _uxmock_hull(verts)
+    if len(hull) < 3:
+        return None
+    minx = min(v[0] for v in hull); miny = min(v[1] for v in hull)
+    hull = [[round(v[0] - minx, 1), round(v[1] - miny, 1)] for v in hull]
+    maxx = max(v[0] for v in hull); maxy = max(v[1] for v in hull)
+    b = (r.get("building") or {})
+    hw = float(b.get("estimated_width") or 40); hd = float(b.get("estimated_depth") or 30)
+    hw = max(16, min(hw, maxx - 10)); hd = max(14, min(hd, maxy - 20))
+    loc = (r.get("location") or {}); par = (r.get("parcel") or {})
+    street = (typed_address.split(",")[0] or "").strip()
+    street = " ".join(w for w in street.split() if not w.replace("-", "").isdigit()) or "Street"
+    return {
+        "address": loc.get("address") or typed_address,
+        "parcelId": par.get("id") or "\u2014",
+        "jurisdiction": ((loc.get("county") or "") + (" County, " if loc.get("county") else "") + (loc.get("state") or "")).strip() or "Local building department",
+        "lotVertices": hull,
+        "lotArea": int(lot.get("area_sqft") or 0) or int(round(maxx * maxy * 0.8)),
+        "setbacks": {"front": 25, "side": 5, "rear": 15},
+        "house": {"x": round((maxx - hw) / 2), "y": round(min(maxy - hd - 10, max(20, maxy * 0.28))), "w": round(hw), "d": round(hd)},
+        "northAngle": 0,
+        "zoning": par.get("zoning") or "See local zoning",
+        "street": street,
+        "hulled": len(hull) != len(verts),
+        "confidence": {"lot": "records", "house": "approximate", "street": "assumed"},
+        "real_note": "Real parcel records. Setbacks are defaults \u2014 confirm with your zoning. Drag the house to its true position.",
+    }
+
+
 @app.get("/api/mock/parcel")
-async def uxmock_parcel(address: str = ""):
-    await _uxmock_asyncio.sleep(1.4)
+def uxmock_parcel(address: str = ""):
+    """Act I lookup: try the REAL Realie pipeline, fall back to demo data.
+    Sync def -> threadpool (the realie helper does blocking urllib I/O)."""
+    typed = address.strip()
+    parts = [a.strip() for a in typed.split(",")]
+    state = ""
+    if len(parts) >= 3 and parts[-1]:
+        state = parts[-1].split()[0][:2].upper()
+    if typed and state and len(state) == 2 and state.isalpha():
+        try:
+            cached = None
+            try:
+                cached = get_cached_parcel(parts[0], state)
+            except Exception:
+                pass
+            result = cached or _realie_lookup(parts[0], state,
+                                              parts[1] if len(parts) > 1 else "",
+                                              parts[-1].split()[1] if len(parts[-1].split()) > 1 else "")
+            if result and result.get("ok"):
+                if not cached:
+                    try:
+                        set_cached_parcel(parts[0], state, result)
+                    except Exception:
+                        pass
+                mapped = _uxmock_map_realie(result, typed)
+                if mapped:
+                    return JSONResponse(mapped)
+        except Exception as e:
+            print(f"uxmock parcel lookup failed, falling back to demo: {e}", flush=True)
+    import time as _t
+    _t.sleep(1.2)
     d = dict(_UXMOCK_PARCEL)
-    if address.strip():
-        d["address"] = address.strip()
-        d["demo_note"] = "Demo mode: showing sample parcel data for any address."
+    d["street"] = "Sweetgrass Lane"
+    if typed:
+        d["address"] = typed
+        d["demo_note"] = ("Couldn't read a state from that address \u2014 try 'Street, City, ST ZIP'. Showing sample data."
+                          if not state else "No parcel record found \u2014 showing sample data.")
     return JSONResponse(d)
 
 @app.get("/api/mock/extract")
