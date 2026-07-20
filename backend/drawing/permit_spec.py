@@ -255,7 +255,10 @@ def build_permit_spec(params, calc):
 
     # --- Guard rail ---
     rail_height = calc.get("rail_height", 36)
-    railing_type = params.get("railingType", "fortress")
+    # S94: the wizard writes 'railType'; this used to read only the legacy
+    # 'railingType' key, so a user choosing Wood in the editor still got
+    # FORTRESS labels on every spec-driven sheet. Accept both, wizard key first.
+    railing_type = params.get("railType", params.get("railingType", "fortress"))
     guard = GUARD_SYSTEMS.get(railing_type, GUARD_SYSTEMS["fortress"])
 
     spec["guardrail"] = {
