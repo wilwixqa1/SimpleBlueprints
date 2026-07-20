@@ -236,6 +236,15 @@ window.buildDeckScene = function(scene, p, c, THREE) {
     }, 3, 2);
     mats.house = new THREE.MeshStandardMaterial({ map: _sidingTex, roughness: 0.85 });
     mats.roof = new THREE.MeshStandardMaterial({ color: 0x8f8d88, roughness: 0.8 });
+    var _concTex = _sbp3dCanvasTex(THREE, 96, 96, function (g2, w2, h2) {
+      g2.fillStyle = '#b6b3ac'; g2.fillRect(0, 0, w2, h2);
+      for (var i2 = 0; i2 < 900; i2++) {
+        g2.fillStyle = ['#a8a59e', '#c2bfb8', '#9d9a93'][i2 % 3]; g2.globalAlpha = 0.5;
+        g2.fillRect(Math.random() * w2, Math.random() * h2, 1.5, 1.5);
+      }
+      g2.globalAlpha = 1;
+    }, 1, 1);
+    mats.concrete = new THREE.MeshStandardMaterial({ map: _concTex, roughness: 0.92 });
   }
 
   // Helper: create mesh, position it, add to scene (fixes scene.add().position.set() bug)
@@ -398,6 +407,9 @@ window.buildDeckScene = function(scene, p, c, THREE) {
 
 // S20: Structure per zone (piers, posts, beams, joists)
   var pR = (fDiam / 12) / 2, pD = postSize === "6x6" ? 5.5 / 12 : 3.5 / 12;
+  // photo theme: footing bells live below grade; show only a modest pier cap
+  var _pRv = _sbp3dTheme() === 'photo' ? Math.min(pR, pD * 1.5) : pR;
+  var _pHt = _sbp3dTheme() === 'photo' ? 0.28 : 0.5;
   var bH2 = 11.875 / 12, bW2 = beamSize.includes("3") ? 5.25 / 12 : 3.5 / 12;
   var jH2 = 9.25 / 12, jW2 = 1.5 / 12;
 
@@ -417,7 +429,7 @@ window.buildDeckScene = function(scene, p, c, THREE) {
       pp.forEach(function(px, _pi) {
         var pH = (c.postHeights && _pi >= 0) ? c.postHeights[_pi] : zH;
         var _gY = H - pH;
-        addM(new THREE.CylinderGeometry(pR, pR, 0.5, 16), mats.concrete, z0wx + px, _gY - 0.1, z0wz + D - 1.5);
+        addM(new THREE.CylinderGeometry(_pRv, _pRv, _pHt, 16), mats.concrete, z0wx + px, _gY - 0.1, z0wz + D - 1.5);
         var po = new THREE.Mesh(new THREE.BoxGeometry(pD, pH, pD), mats.post); po.position.set(z0wx + px, _gY + pH / 2, z0wz + D - 1.5); po.castShadow = true; scene.add(po);
         addM(new THREE.BoxGeometry(pD + 0.2, 0.15, pD + 0.2), mats.metal, z0wx + px, zH, z0wz + D - 1.5);
       });
@@ -503,7 +515,7 @@ window.buildDeckScene = function(scene, p, c, THREE) {
           zCorners.push([zwx + px2, zwz + zD - zonePostInset]);
         }
         zCorners.forEach(function(pt) {
-          addM(new THREE.CylinderGeometry(pR, pR, 0.5, 16), mats.concrete, pt[0], -0.1, pt[1]);
+          addM(new THREE.CylinderGeometry(_pRv, _pRv, _pHt, 16), mats.concrete, pt[0], -0.1, pt[1]);
           var po = new THREE.Mesh(new THREE.BoxGeometry(pD, zH, pD), mats.post); po.position.set(pt[0], zH / 2, pt[1]); po.castShadow = true; scene.add(po);
           addM(new THREE.BoxGeometry(pD + 0.2, 0.15, pD + 0.2), mats.metal, pt[0], zH, pt[1]);
         });
@@ -1172,7 +1184,7 @@ window.buildDeckScene = function(scene, p, c, THREE) {
           lpm.position.set(pt[0], lElev / 2, pt[1]);
           lpm.castShadow = true;
           stGrp.add(lpm);
-          var pier = new THREE.Mesh(new THREE.CylinderGeometry(pR, pR, 0.35, 12), mats.concrete);
+          var pier = new THREE.Mesh(new THREE.CylinderGeometry(_pRv, _pRv, _sbp3dTheme() === "photo" ? 0.26 : 0.35, 12), mats.concrete);
           pier.position.set(pt[0], -0.025, pt[1]);
           stGrp.add(pier);
         });
