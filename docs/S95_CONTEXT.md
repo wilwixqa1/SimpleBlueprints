@@ -5,7 +5,8 @@ Self-contained: you should not need to reverse-engineer anything below.
 Supersedes docs/S94_CONTEXT.md (finished S94 work is in §2, not §4).
 
 Repo: `https://github.com/wilwixqa1/SimpleBlueprints` (public clone).
-As of S94 close: `main` @ `1e6ffb5` (S94 push 5 = this doc, on top of push 4).
+As of S94 close: `main` @ `cc396c5` (S94 push 7). CI GREEN at close (see §0
+— CI exists and is bigger than the old local gate).
 **`main` moves under you** — the S88.5 "UX mock" session pushes to `main`
 concurrently and was ACTIVE during S94 (pushes 13–18, and it now touches
 PRODUCTION files — see §8). Expect to fetch/rebase; expect a cache-buster
@@ -178,6 +179,10 @@ here are ROUTINE; keep the newest value.
 
 SimpleBlueprints generates **IRC-2021 deck permit drawing sets** (PDF) from a
 deck config. Jurisdiction: Colorado Springs / PPRBD. Beta; NO paying customers.
+**Deployment: Railway AUTODEPLOYS from `main` on every push, UNGATED** — live
+at simpleblueprints.xyz (FastAPI backend serving `backend/static/` as the
+production wizard; the S88.5 mock lives at /mock). A red CI = the deploy that
+just went out is suspect; treat pushes to main as production releases.
 Sheets are ARCH D (36"×24") — `backend/drawing/sheet.py` (`_ACTIVE`; the
 "kept at letter" comment is STALE). Fonts authored in points for a 14" sheet,
 scaled ~2.57× by `render_scale()` — a 3.8pt authored label prints ~9.8pt.
@@ -284,7 +289,19 @@ notches are bad fixtures, not real decks.
   same sheet when unset). Now: spec reads railType→railingType→fortress; both
   details derive from spec. Verified end-to-end: wood → 0 FORTRESS mentions on
   the details page; fortress/unset → Fortress consistently.
-- S94 push 5: this doc.
+- S94 push 5/6: this doc (+ P0 added after Will queued the cut-list feature).
+- **S94 push 7 — CI PANEL-OVERFLOW REGRESSION FIX + CI DISCOVERY.** Push 3's
+  guard-rail sphere note (3 lines in the right margin at x=15) overflowed its
+  subplot panel by ~70px. Caught ONLY by CI's `panel_check.py` G5 oracle —
+  the local 8-check gate, the golden (no details coverage), and the
+  legibility gate all missed it, and the S94 handoff doc did not mention CI
+  at all. CI went red on pushes 4-6 (Will got the failure emails and asked;
+  history via the authenticated API showed green through the mock's last
+  push, red starting exactly at ours). Fix: the note is now ONE full-width
+  line under the drawing with a vertical leader to the circle;
+  panel_check back to baseline (13/16); all 14 CI-parity checks green
+  locally; CI confirmed `success` on cc396c5 via the API. Gate section in
+  §0 rewritten to CI parity as the permanent fix.
 
 **Verified in S94:** push 1 numerically (headless component parity) + Will;
 push 2 by pixel diff + golden surgicality + Will; push 3/4 by bbox/red-pixel
