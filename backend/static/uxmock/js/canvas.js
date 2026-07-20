@@ -52,7 +52,9 @@
   // ---------- rendering ----------
   function render() {
     if (!svg || !st || !st.lot) { if (svg) svg.innerHTML = idle(); return; }
-    svg.innerHTML = (st.view === 'axon' && mode === 'design') ? renderAxon() : renderPlan();
+    if (mode === 'design' && st.view === 'axon') { svg.innerHTML = renderAxon(); return; }
+    if (mode === 'design' && st.view !== 'site') { svg.innerHTML = renderDeck(); return; }
+    svg.innerHTML = renderPlan();
   }
   function idle() {
     return '<g>' + gridBg() +
@@ -149,8 +151,8 @@
         }
         out += T(fit.sx(r.x + r.w / 2), fit.sy(r.y + r.d / 2) + 4, 'DN', 10, INK, 'middle');
       });
-      // deck
-      out += R(dr.x, dr.y, dr.w, dr.d, 'fill="' + CYAN + '" fill-opacity=".13" stroke="' + (bad ? WARN : CYAN) + '" stroke-width="3" style="cursor:move" data-drag="deck"');
+      // deck (chamfer-aware outline)
+      out += P(G.deckPolyPts(st), 'fill="' + OK + '" fill-opacity=".1" stroke="' + (bad ? WARN : OK) + '" stroke-width="3" style="cursor:move" data-drag="deck"');
       // deck boards suggestion lines
       var nB = Math.floor(dr.w / 2);
       for (var b = 1; b < nB; b++) {
@@ -179,6 +181,99 @@
     var x = fit.sx(xft), y = fit.sy(yft);
     var cur = id === 'e' ? 'ew-resize' : 'ns-resize';
     return '<rect x="' + (x - 7) + '" y="' + (y - 7) + '" width="14" height="14" fill="#fffdf8" stroke="' + CYAN + '" stroke-width="2" style="cursor:' + cur + '" data-drag="h-' + id + '"/>';
+  }
+
+  // ---------- production-style deck close-up (default design surface) ----------
+  var dfit = null; // deck-local fit: feet -> screen, y DOWN (away from house)
+  function renderDeck() {
+    var dr = G.deckRect(st);
+    function loc(r) { return { x: r.x - dr.x, y: r.y - dr.y, w: r.w, d: r.d }; }
+    var rects = [{ x: 0, y: 0, w: dr.w, d: dr.d }];
+    G.zoneRects(st).forEach(function (r) { rects.push(loc(r)); });
+    G.stairRects(st).forEach(function (r) { rects.push(loc(r)); });
+    var minx = 0, maxx = dr.w, maxy = dr.d;
+    rects.forEach(function (r) { minx = Math.min(minx, r.x); maxx = Math.max(maxx, r.x + r.w); maxy = Math.max(maxy, r.y + r.d); });
+    minx -= 4; maxx += 5; // room for + buttons and dims
+    var bandFt = 5, dimFt = 4;
+    var s2 = Math.min(820 / (maxx - minx), 520 / (maxy + bandFt + dimFt));
+    var ox = (900 - s2 * (maxx - minx)) / 2 - minx * s2, oy = 46 + bandFt * s2;
+    dfit = { s: s2, sx: function (x) { return ox + x * s2; }, sy: function (y) { return oy + y * s2; } };
+    var X = dfit.sx, Y = dfit.sy;
+    var out = '';
+    // house band
+    out += '<rect x="' + (X(-6)) + '" y="' + (Y(-bandFt)) + '" width="' + ((dr.w + 12) * s2) + '" height="' + (bandFt * s2) + '" fill="#e8e4da" stroke="' + INK + '" stroke-width="1.4"/>';
+    out += T((X(0) + X(dr.w)) / 2, Y(-bandFt / 2), 'EXISTING HOUSE', 12, MUT, 'middle', ' letter-spacing="2"');
+    // ledger
+    out += '<line x1="' + X(0) + '" y1="' + Y(0) + '" x2="' + X(dr.w) + '" y2="' + Y(0) + '" stroke="' + OK + '" stroke-width="4"/>';
+    out += T((X(0) + X(dr.w)) / 2, Y(0) - 5, 'LEDGER', 8.5, OK, 'middle');
+    // deck body: chamfered polygon in local coords (chamfers on outer corners)
+    var c = st.corners || {}, fl = Math.max(0, Math.min(c.FL || 0, dr.w / 2, dr.d / 2)), fr = Math.max(0, Math.min(c.FR || 0, dr.w / 2, dr.d / 2));
+    var pts = [[0, 0], [dr.w, 0]];
+    if (fr > 0) pts.push([dr.w, dr.d - fr], [dr.w - fr, dr.d]); else pts.push([dr.w, dr.d]);
+    if (fl > 0) pts.push([fl, dr.d], [0, dr.d - fl]); else pts.push([0, dr.d]);
+    var pathPts = pts.map(function (p2) { return X(p2[0]).toFixed(1) + ',' + Y(p2[1]).toFixed(1); }).join(' ');
+    out += '<clipPath id="deckclip"><polygon points="' + pathPts + '"/></clipPath>';
+    var viol = violations().length > 0;
+    out += '<polygon points="' + pathPts + '" fill="#efe8d8" stroke="' + (viol ? WARN : INK) + '" stroke-width="2.4" style="cursor:default"/>';
+    // board hatch (horizontal, like production)
+    var gB = '<g clip-path="url(#deckclip)" stroke="' + RUL + '" stroke-width=".8">';
+    for (var by = 0.5; by < dr.d; by += 0.5) gB += '<line x1="' + X(0) + '" y1="' + Y(by) + '" x2="' + X(dr.w) + '" y2="' + Y(by) + '"/>';
+    out += gB + '</g>';
+    // zones
+    G.zoneRects(st).forEach(function (zr, i) {
+      var r = loc(zr);
+      out += '<rect x="' + X(r.x) + '" y="' + Y(r.y) + '" width="' + (r.w * s2) + '" height="' + (r.d * s2) + '" fill="#efe8d8" stroke="' + OK + '" stroke-width="2"/>';
+      var gz = '<g stroke="' + RUL + '" stroke-width=".7">';
+      for (var zy2 = r.y + 0.5; zy2 < r.y + r.d; zy2 += 0.5) gz += '<line x1="' + X(r.x) + '" y1="' + Y(zy2) + '" x2="' + X(r.x + r.w) + '" y2="' + Y(zy2) + '"/>';
+      out += gz + '</g>';
+      out += T(X(r.x + r.w / 2), Y(r.y + r.d / 2), 'ZONE ' + (i + 1), 10.5, OK, 'middle', ' font-weight="600"');
+      out += T(X(r.x + r.w / 2), Y(r.y + r.d / 2) + 12, zr.w + "' × " + zr.d + "'", 9, MUT, 'middle');
+    });
+    // stairs (deck-edge draggable; zone stairs static)
+    var sr = G.stairRects(st);
+    (st.stairs || []).forEach(function (stair, i) {
+      var r = loc(sr[i]);
+      var drag = stair.zone == null ? ' style="cursor:move" data-drag="stair-' + i + '"' : '';
+      out += '<rect x="' + X(r.x) + '" y="' + Y(r.y) + '" width="' + (r.w * s2) + '" height="' + (r.d * s2) + '" fill="#fffdf8" stroke="' + INK + '" stroke-width="1.6"' + drag + '/>';
+      var steps = 5;
+      for (var t2 = 1; t2 < steps; t2++) {
+        if (sr[i].treadsAlong === 'y') {
+          var ty = Y(r.y + r.d * t2 / steps);
+          out += '<line x1="' + X(r.x) + '" y1="' + ty + '" x2="' + X(r.x + r.w) + '" y2="' + ty + '" stroke="' + INK + '" stroke-width="1" pointer-events="none"/>';
+        } else {
+          var tx = X(r.x + r.w * t2 / steps);
+          out += '<line x1="' + tx + '" y1="' + Y(r.y) + '" x2="' + tx + '" y2="' + Y(r.y + r.d) + '" stroke="' + INK + '" stroke-width="1" pointer-events="none"/>';
+        }
+      }
+      out += T(X(r.x + r.w / 2), Y(r.y + r.d / 2) + 4, 'DN', 10, INK, 'middle', ' pointer-events="none"');
+    });
+    // center area label
+    var spec = SBPSpec.compute(st);
+    out += T(X(dr.w / 2), Y(dr.d / 2), spec.area + ' S.F.', 15, INK, 'middle', ' font-weight="600"');
+    if (viol) out += T(X(dr.w / 2), Y(dr.d / 2) + 18, 'CROSSES SETBACK — CHECK SITE VIEW', 10, WARN, 'middle');
+    // red dimensions (production style)
+    var RD = '#c62828';
+    out += '<g stroke="' + RD + '" stroke-width="1" fill="none"><path d="M' + X(0) + ' ' + (Y(maxy) + 22) + ' H' + X(dr.w) + ' M' + X(0) + ' ' + (Y(maxy) + 17) + ' V' + (Y(maxy) + 27) + ' M' + X(dr.w) + ' ' + (Y(maxy) + 17) + ' V' + (Y(maxy) + 27) + '"/></g>';
+    out += T((X(0) + X(dr.w)) / 2, Y(maxy) + 38, st.deck.w + "'", 13, RD, 'middle');
+    out += '<g stroke="' + RD + '" stroke-width="1" fill="none"><path d="M' + (X(maxx) + 4) + ' ' + Y(0) + ' V' + Y(dr.d) + ' M' + (X(maxx) - 1) + ' ' + Y(0) + ' H' + (X(maxx) + 9) + ' M' + (X(maxx) - 1) + ' ' + Y(dr.d) + ' H' + (X(maxx) + 9) + '"/></g>';
+    out += T(X(maxx) + 12, (Y(0) + Y(dr.d)) / 2 + 4, st.deck.d + "'", 13, RD);
+    // resize handles (green squares like production)
+    out += '<rect x="' + (X(dr.w) - 7) + '" y="' + (Y(dr.d / 2) - 7) + '" width="14" height="14" fill="#fffdf8" stroke="' + OK + '" stroke-width="2.2" style="cursor:ew-resize" data-drag="h-e"/>';
+    out += '<rect x="' + (X(dr.w / 2) - 7) + '" y="' + (Y(dr.d) - 7) + '" width="14" height="14" fill="#fffdf8" stroke="' + OK + '" stroke-width="2.2" style="cursor:ns-resize" data-drag="h-n"/>';
+    // + add-zone buttons on free edges
+    function plus(xp, yp, edge) {
+      return '<g style="cursor:pointer" data-drag="addzone-' + edge + '">' +
+        '<circle cx="' + xp + '" cy="' + yp + '" r="11" fill="#fffdf8" stroke="' + OK + '" stroke-width="2"/>' +
+        '<path d="M' + (xp - 5) + ' ' + yp + ' H' + (xp + 5) + ' M' + xp + ' ' + (yp - 5) + ' V' + (yp + 5) + '" stroke="' + OK + '" stroke-width="2" pointer-events="none"/></g>';
+    }
+    var haveL = (st.zones || []).some(function (z) { return z.edge === 'left'; });
+    var haveR = (st.zones || []).some(function (z) { return z.edge === 'right'; });
+    if ((st.zones || []).length < 3) {
+      if (!haveL) out += plus(X(0) - 22, Y(dr.d * 0.6), 'left');
+      if (!haveR) out += plus(X(dr.w) + 22, Y(dr.d * 0.6), 'right');
+    }
+    out += T(450, 606, '// DRAG GREEN HANDLES TO RESIZE · DRAG STAIRS ALONG THEIR EDGE · CLICK + TO ADD A ZONE', 10, MUT, 'middle');
+    return out;
   }
 
   // ---------- axonometric ----------
@@ -251,26 +346,42 @@
   // ---------- interaction ----------
   function down(e) {
     var t = e.target.getAttribute && e.target.getAttribute('data-drag');
-    if (!t || !fit) return;
+    if (!t) return;
+    if (t.indexOf('addzone-') === 0) { onChange && onChange(t); return; }
     e.preventDefault();
-    var p = toFeet(pt(e));
-    drag = { kind: t, start: p, deck0: JSON.parse(JSON.stringify(st.deck)), house0: JSON.parse(JSON.stringify(st.house)), north0: st.north };
+    var scale = (mode === 'design' && st.view !== 'site' && st.view !== 'axon' && dfit) ? dfit.s : (fit ? fit.s : null);
+    if (!scale) return;
+    var stairs0 = (st.stairs || []).map(function (x) { return { edge: x.edge, zone: x.zone, off: x.off }; });
+    drag = { kind: t, startPx: pt(e), scale: scale, deck0: JSON.parse(JSON.stringify(st.deck)), house0: JSON.parse(JSON.stringify(st.house)), north0: st.north, stairs0: stairs0 };
   }
   function move(e) {
     if (!drag) return;
-    var p = toFeet(pt(e));
-    var dx = p.x - drag.start.x, dy = p.y - drag.start.y;
+    var p = pt(e);
+    var fx = (p.x - drag.startPx.x) / drag.scale;          // feet, screen-right positive
+    var fyDown = (p.y - drag.startPx.y) / drag.scale;      // feet, screen-down positive
+    var fyUp = -fyDown;                                    // lot-coords positive (away from street)
+    var deckView = mode === 'design' && st.view !== 'site' && st.view !== 'axon';
     if (drag.kind === 'deck') {
-      st.deck.off = clamp(Math.round(drag.deck0.off + dx), -6, st.house.w - st.deck.w + 6);
+      st.deck.off = clamp(Math.round(drag.deck0.off + fx), -6, st.house.w - st.deck.w + 6);
     } else if (drag.kind === 'h-e') {
-      st.deck.w = clamp(Math.round(drag.deck0.w + dx), 6, 32);
+      st.deck.w = clamp(Math.round(drag.deck0.w + fx), 6, 32);
     } else if (drag.kind === 'h-n') {
-      st.deck.d = clamp(Math.round(drag.deck0.d + dy), 6, 20);
+      st.deck.d = clamp(Math.round(drag.deck0.d + (deckView ? fyDown : fyUp)), 6, 20);
     } else if (drag.kind === 'house') {
-      st.house.x = Math.round(drag.house0.x + dx);
-      st.house.y = Math.round(drag.house0.y + dy);
+      st.house.x = Math.round(drag.house0.x + fx);
+      st.house.y = Math.round(drag.house0.y + fyUp);
     } else if (drag.kind === 'north') {
-      st.north = Math.round((drag.north0 + dx * 4) % 360);
+      st.north = Math.round((drag.north0 + fx * 4) % 360);
+    } else if (drag.kind.indexOf('stair-') === 0) {
+      var i = +drag.kind.slice(6);
+      var stair = (st.stairs || [])[i];
+      if (stair && stair.zone == null) {
+        var base = drag.stairs0[i].off;
+        if (base == null) base = stair.edge === 'front' ? (st.deck.w - 4) / 2 : (st.deck.d - 4) / 2;
+        var delta = stair.edge === 'front' ? fx : fyDown;
+        var span = stair.edge === 'front' ? st.deck.w - 4 : st.deck.d - 4;
+        stair.off = clamp(Math.round(base + delta), 0, Math.max(0, span));
+      }
     }
     render();
     onChange && onChange('drag');

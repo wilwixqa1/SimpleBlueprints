@@ -2856,6 +2856,15 @@ def uxmock_render_sheets(p: dict):
             "zip": state_zip[1] if len(state_zip) > 1 else "",
         },
     })
+    corners = p.get("corners") or {}
+    mc = {}
+    for ck in ("FL", "FR", "BL", "BR"):
+        size = corners.get(ck) or 0
+        if size > 0:
+            mc[ck] = {"type": "chamfer", "size": float(size)}
+    if mc:
+        params["mainCorners"] = mc
+
     deck_stairs = [
         {"id": i, "zoneId": 0,
          "location": s.get("edge", "front"),
@@ -2866,6 +2875,11 @@ def uxmock_render_sheets(p: dict):
         params["deckStairs"] = deck_stairs
         params["hasStairs"] = True
         params["stairLocation"] = deck_stairs[0]["location"]
+        first = next((s for s in (p.get("stairs") or []) if s.get("zone") is None), None)
+        if first and first.get("off") is not None:
+            # mock off = feet from edge start; production stairOffset is center-relative
+            edge_span = params["width"] if first.get("edge", "front") == "front" else params["depth"]
+            params["stairOffset"] = float(first["off"]) - (edge_span - 4.0) / 2.0
 
     calc = calculate_structure(params)
     spec = build_permit_spec(params, calc)
@@ -2882,6 +2896,11 @@ def uxmock_render_sheets(p: dict):
     out = []
 
     def _png(fig):
+        # preview watermark baked into the raster (free-preview / pay-at-download model)
+        fig.text(0.5, 0.5, "PREVIEW", rotation=28, ha="center", va="center",
+                 fontsize=110, color="#3d5a2e", alpha=0.22, fontweight="bold", zorder=1000)
+        fig.text(0.5, 0.36, "NOT FOR CONSTRUCTION · SIMPLEBLUEPRINTS.XYZ", rotation=28,
+                 ha="center", va="center", fontsize=26, color="#3d5a2e", alpha=0.28, zorder=1000)
         buf = BytesIO()
         fig.savefig(buf, format="png", dpi=40, facecolor="white")
         plt.close(fig)

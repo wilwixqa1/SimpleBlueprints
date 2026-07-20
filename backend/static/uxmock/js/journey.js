@@ -12,7 +12,8 @@
     zones: [], stairs: [],
     snow: 30, frost: 36,
     finish: { decking: 'PT pine', railing: 'Wood baluster' },
-    view: 'plan'
+    corners: { FL: 0, FR: 0 },
+    view: 'deck'
   };
 
   var $ = function (id) { return document.getElementById(id); };
@@ -181,6 +182,7 @@
       S.setbacks = { front: 25, side: 5, rear: 15 };
       S.zones = []; S.stairs = []; S._chat = null;
       S.deck = { off: 14, w: 16, d: 12, h: 36 };
+      S.corners = { FL: 0, FR: 0 };
       updateTitleblock(); setActNav();
       renderAct1();
       toast('Cleared. Search a different address or pick another way in.');
@@ -222,9 +224,13 @@
     restoreStage();
     SBPCanvas.setMode('design');
     hud().innerHTML = '';
-    hud().appendChild(el('<div class="hud-note" id="viol-note">Drag the deck to move it. Drag the square handles to resize. Structure re-sizes itself as you go.</div>'));
-    hud().appendChild(el('<div class="view-toggle"><button id="vt-plan" class="' + (S.view === 'plan' ? 'on' : '') + '">Plan</button><button id="vt-axon" class="' + (S.view === 'axon' ? 'on' : '') + '">3D</button></div>'));
-    $('vt-plan').addEventListener('click', function () { S.view = 'plan'; renderAct2(); });
+    var hudMsg = S.view === 'site' ? 'Site view: drag the deck to place it on your lot. Setback conflicts show in red.'
+      : S.view === 'axon' ? '3D view: use the sliders or switch to Deck view to edit.'
+      : 'Drag the green handles to resize. Drag stairs along their edge. Click + to add a zone.';
+    hud().appendChild(el('<div class="hud-note" id="viol-note">' + hudMsg + '</div>'));
+    hud().appendChild(el('<div class="view-toggle"><button id="vt-deck" class="' + (S.view === 'deck' ? 'on' : '') + '">Deck</button><button id="vt-site" class="' + (S.view === 'site' ? 'on' : '') + '">Site</button><button id="vt-axon" class="' + (S.view === 'axon' ? 'on' : '') + '">3D</button></div>'));
+    $('vt-deck').addEventListener('click', function () { S.view = 'deck'; renderAct2(); });
+    $('vt-site').addEventListener('click', function () { S.view = 'site'; renderAct2(); });
     $('vt-axon').addEventListener('click', function () { S.view = 'axon'; renderAct2(); });
 
     rail.innerHTML = '';
@@ -244,7 +250,25 @@
       S.zones.map(function (z, i) {
         return '<button class="chip' + (hasZoneStair(i) ? ' on' : '') + '" data-stair-zone="' + i + '">Wing ' + (i + 1) + '</button>';
       }).join('') +
-      '</div></div>'));
+      '</div>' +
+      '<div class="tb-label" style="margin-top:12px">Corner modifiers \u2014 45\u00b0 chamfers</div>' +
+      [['FL', 'Outer left'], ['FR', 'Outer right']].map(function (cn) {
+        var on = (S.corners[cn[0]] || 0) > 0;
+        return '<div class="slider-row"><label style="display:flex;align-items:center;gap:6px"><input type="checkbox" data-corner="' + cn[0] + '"' + (on ? ' checked' : '') + '> ' + cn[1] + '</label>' +
+          '<input type="range" data-cornersize="' + cn[0] + '" min="2" max="8" value="' + (S.corners[cn[0]] || 3) + '"' + (on ? '' : ' disabled') + '>' +
+          '<output>' + (on ? (S.corners[cn[0]] + "'") : '\u2014') + '</output></div>';
+      }).join('') +
+      '</div>'));
+    // per-zone dimensions
+    if (S.zones.length) {
+      rail.appendChild(el(
+        '<div class="card"><h3>Zones</h3>' +
+        S.zones.map(function (z, i) {
+          return '<div class="tb-label" style="margin-top:' + (i ? '10px' : '0') + '">Zone ' + (i + 1) + ' \u00b7 ' + z.edge + '</div>' +
+            '<div class="slider-row"><label>Width</label><input type="range" data-zw="' + i + '" min="4" max="16" value="' + z.w + '"><output id="zw-o-' + i + '">' + z.w + "'</output></div>" +
+            '<div class="slider-row"><label>Depth</label><input type="range" data-zd="' + i + '" min="4" max="16" value="' + z.d + '"><output id="zd-o-' + i + '">' + z.d + "'</output></div>";
+        }).join('') + '</div>'));
+    }
     // site conditions
     rail.appendChild(el(
       '<div class="card"><h3>Site conditions</h3>' +
@@ -289,6 +313,31 @@
     });
     $('fin-deck').addEventListener('change', function () { S.finish.decking = this.value; });
     $('fin-rail').addEventListener('change', function () { S.finish.railing = this.value; });
+    rail.querySelectorAll('[data-corner]').forEach(function (cb) {
+      cb.addEventListener('change', function () {
+        var k = cb.getAttribute('data-corner');
+        S.corners[k] = cb.checked ? (S.corners[k] > 0 ? S.corners[k] : 3) : 0;
+        renderAct2();
+      });
+    });
+    rail.querySelectorAll('[data-cornersize]').forEach(function (r) {
+      r.addEventListener('input', function () {
+        var k = r.getAttribute('data-cornersize');
+        if (S.corners[k] > 0) { S.corners[k] = +r.value; r.parentNode.querySelector('output').textContent = r.value + "'"; onDesignChange(); }
+      });
+    });
+    rail.querySelectorAll('[data-zw]').forEach(function (r) {
+      r.addEventListener('input', function () {
+        var i = +r.getAttribute('data-zw'); S.zones[i].w = +r.value;
+        $('zw-o-' + i).textContent = r.value + "'"; onDesignChange();
+      });
+    });
+    rail.querySelectorAll('[data-zd]').forEach(function (r) {
+      r.addEventListener('input', function () {
+        var i = +r.getAttribute('data-zd'); S.zones[i].d = +r.value;
+        $('zd-o-' + i).textContent = r.value + "'"; onDesignChange();
+      });
+    });
     $('cond-snow').addEventListener('change', function () { S.snow = +this.value; onDesignChange(); });
     $('cond-frost').addEventListener('change', function () { S.frost = +this.value; onDesignChange(); });
     $('ai-go').addEventListener('click', aiSend);
@@ -336,6 +385,10 @@
   }
 
   function onDesignChange(src) {
+    if (typeof src === 'string' && src.indexOf('addzone-') === 0) {
+      toggleZone(src.slice(8));
+      return;
+    }
     SBPCanvas.setState(S);
     refreshSpec();
     updateTitleblock();
@@ -430,7 +483,7 @@
     if (stageHTML !== null) {
       var sc = $('stage-canvas');
       sc.innerHTML = stageHTML; stageHTML = null;
-      SBPCanvas.init($('stage-svg'), S, function () { onDesignChange(); });
+      SBPCanvas.init($('stage-svg'), S, function (a) { onDesignChange(a); });
     }
   }
   function renderAct3() {
@@ -491,7 +544,8 @@
     var payload = {
       address: S.address, street: S.street, lot: S.lot, setbacks: S.setbacks,
       house: S.house, north: S.north, deck: S.deck, zones: S.zones,
-      stairs: S.stairs, snow: S.snow, frost: S.frost, finish: S.finish
+      stairs: S.stairs, snow: S.snow, frost: S.frost, finish: S.finish,
+      corners: S.corners
     };
     fetch('/api/mock/render-sheets', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -525,7 +579,7 @@
   }
 
   // ---------- boot ----------
-  SBPCanvas.init($('stage-svg'), S, function () { onDesignChange(); });
+  SBPCanvas.init($('stage-svg'), S, function (a) { onDesignChange(a); });
   setActNav(); updateTitleblock(); renderAct();
 
   // deep links from landing: /app?address=... | ?mode=survey | ?mode=manual

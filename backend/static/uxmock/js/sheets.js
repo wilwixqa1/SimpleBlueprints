@@ -96,6 +96,20 @@
     });
   }
   function iso(x, y, z) { return [(x - y) * 0.866, (x + y) * 0.5 - z]; }
+  // main deck outline with optional chamfers on the two OUTER corners
+  // (lot coords, y-up; outer edge = y + d). corners: {FL: ft, FR: ft}
+  function deckPolyPts(st) {
+    var dr = deckRect(st);
+    var c = st.corners || {};
+    var fl = Math.max(0, Math.min(c.FL || 0, dr.w / 2, dr.d / 2));
+    var fr = Math.max(0, Math.min(c.FR || 0, dr.w / 2, dr.d / 2));
+    var pts = [[dr.x, dr.y], [dr.x + dr.w, dr.y]];
+    if (fr > 0) { pts.push([dr.x + dr.w, dr.y + dr.d - fr], [dr.x + dr.w - fr, dr.y + dr.d]); }
+    else pts.push([dr.x + dr.w, dr.y + dr.d]);
+    if (fl > 0) { pts.push([dr.x + fl, dr.y + dr.d], [dr.x, dr.y + dr.d - fl]); }
+    else pts.push([dr.x, dr.y + dr.d]);
+    return pts;
+  }
 
   // ---------- svg builders ----------
   function poly(pts, f, attrs) {
@@ -210,8 +224,9 @@
     var g = '<g stroke="' + INK + '" fill="none">';
     g += '<line x1="' + (f.sx(dr.x) - 22) + '" y1="' + f.sy(dr.y) + '" x2="' + (f.sx(dr.x + dr.w) + 22) + '" y2="' + f.sy(dr.y) + '" stroke-width="2.2"/>';
     g += txt(f.sx(dr.x + dr.w / 2), f.sy(dr.y) + 9, 'EXISTING RESIDENCE \u2014 LEDGER ATTACHMENT', 6, MUT, 'middle');
-    all.forEach(function (r) {
-      g += '<rect x="' + f.sx(r.x) + '" y="' + f.sy(r.y + r.d) + '" width="' + (r.w * f.s) + '" height="' + (r.d * f.s) + '" stroke-width="1.5"/>';
+    all.forEach(function (r, ri) {
+      if (ri === 0) g += poly(deckPolyPts(st), f, 'stroke="' + INK + '" stroke-width="1.5" fill="none"');
+      else g += '<rect x="' + f.sx(r.x) + '" y="' + f.sy(r.y + r.d) + '" width="' + (r.w * f.s) + '" height="' + (r.d * f.s) + '" stroke-width="1.5"/>';
       var n = Math.max(2, Math.floor(r.w / 1.333));
       for (var i = 1; i < n; i++) {
         var jx = f.sx(r.x + r.w * i / n);
@@ -349,7 +364,7 @@
     g += '<rect x="' + f.sx(h.x) + '" y="' + f.sy(h.y + h.d) + '" width="' + (h.w * f.s) + '" height="' + (h.d * f.s) + '" stroke="' + INK + '" stroke-width="1.3"/>';
     g += txt(f.sx(h.x + h.w / 2), f.sy(h.y + h.d / 2), 'RESIDENCE', 6, MUT, 'middle');
     var dr = deckRect(st);
-    g += '<rect x="' + f.sx(dr.x) + '" y="' + f.sy(dr.y + dr.d) + '" width="' + (dr.w * f.s) + '" height="' + (dr.d * f.s) + '" stroke="' + GRN + '" stroke-width="1.7" fill="' + GRN + '" fill-opacity=".1"/>';
+    g += poly(deckPolyPts(st), f, 'stroke="' + GRN + '" stroke-width="1.7" fill="' + GRN + '" fill-opacity=".1"');
     zoneRects(st).forEach(function (r) {
       g += '<rect x="' + f.sx(r.x) + '" y="' + f.sy(r.y + r.d) + '" width="' + (r.w * f.s) + '" height="' + (r.d * f.s) + '" stroke="' + GRN + '" stroke-width="1.3" fill="' + GRN + '" fill-opacity=".08"/>';
     });
@@ -406,7 +421,7 @@
       house: { x: 26, y: 30, w: 44, d: 30 },
       north: 12,
       deck: { off: 14, w: 16, d: 12, h: 36 },
-      zones: [], stairs: [{ edge: 'right' }],
+      zones: [], stairs: [{ edge: 'right' }], corners: { FL: 0, FR: 0 },
       snow: 30, frost: 36,
       finish: { decking: 'PT pine', railing: 'Wood baluster' }
     };
@@ -421,6 +436,6 @@
       return s.fn(st, wm);
     },
     demoState: demoState,
-    _geom: { fitter: fitter, setbackPoly: setbackPoly, pointInConvex: pointInConvex, deckRect: deckRect, zoneRects: zoneRects, stairRects: stairRects, iso: iso, bounds: bounds }
+    _geom: { deckPolyPts: deckPolyPts, fitter: fitter, setbackPoly: setbackPoly, pointInConvex: pointInConvex, deckRect: deckRect, zoneRects: zoneRects, stairRects: stairRects, iso: iso, bounds: bounds }
   };
 })();
