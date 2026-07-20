@@ -574,8 +574,7 @@
         ren.setSize(cW, cH);
         ren.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
         ren.shadowMap.enabled = true; ren.shadowMap.type = THREE.PCFSoftShadowMap;
-        if (THREE.ACESFilmicToneMapping) { ren.toneMapping = THREE.ACESFilmicToneMapping; ren.toneMappingExposure = 1.05; }
-        if (THREE.sRGBEncoding) ren.outputEncoding = THREE.sRGBEncoding;
+        if (THREE.ACESFilmicToneMapping) { ren.toneMapping = THREE.ACESFilmicToneMapping; ren.toneMappingExposure = 0.95; }
         wrap.appendChild(ren.domElement);
         if (window.setupSceneEnv) window.setupSceneEnv(scene, pp, THREE);
         window.buildDeckScene(scene, pp, c, THREE);

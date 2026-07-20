@@ -1287,6 +1287,40 @@ window.buildDeckScene = function(scene, p, c, THREE) {
     scene.add(stGrp);
   }); // end resolvedStairs.forEach
 
+  // S88.5 photo theme finishing pass (ported from the validated harness override):
+  // shadows on every mesh, fog pushback, light rebalance, real photographed
+  // textures swapped in async over the procedural fallbacks. Classic untouched.
+  if (_sbp3dTheme() === 'photo') {
+    scene.traverse(function (o) {
+      if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; }
+      if (o.isDirectionalLight && o.castShadow) {
+        o.intensity = 1.0; o.color.setHex(0xfff2dc); o.position.set(26, 34, 10);
+        o.shadow.bias = -0.0004;
+        if (o.shadow.mapSize) o.shadow.mapSize.set(2048, 2048);
+      }
+      if (o.isAmbientLight) o.intensity = 0.3;
+    });
+    scene.add(new THREE.HemisphereLight(0xdfeaf5, 0x8a9a6a, 0.2));
+    scene.fog = new THREE.Fog(0xeef2f5, 140, 260);
+    if (scene.background && scene.background.setHex) scene.background.setHex(0xe9eef2);
+    if (typeof document !== 'undefined' && document.createElement('img')) {
+      var _ldr = new THREE.TextureLoader();
+      var _swap = function (mat, url, rx, ry) {
+        if (!mat) return;
+        _ldr.load(url, function (t) {
+          t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rx, ry);
+          mat.map = t; mat.needsUpdate = true;
+        });
+      };
+      _swap(mats.deck, '/static/textures/sbp_hardwood.jpg', 2.5, 2.5);
+      _swap(mats.stairTread, '/static/textures/sbp_hardwood.jpg', 2.5, 2.5);
+      scene.traverse(function (o) {
+        if (o.isMesh && o.geometry && o.geometry.type === 'PlaneGeometry') {
+          _swap(o.material, '/static/textures/sbp_grass.jpg', 10, 10);
+        }
+      });
+    }
+  }
   return { exitSide: exitSide };
 };
 
