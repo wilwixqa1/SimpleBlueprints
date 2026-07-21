@@ -407,6 +407,38 @@ one) — a differentiator; keep it sharp.
   add the new sheet to the structural golden; legibility gate on the table;
   Will's eyes on a render vs. the competitor screenshot.
 
+### P0.5 — PRODUCT SELECTOR NEEDS A NEW HOME (NEW, S95; Will-flagged)
+- WHAT/WHY: the old homepage carried the only product picker in the app: a
+  6-tile grid (Decks active; Pergolas, Fences, Sheds, Garages, Porches marked
+  COMING SOON) backed by `window.products` in home.js. S95 push 1 replaced
+  that homepage with the mock landing, which is deck-specific and has NO
+  product selector. **`window.products` is still defined in home.js but is now
+  consumed by NOTHING** — verified by grep at S95 push 2. So today there is no
+  path in the product to anything but a deck, and the roadmap signal those
+  COMING SOON tiles carried is invisible to users.
+- WILL'S DIRECTION (S95): give it a real place in the workflow rather than
+  bolting it back onto the landing page. His instinct: make it the 1st or 2nd
+  step of the journey, probably AFTER the address lookup ("it makes sense
+  after looking up their address or something"). Rationale that supports this:
+  the address/parcel step is product-agnostic — lot lines and setbacks matter
+  for a shed or a pergola exactly as much as for a deck — so looking up the
+  property first and THEN choosing what to build keeps the "we already know
+  your property" hook as the universal entry point.
+- WHERE: the journey/wizard step sequence (steps.js + app.js step routing);
+  `window.products` in home.js is the existing data shape to reuse or move.
+  Note the backend already has calc modules for several of these
+  (`calc_shed.py`, `calc_pergola.py`, `calc_porch.py`, `calc_fence.py`), so
+  the selector is not purely decorative — check how complete those are before
+  deciding which tiles stay COMING SOON.
+- HOW: decide the insertion point (after address confirm is Will's lean), then
+  either a dedicated step or a choice surfaced on the existing first step.
+  Keep the COMING SOON affordance so the roadmap stays visible.
+- VERIFY: every product tile leads somewhere coherent (active → its flow,
+  inactive → clearly not yet); `window.products` has exactly one consumer
+  again; deck flow unchanged for users who only ever build decks.
+- BLOCKED ON: Will's call on exact placement. Queued behind the current UI
+  rework, per Will: "when we finish the UI changes."
+
 ### P1 — notch↔stair coupling in the editor (BLOCKED on Will's UX call)
 - WHAT/WHY: notch and its stair must stay locked (same width, x-aligned); no
   orphan/misaligned notch creatable. Today convention only.

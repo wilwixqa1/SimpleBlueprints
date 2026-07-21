@@ -6,12 +6,26 @@
 const { useEffect: _d3UE, useRef: _d3UR } = React;
 
 // ============================================================
-// S88.5: optional "photo" theme. Default 'classic' is pixel-identical
-// to the historical look (production 3D View + PDF cover unchanged).
-// Opt in by setting window.SBP3D_THEME = 'photo' before building.
-// Textures are generated procedurally (no asset files).
+// S88.5: "photo" materials theme. S95: this is now the DEFAULT for both the
+// interactive 3D View and the PDF cover capture. The historical look is still
+// reachable with window.SBP3D_THEME = 'classic' (kept for A/B and rollback).
+//
+// The photo look needs BOTH halves to read correctly:
+//   1. this theme flag (materials, shadows, fog, light rebalance below), and
+//   2. ACES filmic tone mapping at ~0.95 exposure on the RENDERER.
+// The S88.5 headless harness bisect found that without (2) a linear-authored
+// scene renders washed out, so the two are set together at both renderer
+// sites (viewer + capture3D). Changing one without the other regresses the look.
 // ============================================================
-function _sbp3dTheme() { return window.SBP3D_THEME || 'classic'; }
+function _sbp3dTheme() { return window.SBP3D_THEME || 'photo'; }
+// Applied at every renderer creation site so the viewer and the PDF cover match.
+function _sbp3dTone(ren, THREE) {
+  if (_sbp3dTheme() !== 'photo') return;
+  if (THREE.ACESFilmicToneMapping) {
+    ren.toneMapping = THREE.ACESFilmicToneMapping;
+    ren.toneMappingExposure = 0.95;
+  }
+}
 function _sbp3dCanvasTex(THREE, w, h, draw, repX, repY) {
   var cv = document.createElement('canvas'); cv.width = w; cv.height = h;
   draw(cv.getContext('2d'), w, h);
@@ -1346,6 +1360,7 @@ function Deck3D({ c, p }) {
     if (!window._deckOrbit) orbit.current.dist = Math.max(W, D, H * 2) * 2.15;
     const ren = new THREE.WebGLRenderer({ antialias: true }); ren.setSize(cW, cH); ren.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     ren.shadowMap.enabled = true; ren.shadowMap.type = THREE.PCFSoftShadowMap;
+    _sbp3dTone(ren, THREE);
     el.innerHTML = ""; el.appendChild(ren.domElement);
 
     // Shared environment (lights, ground, grid, slope)
@@ -1395,6 +1410,7 @@ window.capture3D = function(p, c) {
       var ren = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
       ren.setSize(w, h); ren.setPixelRatio(1);
       ren.shadowMap.enabled = true; ren.shadowMap.type = THREE.PCFSoftShadowMap;
+      _sbp3dTone(ren, THREE);
 
       // Shared environment (lights, ground, grid, slope)
       setupSceneEnv(scene, p, THREE);
