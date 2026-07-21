@@ -371,10 +371,14 @@ var GUIDE_PHASES_STEP0 = [
     actions: []
   },
   {
+    // S96.5: sections was [] -- so on this screen the address form was not in
+    // the DOM at all and there was NO way to look up a different address
+    // (guideSectionShown renders only the sections the phase declares).
+    // Keeping 'addressLookup' here makes re-lookup always reachable.
     id: 'verify_extracted',
     message: "Here is what we found. Do these numbers look right?",
-    tip: "Check the preview on the right. Adjust any values that seem off.",
-    sections: [],
+    tip: "Check the preview on the right. Adjust any values that seem off, or enter a different address to start over.",
+    sections: ['addressLookup'],
     actions: [
       { label: 'Looks good', next: 'site_elements_check', style: 'primary' },
       { label: 'Let me adjust', action: 'expand_for_edit', style: 'secondary' }
@@ -973,7 +977,10 @@ function StepContent(props) {
     if (!parcelAddress || !parcelState || parcelLoading) return;
     setParcelLoading(true);
     setParcelError(null);
-    if (guideActive) setGuidePhase('address_verifying');
+    // S96.5: guideAdvance (not setGuidePhase) so the phase we came FROM lands in
+    // guideHistory -- the Back button only renders when history is non-empty, so
+    // the whole lookup path previously left the user with no way back.
+    if (guideActive) guideAdvance('address_verifying');
     fetch('/api/parcel-lookup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -984,7 +991,8 @@ function StepContent(props) {
       setParcelLoading(false);
       if (data.error) {
         setParcelError(data.error);
-        if (guideActive) setGuidePhase('address_lookup');
+        // S96.5: rollback on error -- sync the async-safe mirror too.
+        if (guideActive) { guidePhaseRef.current = 'address_lookup'; setGuidePhase('address_lookup'); }
         return;
       }
       // Apply lot vertices
@@ -1409,9 +1417,10 @@ function StepContent(props) {
           }
           if (!bldg.buildings || bldg.buildings.length === 0) {
             console.log("Building footprint: no buildings found" + (bldg.error ? " (error: " + bldg.error + ")" : ""));
+            // S96.5: guideAdvance so this transition is recorded in guideHistory.
             u("_siteplanLoading", false);
             u("_siteplanConfidence", { level: "low", messages: ["Building data unavailable. Dimensions are estimated from tax records.", "Verify house width, depth, and position."] });
-            if (guideActive) setGuidePhase('verify_extracted');
+            if (guideActive) guideAdvance('verify_extracted');
             return;
           }
           console.log("Building footprint: " + bldg.buildings.length + " buildings found");
@@ -1431,7 +1440,7 @@ function StepContent(props) {
             console.log("Building footprint: no building passed filter (>= 400sqft, < 250ft)");
             u("_siteplanLoading", false);
             u("_siteplanConfidence", { level: "low", messages: ["Building data unavailable. Dimensions are estimated from tax records.", "Verify house width, depth, and position."] });
-            if (guideActive) setGuidePhase('verify_extracted');
+            if (guideActive) guideAdvance('verify_extracted');
             return;
           }
           // Apply building dimensions from Solar/Overpass
@@ -1601,7 +1610,7 @@ function StepContent(props) {
           }
           u("_siteplanLoading", false);
           u("_siteplanConfidence", { level: _confLevel, messages: _confMessages });
-          if (guideActive) setGuidePhase('verify_extracted');
+          if (guideActive) guideAdvance('verify_extracted');
         })
         .catch(function(err) {
           console.log("Building footprint lookup failed (attempt " + attempt + "):", err.message);
@@ -1612,7 +1621,7 @@ function StepContent(props) {
             setFootprintFailed(true);
             u("_siteplanLoading", false);
             u("_siteplanConfidence", { level: "low", messages: ["Building detection failed. Dimensions are estimated from tax records.", "Verify house width, depth, and position."] });
-            if (guideActive) setGuidePhase('verify_extracted');
+            if (guideActive) guideAdvance('verify_extracted');
           }
         });
         };
@@ -1622,14 +1631,16 @@ function StepContent(props) {
       }
       // Advance guide to verify
       if (window._markProjectEdited) window._markProjectEdited();
-      if (guideActive) setGuidePhase(data.location.lat && data.location.lng ? 'footprint_loading' : 'verify_extracted');
+      // S96.5: guideAdvance so this lands in guideHistory (see _doParcelLookup).
+      if (guideActive) guideAdvance(data.location.lat && data.location.lng ? 'footprint_loading' : 'verify_extracted');
       // Track event
       if (window._trackEvent) window._trackEvent('parcel_lookup', { address: parcelAddress, state: parcelState, lot_width: data.lot.width, lot_depth: data.lot.depth, building_sqft: data.building.sqft });
     })
     .catch(function(err) {
       setParcelLoading(false);
       setParcelError("Network error: " + err.message);
-      if (guideActive) setGuidePhase('address_lookup');
+      // S96.5: rollback on error -- sync the async-safe mirror too.
+      if (guideActive) { guidePhaseRef.current = 'address_lookup'; setGuidePhase('address_lookup'); }
     });
   }
 
@@ -1932,13 +1943,27 @@ function StepContent(props) {
   const [guidePhase, setGuidePhase] = _stUS('has_survey');
   const [guideHistory, setGuideHistory] = _stUS([]);
   const [guidePeeked, setGuidePeeked] = _stUS({});
+  // S96.5: mirror of guidePhase that is always current, even inside async
+  // callbacks that captured an older render. guideAdvance reads this.
+  var guidePhaseRef = React.useRef(guidePhase);
+  _stUE(function() { guidePhaseRef.current = guidePhase; }, [guidePhase]);
 
   function guideAdvance(nextPhase) {
-    setGuideHistory(function(prev) { return prev.concat([guidePhase]); });
+    // S96.5: use the phase REF, not the render closure. Async callers (the
+    // parcel/footprint lookups) call guideAdvance twice from a single closure --
+    // once at start, again in .then() -- so a closed-over `guidePhase` would
+    // push a stale value and lose a step of history.
+    var fromPhase = guidePhaseRef.current;
+    if (fromPhase === nextPhase) return; // no-op advance
+    guidePhaseRef.current = nextPhase;
+    setGuideHistory(function(hist) {
+      if (hist.length && hist[hist.length - 1] === fromPhase) return hist;
+      return hist.concat([fromPhase]);
+    });
     setGuidePhase(nextPhase);
     // S55: Expose guide phase for tracking and track phase change
     window._currentGuidePhase = nextPhase;
-    if (window._trackEvent) window._trackEvent('guide_phase_change', { from_phase: guidePhase, to_phase: nextPhase });
+    if (window._trackEvent) window._trackEvent('guide_phase_change', { from_phase: fromPhase, to_phase: nextPhase });
     // Auto-expand the section for the new phase
     var ph = _guidePhaseMap[nextPhase];
     if (ph && ph.sections) {
@@ -1951,15 +1976,23 @@ function StepContent(props) {
     }
   }
 
+  // S52: Skip transient phases that are not meaningful to return to.
+  // S96.5: 'extracting' was the only one listed, but address_verifying and
+  // footprint_loading are equally transient -- going Back into one stranded the
+  // user on a spinner with no way out.
+  var _GUIDE_TRANSIENT = ['extracting', 'address_verifying', 'footprint_loading'];
+
   function guideBack() {
     setGuideHistory(function(prev) {
       var copy = prev.slice();
       var last = copy.pop();
-      // S52: Skip transient phases that are not meaningful to return to
-      while (last === 'extracting' && copy.length > 0) {
+      while (_GUIDE_TRANSIENT.indexOf(last) >= 0 && copy.length > 0) {
         last = copy.pop();
       }
-      if (last && last !== 'extracting') setGuidePhase(last);
+      if (last && _GUIDE_TRANSIENT.indexOf(last) < 0) {
+        guidePhaseRef.current = last; // S96.5: keep the async-safe mirror current
+        setGuidePhase(last);
+      }
       return copy;
     });
   }
