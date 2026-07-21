@@ -1701,6 +1701,21 @@ function StepContent(props) {
         return { no: s.no, name: s.name, png: null, error: null };
       });
       setPreviewSheets(list);
+      // S97: the cover sheet embeds the 3D perspective. capture3D renders it
+      // offscreen; gate only the start of the walk on it (with a timeout so a
+      // slow/absent renderer can't hang the gallery), then include it on the
+      // cover (idx 0) fetch so the preview cover matches the real PDF cover.
+      var coverCapP = Promise.resolve(null);
+      try {
+        if (window.capture3D) {
+          coverCapP = Promise.race([
+            window.capture3D(p, c).catch(function() { return null; }),
+            new Promise(function(res) { setTimeout(function() { res(null); }, 1500); })
+          ]);
+        }
+      } catch (e) { coverCapP = Promise.resolve(null); }
+      coverCapP.then(function(coverB64) {
+      if (token !== previewTokenRef.current) return;
       // Walk the sheets in series. Sequential (not parallel) on purpose: each
       // render is a matplotlib figure on the server, and firing 7-8 at once
       // just queues them anyway while making the first one arrive later.
@@ -1709,6 +1724,7 @@ function StepContent(props) {
         if (token !== previewTokenRef.current || i >= list.length) return;
         var idx = i++;
         var body = Object.assign({}, p, { _sheet_index: idx, _dpi: 55 });
+        if (idx === 0 && coverB64) body.coverImage = coverB64;
         fetch("/api/preview-sheet", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1734,6 +1750,7 @@ function StepContent(props) {
         });
       }
       next();
+      });
     }).catch(function() {
       if (token !== previewTokenRef.current) return;
       setPreviewSheets([]);

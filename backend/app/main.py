@@ -3261,7 +3261,7 @@ def preview_sheet(p: dict):
         try:
             if idx == 0:
                 sheet_no, sheet_name = "A-0", "COVER SHEET"
-                draw_cover_sheet(fig, params, calc, pi, None)
+                draw_cover_sheet(fig, params, calc, pi, params.get("coverImage"))
             else:
                 sheet_no, sheet_name, draw_fn = body[idx - 1]
                 draw_fn(fig, params, calc, spec)
