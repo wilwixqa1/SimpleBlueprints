@@ -1704,7 +1704,7 @@ function StepContent(props) {
       function next() {
         if (token !== previewTokenRef.current || i >= list.length) return;
         var idx = i++;
-        var body = Object.assign({}, p, { _sheet_index: idx, _dpi: 20 });
+        var body = Object.assign({}, p, { _sheet_index: idx, _dpi: 30 });
         fetch("/api/preview-sheet", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -2210,6 +2210,25 @@ function StepContent(props) {
   // S49: Auto-init guide phase when step changes
   _stUE(function() {
     if (!guideActive) return;
+    // S96.5: Step 0 (Site Plan) had NO branch here while steps 1-4 all reset
+    // their phase on entry. So coming BACK to Site Plan -- after skipping ahead,
+    // or just to look up a different address -- left the guide parked on a
+    // later step's phase (e.g. 's1_deck_size'), which renders that step's
+    // sections and no address form. The panel looked alive but had no way back
+    // to the lookup. Reset to an address-step phase on entry.
+    var _s0 = (guidePhase.indexOf('s1_') === 0 || guidePhase.indexOf('s2_') === 0 ||
+               guidePhase.indexOf('s3_') === 0 || guidePhase.indexOf('s4_') === 0 ||
+               guidePhase === 'complete');
+    if (step === 0 && _s0) {
+      setGuideHistory([]);
+      setGuidePeeked({});
+      // Keep the work: if a lot is already loaded, land on the verify screen
+      // (which now carries the address form, so a NEW lookup is still one
+      // click away). With no lot yet, go back to the top of the address flow.
+      var _next = p.lotVertices ? 'verify_extracted' : 'has_survey';
+      guidePhaseRef.current = _next;
+      setGuidePhase(_next);
+    }
     if (step === 1 && guidePhase.indexOf('s1_') !== 0 && guidePhase !== 'complete') {
       // Entering Step 1: set phase and auto-fill deck size from house width
       setGuideHistory([]);
@@ -4657,62 +4676,17 @@ function StepContent(props) {
         chatMessages={chatMessages} chatLoading={chatLoading} onSendMessage={sendChatMessage} onApplyActions={_applyActions} setChatMessages={setChatMessages}
       />;
     })()}
-    {/* S96.5: REAL sheet previews. This block used to be three hand-drawn SVG
-        facsimiles of the sheets -- shapes that approximated the output without
-        matching it. The S88.5 mock had already dropped that idea because a
-        preview that doesn't match the product erodes trust exactly when the
-        user is deciding to pay. These are the user's OWN design rendered by the
-        same draw_* functions that produce the PDF, fetched one sheet at a time
-        so the grid fills in instead of blocking on a ~2s all-or-nothing call. */}
-    <div style={{ marginBottom: 14 }}>
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 8 }}>
-        <div style={{ fontSize: 10, fontWeight: 700, color: _br.gn, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>Your drawing set</div>
-        <div style={{ fontSize: 8, fontFamily: _mono, color: _br.mu }}>
-          {previewSheets.length > 0 ? (previewDone + " of " + previewSheets.length + " sheets") : "preparing\u2026"}
-        </div>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10, marginBottom: 14 }}>
+      <div style={{ padding: 12, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}` }}>
+        <div style={{ fontSize: 9, fontWeight: 700, color: _br.gn, marginBottom: 6, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>Project</div>
+        <Spec l="Size" v={`${fmtFtIn(c.W)}\u00D7${fmtFtIn(c.D)} (${zc ? zc.totalArea : c.area} SF)`} /><Spec l="Height" v={fmtFtIn(c.H)} /><Spec l="Attach" v={c.attachment === "ledger" ? "Ledger" : "Free"} /><Spec l="Stairs" v={(() => { var ds = p.deckStairs || []; if (!ds.length) return "Not included"; if (ds.length === 1) { var s0 = ds[0]; return `${s0.location} ${fmtFtIn(s0.width || 4)} \u00B7 ${s0.numStringers || 3} stringers`; } return ds.map(function(s) { var zn = s.zoneId === 0 ? "Main" : (p.zones || []).reduce(function(a, z) { return z.id === s.zoneId ? (z.label || "Zone " + z.id) : a; }, "Zone " + s.zoneId); return zn + " " + s.location + " " + fmtFtIn(s.width || 4); }).join(", "); })()} /><Spec l="Deck" v={p.deckingType === "composite" ? "Composite" : "PT"} /><Spec l="Rail" v={`${p.railType === "fortress" ? "Fortress" : "Wood"} \u00B7 ${c.guardHeight || 36}"`} />
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 8 }}>
-        {previewSheets.map(function(sh, i) {
-          return <div key={i} onClick={function() { if (sh.png) setLightbox(i); }}
-            style={{ background: "#fff", border: "1px solid " + _br.bd, borderRadius: 6, overflow: "hidden", cursor: sh.png ? "zoom-in" : "default" }}>
-            <div style={{ height: 104, display: "flex", alignItems: "center", justifyContent: "center", background: sh.png ? "#fff" : _br.wr }}>
-              {sh.png
-                ? <img src={"data:image/png;base64," + sh.png} alt={sh.name} style={{ width: "100%", display: "block" }} />
-                : sh.error
-                  ? <span style={{ fontSize: 8, fontFamily: _mono, color: _br.rd, padding: 8, textAlign: "center" }}>RENDER ERROR</span>
-                  : <span style={{ fontSize: 8, fontFamily: _mono, color: _br.mu, letterSpacing: "1px" }}>DRAWING{"\u2026"}</span>}
-            </div>
-            <div style={{ padding: "4px 7px", borderTop: "1px solid " + _br.bd, background: _br.wr, display: "flex", justifyContent: "space-between", gap: 6 }}>
-              <span style={{ fontSize: 7, fontFamily: _mono, fontWeight: 700, color: _br.dk }}>{sh.no}</span>
-              <span style={{ fontSize: 7, fontFamily: _mono, color: _br.mu, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sh.name}</span>
-            </div>
-          </div>;
-        })}
-      </div>
-      <div style={{ textAlign: "center", marginTop: 6 }}>
-        <span style={{ fontSize: 8, color: _br.mu, fontFamily: _mono }}>
-          {previewSheets.length > 0
-            ? previewSheets.length + " sheets " + "\u00B7" + " drawn from your design by the same pipeline that makes your PDF"
-            : "Rendering your sheets\u2026"}
-        </span>
+      <div style={{ padding: 12, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}` }}>
+        <div style={{ fontSize: 9, fontWeight: 700, color: _br.gn, marginBottom: 6, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>Structure</div>
+        <Spec l="Joists" v={`${c.joistSize}@${c.sp}"`} /><Spec l="Beam" v={c.beamSize.replace("3-ply ","3\u00D7").replace("2-ply ","2\u00D7")} /><Spec l="Posts" v={`${c.postSize}\u00D7${zc ? c.nP + zc.extraPosts : c.nP}`} /><Spec l="Footings" v={`${c.fDiam}"\u00D8\u00D7${c.nF}`} /><Spec l="Load" v={`${c.TL} PSF`} color={_br.rd} /><Spec l="Finishes" v={`${(p.deckingType === "composite" ? "Composite" : "PT pine")} / ${((p.railType || p.railingType || "fortress") === "wood" ? "Wood baluster" : "Fortress steel")}`} /><Spec l="Jurisdiction" v={_isPPRBD ? "Pikes Peak RBD" : "IRC 2021 (generic)"} />
+        {c.warnings.length > 0 && <div style={{ fontSize: 8, color: _br.rd, marginTop: 4, fontFamily: _mono }}>{"\u26A0\uFE0F"} {c.warnings.length} warning{c.warnings.length > 1 ? "s" : ""}</div>}
       </div>
     </div>
-
-    {/* S96.5: full-size sheet inspection. Re-fetched at higher dpi so the
-        gallery can stay light without making the zoomed view mushy. */}
-    {lightbox != null && previewSheets[lightbox] && <div
-      onClick={function() { setLightbox(null); }}
-      style={{ position: "fixed", inset: 0, background: "rgba(20,24,18,0.82)", zIndex: 4000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, cursor: "zoom-out" }}>
-      <div style={{ maxWidth: 1100, width: "100%", background: "#fff", borderRadius: 8, overflow: "hidden" }}>
-        {lightboxPng
-          ? <img src={"data:image/png;base64," + lightboxPng} alt="sheet" style={{ width: "100%", display: "block" }} />
-          : <img src={"data:image/png;base64," + previewSheets[lightbox].png} alt="sheet" style={{ width: "100%", display: "block", filter: "blur(0.4px)" }} />}
-        <div style={{ padding: "8px 12px", borderTop: "1px solid " + _br.bd, display: "flex", justifyContent: "space-between", fontFamily: _mono, fontSize: 10, color: _br.mu }}>
-          <b style={{ color: _br.dk }}>{previewSheets[lightbox].no}</b>
-          <span>{previewSheets[lightbox].name} {"\u00B7"} {lightboxPng ? "CLICK ANYWHERE TO CLOSE" : "LOADING FULL SIZE\u2026"}</span>
-        </div>
-      </div>
-    </div>}
 
     {/* S60: Permit Readiness Card */}
     {(() => {
@@ -4761,15 +4735,119 @@ function StepContent(props) {
       </div>;
     })()}
 
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10, marginBottom: 14 }}>
-      <div style={{ padding: 12, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}` }}>
-        <div style={{ fontSize: 9, fontWeight: 700, color: _br.gn, marginBottom: 6, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>Project</div>
-        <Spec l="Size" v={`${fmtFtIn(c.W)}\u00D7${fmtFtIn(c.D)} (${zc ? zc.totalArea : c.area} SF)`} /><Spec l="Height" v={fmtFtIn(c.H)} /><Spec l="Attach" v={c.attachment === "ledger" ? "Ledger" : "Free"} /><Spec l="Stairs" v={(() => { var ds = p.deckStairs || []; if (!ds.length) return "Not included"; if (ds.length === 1) { var s0 = ds[0]; return `${s0.location} ${fmtFtIn(s0.width || 4)} \u00B7 ${s0.numStringers || 3} stringers`; } return ds.map(function(s) { var zn = s.zoneId === 0 ? "Main" : (p.zones || []).reduce(function(a, z) { return z.id === s.zoneId ? (z.label || "Zone " + z.id) : a; }, "Zone " + s.zoneId); return zn + " " + s.location + " " + fmtFtIn(s.width || 4); }).join(", "); })()} /><Spec l="Deck" v={p.deckingType === "composite" ? "Composite" : "PT"} /><Spec l="Rail" v={`${p.railType === "fortress" ? "Fortress" : "Wood"} \u00B7 ${c.guardHeight || 36}"`} />
+    {/* S96.5: REAL sheet previews. This block used to be three hand-drawn SVG
+        facsimiles of the sheets -- shapes that approximated the output without
+        matching it. The S88.5 mock had already dropped that idea because a
+        preview that doesn't match the product erodes trust exactly when the
+        user is deciding to pay. These are the user's OWN design rendered by the
+        same draw_* functions that produce the PDF, fetched one sheet at a time
+        so the grid fills in instead of blocking on a ~2s all-or-nothing call. */}
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 8 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: _br.gn, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>Your drawing set</div>
+        <div style={{ fontSize: 8, fontFamily: _mono, color: _br.mu }}>
+          {previewSheets.length > 0 ? (previewDone + " of " + previewSheets.length + " sheets") : "preparing\u2026"}
+        </div>
       </div>
-      <div style={{ padding: 12, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}` }}>
-        <div style={{ fontSize: 9, fontWeight: 700, color: _br.gn, marginBottom: 6, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>Structure</div>
-        <Spec l="Joists" v={`${c.joistSize}@${c.sp}"`} /><Spec l="Beam" v={c.beamSize.replace("3-ply ","3\u00D7").replace("2-ply ","2\u00D7")} /><Spec l="Posts" v={`${c.postSize}\u00D7${zc ? c.nP + zc.extraPosts : c.nP}`} /><Spec l="Footings" v={`${c.fDiam}"\u00D8\u00D7${c.nF}`} /><Spec l="Load" v={`${c.TL} PSF`} color={_br.rd} /><Spec l="Finishes" v={`${(p.deckingType === "composite" ? "Composite" : "PT pine")} / ${((p.railType || p.railingType || "fortress") === "wood" ? "Wood baluster" : "Fortress steel")}`} /><Spec l="Jurisdiction" v={_isPPRBD ? "Pikes Peak RBD" : "IRC 2021 (generic)"} />
-        {c.warnings.length > 0 && <div style={{ fontSize: 8, color: _br.rd, marginTop: 4, fontFamily: _mono }}>{"\u26A0\uFE0F"} {c.warnings.length} warning{c.warnings.length > 1 ? "s" : ""}</div>}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 10 }}>
+        {previewSheets.map(function(sh, i) {
+          return <div key={i} onClick={function() { if (sh.png) setLightbox(i); }}
+            style={{ background: "#fff", border: "1px solid " + _br.bd, borderRadius: 6, overflow: "hidden", cursor: sh.png ? "zoom-in" : "default" }}>
+            <div style={{ height: 150, display: "flex", alignItems: "center", justifyContent: "center", background: sh.png ? "#fff" : _br.wr }}>
+              {sh.png
+                ? <img src={"data:image/png;base64," + sh.png} alt={sh.name} style={{ width: "100%", display: "block" }} />
+                : sh.error
+                  ? <span style={{ fontSize: 8, fontFamily: _mono, color: _br.rd, padding: 8, textAlign: "center" }}>RENDER ERROR</span>
+                  : <span style={{ fontSize: 8, fontFamily: _mono, color: _br.mu, letterSpacing: "1px" }}>DRAWING{"\u2026"}</span>}
+            </div>
+            <div style={{ padding: "4px 7px", borderTop: "1px solid " + _br.bd, background: _br.wr, display: "flex", justifyContent: "space-between", gap: 6 }}>
+              <span style={{ fontSize: 7, fontFamily: _mono, fontWeight: 700, color: _br.dk }}>{sh.no}</span>
+              <span style={{ fontSize: 7, fontFamily: _mono, color: _br.mu, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sh.name}</span>
+            </div>
+          </div>;
+        })}
+      </div>
+      <div style={{ textAlign: "center", marginTop: 6 }}>
+        <span style={{ fontSize: 8, color: _br.mu, fontFamily: _mono }}>
+          {previewSheets.length > 0
+            ? previewSheets.length + " sheets " + "\u00B7" + " drawn from your design by the same pipeline that makes your PDF"
+            : "Rendering your sheets\u2026"}
+        </span>
+      </div>
+    </div>
+
+    {/* S96.5: full-size sheet inspection. Re-fetched at higher dpi so the
+        gallery can stay light without making the zoomed view mushy. */}
+    {lightbox != null && previewSheets[lightbox] && <div
+      onClick={function() { setLightbox(null); }}
+      style={{ position: "fixed", inset: 0, background: "rgba(20,24,18,0.82)", zIndex: 4000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, cursor: "zoom-out" }}>
+      <div style={{ maxWidth: 1100, width: "100%", background: "#fff", borderRadius: 8, overflow: "hidden" }}>
+        {lightboxPng
+          ? <img src={"data:image/png;base64," + lightboxPng} alt="sheet" style={{ width: "100%", display: "block" }} />
+          : <img src={"data:image/png;base64," + previewSheets[lightbox].png} alt="sheet" style={{ width: "100%", display: "block", filter: "blur(0.4px)" }} />}
+        <div style={{ padding: "8px 12px", borderTop: "1px solid " + _br.bd, display: "flex", justifyContent: "space-between", fontFamily: _mono, fontSize: 10, color: _br.mu }}>
+          <b style={{ color: _br.dk }}>{previewSheets[lightbox].no}</b>
+          <span>{previewSheets[lightbox].name} {"\u00B7"} {lightboxPng ? "CLICK ANYWHERE TO CLOSE" : "LOADING FULL SIZE\u2026"}</span>
+        </div>
+      </div>
+    </div>}
+
+
+    {/* S96.5: Materials moved onto the delivery page. It used to live in the
+        right-hand canvas panel, which is hidden on Review now -- and a takeoff
+        the customer can actually read is evidence the set is complete, so it
+        belongs next to the sheets rather than beside the editing controls. */}
+    {m && m.items && <div style={{ padding: 14, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}`, marginBottom: 14 }}>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 8 }}>
+        <div style={{ fontSize: 9, fontWeight: 700, color: _br.gn, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>Materials & cost estimate</div>
+        <span style={{ fontSize: 9, fontFamily: _mono, color: _br.mu }}>
+          {(zc ? m.items.concat(zc.extraItems) : m.items).length} line items
+        </span>
+      </div>
+      <div style={{ maxHeight: 260, overflowY: "auto", borderRadius: 6, border: `1px solid ${_br.bd}`, background: "#fff" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: _mono, fontSize: 10 }}>
+          <thead><tr style={{ background: _br.wr }}>
+            <th style={{ textAlign: "left", padding: "5px 8px", color: _br.mu, fontSize: 8 }}>ITEM</th>
+            <th style={{ textAlign: "right", padding: "5px 8px", color: _br.mu, fontSize: 8 }}>QTY</th>
+            <th style={{ textAlign: "right", padding: "5px 8px", color: _br.mu, fontSize: 8 }}>EXT</th>
+          </tr></thead>
+          <tbody>{(zc ? m.items.concat(zc.extraItems) : m.items).map(function(it, i) {
+            return <tr key={i} style={{ borderBottom: `1px solid ${_br.wr}` }}>
+              <td style={{ padding: "4px 8px", color: _br.dk }}>{it.name}</td>
+              <td style={{ padding: "4px 8px", textAlign: "right", color: _br.gn }}>{it.qty}</td>
+              <td style={{ padding: "4px 8px", textAlign: "right", color: _br.mu }}>${it.ext}</td>
+            </tr>;
+          })}</tbody>
+        </table>
+      </div>
+      <div style={{ fontSize: 8, color: _br.mu, fontFamily: _mono, fontStyle: "italic", marginTop: 6 }}>
+        Estimate only {"\u00B7"} lumber prices vary by supplier and region. Delivered as a separate sheet with your set.
+      </div>
+    </div>}
+
+
+    {/* S96.5: Pricing preview. Everything is free during beta, so this is shown
+        as a PREVIEW of the paid flow rather than a live checkout -- it lets the
+        page be judged in the shape it will actually ship in, and sets the
+        expectation that the set has a price before it has one. */}
+    <div style={{ padding: 14, background: "#fff", borderRadius: 8, border: `1.5px solid ${_br.gn}`, marginBottom: 14 }}>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 10 }}>
+        <div style={{ fontSize: 9, fontWeight: 700, color: _br.gn, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>Your plan set</div>
+        <span style={{ fontSize: 8, fontFamily: _mono, color: "#f57f17", fontWeight: 700, letterSpacing: "0.5px" }}>FREE DURING BETA</span>
+      </div>
+      {[["Standard", "Full " + (previewSheets.length || 7) + "-sheet permit set", "$49"],
+        ["Complete", "Adds cut list & material takeoff", "$79"]].map(function(row, i) {
+        return <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, padding: "6px 0", borderBottom: i === 0 ? `1px solid ${_br.bd}` : "none" }}>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: _br.dk, fontFamily: _sans }}>{row[0]}</div>
+            <div style={{ fontSize: 9, color: _br.mu, fontFamily: _sans }}>{row[1]}</div>
+          </div>
+          <div style={{ fontSize: 13, fontFamily: _mono, color: _br.mu, textDecoration: "line-through" }}>{row[2]}</div>
+        </div>;
+      })}
+      <div style={{ fontSize: 9, color: _br.mu, fontFamily: _sans, marginTop: 8, lineHeight: 1.5 }}>
+        Nothing is charged today {"\u2014"} the full set is free while we are in beta.
+        Prices shown are what the set will cost later.
       </div>
     </div>
 

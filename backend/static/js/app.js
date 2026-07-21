@@ -1233,9 +1233,13 @@ const App = function SimpleBlueprints() {
       </nav>
       <div style={{ height: 3, background: br.wr }}><div style={{ height: "100%", background: br.gn, width: `${((step + 1) / steps.length) * 100}%`, transition: "width 0.3s" }} /></div>
 
-      <div style={{ maxWidth: 1180, margin: "0 auto", padding: "12px", display: "flex", gap: 16, flexWrap: "wrap" }}>
+      {/* S96.5: Review (step 4) is a DELIVERY page, not another editing step.
+          The live canvas is hidden there and this column goes full width, so
+          the finished drawing set is the whole surface instead of sharing the
+          screen with controls that invite more editing. */}
+      <div style={{ maxWidth: step === 4 ? 1080 : 1180, margin: "0 auto", padding: "12px", display: "flex", gap: 16, flexWrap: "wrap" }}>
         {/* LEFT: INPUTS */}
-        <div style={{ flex: "1 1 320px", minWidth: 290 }}>
+        <div style={{ flex: step === 4 ? "1 1 100%" : "1 1 320px", minWidth: 290 }}>
           <div style={{ background: "#fff", borderRadius: 10, padding: 22, border: `1px solid ${br.bd}`, boxShadow: "0 1px 8px rgba(0,0,0,0.04)" }}>
             <h2 style={{ margin: "0 0 18px", fontSize: 15, fontWeight: 800, color: br.dk, fontFamily: sans, borderBottom: `2px solid ${br.gn}`, paddingBottom: 8 }}>{steps[step].i} {steps[step].t}</h2>
 
@@ -1265,7 +1269,7 @@ const App = function SimpleBlueprints() {
         </div>
 
         {/* RIGHT: PREVIEW */}
-        <div style={{ flex: "1 1 500px", minWidth: 280 }}>
+        {step !== 4 && <div style={{ flex: "1 1 500px", minWidth: 280 }}>
           <div style={{ background: "#fff", borderRadius: 10, padding: 18, border: `1px solid ${br.bd}`, boxShadow: "0 1px 8px rgba(0,0,0,0.04)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
               <h3 style={{ margin: 0, fontSize: 12, fontWeight: 700, color: br.dk, fontFamily: mono, letterSpacing: "1px", textTransform: "uppercase" }}>{step === 0 ? "Site Plan Preview" : "Preview"}</h3>
@@ -1439,7 +1443,7 @@ const App = function SimpleBlueprints() {
               </div>
             </div>}
           </div>
-        </div>
+        </div>}
       </div>
     </div>
   );
