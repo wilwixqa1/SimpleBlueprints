@@ -540,14 +540,24 @@ def calculate_steel_structure(params):
     post_size = "3.5x3.5 Steel"
     auto_post_size = post_size
 
-    post_positions = []
-    for i in range(num_posts):
-        if num_posts == 1:
-            post_positions.append(width / 2)
-        else:
-            post_positions.append(round(2 + i * (width - 4) / (num_posts - 1), 2))
+    # S96: cutout-aware beam + post layout for STEEL (mirrors the wood path,
+    # fixes the steel notched-deck fallback). This is pure GEOMETRY -- where
+    # the beam and posts sit so they follow the notch profile and no post is
+    # stranded in a cutout. Steel keeps its own beam SIZING (2x11 single/double,
+    # computed above); only the layout is shared. On a flat / no-cutout deck,
+    # compute_beam_layout's flat branch reproduces the legacy even-spaced posts
+    # (_legacy_posts == the old formula) BYTE-FOR-BYTE, so plain steel decks are
+    # unchanged. cantilever_max follows the code's R507.5 span/4 convention
+    # (see note ~L148); refine if CCRR-0313 specifies a steel-specific allowance.
+    from .zone_utils import get_cutout_rects  # local: avoid import cycle
+    _cut_rects = get_cutout_rects(params)
+    _cantilever_max = round(joist_span / 4.0, 2)
+    beam_layout = compute_beam_layout(
+        width, depth, _cut_rects, num_posts,
+        cantilever_max=_cantilever_max, setback=1.5, max_beam_span=beam_max_span)
+    post_positions = [px for (px, _py) in beam_layout["post_xy"]]
 
-    total_posts = num_posts if attachment == "ledger" else num_posts * 2
+    total_posts = len(post_positions) if attachment == "ledger" else len(post_positions) * 2
 
     # Slope-adjusted post heights
     slope_pct = params.get("slopePercent", 0) / 100
@@ -681,6 +691,7 @@ def calculate_steel_structure(params):
         "steelGauge": gauge,
         "steelBeamIsSingle": beam_is_single,
         "steelLoadCase": load_case,
+        "beam_layout": beam_layout,  # S96: cutout-aware layout (steel notch fix)
         "auto": {
             "joist": joist_size, "beam": auto_beam,
             "post_size": auto_post_size, "post_count": auto_np,

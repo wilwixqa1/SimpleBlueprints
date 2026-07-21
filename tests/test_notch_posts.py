@@ -72,6 +72,24 @@ for name, params in CASES:
     check(f"{name}: no post in cutout", not hits,
           f"STRANDED {hits}" if hits else f"clean ({len(post_xy)} posts)")
 
+# --- S96: STEEL notched decks -- same B10 guarantee ------------------------
+# Steel used to skip the cutout-aware layout entirely (calculate_steel_structure
+# returned early with a straight even-spaced beam), so a notch could strand a
+# steel post. Steel now shares compute_beam_layout. Guard both: flat steel stays
+# on the legacy (non-stepped) layout, and notched steel strands no post.
+flat_steel = calculate_structure(_base(framingType="steel"))
+check("flat steel: legacy layout preserved (not stepped)",
+      flat_steel["beam_layout"]["stepped"] is False)
+STEEL_CASES = [
+    ("steel deep front notch (cd=6)", _base(framingType="steel", zones=[_cutout("front", 8, 6, off=6)])),
+    ("steel front-left notch", _base(framingType="steel", zones=[_cutout("front-left", 6, 5)])),
+    ("steel wide deep notch (cd=8)", _base(framingType="steel", width=24, depth=14, zones=[_cutout("front", 10, 8, off=7)])),
+]
+for name, params in STEEL_CASES:
+    hits, post_xy = posts_in_cutouts(params)
+    check(f"{name}: no post in cutout", not hits,
+          f"STRANDED {hits}" if hits else f"clean ({len(post_xy)} posts)")
+
 # --- P1.2: cutout-aware stair anchor ----------------------------------------
 # A location-derived front stair must anchor at the REAL front edge across its
 # footprint, not at full depth D over the notch void. S90 faked this with a
