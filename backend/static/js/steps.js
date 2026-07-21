@@ -1681,6 +1681,23 @@ function StepContent(props) {
   const [lightbox, setLightbox] = _stUS(null);
   const [lightboxPng, setLightboxPng] = _stUS(null);
   const previewTokenRef = React.useRef(0);
+  // S97: collapsed-materials toggle + sticky-footer CTA visibility.
+  const [materialsOpen, setMaterialsOpen] = _stUS(false);
+  const [showStickyCta, setShowStickyCta] = _stUS(false);
+  const ctaSentinelRef = React.useRef(null);
+  // Reveal the sticky footer CTA once the primary CTA has scrolled out of view
+  // upward, so a user reading the detail section can still convert in one tap.
+  _stUE(function() {
+    if (step !== 4) { setShowStickyCta(false); return; }
+    function onScroll() {
+      var el = ctaSentinelRef.current;
+      if (!el) return;
+      setShowStickyCta(el.getBoundingClientRect().bottom < 0);
+    }
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return function() { window.removeEventListener("scroll", onScroll); };
+  }, [step, previewSheets.length]);
 
   _stUE(function() {
     if (step !== 4) return;
@@ -1704,7 +1721,7 @@ function StepContent(props) {
       function next() {
         if (token !== previewTokenRef.current || i >= list.length) return;
         var idx = i++;
-        var body = Object.assign({}, p, { _sheet_index: idx, _dpi: 30 });
+        var body = Object.assign({}, p, { _sheet_index: idx, _dpi: 55 });
         fetch("/api/preview-sheet", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -4650,6 +4667,34 @@ function StepContent(props) {
   </>;
 
 // Step 4: Review (was Step 3 before S27)
+  // S97: shared generate-gate handler used by both the primary CTA and the
+  // sticky-footer CTA. Gating is identical to the pre-S97 inline button:
+  // required title-block fields -> missing modal; PPRBD unanswered -> pprbd
+  // modal; then disclaimer -> generate.
+  var _genReqMissing = [];
+  if (!info.owner) _genReqMissing.push("Owner / Applicant Name");
+  if (!info.address) _genReqMissing.push("Property Address");
+  if (!info.city) _genReqMissing.push("City");
+  if (!info.state) _genReqMissing.push("State");
+  if (!info.zip) _genReqMissing.push("ZIP");
+  function handleGenerateClick() {
+    if (_genReqMissing.length > 0 && !missingFieldsAcked) { setShowMissingModal(_genReqMissing); return; }
+    if (_isPPRBD && !pprbdChecklistAcked) {
+      var jcl = p.jurisdictionChecklist || {};
+      var hIn = (p.height || 4) * 12;
+      var fDep = c.footing_depth || 36;
+      var isDet = p.attachmentType === "freestanding";
+      var autos = { under18: hIn <= 18, over8ft: hIn >= 96, freestanding: isDet, excavation: fDep > 36 };
+      var uKeys = [];
+      ["cover", "electrical", "hottub", "cantilever", "under18", "over8ft", "freestanding", "excavation"].forEach(function(k) {
+        var v = jcl.hasOwnProperty(k) ? jcl[k] : (autos.hasOwnProperty(k) ? autos[k] : null);
+        if (v === null || v === undefined) uKeys.push(k);
+      });
+      if (uKeys.length > 0) { setShowPprbdModal(uKeys); return; }
+    }
+    disclaimerAcked ? generateBlueprint() : setShowDisclaimer(true);
+  }
+
   if (step === 4) return <>
     {/* S49: Guide panel for Step 4 */}
     {guideActive === true && (() => {
@@ -4676,108 +4721,314 @@ function StepContent(props) {
         chatMessages={chatMessages} chatLoading={chatLoading} onSendMessage={sendChatMessage} onApplyActions={_applyActions} setChatMessages={setChatMessages}
       />;
     })()}
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10, marginBottom: 14 }}>
-      <div style={{ padding: 12, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}` }}>
-        <div style={{ fontSize: 9, fontWeight: 700, color: _br.gn, marginBottom: 6, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>Project</div>
-        <Spec l="Size" v={`${fmtFtIn(c.W)}\u00D7${fmtFtIn(c.D)} (${zc ? zc.totalArea : c.area} SF)`} /><Spec l="Height" v={fmtFtIn(c.H)} /><Spec l="Attach" v={c.attachment === "ledger" ? "Ledger" : "Free"} /><Spec l="Stairs" v={(() => { var ds = p.deckStairs || []; if (!ds.length) return "Not included"; if (ds.length === 1) { var s0 = ds[0]; return `${s0.location} ${fmtFtIn(s0.width || 4)} \u00B7 ${s0.numStringers || 3} stringers`; } return ds.map(function(s) { var zn = s.zoneId === 0 ? "Main" : (p.zones || []).reduce(function(a, z) { return z.id === s.zoneId ? (z.label || "Zone " + z.id) : a; }, "Zone " + s.zoneId); return zn + " " + s.location + " " + fmtFtIn(s.width || 4); }).join(", "); })()} /><Spec l="Deck" v={p.deckingType === "composite" ? "Composite" : "PT"} /><Spec l="Rail" v={`${p.railType === "fortress" ? "Fortress" : "Wood"} \u00B7 ${c.guardHeight || 36}"`} />
-      </div>
-      <div style={{ padding: 12, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}` }}>
-        <div style={{ fontSize: 9, fontWeight: 700, color: _br.gn, marginBottom: 6, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>Structure</div>
-        <Spec l="Joists" v={`${c.joistSize}@${c.sp}"`} /><Spec l="Beam" v={c.beamSize.replace("3-ply ","3\u00D7").replace("2-ply ","2\u00D7")} /><Spec l="Posts" v={`${c.postSize}\u00D7${zc ? c.nP + zc.extraPosts : c.nP}`} /><Spec l="Footings" v={`${c.fDiam}"\u00D8\u00D7${c.nF}`} /><Spec l="Load" v={`${c.TL} PSF`} color={_br.rd} /><Spec l="Finishes" v={`${(p.deckingType === "composite" ? "Composite" : "PT pine")} / ${((p.railType || p.railingType || "fortress") === "wood" ? "Wood baluster" : "Fortress steel")}`} /><Spec l="Jurisdiction" v={_isPPRBD ? "Pikes Peak RBD" : "IRC 2021 (generic)"} />
-        {c.warnings.length > 0 && <div style={{ fontSize: 8, color: _br.rd, marginTop: 4, fontFamily: _mono }}>{"\u26A0\uFE0F"} {c.warnings.length} warning{c.warnings.length > 1 ? "s" : ""}</div>}
-      </div>
-    </div>
 
-    {/* S60: Permit Readiness Card */}
-    {(() => {
-      if (permitCheckLoading) return <div style={{ padding: 14, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}`, marginBottom: 14, textAlign: "center" }}>
-        <span style={{ fontSize: 9, fontFamily: _mono, color: _br.mu }}>Checking permit readiness...</span>
-      </div>;
-      if (!permitCheck) return null;
-      var rpt = permitCheck.permit_report;
-      var isReady = rpt.overall_status === "ready";
-      var isWarn = rpt.overall_status === "warnings";
-      var isFail = rpt.overall_status === "not_ready" || rpt.overall_status === "unsupported";
-      var statusColor = isReady ? "#2e7d32" : isWarn ? "#e65100" : "#c62828";
-      var statusBg = isReady ? "#e8f5e9" : isWarn ? "#fff3e0" : "#fbe9e7";
-      var statusBorder = isReady ? "#a5d6a7" : isWarn ? "#ffcc80" : "#ef9a9a";
-      var statusIcon = isReady ? "\u2705" : isWarn ? "\u26A0\uFE0F" : "\u274C";
-      var statusText = isReady ? "CHECKS PASSED" : isWarn ? "ADVISORIES" : "ISSUES FOUND";
-      var failChecks = (rpt.checks || []).filter(function(ck) { return ck.status === "fail"; });
-      var gapChecks = rpt.capability_gaps || [];
-      return <div style={{ padding: 14, background: statusBg, borderRadius: 8, border: `1.5px solid ${statusBorder}`, marginBottom: 14 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-          <span style={{ fontSize: 16 }}>{statusIcon}</span>
-          <div>
-            <div style={{ fontSize: 12, fontWeight: 700, color: statusColor, fontFamily: _mono, letterSpacing: "1px" }}>{statusText}</div>
-            <div style={{ fontSize: 10, color: _br.mu, fontFamily: _sans }}>{rpt.passed}/{rpt.total_applicable} checks passed {"\u00B7"} {(p.framingType || "wood") === "steel" ? "CCRR-0313" : "IRC 2021"}</div>
-          </div>
-        </div>
-        {failChecks.length > 0 && <div style={{ marginBottom: 6 }}>
-          {failChecks.map(function(ck, i) { return <div key={i} style={{ fontSize: 10, fontFamily: _sans, color: "#c62828", padding: "5px 0", borderTop: i > 0 ? "1px solid " + statusBorder : "none" }}>
-            {"\u2022"} <strong>{ck.message}</strong>
-            {ck.fix ? <div style={{ fontSize: 9, color: "#555", marginTop: 2, marginLeft: 12 }}>{"\u2192"} {ck.fix}{ck.fix_step != null ? <button onClick={function(){window._wizStep && window._wizStep(ck.fix_step)}} style={{marginLeft:6,fontSize:8,padding:"1px 6px",border:"1px solid #ccc",borderRadius:3,background:"#fff",cursor:"pointer",color:"#2563eb"}}>Go to Step {ck.fix_step + 1}</button> : null}</div> : null}
-          </div>; })}
-        </div>}
-        {gapChecks.length > 0 && failChecks.length === 0 && <div style={{ marginBottom: 6 }}>
-          {gapChecks.map(function(ck, i) { return <div key={i} style={{ fontSize: 10, fontFamily: _sans, color: "#e65100", padding: "5px 0" }}>
-            {"\u2022"} {ck.message}
-          </div>; })}
-        </div>}
-        <div style={{ fontSize: 7, color: _br.mu, fontFamily: _mono, fontStyle: "italic" }}>
-          {(p.framingType || "wood") === "steel"
-            ? "Fortress Evolution Steel \u00B7 Beam/joist spans per Intertek CCRR-0313"
-            : "Lumber: No. 2 DFL / Hem-Fir / SPF \u00B7 Beam spans per IRC R507.5 \u00B7 Joist spans per IRC R507.6"}
-        </div>
-        <div style={{ fontSize: 7, color: _br.mu, fontFamily: _mono, fontStyle: "italic", marginTop: 3 }}>
-          This is an automated pre-check, not a guarantee of permit approval. Always verify with your local building department.
-        </div>
-      </div>;
-    })()}
+    {/* ============================================================
+        S97: Review rebuilt as a delivery page. The rendered sheets are
+        the hero and lead the page; the CTA sits directly under them so a
+        convinced user converts without scrolling; everything else (the
+        "let me double-check" layer) drops into a narrow column below.
+        ============================================================ */}
 
-    {/* S96.5: REAL sheet previews. This block used to be three hand-drawn SVG
-        facsimiles of the sheets -- shapes that approximated the output without
-        matching it. The S88.5 mock had already dropped that idea because a
-        preview that doesn't match the product erodes trust exactly when the
-        user is deciding to pay. These are the user's OWN design rendered by the
-        same draw_* functions that produce the PDF, fetched one sheet at a time
-        so the grid fills in instead of blocking on a ~2s all-or-nothing call. */}
-    <div style={{ marginBottom: 14 }}>
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 8 }}>
-        <div style={{ fontSize: 10, fontWeight: 700, color: _br.gn, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>Your drawing set</div>
-        <div style={{ fontSize: 8, fontFamily: _mono, color: _br.mu }}>
-          {previewSheets.length > 0 ? (previewDone + " of " + previewSheets.length + " sheets") : "preparing\u2026"}
-        </div>
+    {/* ===== HERO: the drawing set ===== */}
+    <div style={{ marginBottom: 26 }}>
+      <h2 style={{ fontSize: 26, fontWeight: 800, color: _br.dk, fontFamily: _sans, letterSpacing: "-0.3px", margin: 0 }}>Your permit set is ready</h2>
+      <div style={{ fontSize: 13, color: _br.mu, fontFamily: _sans, marginTop: 5 }}>
+        {(previewSheets.length || 7)} sheets {"\u00B7"} drawn from your design by the same pipeline that makes your PDF
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 10 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gridAutoRows: 208, gap: 16, marginTop: 16 }}>
         {previewSheets.map(function(sh, i) {
+          var isHero = i === 0;
           return <div key={i} onClick={function() { if (sh.png) setLightbox(i); }}
-            style={{ background: "#fff", border: "1px solid " + _br.bd, borderRadius: 6, overflow: "hidden", cursor: sh.png ? "zoom-in" : "default" }}>
-            <div style={{ height: 150, display: "flex", alignItems: "center", justifyContent: "center", background: sh.png ? "#fff" : _br.wr }}>
+            style={{ gridColumn: isHero ? "span 2" : "auto", gridRow: isHero ? "span 2" : "auto", display: "flex", flexDirection: "column", background: "#fff", border: "1px solid " + _br.bd, borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 14px rgba(26,31,22,0.07)", cursor: sh.png ? "zoom-in" : "default" }}>
+            <div style={{ flex: 1, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center", background: sh.png ? "#fff" : _br.wr, padding: isHero ? 14 : 8 }}>
               {sh.png
-                ? <img src={"data:image/png;base64," + sh.png} alt={sh.name} style={{ width: "100%", display: "block" }} />
+                ? <img src={"data:image/png;base64," + sh.png} alt={sh.name} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", display: "block" }} />
                 : sh.error
-                  ? <span style={{ fontSize: 8, fontFamily: _mono, color: _br.rd, padding: 8, textAlign: "center" }}>RENDER ERROR</span>
-                  : <span style={{ fontSize: 8, fontFamily: _mono, color: _br.mu, letterSpacing: "1px" }}>DRAWING{"\u2026"}</span>}
+                  ? <span style={{ fontSize: 9, fontFamily: _mono, color: _br.rd, padding: 8, textAlign: "center" }}>RENDER ERROR</span>
+                  : <span style={{ fontSize: 9, fontFamily: _mono, color: _br.mu, letterSpacing: "1.5px" }}>DRAWING{"\u2026"}</span>}
             </div>
-            <div style={{ padding: "4px 7px", borderTop: "1px solid " + _br.bd, background: _br.wr, display: "flex", justifyContent: "space-between", gap: 6 }}>
-              <span style={{ fontSize: 7, fontFamily: _mono, fontWeight: 700, color: _br.dk }}>{sh.no}</span>
-              <span style={{ fontSize: 7, fontFamily: _mono, color: _br.mu, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sh.name}</span>
+            <div style={{ padding: "6px 10px", borderTop: "1px solid " + _br.bd, background: _br.wr, display: "flex", justifyContent: "space-between", gap: 6, flexShrink: 0 }}>
+              <span style={{ fontSize: isHero ? 9 : 8, fontFamily: _mono, fontWeight: 700, color: _br.dk }}>{sh.no}</span>
+              <span style={{ fontSize: isHero ? 9 : 8, fontFamily: _mono, color: _br.mu, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sh.name}</span>
             </div>
           </div>;
         })}
       </div>
-      <div style={{ textAlign: "center", marginTop: 6 }}>
-        <span style={{ fontSize: 8, color: _br.mu, fontFamily: _mono }}>
-          {previewSheets.length > 0
-            ? previewSheets.length + " sheets " + "\u00B7" + " drawn from your design by the same pipeline that makes your PDF"
-            : "Rendering your sheets\u2026"}
-        </span>
+      <div style={{ marginTop: 8, fontSize: 10, color: _br.mu, fontFamily: _mono }}>
+        {previewSheets.length > 0
+          ? (previewDone < previewSheets.length ? (previewDone + " of " + previewSheets.length + " sheets rendered\u2026") : (previewSheets.length + " sheets \u00B7 click any sheet to inspect at full size"))
+          : "Rendering your sheets\u2026"}
       </div>
     </div>
 
-    {/* S96.5: full-size sheet inspection. Re-fetched at higher dpi so the
-        gallery can stay light without making the zoomed view mushy. */}
+    {/* ===== CTA: directly under the gallery ===== */}
+    {(() => {
+      var rpt = permitCheck && permitCheck.permit_report;
+      var isReady = rpt && rpt.overall_status === "ready";
+      var codeLabel = (p.framingType || "wood") === "steel" ? "CCRR-0313" : "IRC 2021";
+      return <div style={{ marginBottom: 30 }}>
+        {user ? <div>
+          <button data-section="generate" onClick={handleGenerateClick} disabled={genStatus === "generating"}
+            style={{ width: "100%", padding: "17px 24px", background: genStatus === "generating" ? "#555" : genStatus === "done" ? "#2e7d32" : _br.gn, color: "#fff", border: "none", borderRadius: 10, fontSize: 17, fontWeight: 800, cursor: genStatus === "generating" ? "wait" : "pointer", fontFamily: _sans, letterSpacing: "0.2px", boxShadow: "0 6px 22px rgba(61,90,46,0.32)", transition: "all 0.2s" }}>
+            {genStatus === "generating" ? "Generating PDF\u2026" : genStatus === "done" ? "\u2713 Download complete \u2014 generate again?" : "Generate my plan set"}
+          </button>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginTop: 10 }}>
+            <span style={{ fontSize: 11.5, color: _br.mu, fontFamily: _sans }}>
+              Free during beta {"\u00B7"} normally <span style={{ textDecoration: "line-through" }}>$49</span> {"\u00B7"} instant PDF, print-ready at 36{"\u00D7"}24
+            </span>
+            {permitCheckLoading
+              ? <span style={{ fontSize: 11, fontFamily: _sans, color: _br.mu }}>Checking permit readiness{"\u2026"}</span>
+              : rpt
+                ? <span style={{ fontSize: 11.5, fontFamily: _sans, color: isReady ? _br.gn : "#e65100", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 5 }}>
+                    <span>{isReady ? "\u2713" : "\u26A0\uFE0F"}</span>{rpt.passed}/{rpt.total_applicable} checks passed {"\u00B7"} {codeLabel}
+                  </span>
+                : null}
+          </div>
+          {genStatus === "error" && <div style={{ fontSize: 11, color: "#c62828", fontFamily: _sans, marginTop: 8 }}>Error: {genError}
+            {genError === "Please sign in first" && <button onClick={() => { try { var _state = { p: p, info: info, step: step, sitePlanMode: sitePlanMode, page: "wizard" }; if (sitePlanB64) _state.sitePlanB64 = sitePlanB64; try { localStorage.setItem("sb_auth_state", JSON.stringify(_state)); } catch (qe) { delete _state.sitePlanB64; localStorage.setItem("sb_auth_state", JSON.stringify(_state)); } } catch (e) { console.warn("Could not save auth state:", e); } window.location.href = `${API}/auth/login`; }} style={{ marginLeft: 8, padding: "3px 10px", background: "#fff", color: "#333", border: "1px solid #ccc", borderRadius: 4, fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: _mono }}>Sign in now</button>}
+          </div>}
+          {genStatus === "done" && materialsUrl && <div style={{ marginTop: 10 }}>
+            <a href={materialsUrl} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 16px", background: _br.wr, border: "1px solid " + _br.bd, borderRadius: 6, color: _br.dk, fontSize: 11, fontFamily: _sans, fontWeight: 600, textDecoration: "none", cursor: "pointer" }}>
+              {"\u2193"} Materials & cost estimate
+            </a>
+          </div>}
+        </div> : <div style={{ textAlign: "center", padding: "22px 20px", background: _br.wr, borderRadius: 10, border: "1px solid " + _br.bd }}>
+          <div style={{ fontSize: 13, color: _br.tx, fontFamily: _sans, marginBottom: 14 }}>Sign in to generate your plan set {"\u2014"} it's free during beta.</div>
+          <button onClick={() => { try { var _state = { p: p, info: info, step: step, sitePlanMode: sitePlanMode, page: "wizard" }; if (sitePlanB64) _state.sitePlanB64 = sitePlanB64; try { localStorage.setItem("sb_auth_state", JSON.stringify(_state)); } catch (qe) { delete _state.sitePlanB64; localStorage.setItem("sb_auth_state", JSON.stringify(_state)); } } catch (e) { console.warn("Could not save auth state:", e); } window.location.href = `${API}/auth/login`; }} style={{ padding: "12px 32px", background: "#fff", color: "#333", border: "1px solid " + _br.bd, borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: _sans, display: "inline-flex", alignItems: "center", gap: 10, boxShadow: "0 2px 12px rgba(0,0,0,0.10)" }}>
+            <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#4285F4" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#34A853" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59a14.5 14.5 0 010-9.18l-7.98-6.19a24.04 24.04 0 000 21.56l7.98-6.19z"/><path fill="#EA4335" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+            Sign in with Google
+          </button>
+        </div>}
+        <div ref={ctaSentinelRef} style={{ height: 1 }} />
+      </div>;
+    })()}
+
+    {/* Permit detail: shown only when NOT ready. When ready, the one-line
+        check beside the CTA is enough -- no heavy card above the fold. */}
+    {(() => {
+      if (permitCheckLoading || !permitCheck) return null;
+      var rpt = permitCheck.permit_report;
+      if (rpt.overall_status === "ready") return null;
+      var isWarn = rpt.overall_status === "warnings";
+      var accent = isWarn ? "#e65100" : "#c62828";
+      var failChecks = (rpt.checks || []).filter(function(ck) { return ck.status === "fail"; });
+      var gapChecks = rpt.capability_gaps || [];
+      return <div style={{ maxWidth: 720, margin: "-14px auto 30px", padding: "12px 16px", background: "#fff", borderRadius: 8, border: "1px solid " + _br.bd, borderLeft: "3px solid " + accent }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: accent, fontFamily: _sans, marginBottom: failChecks.length || gapChecks.length ? 8 : 0 }}>
+          {isWarn ? "Advisories before you submit" : "Issues to resolve"}
+        </div>
+        {failChecks.map(function(ck, i) { return <div key={i} style={{ fontSize: 11, fontFamily: _sans, color: "#c62828", padding: "5px 0", borderTop: i > 0 ? "1px solid " + _br.bd : "none" }}>
+          {"\u2022"} <strong>{ck.message}</strong>
+          {ck.fix ? <div style={{ fontSize: 10, color: _br.mu, marginTop: 2, marginLeft: 12 }}>{"\u2192"} {ck.fix}{ck.fix_step != null ? <button onClick={function(){window._wizStep && window._wizStep(ck.fix_step)}} style={{marginLeft:6,fontSize:9,padding:"1px 6px",border:"1px solid "+_br.bd,borderRadius:3,background:"#fff",cursor:"pointer",color:_br.bl}}>Go to Step {ck.fix_step + 1}</button> : null}</div> : null}
+        </div>; })}
+        {gapChecks.length > 0 && failChecks.length === 0 && gapChecks.map(function(ck, i) { return <div key={i} style={{ fontSize: 11, fontFamily: _sans, color: "#e65100", padding: "5px 0" }}>
+          {"\u2022"} {ck.message}
+        </div>; })}
+      </div>;
+    })()}
+
+    {/* ===== BELOW THE FOLD: the double-check layer, narrow column ===== */}
+    <div style={{ maxWidth: 720, margin: "0 auto" }}>
+
+      {/* Summary: the two beige spec tables merged into one quiet white card */}
+      <div style={{ padding: 18, background: "#fff", borderRadius: 8, border: "1px solid " + _br.bd, marginBottom: 14 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: _br.dk, fontFamily: _sans, marginBottom: 12 }}>Summary</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "0 32px" }}>
+          <div>
+            <Spec l="Size" v={`${fmtFtIn(c.W)}\u00D7${fmtFtIn(c.D)} (${zc ? zc.totalArea : c.area} SF)`} /><Spec l="Height" v={fmtFtIn(c.H)} /><Spec l="Attach" v={c.attachment === "ledger" ? "Ledger" : "Free"} /><Spec l="Stairs" v={(() => { var ds = p.deckStairs || []; if (!ds.length) return "Not included"; if (ds.length === 1) { var s0 = ds[0]; return `${s0.location} ${fmtFtIn(s0.width || 4)} \u00B7 ${s0.numStringers || 3} stringers`; } return ds.map(function(s) { var zn = s.zoneId === 0 ? "Main" : (p.zones || []).reduce(function(a, z) { return z.id === s.zoneId ? (z.label || "Zone " + z.id) : a; }, "Zone " + s.zoneId); return zn + " " + s.location + " " + fmtFtIn(s.width || 4); }).join(", "); })()} /><Spec l="Deck" v={p.deckingType === "composite" ? "Composite" : "PT"} /><Spec l="Rail" v={`${p.railType === "fortress" ? "Fortress" : "Wood"} \u00B7 ${c.guardHeight || 36}"`} />
+          </div>
+          <div>
+            <Spec l="Joists" v={`${c.joistSize}@${c.sp}"`} /><Spec l="Beam" v={c.beamSize.replace("3-ply ","3\u00D7").replace("2-ply ","2\u00D7")} /><Spec l="Posts" v={`${c.postSize}\u00D7${zc ? c.nP + zc.extraPosts : c.nP}`} /><Spec l="Footings" v={`${c.fDiam}"\u00D8\u00D7${c.nF}`} /><Spec l="Load" v={`${c.TL} PSF`} color={_br.rd} /><Spec l="Finishes" v={`${(p.deckingType === "composite" ? "Composite" : "PT pine")} / ${((p.railType || p.railingType || "fortress") === "wood" ? "Wood baluster" : "Fortress steel")}`} /><Spec l="Jurisdiction" v={_isPPRBD ? "Pikes Peak RBD" : "IRC 2021 (generic)"} />
+            {c.warnings.length > 0 && <div style={{ fontSize: 9, color: _br.rd, marginTop: 4, fontFamily: _mono }}>{"\u26A0\uFE0F"} {c.warnings.length} warning{c.warnings.length > 1 ? "s" : ""}</div>}
+          </div>
+        </div>
+      </div>
+
+      {/* Materials: full takeoff kept, collapsed by default behind a summary line */}
+      {m && m.items && (() => {
+        var allItems = zc ? m.items.concat(zc.extraItems) : m.items;
+        var matTotal = (zc ? m.total + zc.extraTotal : m.total).toFixed(0);
+        return <div style={{ background: "#fff", borderRadius: 8, border: "1px solid " + _br.bd, marginBottom: 14, overflow: "hidden" }}>
+          <div onClick={function() { setMaterialsOpen(function(o) { return !o; }); }}
+            style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", cursor: "pointer" }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: _br.dk, fontFamily: _sans }}>Materials & cost estimate</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 12, color: _br.mu, fontFamily: _sans }}>{allItems.length} line items {"\u00B7"} ${matTotal} estimated</span>
+              <span style={{ fontSize: 11, color: _br.mu, transform: materialsOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s" }}>{"\u25BE"}</span>
+            </div>
+          </div>
+          {materialsOpen && <div style={{ padding: "0 18px 16px" }}>
+            <div style={{ maxHeight: 300, overflowY: "auto", borderRadius: 6, border: "1px solid " + _br.bd, background: "#fff" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: _mono, fontSize: 10 }}>
+                <thead><tr style={{ background: _br.wr }}>
+                  <th style={{ textAlign: "left", padding: "5px 8px", color: _br.mu, fontSize: 8 }}>ITEM</th>
+                  <th style={{ textAlign: "right", padding: "5px 8px", color: _br.mu, fontSize: 8 }}>QTY</th>
+                  <th style={{ textAlign: "right", padding: "5px 8px", color: _br.mu, fontSize: 8 }}>EXT</th>
+                </tr></thead>
+                <tbody>{allItems.map(function(it, i) {
+                  return <tr key={i} style={{ borderBottom: `1px solid ${_br.wr}` }}>
+                    <td style={{ padding: "4px 8px", color: _br.dk }}>{it.item}</td>
+                    <td style={{ padding: "4px 8px", textAlign: "right", color: _br.tx }}>{it.qty}</td>
+                    <td style={{ padding: "4px 8px", textAlign: "right", color: _br.mu }}>${(it.qty * it.cost).toFixed(0)}</td>
+                  </tr>;
+                })}</tbody>
+              </table>
+            </div>
+            <div style={{ fontSize: 9, color: _br.mu, fontFamily: _sans, fontStyle: "italic", marginTop: 8 }}>
+              Estimate only {"\u00B7"} lumber prices vary by supplier and region. Delivered as a separate sheet with your set. Includes tax + 5% contingency.
+            </div>
+          </div>}
+        </div>;
+      })()}
+
+      {/* Title block / project information -- confirmable rows, edit on request.
+          Kept LAST per the handoff; gating on the required fields is unchanged
+          (see the Generate handler + missing-fields modal). */}
+      <div data-section="projectInfo" style={{ padding: 18, background: "#fff", borderRadius: 8, border: "1px solid " + _br.bd, marginBottom: 14 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: _br.dk, fontFamily: _sans, marginBottom: 12 }}>Project information <span style={{ fontWeight: 400, color: _br.mu, fontSize: 11 }}>(prints on the title block)</span></div>
+        {(function() {
+          var _need = ["owner", "address", "city", "state", "zip"];
+          var _missing = _need.filter(function(f) { return !((info[f] || "").toString().trim()); });
+          if (infoEditing || _missing.length > 0) return null;
+          return <div>
+            {[["owner","Owner / Applicant"],["address","Project Address"],["city","City"],["state","State"],["zip","ZIP"],["lot","Lot / Parcel #"],["contractor","Contractor"]].map(function(row) {
+              var f = row[0], lbl = row[1], val = (info[f] || "").toString().trim();
+              if (!val) return null;
+              return <div key={f} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "5px 0", borderBottom: `1px solid ${_br.wr}` }}>
+                <span style={{ fontSize: 11, color: _br.mu, fontFamily: _sans }}>{lbl}</span>
+                <span style={{ fontSize: 11, color: _br.dk, fontFamily: _mono, fontWeight: 600, textAlign: "right" }}>{val}</span>
+              </div>;
+            })}
+            <button onClick={function() { setInfoEditing(true); }} style={{ marginTop: 10, background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 11, fontFamily: _sans, color: _br.gn, textDecoration: "underline" }}>Edit project info</button>
+          </div>;
+        })()}
+        {(function() {
+          var _need = ["owner", "address", "city", "state", "zip"];
+          var _missing = _need.filter(function(f) { return !((info[f] || "").toString().trim()); });
+          if (!infoEditing && _missing.length === 0) return null;
+          return <div>
+        {[["owner", "Owner / Applicant Name"],["address", "Project Address"],["city", "City"]].map(([f, lbl]) => (
+          <div key={f} style={{ marginBottom: 8 }}>
+            <label style={{ fontSize: 10, color: _br.mu, fontFamily: _sans, display: "block", marginBottom: 3 }}>{lbl}</label>
+            <input value={info[f]} onChange={e => setI(f, e.target.value)} placeholder={lbl} style={{ width: "100%", padding: "8px 10px", border: !info[f] ? "1.5px solid #f59e0b" : "1px solid " + _br.bd, borderRadius: 5, fontSize: 12, fontFamily: _mono, color: _br.tx, background: !info[f] ? "#fffbeb" : "#fff", outline: "none" }} />
+          </div>
+        ))}
+        <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+          <div style={{ flex: 1 }}><label style={{ fontSize: 10, color: _br.mu, fontFamily: _sans, display: "block", marginBottom: 3 }}>State</label><input value={info.state} onChange={e => setI("state", e.target.value)} placeholder="State" style={{ width: "100%", padding: "8px 10px", border: !info.state ? "1.5px solid #f59e0b" : "1px solid " + _br.bd, borderRadius: 5, fontSize: 12, fontFamily: _mono, color: _br.tx, background: !info.state ? "#fffbeb" : "#fff", outline: "none" }} /></div>
+          <div style={{ flex: 1 }}><label style={{ fontSize: 10, color: _br.mu, fontFamily: _sans, display: "block", marginBottom: 3 }}>ZIP</label><input value={info.zip} onChange={e => setI("zip", e.target.value)} placeholder="ZIP" style={{ width: "100%", padding: "8px 10px", border: !info.zip ? "1.5px solid #f59e0b" : "1px solid " + _br.bd, borderRadius: 5, fontSize: 12, fontFamily: _mono, color: _br.tx, background: !info.zip ? "#fffbeb" : "#fff", outline: "none" }} /></div>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ flex: 1 }}><label style={{ fontSize: 10, color: _br.mu, fontFamily: _sans, display: "block", marginBottom: 3 }}>Lot / Parcel #</label><input value={info.lot} onChange={e => setI("lot", e.target.value)} placeholder="Optional" style={{ width: "100%", padding: "8px 10px", border: `1px solid ${_br.bd}`, borderRadius: 5, fontSize: 12, fontFamily: _mono, color: _br.tx, background: "#fff", outline: "none" }} /></div>
+          <div style={{ flex: 1 }}><label style={{ fontSize: 10, color: _br.mu, fontFamily: _sans, display: "block", marginBottom: 3 }}>Contractor</label><input value={info.contractor} onChange={e => setI("contractor", e.target.value)} placeholder="Owner-Builder" style={{ width: "100%", padding: "8px 10px", border: `1px solid ${_br.bd}`, borderRadius: 5, fontSize: 12, fontFamily: _mono, color: _br.tx, background: "#fff", outline: "none" }} /></div>
+        </div>
+          </div>;
+        })()}
+      </div>
+
+      {/* S50: PPRBD Deck Attachment Sheet checklist (PPRBD jurisdiction only) */}
+      {(() => {
+        if (!_isPPRBD) return null;
+
+        var heightIn = (p.height || 4) * 12;
+        var footingDepth = c.footing_depth || 36;
+        var isDetached = p.attachmentType === "freestanding";
+        var jcl = p.jurisdictionChecklist || {};
+
+        var items = [
+          { key: "cover", label: "Deck design includes a solid cover or pergola style cover", autoVal: null },
+          { key: "electrical", label: "Electrical service and meter location may be affected by deck", autoVal: null },
+          { key: "hottub", label: "Deck supports hot tub or spa loading", autoVal: null },
+          { key: "cantilever", label: "Deck is supported by cantilever at house (existing inverted hanger installation verified or engineering provided)", autoVal: null },
+          { key: "under18", label: "Walking surface less than 18\" above grade", autoVal: heightIn <= 18 },
+          { key: "over8ft", label: "Walking surface 8'0\" or more above grade", autoVal: heightIn >= 96 },
+          { key: "freestanding", label: "Deck is freestanding and not attached to a structure (detached)", autoVal: isDetached },
+          { key: "excavation", label: "Proposed excavation or vertical penetration greater than 3'-0\" in depth", autoVal: footingDepth > 36 }
+        ];
+
+        var setItem = function(key, newVal) {
+          var updated = Object.assign({}, jcl);
+          updated[key] = newVal;
+          u("jurisdictionChecklist", updated);
+        };
+
+        var unansweredCount = 0;
+        items.forEach(function(item) {
+          var resolved = jcl.hasOwnProperty(item.key) ? jcl[item.key] : item.autoVal;
+          if (resolved === null || resolved === undefined) unansweredCount++;
+        });
+
+        return <div style={{ padding: 16, background: "#f0f7ff", borderRadius: 8, border: unansweredCount > 0 ? "1.5px solid #f59e0b" : "1px solid #bbdefb", marginBottom: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#1565c0", fontFamily: _sans }}>PPRBD Deck Attachment Sheet</div>
+            <span style={{ fontSize: 9, color: "#64b5f6", fontFamily: _mono, fontWeight: 400 }}>Pikes Peak Region</span>
+          </div>
+          <div style={{ fontSize: 11, color: "#5c6b7a", fontFamily: _sans, marginBottom: 12, lineHeight: 1.5 }}>
+            Pikes Peak Regional Building Dept. requires this checklist with all deck permits in El Paso County and Woodland Park. Items marked with a green check were auto-filled from your design. Please answer the remaining items or skip when generating.
+          </div>
+          {unansweredCount > 0 && <div style={{ padding: "6px 10px", background: "#fff8e1", borderRadius: 4, border: "1px solid #ffe082", borderLeft: "3px solid #f59e0b", marginBottom: 12 }}>
+            <span style={{ fontSize: 10, fontFamily: _sans, color: "#d97706", fontWeight: 600 }}>{unansweredCount} item{unansweredCount > 1 ? "s" : ""} still need{unansweredCount === 1 ? "s" : ""} your answer</span>
+          </div>}
+          <div style={{ display: "flex", gap: 24, marginBottom: 8, paddingLeft: 2 }}>
+            <span style={{ fontSize: 8, fontFamily: _mono, fontWeight: 700, color: "#1565c0", width: 30, textAlign: "center" }}>YES</span>
+            <span style={{ fontSize: 8, fontFamily: _mono, fontWeight: 700, color: "#1565c0", width: 30, textAlign: "center" }}>NO</span>
+          </div>
+          {items.map(function(item) {
+            var val = jcl.hasOwnProperty(item.key) ? jcl[item.key] : item.autoVal;
+            var isUnanswered = val === null || val === undefined;
+            var isAutoFilled = !jcl.hasOwnProperty(item.key) && item.autoVal !== null;
+            return <div key={item.key} style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 6, paddingLeft: 2, padding: "4px 2px", borderRadius: 4, background: isUnanswered ? "#fff8e1" : "transparent" }}>
+              <div style={{ display: "flex", gap: 24, flexShrink: 0 }}>
+                <button onClick={function() { setItem(item.key, true); }} style={{
+                  width: 30, height: 20, borderRadius: 3, cursor: "pointer",
+                  border: val === true ? "2px solid #1565c0" : isUnanswered ? "1.5px solid #f59e0b" : "1px solid #bbb",
+                  background: val === true ? "#e3f2fd" : "#fff",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 12, fontWeight: 900, color: "#1565c0", fontFamily: _mono
+                }}>{val === true ? "X" : ""}</button>
+                <button onClick={function() { setItem(item.key, false); }} style={{
+                  width: 30, height: 20, borderRadius: 3, cursor: "pointer",
+                  border: val === false ? "2px solid #1565c0" : isUnanswered ? "1.5px solid #f59e0b" : "1px solid #bbb",
+                  background: val === false ? "#e3f2fd" : "#fff",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 12, fontWeight: 900, color: "#1565c0", fontFamily: _mono
+                }}>{val === false ? "X" : ""}</button>
+              </div>
+              <span style={{ fontSize: 10, fontFamily: _sans, color: _br.tx, lineHeight: 1.5, paddingTop: 2 }}>
+                {item.label}
+                {isAutoFilled && <span style={{ color: "#2e7d32", fontSize: 8, marginLeft: 4 }}>(auto-filled)</span>}
+              </span>
+            </div>;
+          })}
+        </div>;
+      })()}
+
+      {isProduction && !feedbackDone && <div style={{ padding: 16, background: "#fff8e1", borderRadius: 8, border: "1px solid #ffe082", marginBottom: 14 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "#f57f17", fontFamily: _sans, marginBottom: 10 }}>Quick feedback <span style={{ fontWeight: 400, color: "#ffa000", fontSize: 10 }}>(helps us build what you need)</span></div>
+        <div style={{ marginBottom: 8 }}><label style={{ fontSize: 10, color: _br.mu, fontFamily: _sans, display: "block", marginBottom: 3 }}>I am a...</label><div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>{[["diy","DIY Homeowner"],["contractor","Contractor"],["designer","Designer"],["other","Other"]].map(([v,t])=>(<button key={v} onClick={()=>setFeedback(f=>({...f,role:v}))} style={{padding:"5px 12px",borderRadius:5,fontSize:10,fontFamily:_sans,cursor:"pointer",border:feedback.role===v?"2px solid #f57f17":"1px solid "+_br.bd,background:feedback.role===v?"#fff3e0":"#fff",color:feedback.role===v?"#e65100":_br.tx,fontWeight:feedback.role===v?700:400}}>{t}</button>))}</div></div>
+        <div style={{ marginBottom: 8 }}><label style={{ fontSize: 10, color: _br.mu, fontFamily: _sans, display: "block", marginBottom: 3 }}>How did you find us?</label><input value={feedback.source} onChange={e=>setFeedback(f=>({...f,source:e.target.value}))} placeholder="Google, Reddit, friend, etc." style={{width:"100%",padding:"6px 10px",border:"1px solid "+_br.bd,borderRadius:5,fontSize:11,fontFamily:_mono,color:_br.tx,background:"#fff",outline:"none"}} /></div>
+        <div style={{ marginBottom: 8 }}><label style={{ fontSize: 10, color: _br.mu, fontFamily: _sans, display: "block", marginBottom: 3 }}>What would you pay for this?</label><div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>{[["$0","$0"],["$25-49","$25\u201349"],["$50-99","$50\u201399"],["$100+","$100+"]].map(([v,t])=>(<button key={v} onClick={()=>setFeedback(f=>({...f,price:v}))} style={{padding:"5px 12px",borderRadius:5,fontSize:10,fontFamily:_sans,cursor:"pointer",border:feedback.price===v?"2px solid #f57f17":"1px solid "+_br.bd,background:feedback.price===v?"#fff3e0":"#fff",color:feedback.price===v?"#e65100":_br.tx,fontWeight:feedback.price===v?700:400}}>{t}</button>))}</div></div>
+        <div style={{ marginBottom: 8 }}><label style={{ fontSize: 10, color: _br.mu, fontFamily: _sans, display: "block", marginBottom: 3 }}>Anything confusing or missing? <span style={{ color: "#bbb" }}>(optional)</span></label><textarea value={feedback.feedback} onChange={e=>setFeedback(f=>({...f,feedback:e.target.value}))} placeholder="Your thoughts..." rows={2} style={{width:"100%",padding:"6px 10px",border:"1px solid "+_br.bd,borderRadius:5,fontSize:11,fontFamily:_mono,color:_br.tx,background:"#fff",outline:"none",resize:"vertical"}} /></div>
+        <div style={{ marginBottom: 10 }}><label style={{ fontSize: 10, color: _br.mu, fontFamily: _sans, display: "block", marginBottom: 3 }}>Email <span style={{ color: "#bbb" }}>(optional)</span></label><input type="email" value={feedback.email} onChange={e=>setFeedback(f=>({...f,email:e.target.value}))} placeholder="you@example.com" style={{width:"100%",padding:"6px 10px",border:"1px solid "+_br.bd,borderRadius:5,fontSize:11,fontFamily:_mono,color:_br.tx,background:"#fff",outline:"none"}} /></div>
+        <button onClick={submitFeedback} disabled={!feedback.role||!feedback.price} style={{padding:"8px 20px",background:!feedback.role||!feedback.price?"#ccc":"#f57f17",border:"none",borderRadius:6,color:"#fff",fontSize:11,fontWeight:700,cursor:!feedback.role||!feedback.price?"default":"pointer",fontFamily:_sans}}>Submit feedback</button>
+        <span style={{ fontSize: 9, color: "#bbb", fontFamily: _sans, marginLeft: 8 }}>Optional \u2014 helps us build what you need</span>
+      </div>}
+      {isProduction && feedbackDone && <div style={{padding:10,background:"#e8f5e9",borderRadius:8,border:"1px solid #c8e6c9",marginBottom:14,textAlign:"center"}}><span style={{fontSize:11,color:"#2e7d32",fontFamily:_sans,fontWeight:700}}>{"\u2713"} Thanks for your feedback!</span></div>}
+
+    </div>
+
+    {/* Sticky footer CTA -- appears once the primary CTA has scrolled off */}
+    {showStickyCta && user && genStatus !== "done" && <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 3500, background: "rgba(255,255,255,0.97)", borderTop: "1px solid " + _br.bd, boxShadow: "0 -4px 18px rgba(26,31,22,0.08)", backdropFilter: "blur(6px)" }}>
+      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "11px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14 }}>
+        <span style={{ fontSize: 12.5, color: _br.tx, fontFamily: _sans }}>
+          <strong style={{ color: _br.dk }}>{(previewSheets.length || 7)}-sheet permit set</strong> {"\u00B7"} free during beta
+        </span>
+        <button onClick={handleGenerateClick} disabled={genStatus === "generating"} style={{ padding: "11px 26px", background: genStatus === "generating" ? "#555" : _br.gn, color: "#fff", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 800, cursor: genStatus === "generating" ? "wait" : "pointer", fontFamily: _sans, letterSpacing: "0.2px", boxShadow: "0 3px 14px rgba(61,90,46,0.3)", whiteSpace: "nowrap" }}>
+          {genStatus === "generating" ? "Generating\u2026" : "Generate my plan set"}
+        </button>
+      </div>
+    </div>}
+
+    {/* S96.5: full-size sheet inspection. Re-fetched at higher dpi. */}
     {lightbox != null && previewSheets[lightbox] && <div
       onClick={function() { setLightbox(null); }}
       style={{ position: "fixed", inset: 0, background: "rgba(20,24,18,0.82)", zIndex: 4000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, cursor: "zoom-out" }}>
@@ -4792,240 +5043,9 @@ function StepContent(props) {
       </div>
     </div>}
 
-
-    {/* S96.5: Materials moved onto the delivery page. It used to live in the
-        right-hand canvas panel, which is hidden on Review now -- and a takeoff
-        the customer can actually read is evidence the set is complete, so it
-        belongs next to the sheets rather than beside the editing controls. */}
-    {m && m.items && <div style={{ padding: 14, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}`, marginBottom: 14 }}>
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 8 }}>
-        <div style={{ fontSize: 9, fontWeight: 700, color: _br.gn, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>Materials & cost estimate</div>
-        <span style={{ fontSize: 9, fontFamily: _mono, color: _br.mu }}>
-          {(zc ? m.items.concat(zc.extraItems) : m.items).length} line items
-        </span>
-      </div>
-      <div style={{ maxHeight: 260, overflowY: "auto", borderRadius: 6, border: `1px solid ${_br.bd}`, background: "#fff" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: _mono, fontSize: 10 }}>
-          <thead><tr style={{ background: _br.wr }}>
-            <th style={{ textAlign: "left", padding: "5px 8px", color: _br.mu, fontSize: 8 }}>ITEM</th>
-            <th style={{ textAlign: "right", padding: "5px 8px", color: _br.mu, fontSize: 8 }}>QTY</th>
-            <th style={{ textAlign: "right", padding: "5px 8px", color: _br.mu, fontSize: 8 }}>EXT</th>
-          </tr></thead>
-          <tbody>{(zc ? m.items.concat(zc.extraItems) : m.items).map(function(it, i) {
-            return <tr key={i} style={{ borderBottom: `1px solid ${_br.wr}` }}>
-              <td style={{ padding: "4px 8px", color: _br.dk }}>{it.item}</td>
-              <td style={{ padding: "4px 8px", textAlign: "right", color: _br.gn }}>{it.qty}</td>
-              <td style={{ padding: "4px 8px", textAlign: "right", color: _br.mu }}>${(it.qty * it.cost).toFixed(0)}</td>
-            </tr>;
-          })}</tbody>
-        </table>
-      </div>
-      <div style={{ fontSize: 8, color: _br.mu, fontFamily: _mono, fontStyle: "italic", marginTop: 6 }}>
-        Estimate only {"\u00B7"} lumber prices vary by supplier and region. Delivered as a separate sheet with your set.
-      </div>
-    </div>}
-
-
-    {/* S96.5: Pricing preview. Everything is free during beta, so this is shown
-        as a PREVIEW of the paid flow rather than a live checkout -- it lets the
-        page be judged in the shape it will actually ship in, and sets the
-        expectation that the set has a price before it has one. */}
-    <div style={{ padding: 14, background: "#fff", borderRadius: 8, border: `1.5px solid ${_br.gn}`, marginBottom: 14 }}>
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 10 }}>
-        <div style={{ fontSize: 9, fontWeight: 700, color: _br.gn, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>Your plan set</div>
-        <span style={{ fontSize: 8, fontFamily: _mono, color: "#f57f17", fontWeight: 700, letterSpacing: "0.5px" }}>FREE DURING BETA</span>
-      </div>
-      {[["Standard", "Full " + (previewSheets.length || 7) + "-sheet permit set", "$49"],
-        ["Complete", "Adds cut list & material takeoff", "$79"]].map(function(row, i) {
-        return <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, padding: "6px 0", borderBottom: i === 0 ? `1px solid ${_br.bd}` : "none" }}>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: _br.dk, fontFamily: _sans }}>{row[0]}</div>
-            <div style={{ fontSize: 9, color: _br.mu, fontFamily: _sans }}>{row[1]}</div>
-          </div>
-          <div style={{ fontSize: 13, fontFamily: _mono, color: _br.mu, textDecoration: "line-through" }}>{row[2]}</div>
-        </div>;
-      })}
-      <div style={{ fontSize: 9, color: _br.mu, fontFamily: _sans, marginTop: 8, lineHeight: 1.5 }}>
-        Nothing is charged today {"\u2014"} the full set is free while we are in beta.
-        Prices shown are what the set will cost later.
-      </div>
-    </div>
-
-    <div data-section="projectInfo" style={{ padding: 14, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}`, marginBottom: 14 }}>
-      <div style={{ fontSize: 9, fontWeight: 700, color: _br.gn, marginBottom: 10, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>Project Information <span style={{ fontWeight: 400, color: _br.mu, fontSize: 8 }}>(prints on title block)</span></div>
-      {/* S96.5: This was a bare 6-field FORM on the page where the user decides
-          to pay -- blank inputs at the moment of commitment read as "something
-          is still missing". The data is almost always already known from the
-          address lookup, so show it as CONFIRMABLE ROWS and only open the form
-          when something is actually missing or the user asks to edit. */}
-      {(function() {
-        var _need = ["owner", "address", "city", "state", "zip"];
-        var _missing = _need.filter(function(f) { return !((info[f] || "").toString().trim()); });
-        if (infoEditing || _missing.length > 0) return null;
-        return <div>
-          {[["owner","Owner / Applicant"],["address","Project Address"],["city","City"],["state","State"],["zip","ZIP"],["lot","Lot / Parcel #"],["contractor","Contractor"]].map(function(row) {
-            var f = row[0], lbl = row[1], val = (info[f] || "").toString().trim();
-            if (!val) return null;
-            return <div key={f} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "4px 0", borderBottom: `1px solid ${_br.bd}` }}>
-              <span style={{ fontSize: 9, color: _br.mu, fontFamily: _mono }}>{lbl}</span>
-              <span style={{ fontSize: 10, color: _br.dk, fontFamily: _sans, fontWeight: 600, textAlign: "right" }}>{val}</span>
-            </div>;
-          })}
-          <button onClick={function() { setInfoEditing(true); }} style={{ marginTop: 8, background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 9, fontFamily: _mono, color: _br.gn, textDecoration: "underline" }}>Edit project info</button>
-        </div>;
-      })()}
-      {(function() {
-        var _need = ["owner", "address", "city", "state", "zip"];
-        var _missing = _need.filter(function(f) { return !((info[f] || "").toString().trim()); });
-        if (!infoEditing && _missing.length === 0) return null;
-        return <div>
-      {[["owner", "Owner / Applicant Name"],["address", "Project Address"],["city", "City"]].map(([f, lbl]) => (
-        <div key={f} style={{ marginBottom: 8 }}>
-          <label style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, display: "block", marginBottom: 2 }}>{lbl}</label>
-          <input value={info[f]} onChange={e => setI(f, e.target.value)} placeholder={lbl} style={{ width: "100%", padding: "7px 10px", border: !info[f] ? "1.5px solid #f59e0b" : "1px solid " + _br.bd, borderRadius: 5, fontSize: 12, fontFamily: _mono, color: _br.tx, background: !info[f] ? "#fffbeb" : "#fff", outline: "none" }} />
-        </div>
-      ))}
-      <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-        <div style={{ flex: 1 }}><label style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, display: "block", marginBottom: 2 }}>State</label><input value={info.state} onChange={e => setI("state", e.target.value)} placeholder="State" style={{ width: "100%", padding: "7px 10px", border: !info.state ? "1.5px solid #f59e0b" : "1px solid " + _br.bd, borderRadius: 5, fontSize: 12, fontFamily: _mono, color: _br.tx, background: !info.state ? "#fffbeb" : "#fff", outline: "none" }} /></div>
-        <div style={{ flex: 1 }}><label style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, display: "block", marginBottom: 2 }}>ZIP</label><input value={info.zip} onChange={e => setI("zip", e.target.value)} placeholder="ZIP" style={{ width: "100%", padding: "7px 10px", border: !info.zip ? "1.5px solid #f59e0b" : "1px solid " + _br.bd, borderRadius: 5, fontSize: 12, fontFamily: _mono, color: _br.tx, background: !info.zip ? "#fffbeb" : "#fff", outline: "none" }} /></div>
-      </div>
-      <div style={{ display: "flex", gap: 8 }}>
-        <div style={{ flex: 1 }}><label style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, display: "block", marginBottom: 2 }}>Lot / Parcel #</label><input value={info.lot} onChange={e => setI("lot", e.target.value)} placeholder="Optional" style={{ width: "100%", padding: "7px 10px", border: `1px solid ${_br.bd}`, borderRadius: 5, fontSize: 12, fontFamily: _mono, color: _br.tx, background: "#fff", outline: "none" }} /></div>
-        <div style={{ flex: 1 }}><label style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, display: "block", marginBottom: 2 }}>Contractor</label><input value={info.contractor} onChange={e => setI("contractor", e.target.value)} placeholder="Owner-Builder" style={{ width: "100%", padding: "7px 10px", border: `1px solid ${_br.bd}`, borderRadius: 5, fontSize: 12, fontFamily: _mono, color: _br.tx, background: "#fff", outline: "none" }} /></div>
-      </div>
-        </div>;
-      })()}
-    </div>
-
-    {/* S50: PPRBD Deck Attachment Sheet checklist (PPRBD jurisdiction only) */}
-    {(() => {
-      if (!_isPPRBD) return null;
-
-      var heightIn = (p.height || 4) * 12;
-      var footingDepth = c.footing_depth || 36;
-      var isDetached = p.attachmentType === "freestanding";
-      var jcl = p.jurisdictionChecklist || {};
-
-      // autoVal: true/false = we can determine from config, null = user must answer
-      var items = [
-        { key: "cover", label: "Deck design includes a solid cover or pergola style cover", autoVal: null },
-        { key: "electrical", label: "Electrical service and meter location may be affected by deck", autoVal: null },
-        { key: "hottub", label: "Deck supports hot tub or spa loading", autoVal: null },
-        { key: "cantilever", label: "Deck is supported by cantilever at house (existing inverted hanger installation verified or engineering provided)", autoVal: null },
-        { key: "under18", label: "Walking surface less than 18\" above grade", autoVal: heightIn <= 18 },
-        { key: "over8ft", label: "Walking surface 8'0\" or more above grade", autoVal: heightIn >= 96 },
-        { key: "freestanding", label: "Deck is freestanding and not attached to a structure (detached)", autoVal: isDetached },
-        { key: "excavation", label: "Proposed excavation or vertical penetration greater than 3'-0\" in depth", autoVal: footingDepth > 36 }
-      ];
-
-      var setItem = function(key, newVal) {
-        var updated = Object.assign({}, jcl);
-        updated[key] = newVal;
-        u("jurisdictionChecklist", updated);
-      };
-
-      var unansweredCount = 0;
-      items.forEach(function(item) {
-        var resolved = jcl.hasOwnProperty(item.key) ? jcl[item.key] : item.autoVal;
-        if (resolved === null || resolved === undefined) unansweredCount++;
-      });
-
-      return <div style={{ padding: 16, background: "#f0f7ff", borderRadius: 8, border: unansweredCount > 0 ? "1.5px solid #f59e0b" : "1px solid #bbdefb", marginBottom: 14 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: "#1565c0", fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>PPRBD Deck Attachment Sheet</div>
-          <span style={{ fontSize: 8, color: "#64b5f6", fontFamily: _mono, fontWeight: 400 }}>Pikes Peak Region</span>
-        </div>
-        <div style={{ fontSize: 9, color: "#5c6b7a", fontFamily: _mono, marginBottom: 12, lineHeight: 1.5 }}>
-          Pikes Peak Regional Building Dept. requires this checklist with all deck permits in El Paso County and Woodland Park. Items marked with a green check were auto-filled from your design. Please answer the remaining items or skip when generating.
-        </div>
-        {unansweredCount > 0 && <div style={{ padding: "6px 10px", background: "#fff8e1", borderRadius: 4, border: "1px solid #ffe082", borderLeft: "3px solid #f59e0b", marginBottom: 12 }}>
-          <span style={{ fontSize: 9, fontFamily: _mono, color: "#d97706", fontWeight: 600 }}>{unansweredCount} item{unansweredCount > 1 ? "s" : ""} still need{unansweredCount === 1 ? "s" : ""} your answer</span>
-        </div>}
-        <div style={{ display: "flex", gap: 24, marginBottom: 8, paddingLeft: 2 }}>
-          <span style={{ fontSize: 8, fontFamily: _mono, fontWeight: 700, color: "#1565c0", width: 30, textAlign: "center" }}>YES</span>
-          <span style={{ fontSize: 8, fontFamily: _mono, fontWeight: 700, color: "#1565c0", width: 30, textAlign: "center" }}>NO</span>
-        </div>
-        {items.map(function(item) {
-          var val = jcl.hasOwnProperty(item.key) ? jcl[item.key] : item.autoVal;
-          var isUnanswered = val === null || val === undefined;
-          var isAutoFilled = !jcl.hasOwnProperty(item.key) && item.autoVal !== null;
-          return <div key={item.key} style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 6, paddingLeft: 2, padding: "4px 2px", borderRadius: 4, background: isUnanswered ? "#fff8e1" : "transparent" }}>
-            <div style={{ display: "flex", gap: 24, flexShrink: 0 }}>
-              <button onClick={function() { setItem(item.key, true); }} style={{
-                width: 30, height: 20, borderRadius: 3, cursor: "pointer",
-                border: val === true ? "2px solid #1565c0" : isUnanswered ? "1.5px solid #f59e0b" : "1px solid #bbb",
-                background: val === true ? "#e3f2fd" : "#fff",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 12, fontWeight: 900, color: "#1565c0", fontFamily: _mono
-              }}>{val === true ? "X" : ""}</button>
-              <button onClick={function() { setItem(item.key, false); }} style={{
-                width: 30, height: 20, borderRadius: 3, cursor: "pointer",
-                border: val === false ? "2px solid #1565c0" : isUnanswered ? "1.5px solid #f59e0b" : "1px solid #bbb",
-                background: val === false ? "#e3f2fd" : "#fff",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 12, fontWeight: 900, color: "#1565c0", fontFamily: _mono
-              }}>{val === false ? "X" : ""}</button>
-            </div>
-            <span style={{ fontSize: 9, fontFamily: _mono, color: _br.tx, lineHeight: 1.5, paddingTop: 2 }}>
-              {item.label}
-              {isAutoFilled && <span style={{ color: "#2e7d32", fontSize: 7, marginLeft: 4 }}>(auto-filled)</span>}
-            </span>
-          </div>;
-        })}
-      </div>;
-    })()}
-
-    {isProduction && !feedbackDone && <div style={{ padding: 16, background: "#fff8e1", borderRadius: 8, border: "1px solid #ffe082", marginBottom: 14 }}>
-      <div style={{ fontSize: 10, fontWeight: 700, color: "#f57f17", fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 8 }}>Quick Feedback <span style={{ fontWeight: 400, color: "#ffa000", fontSize: 8 }}>(helps us build what you need)</span></div>
-      <div style={{ marginBottom: 8 }}><label style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, display: "block", marginBottom: 2 }}>I am a...</label><div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>{[["diy","DIY Homeowner"],["contractor","Contractor"],["designer","Designer"],["other","Other"]].map(([v,t])=>(<button key={v} onClick={()=>setFeedback(f=>({...f,role:v}))} style={{padding:"5px 12px",borderRadius:5,fontSize:10,fontFamily:_mono,cursor:"pointer",border:feedback.role===v?"2px solid #f57f17":"1px solid "+_br.bd,background:feedback.role===v?"#fff3e0":"#fff",color:feedback.role===v?"#e65100":_br.tx,fontWeight:feedback.role===v?700:400}}>{t}</button>))}</div></div>
-      <div style={{ marginBottom: 8 }}><label style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, display: "block", marginBottom: 2 }}>How did you find us?</label><input value={feedback.source} onChange={e=>setFeedback(f=>({...f,source:e.target.value}))} placeholder="Google, Reddit, friend, etc." style={{width:"100%",padding:"6px 10px",border:"1px solid "+_br.bd,borderRadius:5,fontSize:11,fontFamily:_mono,color:_br.tx,background:"#fff",outline:"none"}} /></div>
-      <div style={{ marginBottom: 8 }}><label style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, display: "block", marginBottom: 2 }}>What would you pay for this?</label><div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>{[["$0","$0"],["$25-49","$25\u201349"],["$50-99","$50\u201399"],["$100+","$100+"]].map(([v,t])=>(<button key={v} onClick={()=>setFeedback(f=>({...f,price:v}))} style={{padding:"5px 12px",borderRadius:5,fontSize:10,fontFamily:_mono,cursor:"pointer",border:feedback.price===v?"2px solid #f57f17":"1px solid "+_br.bd,background:feedback.price===v?"#fff3e0":"#fff",color:feedback.price===v?"#e65100":_br.tx,fontWeight:feedback.price===v?700:400}}>{t}</button>))}</div></div>
-      <div style={{ marginBottom: 8 }}><label style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, display: "block", marginBottom: 2 }}>Anything confusing or missing? <span style={{ color: "#bbb" }}>(optional)</span></label><textarea value={feedback.feedback} onChange={e=>setFeedback(f=>({...f,feedback:e.target.value}))} placeholder="Your thoughts..." rows={2} style={{width:"100%",padding:"6px 10px",border:"1px solid "+_br.bd,borderRadius:5,fontSize:11,fontFamily:_mono,color:_br.tx,background:"#fff",outline:"none",resize:"vertical"}} /></div>
-      <div style={{ marginBottom: 10 }}><label style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, display: "block", marginBottom: 2 }}>Email <span style={{ color: "#bbb" }}>(optional)</span></label><input type="email" value={feedback.email} onChange={e=>setFeedback(f=>({...f,email:e.target.value}))} placeholder="you@example.com" style={{width:"100%",padding:"6px 10px",border:"1px solid "+_br.bd,borderRadius:5,fontSize:11,fontFamily:_mono,color:_br.tx,background:"#fff",outline:"none"}} /></div>
-      <button onClick={submitFeedback} disabled={!feedback.role||!feedback.price} style={{padding:"8px 20px",background:!feedback.role||!feedback.price?"#ccc":"#f57f17",border:"none",borderRadius:6,color:"#fff",fontSize:11,fontWeight:700,cursor:!feedback.role||!feedback.price?"default":"pointer",fontFamily:_mono}}>Submit Feedback</button>
-      <span style={{ fontSize: 8, color: "#bbb", fontFamily: _mono, marginLeft: 8 }}>Optional \u2014 helps us build what you need</span>
-    </div>}
-    {isProduction && feedbackDone && <div style={{padding:10,background:"#e8f5e9",borderRadius:8,border:"1px solid #c8e6c9",marginBottom:14,textAlign:"center"}}><span style={{fontSize:11,color:"#2e7d32",fontFamily:_mono,fontWeight:700}}>{"\u2713"} Thanks for your feedback!</span></div>}
-
-    <div style={{padding:16,background:"#e8f5e9",borderRadius:8,border:"1px solid #c8e6c9",textAlign:"center",marginBottom:10}}>
-      <div style={{fontSize:10,fontFamily:_mono,color:_br.gn,fontWeight:700,letterSpacing:"1px",textTransform:"uppercase"}}>Estimated Materials</div>
-      <div style={{fontSize:36,fontWeight:900,color:_br.gn,fontFamily:_mono}}>${(zc ? m.total + zc.extraTotal : m.total).toFixed(0)}</div>
-      <div style={{fontSize:10,color:"#66bb6a",fontFamily:_mono}}>Includes tax + 5% contingency</div>
-    </div>
-
-    <div data-section="generate" style={{background:_br.dk,borderRadius:10,padding:20,textAlign:"center",marginBottom:10}}>
-      <div style={{fontSize:10,fontFamily:_mono,color:"rgba(255,255,255,0.5)",letterSpacing:"2px",textTransform:"uppercase",marginBottom:6}}>Your Blueprint Package</div>
-      <div style={{display:"flex",justifyContent:"center",gap:16,marginBottom:12,flexWrap:"wrap"}}>
-        {["Plan View","Framing Plan","Elevations","Details","Site Plan"].concat(
-          _isPPRBD ? ["PPRBD Attachment"] : []
-        ).map(s=>(<div key={s} style={{display:"flex",alignItems:"center",gap:4}}><span style={{color:"#66bb6a",fontSize:11}}>{"\u2713"}</span><span style={{fontSize:10,fontFamily:_mono,color:"rgba(255,255,255,0.8)"}}>{s}</span></div>))}
-      </div>
-      <div style={{fontSize:8,color:"rgba(255,255,255,0.35)",fontFamily:_mono,marginBottom:12}}>Materials & Cost Estimate included as separate download</div>
-      {user ? <>
-      <button onClick={function(){var miss=[];if(!info.owner)miss.push("Owner / Applicant Name");if(!info.address)miss.push("Property Address");if(!info.city)miss.push("City");if(!info.state)miss.push("State");if(!info.zip)miss.push("ZIP");if(miss.length>0&&!missingFieldsAcked){setShowMissingModal(miss);return;}if(_isPPRBD&&!pprbdChecklistAcked){var jcl=p.jurisdictionChecklist||{};var hIn=(p.height||4)*12;var fDep=c.footing_depth||36;var isDet=p.attachmentType==="freestanding";var autos={under18:hIn<=18,over8ft:hIn>=96,freestanding:isDet,excavation:fDep>36};var uKeys=[];["cover","electrical","hottub","cantilever","under18","over8ft","freestanding","excavation"].forEach(function(k){var v=jcl.hasOwnProperty(k)?jcl[k]:(autos.hasOwnProperty(k)?autos[k]:null);if(v===null||v===undefined)uKeys.push(k);});if(uKeys.length>0){setShowPprbdModal(uKeys);return;}}disclaimerAcked?generateBlueprint():setShowDisclaimer(true);}} disabled={genStatus==="generating"} style={{padding:"14px 40px",background:genStatus==="generating"?"#555":genStatus==="done"?"#2e7d32":_br.gn,color:"#fff",border:"none",borderRadius:8,fontSize:16,fontWeight:800,cursor:genStatus==="generating"?"wait":"pointer",fontFamily:_mono,letterSpacing:"1px",boxShadow:"0 4px 20px rgba(61,90,46,0.4)",transition:"all 0.2s"}}>
-        {genStatus==="generating"?"Generating PDF...":genStatus==="done"?"\u2713 Download Complete \u2014 Generate Again?":"Generate Blueprint \u2014 FREE BETA"}
-      </button>
-      {genStatus==="error"&&<div style={{fontSize:10,color:"#f44336",fontFamily:_mono,marginTop:8}}>Error: {genError}
-        {genError==="Please sign in first"&&<button onClick={()=>{try{var _state={p:p,info:info,step:step,sitePlanMode:sitePlanMode,page:"wizard"};if(sitePlanB64)_state.sitePlanB64=sitePlanB64;try{localStorage.setItem("sb_auth_state",JSON.stringify(_state));}catch(qe){delete _state.sitePlanB64;localStorage.setItem("sb_auth_state",JSON.stringify(_state));}}catch(e){console.warn("Could not save auth state:",e);}window.location.href=`${API}/auth/login`;}} style={{marginLeft:8,padding:"3px 10px",background:"#fff",color:"#333",border:"1px solid #ccc",borderRadius:4,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:_mono}}>Sign in now</button>}
-      </div>}
-      {genStatus==="done" && materialsUrl ? <div style={{marginTop:10}}>
-        <div style={{fontSize:8,color:"rgba(255,255,255,0.5)",fontFamily:_mono,marginBottom:6}}>Permit plans opened in new tab</div>
-        <a href={materialsUrl} target="_blank" rel="noopener noreferrer" style={{display:"inline-flex",alignItems:"center",gap:6,padding:"8px 16px",background:"rgba(255,255,255,0.12)",border:"1px solid rgba(255,255,255,0.25)",borderRadius:6,color:"#fff",fontSize:11,fontFamily:_mono,fontWeight:600,textDecoration:"none",cursor:"pointer"}}>
-          {"\u2193"} Materials & Cost Estimate
-        </a>
-      </div> : <div style={{fontSize:8,color:"rgba(255,255,255,0.4)",fontFamily:_mono,marginTop:8}}>{genStatus==="done"?"PDF opened in new tab":"Instant PDF download \u00B7 Print-ready quality \u00B7 Permit-office format"}</div>}
-      </> : <div style={{textAlign:"center"}}>
-        <div style={{fontSize:11,color:"rgba(255,255,255,0.6)",fontFamily:_mono,marginBottom:12}}>Sign in to generate your blueprint</div>
-        <button onClick={()=>{try{var _state={p:p,info:info,step:step,sitePlanMode:sitePlanMode,page:"wizard"};if(sitePlanB64)_state.sitePlanB64=sitePlanB64;try{localStorage.setItem("sb_auth_state",JSON.stringify(_state));}catch(qe){delete _state.sitePlanB64;localStorage.setItem("sb_auth_state",JSON.stringify(_state));}}catch(e){console.warn("Could not save auth state:",e);}window.location.href=`${API}/auth/login`;}} style={{padding:"12px 32px",background:"#fff",color:"#333",border:"none",borderRadius:8,fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:_mono,display:"inline-flex",alignItems:"center",gap:10,boxShadow:"0 2px 12px rgba(0,0,0,0.15)"}}>
-          <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#4285F4" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#34A853" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59a14.5 14.5 0 010-9.18l-7.98-6.19a24.04 24.04 0 000 21.56l7.98-6.19z"/><path fill="#EA4335" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
-          Sign in with Google
-        </button>
-      </div>}
-    </div>
-
     {showDisclaimer && <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9999}} onClick={()=>setShowDisclaimer(false)}>
       <div style={{background:"#fff",borderRadius:12,padding:28,maxWidth:440,margin:"0 20px",boxShadow:"0 8px 40px rgba(0,0,0,0.25)"}} onClick={e=>e.stopPropagation()}>
-        <div style={{fontSize:11,fontWeight:700,color:_br.gn,fontFamily:_mono,letterSpacing:"1px",textTransform:"uppercase",marginBottom:14}}>Before You Download</div>
+        <div style={{fontSize:13,fontWeight:700,color:_br.dk,fontFamily:_sans,marginBottom:14}}>Before you download</div>
         <p style={{fontSize:12,color:_br.tx,fontFamily:_sans,lineHeight:1.7,margin:"0 0 10px"}}>SimpleBlueprints generates draft deck plans to assist with the permitting process. By downloading, you acknowledge that:</p>
         <ul style={{fontSize:11,color:_br.tx,fontFamily:_sans,lineHeight:1.8,margin:"0 0 18px",paddingLeft:18}}>
           <li>All deck projects require review and approval by your local building department before construction.</li>
@@ -5033,35 +5053,35 @@ function StepContent(props) {
           <li>This tool is a drafting aid and does not constitute professional engineering certification.</li>
         </ul>
         <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
-          <button onClick={()=>setShowDisclaimer(false)} style={{padding:"10px 18px",background:"none",border:"1px solid "+_br.bd,borderRadius:6,fontSize:11,fontFamily:_mono,color:_br.mu,cursor:"pointer"}}>Cancel</button>
-          <button onClick={()=>{setDisclaimerAcked(true);setShowDisclaimer(false);generateBlueprint();}} style={{padding:"10px 24px",background:_br.gn,border:"none",borderRadius:6,fontSize:11,fontFamily:_mono,color:"#fff",fontWeight:700,cursor:"pointer",boxShadow:"0 2px 12px rgba(61,90,46,0.3)"}}>I Understand {"\u2014"} Generate Blueprint</button>
+          <button onClick={()=>setShowDisclaimer(false)} style={{padding:"10px 18px",background:"none",border:"1px solid "+_br.bd,borderRadius:6,fontSize:11,fontFamily:_sans,color:_br.mu,cursor:"pointer"}}>Cancel</button>
+          <button onClick={()=>{setDisclaimerAcked(true);setShowDisclaimer(false);generateBlueprint();}} style={{padding:"10px 24px",background:_br.gn,border:"none",borderRadius:6,fontSize:11,fontFamily:_sans,color:"#fff",fontWeight:700,cursor:"pointer",boxShadow:"0 2px 12px rgba(61,90,46,0.3)"}}>I understand {"\u2014"} generate</button>
         </div>
       </div>
     </div>}
 
     {showMissingModal && <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9999}} onClick={()=>setShowMissingModal(false)}>
       <div style={{background:"#fff",borderRadius:12,padding:28,maxWidth:440,margin:"0 20px",boxShadow:"0 8px 40px rgba(0,0,0,0.25)"}} onClick={e=>e.stopPropagation()}>
-        <div style={{fontSize:11,fontWeight:700,color:"#d97706",fontFamily:_mono,letterSpacing:"1px",textTransform:"uppercase",marginBottom:14}}>{"\u26A0\uFE0F"} Missing Information</div>
+        <div style={{fontSize:13,fontWeight:700,color:"#d97706",fontFamily:_sans,marginBottom:14}}>{"\u26A0\uFE0F"} Missing information</div>
         <p style={{fontSize:12,color:_br.tx,fontFamily:_sans,lineHeight:1.7,margin:"0 0 10px"}}>Permit offices typically require the following fields, which are currently empty:</p>
         <div style={{padding:"10px 14px",background:"#fff8e1",borderRadius:6,border:"1px solid #ffe082",marginBottom:14}}>
-          {showMissingModal.map(function(f,i){return <div key={i} style={{fontSize:11,fontFamily:_mono,color:"#92400e",lineHeight:1.8,fontWeight:600}}>{"\u2022"} {f}</div>;})}
+          {showMissingModal.map(function(f,i){return <div key={i} style={{fontSize:11,fontFamily:_sans,color:"#92400e",lineHeight:1.8,fontWeight:600}}>{"\u2022"} {f}</div>;})}
         </div>
         <p style={{fontSize:11,color:_br.mu,fontFamily:_sans,lineHeight:1.6,margin:"0 0 18px"}}>You can fill these in using the Project Information section above, or generate your blueprint without them.</p>
         <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
-          <button onClick={function(){setShowMissingModal(false);}} style={{padding:"10px 18px",background:"none",border:"1px solid "+_br.bd,borderRadius:6,fontSize:11,fontFamily:_mono,color:_br.mu,cursor:"pointer"}}>Fill in Fields</button>
-          <button onClick={function(){setMissingFieldsAcked(true);setShowMissingModal(false);disclaimerAcked?generateBlueprint():setShowDisclaimer(true);}} style={{padding:"10px 24px",background:"#d97706",border:"none",borderRadius:6,fontSize:11,fontFamily:_mono,color:"#fff",fontWeight:700,cursor:"pointer"}}>Generate Anyway</button>
+          <button onClick={function(){setShowMissingModal(false);}} style={{padding:"10px 18px",background:"none",border:"1px solid "+_br.bd,borderRadius:6,fontSize:11,fontFamily:_sans,color:_br.mu,cursor:"pointer"}}>Fill in fields</button>
+          <button onClick={function(){setMissingFieldsAcked(true);setShowMissingModal(false);disclaimerAcked?generateBlueprint():setShowDisclaimer(true);}} style={{padding:"10px 24px",background:"#d97706",border:"none",borderRadius:6,fontSize:11,fontFamily:_sans,color:"#fff",fontWeight:700,cursor:"pointer"}}>Generate anyway</button>
         </div>
       </div>
     </div>}
 
     {showPprbdModal && <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9999}} onClick={()=>setShowPprbdModal(false)}>
       <div style={{background:"#fff",borderRadius:12,padding:28,maxWidth:440,margin:"0 20px",boxShadow:"0 8px 40px rgba(0,0,0,0.25)"}} onClick={e=>e.stopPropagation()}>
-        <div style={{fontSize:11,fontWeight:700,color:"#1565c0",fontFamily:_mono,letterSpacing:"1px",textTransform:"uppercase",marginBottom:14}}>{"\u26A0\uFE0F"} PPRBD Checklist Incomplete</div>
+        <div style={{fontSize:13,fontWeight:700,color:"#1565c0",fontFamily:_sans,marginBottom:14}}>{"\u26A0\uFE0F"} PPRBD checklist incomplete</div>
         <p style={{fontSize:12,color:_br.tx,fontFamily:_sans,lineHeight:1.7,margin:"0 0 10px"}}>Your property is in PPRBD jurisdiction. The Deck Attachment Sheet has {showPprbdModal.length} unanswered item{showPprbdModal.length > 1 ? "s" : ""}. The permit office will need these filled in.</p>
         <p style={{fontSize:11,color:_br.mu,fontFamily:_sans,lineHeight:1.6,margin:"0 0 18px"}}>You can answer them now in the checklist above, or skip and fill them in by hand after printing.</p>
         <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
-          <button onClick={function(){setShowPprbdModal(false);}} style={{padding:"10px 18px",background:"none",border:"1px solid "+_br.bd,borderRadius:6,fontSize:11,fontFamily:_mono,color:_br.mu,cursor:"pointer"}}>Answer Items</button>
-          <button onClick={function(){setPprbdChecklistAcked(true);setShowPprbdModal(false);disclaimerAcked?generateBlueprint():setShowDisclaimer(true);}} style={{padding:"10px 24px",background:"#1565c0",border:"none",borderRadius:6,fontSize:11,fontFamily:_mono,color:"#fff",fontWeight:700,cursor:"pointer"}}>Skip & Generate</button>
+          <button onClick={function(){setShowPprbdModal(false);}} style={{padding:"10px 18px",background:"none",border:"1px solid "+_br.bd,borderRadius:6,fontSize:11,fontFamily:_sans,color:_br.mu,cursor:"pointer"}}>Answer items</button>
+          <button onClick={function(){setPprbdChecklistAcked(true);setShowPprbdModal(false);disclaimerAcked?generateBlueprint():setShowDisclaimer(true);}} style={{padding:"10px 24px",background:"#1565c0",border:"none",borderRadius:6,fontSize:11,fontFamily:_sans,color:"#fff",fontWeight:700,cursor:"pointer"}}>Skip & generate</button>
         </div>
       </div>
     </div>}
