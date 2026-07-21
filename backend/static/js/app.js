@@ -825,7 +825,50 @@ const App = function SimpleBlueprints() {
   const [authLoading, setAuthLoading] = useState(true);
   const [materialsUrl, setMaterialsUrl] = useState(null);
 
-  const API = "https://simpleblueprints-production.up.railway.app";
+  // S96.5: was the absolute Railway URL, which made every /auth and /api call
+  // CROSS-ORIGIN from simpleblueprints.xyz. The session cookie is httponly +
+  // samesite=lax and CORS has no allow_credentials, so `/auth/me` came back
+  // unauthenticated even when signed in -> the post-login wizard-state restore
+  // (below) never ran and the user's work was lost. The frontend is served by
+  // this same FastAPI app (index.html + /api + /auth), so a relative base is
+  // correct and matches what steps.js already does for /api/parcel-lookup.
+  const API = "";
+
+  // S62: Restore wizard state saved before the OAuth redirect.
+  // S96.5: was inline in the /auth/me handler and deleted the saved key BEFORE
+  // applying it, so any failure (or a failed auth check) destroyed the user's
+  // work permanently with no retry. Now: apply first, clear only on success,
+  // and leave the key intact so a later attempt can still recover it.
+  const restoreAuthState = React.useCallback(() => {
+    var saved = null;
+    try { saved = localStorage.getItem("sb_auth_state"); }
+    catch(e) { console.warn("Auth state read error:", e); return false; }
+    if (!saved) return false;
+    try {
+      var s = JSON.parse(saved);
+      if (s.p) setP(function(prev) { return Object.assign({}, prev, s.p); });
+      if (s.info) setInfo(s.info);
+      if (s.step != null) setStep(s.step);
+      if (s.sitePlanMode) setSitePlanMode(s.sitePlanMode);
+      if (s.sitePlanB64) { setSitePlanB64(s.sitePlanB64); surveyDirtyRef.current = true; }
+      if (s.page === "wizard") {
+        // S62: Need to load wizard deps before entering wizard
+        setPage("loading");
+        if (window._loadWizardDeps) {
+          window._loadWizardDeps().then(function() { setPage("wizard"); }).catch(function() { setPage("home"); });
+        } else { setPage("wizard"); }
+      } else if (s.page) {
+        setPage(s.page);
+      }
+      // Only now is it safe to drop the snapshot.
+      try { localStorage.removeItem("sb_auth_state"); } catch(e) {}
+      return true;
+    } catch(e) {
+      // Leave the key in place: a later mount can retry rather than losing work.
+      console.warn("Auth state restore error (snapshot kept for retry):", e);
+      return false;
+    }
+  }, []);
 
   useEffect(() => {
     fetch(`${API}/auth/me`, { credentials: "include" })
@@ -836,28 +879,7 @@ const App = function SimpleBlueprints() {
           // S55: Link anonymous tracking to authenticated user
           if (window._linkTrackingToUser) window._linkTrackingToUser();
           if (window._trackEvent) window._trackEvent('auth_login', { email: d.user.email });
-          // S62: Restore wizard state saved before OAuth redirect
-          try {
-            var saved = localStorage.getItem("sb_auth_state");
-            if (saved) {
-              localStorage.removeItem("sb_auth_state");
-              var s = JSON.parse(saved);
-              if (s.p) setP(function(prev) { return Object.assign({}, prev, s.p); });
-              if (s.info) setInfo(s.info);
-              if (s.step != null) setStep(s.step);
-              if (s.sitePlanMode) setSitePlanMode(s.sitePlanMode);
-              if (s.sitePlanB64) { setSitePlanB64(s.sitePlanB64); surveyDirtyRef.current = true; }
-              if (s.page === "wizard") {
-                // S62: Need to load wizard deps before entering wizard
-                setPage("loading");
-                if (window._loadWizardDeps) {
-                  window._loadWizardDeps().then(function() { setPage("wizard"); }).catch(function() { setPage("home"); });
-                } else { setPage("wizard"); }
-              } else if (s.page) {
-                setPage(s.page);
-              }
-            }
-          } catch(e) { console.warn("Auth state restore error:", e); }
+          restoreAuthState();
         }
         setAuthLoading(false);
         // Clean up auth query params from URL
@@ -866,7 +888,14 @@ const App = function SimpleBlueprints() {
         }
       })
       .catch(() => setAuthLoading(false));
-  }, []);
+  }, [restoreAuthState]);
+
+  // S96.5: second chance at restore. If the auth check was slow, raced the
+  // cookie, or briefly failed, the snapshot is still on disk (we no longer
+  // delete it eagerly) -- so retry the moment we actually have a user.
+  useEffect(() => {
+    if (user) restoreAuthState();
+  }, [user, restoreAuthState]);
 
   // ============================================================
   // S62: Project Persistence (auto-save)

@@ -57,7 +57,7 @@
 <script type="text/babel" src="/static/js/zoneUtils.js?v=s94a"></script>
 <script type="text/babel" src="/static/js/home.js?v=s95e"></script>
 <script src="/static/js/lotGeometry.js?v=s85a"></script>
-<script type="text/babel" src="/static/js/app.js?v=s95a"></script>
+<script type="text/babel" src="/static/js/app.js?v=s965a"></script>
 <!-- S62: Lazy loader for wizard dependencies -->
 <script>
 (function() {
@@ -93,7 +93,7 @@
     if (loading) return new Promise(function(resolve) { callbacks.push(resolve); });
     loading = true;
 
-    var v = "v=s95d";
+    var v = "v=s965a";
     return loadScript("https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js")
       .then(function() {
         // Views can load in parallel (stairGeometry + zoneUtils already loaded)
