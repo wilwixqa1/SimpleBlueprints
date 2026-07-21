@@ -646,7 +646,7 @@ function GuidePanel({ phase, onAction, onBack, history, onToggleOff, message, ti
     if (!msg && !pendingImage) return;
     if (chatLoading) return;
     if (!msg && pendingImage) msg = "Here's a reference photo of what I'm looking for.";
-    if (input) input.value = "";
+    if (input) { input.value = ""; input.style.height = ""; }
     var imgData = pendingImage;
     setPendingImage(null);
     if (onSendMessage) onSendMessage(msg, imgData);
@@ -783,7 +783,7 @@ function GuidePanel({ phase, onAction, onBack, history, onToggleOff, message, ti
         <span style={{ fontSize: 10, fontFamily: _mono, color: _br.gn, fontWeight: 600, flex: 1 }}>Reference photo attached</span>
         <button onClick={function() { setPendingImage(null); }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 14, color: _br.mu, padding: 2 }}>{"\u2715"}</button>
       </div>}
-      <form onSubmit={handleChatSubmit} style={{ display: "flex", gap: 6 }}>
+      <form onSubmit={handleChatSubmit} style={{ display: "flex", gap: 6, alignItems: "flex-end" }}>
         <input type="file" ref={fileInputRef} accept="image/*" style={{ display: "none" }} onChange={function(e) { if (e.target.files && e.target.files[0]) _handleImageFile(e.target.files[0]); e.target.value = ""; }} />
         <button type="button" onClick={function() { if (fileInputRef.current) fileInputRef.current.click(); }} disabled={chatLoading} title="Attach reference photo" style={{
           padding: "8px 10px", borderRadius: 8, border: "1px solid " + _br.bd,
@@ -791,10 +791,11 @@ function GuidePanel({ phase, onAction, onBack, history, onToggleOff, message, ti
           fontSize: 14, cursor: chatLoading ? "default" : "pointer", flexShrink: 0,
           transition: "background 0.2s"
         }}>{"\uD83D\uDCF7"}</button>
-        <input ref={chatInputRef} type="text"
+        <textarea ref={chatInputRef} rows={1}
           placeholder={pendingImage ? "Describe what you like about this deck..." : (_chatPlaceholders[phase] || "Ask a question or describe what you want...")}
           disabled={chatLoading}
           onKeyDown={function(e) { if (e.key === "Enter" && !e.shiftKey) handleChatSubmit(e); }}
+          onInput={function(e) { e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px"; }}
           onPaste={function(e) {
             var items = e.clipboardData && e.clipboardData.items;
             if (items && _imageFromClipboard(items, function(data) { setPendingImage(data); })) {
@@ -806,11 +807,12 @@ function GuidePanel({ phase, onAction, onBack, history, onToggleOff, message, ti
             fontFamily: _sans, border: "1px solid " + _br.bd,
             background: "#fff", color: _br.dk, outline: "none",
             transition: "border-color 0.2s",
-            opacity: chatLoading ? 0.6 : 1
+            opacity: chatLoading ? 0.6 : 1,
+            resize: "none", lineHeight: 1.4, minHeight: 38, maxHeight: 120, overflowY: "auto"
           }}
           onFocus={function(e) { e.target.style.borderColor = _br.gn; }}
           onBlur={function(e) { e.target.style.borderColor = _br.bd; }}
-        />
+        ></textarea>
         <button type="submit" disabled={chatLoading} style={{
           padding: "8px 14px", borderRadius: 8, border: "none",
           background: chatLoading ? _br.mu : _br.gn, color: "#fff",
@@ -4914,7 +4916,7 @@ function StepContent(props) {
       </div>
 
       {/* ===== RIGHT: summary + CTA + guide rail ===== */}
-      <div style={{ flex: "0 0 322px", minWidth: 280 }}>
+      <div style={{ flex: "0 0 380px", minWidth: 320 }}>
 
         {/* Drawing-set note */}
         <div style={{ padding: 16, background: "#fff", borderRadius: 8, border: "1px solid " + _br.bd, marginBottom: 14 }}>
