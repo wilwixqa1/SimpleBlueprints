@@ -4753,7 +4753,7 @@ function StepContent(props) {
               <div style={{ fontSize: 13, fontWeight: 700, color: _br.dk, fontFamily: _sans }}>Materials & cost estimate</div>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <span style={{ fontSize: 12, color: _br.mu, fontFamily: _sans }}>{allItems.length} line items {"\u00B7"} ${matTotal} estimated</span>
-                <span style={{ fontSize: 11, color: _br.mu, transform: materialsOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s" }}>{"\u25BE"}</span>
+                <span style={{ fontSize: 17, lineHeight: 1, color: _br.dk, transform: materialsOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s" }}>{"\u25BE"}</span>
               </div>
             </div>
             {materialsOpen && <div style={{ padding: "0 18px 16px" }}>
