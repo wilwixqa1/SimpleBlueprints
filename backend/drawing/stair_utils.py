@@ -267,6 +267,21 @@ def compute_stair_geometry(template: str, height: float, stair_width: float = 4,
         runs.append({**run, "rect": {"x": -sw/2, "y": 0, "w": sw, "h": run["runFt"]},
                      "treadAxis": "h", "downDir": "+y"})
 
+    # S97: keep the CONNECTING run (runs[0] -- the one that meets the deck at
+    # y=0) centered on the anchor for EVERY template, so switching template no
+    # longer slides the deck attachment point. straight/lLeft/lRight/wideLanding
+    # already place runs[0] at x=-sw/2 (center 0) -> zero shift, byte-identical.
+    # Only switchback/wrapAround (runs[0] offset by +gap/2) move: the whole
+    # assembly translates so it attaches centered and folds to the side.
+    if runs:
+        _r0 = runs[0]["rect"]
+        _dx = _r0["x"] + _r0["w"] / 2.0
+        if abs(_dx) > 1e-9:
+            for _it in runs + landings:
+                _it["rect"]["x"] -= _dx
+                for _p in _it.get("posts", []):
+                    _p[0] -= _dx
+
     # Compute bounding box
     all_items = runs + landings
     min_x = min(item["rect"]["x"] for item in all_items)

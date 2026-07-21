@@ -100,6 +100,20 @@ function computeStairGeometry(params) {
     landings.push({ rect: { x: l2x, y: l2y, w: sw + run3.runFt + gap/2, h: lD }, posts: [[l2x, l2y], [-gap/2, l2y], [l2x, l2y+lD], [-gap/2, l2y+lD]] });
     runs.push({ ...run3, rect: { x: l2x, y: l2y + (lD-sw)/2, w: run3.runFt, h: sw }, treadAxis: "w", downDir: "-x" });
   }
+  // S97: mirror Python compute_stair_geometry -- keep the connecting run
+  // (runs[0], meeting the deck at y=0) centered on the anchor for every
+  // template, so switching template doesn't slide the deck attachment point.
+  // No-op for straight/lLeft/lRight/wideLanding (already centered).
+  if (runs.length) {
+    const _r0 = runs[0].rect;
+    const _dx = _r0.x + _r0.w / 2;
+    if (Math.abs(_dx) > 1e-9) {
+      [...runs, ...landings].forEach(item => {
+        item.rect.x -= _dx;
+        (item.posts || []).forEach(pt => { pt[0] -= _dx; });
+      });
+    }
+  }
   let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity;
   [...runs, ...landings].forEach(item => { const r = item.rect; minX = Math.min(minX, r.x); minY = Math.min(minY, r.y); maxX = Math.max(maxX, r.x + r.w); maxY = Math.max(maxY, r.y + r.h); });
   return { template, runs, landings, totalRisers, riseIn, stairWidth: sw,
