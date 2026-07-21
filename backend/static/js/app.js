@@ -1237,11 +1237,11 @@ const App = function SimpleBlueprints() {
           The live canvas is hidden there and this column goes full width, so
           the finished drawing set is the whole surface instead of sharing the
           screen with controls that invite more editing. */}
-      <div style={{ maxWidth: step === 4 ? 1080 : 1180, margin: "0 auto", padding: "12px", display: "flex", gap: 16, flexWrap: "wrap" }}>
+      <div style={{ maxWidth: step === 4 ? 1440 : 1180, margin: "0 auto", padding: "12px", display: "flex", gap: 16, flexWrap: "wrap" }}>
         {/* LEFT: INPUTS */}
         <div style={{ flex: step === 4 ? "1 1 100%" : "1 1 320px", minWidth: 290 }}>
-          <div style={{ background: "#fff", borderRadius: 10, padding: 22, border: `1px solid ${br.bd}`, boxShadow: "0 1px 8px rgba(0,0,0,0.04)" }}>
-            <h2 style={{ margin: "0 0 18px", fontSize: 15, fontWeight: 800, color: br.dk, fontFamily: sans, borderBottom: `2px solid ${br.gn}`, paddingBottom: 8 }}>{steps[step].i} {steps[step].t}</h2>
+          <div style={step === 4 ? { background: "transparent", padding: 0 } : { background: "#fff", borderRadius: 10, padding: 22, border: `1px solid ${br.bd}`, boxShadow: "0 1px 8px rgba(0,0,0,0.04)" }}>
+            {step !== 4 && <h2 style={{ margin: "0 0 18px", fontSize: 15, fontWeight: 800, color: br.dk, fontFamily: sans, borderBottom: `2px solid ${br.gn}`, paddingBottom: 8 }}>{steps[step].i} {steps[step].t}</h2>}
 
             <StepContent step={step} p={p} u={u} c={c} m={m} zc={zc} info={info} setI={setI}
               setStep={setStep}
