@@ -53,6 +53,7 @@ from drawing.sheet import sheet_size, render_scale            # noqa: E402
 from drawing.draw_plan import draw_plan_and_framing           # noqa: E402
 from drawing.draw_site_plan import draw_site_plan             # noqa: E402
 from drawing.draw_elevations import draw_elevations_sheet     # noqa: E402
+from drawing.draw_details import draw_details_sheet           # noqa: E402
 
 GOLDEN_PATH = os.path.join(_HERE, "golden_structural.json")
 
@@ -146,10 +147,19 @@ def _elev(fig, p, c, s):
     draw_elevations_sheet(fig, p, c, s)
 
 
+def _details(fig, p, c, s):
+    draw_details_sheet(fig, p, c, s)
+
+
 SHEETS = [
     ("site", _site),
     ("plan", _plan),
     ("framing", _framing),
+    # S96: details sheet added so the S94 rework (IRC citations, guard-rail
+    # sphere-note relocation, stair-landing relabels, sphere-in-gap) has a
+    # regression guard -- previously the details sheet had NO coverage
+    # (golden omitted it; legibility gate can't see its rotated text).
+    ("details", _details),
     # Elevations is intentionally omitted: it emits ~1000 hatch/bracing
     # primitives per config (huge, noisy golden) and is not in the current
     # notch/stair work path. Add `("elevations", _elev)` here + --update if the
