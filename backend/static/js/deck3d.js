@@ -495,7 +495,23 @@ window.buildDeckScene = function(scene, p, c, THREE) {
       addM(new THREE.BoxGeometry(W, 9.25 / 12, 1.5 / 12), mats.joist, z0wx + W / 2, zH - 0.4, z0wz + 0.06);
 
 // Zone 0: Joists (with stair gap splits)
+      // S95: chamfer sizes are needed by BOTH the joist clip below and the rim
+      // joists further down, so they are resolved here, before first use.
+      var _z0ch = _chamSizes(p.mainCorners);
       var jLen = D - 1.5;
+      // S95: a joist landing inside a chamfered corner must stop at the
+      // diagonal, not run to the full depth, or it pokes out past the deck
+      // edge into open air (Will, S95: "boards sticking out"). Returns the
+      // joist's usable depth at local x, measured from the zone's back edge.
+      // Mirrors the decking clip in clipBoardForChamfers().
+      function _jointDepthAt(localX) {
+        var back = 0, front = D;
+        if (_z0ch.BL > 0 && localX < _z0ch.BL) back = Math.max(back, _z0ch.BL - localX);
+        if (_z0ch.BR > 0 && localX > W - _z0ch.BR) back = Math.max(back, localX - (W - _z0ch.BR));
+        if (_z0ch.FL > 0 && localX < _z0ch.FL) front = Math.min(front, D - (_z0ch.FL - localX));
+        if (_z0ch.FR > 0 && localX > W - _z0ch.FR) front = Math.min(front, D - (localX - (W - _z0ch.FR)));
+        return { back: back, front: front };
+      }
       for (var x = sp / 12; x < W; x += sp / 12) {
         var jx = z0wx + x;
         if (frontGap && stairClipD > 0.5 && jx > frontGap.min + 0.05 && jx < frontGap.max - 0.05) {
@@ -519,13 +535,19 @@ window.buildDeckScene = function(scene, p, c, THREE) {
           if (jSeg2 > 0.2) { addM(new THREE.BoxGeometry(jW2, jH2, jSeg2), mats.joist, jx, zH - jH2 / 2 - 0.1, rightGap.max + jSeg2 / 2); }
           continue;
         }
-        addM(new THREE.BoxGeometry(jW2, jH2, jLen), mats.joist, jx, zH - jH2 / 2 - 0.1, z0wz + jLen / 2);
+        var _jd = _jointDepthAt(x);
+        // The chamfer diagonal can only ever SHORTEN a joist. Take whichever
+        // limit is tighter: the historical D-1.5 front setback, or the chamfer.
+        var _jz0 = _jd.back;
+        var _jz1 = Math.min(D - 1.5, _jd.front);
+        var _jlen = _jz1 - _jz0;
+        if (_jlen > 0.2) addM(new THREE.BoxGeometry(jW2, jH2, _jlen), mats.joist, jx, zH - jH2 / 2 - 0.1, z0wz + _jz0 + _jlen / 2);
       }
 
 // Zone 0: Rim joists (with stair gaps)
       function addRimSeg(x, y, z, w, h, d) { addM(new THREE.BoxGeometry(w, h, d), mats.joist, x, y, z); }
       // S95: shorten rims at chamfered corners and bridge each with a diagonal.
-      var _z0ch = _chamSizes(p.mainCorners);
+      // (_z0ch resolved above, before the joist loop.)
       var _rimY = zH - jH2 / 2 - 0.1;
       // Front edge (far from house) is trimmed by the two front chamfers.
       var _fl = _z0ch.FL, _fr = _z0ch.FR;
@@ -600,9 +622,22 @@ window.buildDeckScene = function(scene, p, c, THREE) {
       }
 
       // Joists spanning depth of zone
+      // S95: resolve this zone's chamfers before the joists, which now clip to
+      // them (same fix as zone 0 -- a joist inside a chamfered corner must stop
+      // at the diagonal instead of poking out past the deck edge).
+      var _zch = _chamSizes(ar.zone.corners);
       var zJLen = isFlushZone ? zD - 0.2 : zD - 1;
+      var _zjStart = isFlushZone ? 0.1 : 0.5;
       for (var zx2 = sp / 12; zx2 < zW; zx2 += sp / 12) {
-        addM(new THREE.BoxGeometry(jW2, jH2, zJLen), mats.joist, zwx + zx2, zH - jH2 / 2 - 0.1, zwz + (isFlushZone ? 0.1 : 0.5) + zJLen / 2);
+        var _zb = 0, _zf = zD;
+        if (_zch.BL > 0 && zx2 < _zch.BL) _zb = Math.max(_zb, _zch.BL - zx2);
+        if (_zch.BR > 0 && zx2 > zW - _zch.BR) _zb = Math.max(_zb, zx2 - (zW - _zch.BR));
+        if (_zch.FL > 0 && zx2 < _zch.FL) _zf = Math.min(_zf, zD - (_zch.FL - zx2));
+        if (_zch.FR > 0 && zx2 > zW - _zch.FR) _zf = Math.min(_zf, zD - (zx2 - (zW - _zch.FR)));
+        var _za = Math.max(_zjStart, _zb);
+        var _zbEnd = Math.min(_zjStart + zJLen, _zf);
+        var _zlen = _zbEnd - _za;
+        if (_zlen > 0.2) addM(new THREE.BoxGeometry(jW2, jH2, _zlen), mats.joist, zwx + zx2, zH - jH2 / 2 - 0.1, zwz + _za + _zlen / 2);
       }
 
       // Rim joists on 3 exposed sides (not the attachment edge which connects to parent)
@@ -610,7 +645,7 @@ window.buildDeckScene = function(scene, p, c, THREE) {
       var attachEdge = zone.attachEdge;
       // S95: same chamfer treatment as zone 0 -- trim each rim back by the
       // chamfer at the corners it runs between, then bridge with a diagonal.
-      var _zch = _chamSizes(zone.corners);
+      // (_zch resolved above, before this zone's joist loop.)
       var _zY = zH - jH2 / 2 - 0.1;
       // Front rim (far from house, high Y)
       if (attachEdge !== "front") {
