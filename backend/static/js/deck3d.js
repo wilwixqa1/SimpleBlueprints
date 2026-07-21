@@ -214,6 +214,39 @@ window.buildDeckScene = function(scene, p, c, THREE) {
 // S20: World offset   center bounding box at origin
   var cx = -bbox.w / 2 - bbox.x, cz = -bbox.d / 2 - bbox.y;
 
+  // ------------------------------------------------------------------
+  // S95: chamfer sizes for the RIM JOISTS.
+  // The chamferZones/chamferCorners data further down is built AFTER the rim
+  // joists are drawn, so rim code cannot use it. This reads the same source
+  // (mainCorners for zone 0, zone.corners for additive zones) and returns
+  // {BL, BR, FL, FR} sizes in feet, 0 when the corner is square.
+  // Before S95 the rim joists ignored chamfers entirely: the front rim ran the
+  // full deck width and the side rims the full depth, so a straight member cut
+  // across every chamfered corner even though the decking and railing followed
+  // the chamfer correctly (Will, S95, visible in the 3D View only).
+  // ------------------------------------------------------------------
+  function _chamSizes(corners) {
+    var out = { BL: 0, BR: 0, FL: 0, FR: 0 };
+    if (!corners) return out;
+    ["BL", "BR", "FL", "FR"].forEach(function (k) {
+      var cc = corners[k];
+      if (cc && cc.type === "chamfer" && cc.size > 0) out[k] = cc.size;
+    });
+    return out;
+  }
+  // Diagonal rim member spanning one chamfered corner, drawn as a rotated box.
+  // (x1,z1)->(x2,z2) are the two chamfer endpoints in world space.
+  function _addChamferRim(x1, z1, x2, z2, y, jW, jH, mat) {
+    var dx = x2 - x1, dz = z2 - z1;
+    var len = Math.sqrt(dx * dx + dz * dz);
+    if (len < 0.05) return;
+    var m = new THREE.Mesh(new THREE.BoxGeometry(len, jH, jW), mat);
+    m.position.set((x1 + x2) / 2, y, (z1 + z2) / 2);
+    m.rotation.y = -Math.atan2(dz, dx);
+    m.castShadow = true; m.receiveShadow = true;
+    scene.add(m);
+  }
+
   var mats = {
     concrete: new THREE.MeshStandardMaterial({ color: 0xb8b8b8, roughness: 0.9 }),
     post: new THREE.MeshStandardMaterial({ color: 0xc4a060, roughness: 0.7 }),
@@ -491,21 +524,44 @@ window.buildDeckScene = function(scene, p, c, THREE) {
 
 // Zone 0: Rim joists (with stair gaps)
       function addRimSeg(x, y, z, w, h, d) { addM(new THREE.BoxGeometry(w, h, d), mats.joist, x, y, z); }
+      // S95: shorten rims at chamfered corners and bridge each with a diagonal.
+      var _z0ch = _chamSizes(p.mainCorners);
+      var _rimY = zH - jH2 / 2 - 0.1;
+      // Front edge (far from house) is trimmed by the two front chamfers.
+      var _fl = _z0ch.FL, _fr = _z0ch.FR;
+      // Side edges are trimmed by the front chamfer at one end and the back
+      // chamfer at the other.
+      var _bl = _z0ch.BL, _br = _z0ch.BR;
       if (frontGap && frontGap.zMax >= z0wz + D - 0.1) {
-        var lw = frontGap.min - z0wx, rw = (z0wx + W) - frontGap.max;
-        if (lw > 0.1) addRimSeg(z0wx + lw / 2, zH - jH2 / 2 - 0.1, z0wz + D, lw, jH2, jW2);
-        if (rw > 0.1) addRimSeg(frontGap.max + rw / 2, zH - jH2 / 2 - 0.1, z0wz + D, rw, jH2, jW2);
-      } else { addRimSeg(z0wx + W / 2, zH - jH2 / 2 - 0.1, z0wz + D, W, jH2, jW2); }
+        var lw = frontGap.min - (z0wx + _fl), rw = (z0wx + W - _fr) - frontGap.max;
+        if (lw > 0.1) addRimSeg(z0wx + _fl + lw / 2, _rimY, z0wz + D, lw, jH2, jW2);
+        if (rw > 0.1) addRimSeg(frontGap.max + rw / 2, _rimY, z0wz + D, rw, jH2, jW2);
+      } else {
+        var _fw = W - _fl - _fr;
+        if (_fw > 0.1) addRimSeg(z0wx + _fl + _fw / 2, _rimY, z0wz + D, _fw, jH2, jW2);
+      }
       if (leftAtEdge) {
-        var s1 = leftGap.min - z0wz, s2 = (z0wz + D) - leftGap.max;
-        if (s1 > 0.1) addRimSeg(z0wx, zH - jH2 / 2 - 0.1, z0wz + s1 / 2, jW2, jH2, s1);
-        if (s2 > 0.1) addRimSeg(z0wx, zH - jH2 / 2 - 0.1, leftGap.max + s2 / 2, jW2, jH2, s2);
-      } else { addRimSeg(z0wx, zH - jH2 / 2 - 0.1, z0wz + D / 2, jW2, jH2, D); }
+        var s1 = leftGap.min - (z0wz + _bl), s2 = (z0wz + D - _fl) - leftGap.max;
+        if (s1 > 0.1) addRimSeg(z0wx, _rimY, z0wz + _bl + s1 / 2, jW2, jH2, s1);
+        if (s2 > 0.1) addRimSeg(z0wx, _rimY, leftGap.max + s2 / 2, jW2, jH2, s2);
+      } else {
+        var _ld = D - _bl - _fl;
+        if (_ld > 0.1) addRimSeg(z0wx, _rimY, z0wz + _bl + _ld / 2, jW2, jH2, _ld);
+      }
       if (rightAtEdge) {
-        var s1 = rightGap.min - z0wz, s2 = (z0wz + D) - rightGap.max;
-        if (s1 > 0.1) addRimSeg(z0wx + W, zH - jH2 / 2 - 0.1, z0wz + s1 / 2, jW2, jH2, s1);
-        if (s2 > 0.1) addRimSeg(z0wx + W, zH - jH2 / 2 - 0.1, rightGap.max + s2 / 2, jW2, jH2, s2);
-      } else { addRimSeg(z0wx + W, zH - jH2 / 2 - 0.1, z0wz + D / 2, jW2, jH2, D); }
+        var s1 = rightGap.min - (z0wz + _br), s2 = (z0wz + D - _fr) - rightGap.max;
+        if (s1 > 0.1) addRimSeg(z0wx + W, _rimY, z0wz + _br + s1 / 2, jW2, jH2, s1);
+        if (s2 > 0.1) addRimSeg(z0wx + W, _rimY, rightGap.max + s2 / 2, jW2, jH2, s2);
+      } else {
+        var _rd = D - _br - _fr;
+        if (_rd > 0.1) addRimSeg(z0wx + W, _rimY, z0wz + _br + _rd / 2, jW2, jH2, _rd);
+      }
+      // Diagonal rim across each chamfered corner, matching the decking and
+      // railing lines that already follow the chamfer.
+      if (_fl > 0) _addChamferRim(z0wx, z0wz + D - _fl, z0wx + _fl, z0wz + D, _rimY, jW2, jH2, mats.joist);
+      if (_fr > 0) _addChamferRim(z0wx + W - _fr, z0wz + D, z0wx + W, z0wz + D - _fr, _rimY, jW2, jH2, mats.joist);
+      if (_bl > 0) _addChamferRim(z0wx, z0wz + _bl, z0wx + _bl, z0wz, _rimY, jW2, jH2, mats.joist);
+      if (_br > 0) _addChamferRim(z0wx + W - _br, z0wz, z0wx + W, z0wz + _br, _rimY, jW2, jH2, mats.joist);
 
     } else {
 // Zones 1+: Simplified structure (posts at corners, beam along far edge, joists)
@@ -552,22 +608,35 @@ window.buildDeckScene = function(scene, p, c, THREE) {
       // Rim joists on 3 exposed sides (not the attachment edge which connects to parent)
       var zone = ar.zone;
       var attachEdge = zone.attachEdge;
+      // S95: same chamfer treatment as zone 0 -- trim each rim back by the
+      // chamfer at the corners it runs between, then bridge with a diagonal.
+      var _zch = _chamSizes(zone.corners);
+      var _zY = zH - jH2 / 2 - 0.1;
       // Front rim (far from house, high Y)
       if (attachEdge !== "front") {
-        addM(new THREE.BoxGeometry(zW, jH2, jW2), mats.joist, zwx + zW / 2, zH - jH2 / 2 - 0.1, zwz + zD);
+        var _zfw = zW - _zch.FL - _zch.FR;
+        if (_zfw > 0.1) addM(new THREE.BoxGeometry(_zfw, jH2, jW2), mats.joist, zwx + _zch.FL + _zfw / 2, _zY, zwz + zD);
       }
 // Back rim (near house, low Y)   usually the attachment edge for front-attached zones
       if (attachEdge !== "back") {
-        addM(new THREE.BoxGeometry(zW, jH2, jW2), mats.joist, zwx + zW / 2, zH - jH2 / 2 - 0.1, zwz);
+        var _zbw = zW - _zch.BL - _zch.BR;
+        if (_zbw > 0.1) addM(new THREE.BoxGeometry(_zbw, jH2, jW2), mats.joist, zwx + _zch.BL + _zbw / 2, _zY, zwz);
       }
       // Left rim
       if (attachEdge !== "left") {
-        addM(new THREE.BoxGeometry(jW2, jH2, zD), mats.joist, zwx, zH - jH2 / 2 - 0.1, zwz + zD / 2);
+        var _zld = zD - _zch.BL - _zch.FL;
+        if (_zld > 0.1) addM(new THREE.BoxGeometry(jW2, jH2, _zld), mats.joist, zwx, _zY, zwz + _zch.BL + _zld / 2);
       }
       // Right rim
       if (attachEdge !== "right") {
-        addM(new THREE.BoxGeometry(jW2, jH2, zD), mats.joist, zwx + zW, zH - jH2 / 2 - 0.1, zwz + zD / 2);
+        var _zrd = zD - _zch.BR - _zch.FR;
+        if (_zrd > 0.1) addM(new THREE.BoxGeometry(jW2, jH2, _zrd), mats.joist, zwx + zW, _zY, zwz + _zch.BR + _zrd / 2);
       }
+      // Diagonals across this zone's chamfered corners.
+      if (_zch.FL > 0) _addChamferRim(zwx, zwz + zD - _zch.FL, zwx + _zch.FL, zwz + zD, _zY, jW2, jH2, mats.joist);
+      if (_zch.FR > 0) _addChamferRim(zwx + zW - _zch.FR, zwz + zD, zwx + zW, zwz + zD - _zch.FR, _zY, jW2, jH2, mats.joist);
+      if (_zch.BL > 0) _addChamferRim(zwx, zwz + _zch.BL, zwx + _zch.BL, zwz, _zY, jW2, jH2, mats.joist);
+      if (_zch.BR > 0) _addChamferRim(zwx + zW - _zch.BR, zwz, zwx + zW, zwz + _zch.BR, _zY, jW2, jH2, mats.joist);
     }
   });
 
