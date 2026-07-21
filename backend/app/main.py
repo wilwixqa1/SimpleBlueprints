@@ -3009,6 +3009,40 @@ def uxmock_prod_params(p: dict):
     return JSONResponse(_uxmock_map_params(p))
 
 
+_UXMOCK_COVER_B64 = {}
+
+def _uxmock_cover_image():
+    """3D perspective for the SAMPLE cover sheet (landing hero + sheet strip).
+
+    Server-side renders have no browser, so capture3D (WebGL) cannot run here.
+    A representative view is committed at backend/static/textures/sample_cover_3d.jpg
+    and reused. If the asset is missing this returns None and draw_cover_sheet
+    falls back to its '3D PERSPECTIVE VIEW' placeholder box -- so a missing file
+    degrades the marketing image, never breaks the endpoint.
+
+    The asset is LETTERBOXED to the cover's image slot on purpose. That slot is
+    drawn with aspect='auto', so anything whose aspect ratio does not match gets
+    stretched to fill: the raw 1.66:1 screenshot came out 45% too wide. The
+    committed file pads the render onto a canvas matching the slot's MEASURED
+    aspect (~2.97:1 in rendered pixels -- NOT the 3.25 the axis coordinates
+    imply, since the cover axes are not square), with a small horizontal
+    pre-compensation. Measured distortion of the final cover: 0.06%.
+    If you replace this image, re-measure rather than assuming the ratio.
+
+    Real customer PDFs are unaffected: those get a live capture3D of the user's
+    own deck, passed through params['coverImage'].
+    """
+    if "b64" not in _UXMOCK_COVER_B64:
+        import base64, os
+        path = os.path.join(os.path.dirname(__file__), "..", "static", "textures", "sample_cover_3d.jpg")
+        try:
+            with open(os.path.abspath(path), "rb") as fh:
+                _UXMOCK_COVER_B64["b64"] = base64.b64encode(fh.read()).decode("ascii")
+        except Exception:
+            _UXMOCK_COVER_B64["b64"] = None
+    return _UXMOCK_COVER_B64["b64"]
+
+
 _UXMOCK_SAMPLE_CACHE = {}
 
 @app.get("/api/mock/sample-sheets")
@@ -3016,12 +3050,21 @@ def uxmock_sample_sheets():
     """Real pipeline renders of the canned demo design, cached per process.
     Used by the landing hero + sample strip so marketing imagery IS the product."""
     if "sheets" not in _UXMOCK_SAMPLE_CACHE:
+        # S95: sample design approximates the deck Will approved for the cover
+        # image (wide main deck + two side wings, chamfered front corners, stairs
+        # off the front) so the sample cover's 3D view and its sheets describe a
+        # similar deck. NOTE the mock's input shape, not the production one:
+        # `corners` takes plain sizes in feet, and zones are {edge,w,d} wings.
+        # _uxmock_map_params does not translate per-zone corners, so only the
+        # main deck's chamfers reach the drawings.
         demo = {
             "address": _UXMOCK_PARCEL["address"], "street": "Sweetgrass Lane",
             "lot": _UXMOCK_PARCEL["lotVertices"], "setbacks": _UXMOCK_PARCEL["setbacks"],
             "house": _UXMOCK_PARCEL["house"], "north": _UXMOCK_PARCEL["northAngle"],
-            "deck": {"off": 14, "w": 16, "d": 12, "h": 36},
-            "zones": [], "stairs": [{"edge": "right"}], "corners": {},
+            "deck": {"off": 14, "w": 24, "d": 12, "h": 36},
+            "zones": [{"edge": "left", "w": 8, "d": 10}, {"edge": "right", "w": 8, "d": 10}],
+            "stairs": [{"edge": "front"}],
+            "corners": {"FL": 3, "FR": 3},
             "snow": 30, "frost": 36,
             "finish": {"decking": "PT pine", "railing": "Wood baluster"},
         }
@@ -3097,7 +3140,7 @@ def _uxmock_render(p: dict, watermark: bool = True):
 
     with render_scale():
         fig0 = plt.figure(figsize=sheet_size()); fig0.set_facecolor("white")
-        draw_cover_sheet(fig0, params, calc, pi, None)
+        draw_cover_sheet(fig0, params, calc, pi, _uxmock_cover_image())
         out.append({"no": "A-0", "name": "COVER SHEET", "png": _png(fig0)})
         for sheet_num, sheet_name, draw_fn in body_sheets:
             fig = plt.figure(figsize=sheet_size()); fig.set_facecolor("white")
