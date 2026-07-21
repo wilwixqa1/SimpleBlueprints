@@ -196,11 +196,21 @@
 .sb-home .act h3 { font-family: var(--disp); text-transform: uppercase; font-size: 21px; letter-spacing: 1px; margin-bottom: 8px; }
 .sb-home .act p { font-size: 14px; color: #454d3f; }
 .sb-home .act .act-time { margin-top: 14px; font-family: var(--mono); font-size: 11px; color: var(--mut); }
-.sb-home .sheets-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+/* S95: two large sheets on top (cover + deck plan), the rest in a row below.
+   .sheets-feature is its own 2-col grid so both hero sheets share a row and
+   stay equal width; .sheets-strip then lays out whatever is left. */
+.sb-home .sheets-feature { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-bottom: 14px; }
+.sb-home .sheets-feature .sheet-thumb .st-cap { font-size: 11px; padding: 8px 10px; }
+/* Auto-fit rather than a fixed column count: the sample set is 7 sheets for a
+   simple deck (combined A-1 plan+framing) and 8 for a complex one, so the strip
+   holds 5 or 6 depending on the design. */
+.sb-home .sheets-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 14px; }
 .sb-home .sheet-thumb.feature { grid-column: span 2; grid-row: span 2; }
 .sb-home .sheet-thumb.feature .st-cap { font-size: 11px; padding: 8px 10px; }
 
-@media (max-width: 980px) {.sb-home .sheets-strip { grid-template-columns: repeat(2, 1fr); }}
+@media (max-width: 980px) {
+  .sb-home .sheets-feature { grid-template-columns: 1fr; }
+}
 .sb-home .sheet-thumb { border: 1px solid var(--ruling); border-radius: 8px; overflow: hidden; background: var(--paper); box-shadow: 0 1px 6px rgba(20,33,46,.06); }
 .sb-home .sheet-thumb .st-cap { border-top: 1px solid var(--ruling); padding: 6px 8px; font-family: var(--mono); font-size: 10px; color: var(--mut); display: flex; justify-content: space-between; }
 .sb-home .sheet-thumb .st-cap b { color: var(--ink); font-weight: 600; }

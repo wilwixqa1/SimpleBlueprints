@@ -3050,21 +3050,17 @@ def uxmock_sample_sheets():
     """Real pipeline renders of the canned demo design, cached per process.
     Used by the landing hero + sample strip so marketing imagery IS the product."""
     if "sheets" not in _UXMOCK_SAMPLE_CACHE:
-        # S95: sample design approximates the deck Will approved for the cover
-        # image (wide main deck + two side wings, chamfered front corners, stairs
-        # off the front) so the sample cover's 3D view and its sheets describe a
-        # similar deck. NOTE the mock's input shape, not the production one:
-        # `corners` takes plain sizes in feet, and zones are {edge,w,d} wings.
-        # _uxmock_map_params does not translate per-zone corners, so only the
-        # main deck's chamfers reach the drawings.
+        # Sample design: the original simple 16x12 ledger deck with one side
+        # stair. S95 briefly widened this to match the cover render, but Will
+        # preferred the simpler sheets (the earlier A-1 / framing / site plan
+        # read more clearly at thumbnail size). The COVER image is a separate
+        # asset and intentionally shows a richer deck than these sheets draw.
         demo = {
             "address": _UXMOCK_PARCEL["address"], "street": "Sweetgrass Lane",
             "lot": _UXMOCK_PARCEL["lotVertices"], "setbacks": _UXMOCK_PARCEL["setbacks"],
             "house": _UXMOCK_PARCEL["house"], "north": _UXMOCK_PARCEL["northAngle"],
-            "deck": {"off": 14, "w": 24, "d": 12, "h": 36},
-            "zones": [{"edge": "left", "w": 8, "d": 10}, {"edge": "right", "w": 8, "d": 10}],
-            "stairs": [{"edge": "front"}],
-            "corners": {"FL": 3, "FR": 3},
+            "deck": {"off": 14, "w": 16, "d": 12, "h": 36},
+            "zones": [], "stairs": [{"edge": "right"}], "corners": {},
             "snow": 30, "frost": 36,
             "finish": {"decking": "PT pine", "railing": "Wood baluster"},
         }

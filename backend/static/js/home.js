@@ -154,23 +154,49 @@ function HomePage({ setPage, user, startNewProject, setInfo }) {
         <div style={{ maxWidth: 1160, margin: "0 auto" }}>
           <div className="sec-head"><span className="sec-no">SEC. 02</span><h2 id="sheets-h">What your building department gets</h2></div>
           <p style={{ maxWidth: "64ch", marginBottom: 26, color: "#454d3f", fontSize: 15 }}>A complete deck permit submission set. Every sheet carries a title block with your address and parcel number, and every structural member cites the 2021 IRC section it was sized from. These are not stock previews. The sheets below are drawn live by the same pipeline that will draw yours.</p>
-          <div className="sheets-strip">
-            {sheets ? sheets.map(function (sh, i) {
+          {sheets ? (function () {
+            // Cover (A-0) and deck plan (A-1) lead at full size; the remaining
+            // sheets sit in a row underneath.
+            var hero = sheets.filter(function (s) { return s.no === "A-0" || s.no === "A-1"; });
+            var rest = sheets.filter(function (s) { return s.no !== "A-0" && s.no !== "A-1"; });
+            var thumb = function (sh, big) {
               return (
-                <div key={sh.no + "-" + i} className={"sheet-thumb" + (i === 1 ? " feature" : "")}>
+                <div key={sh.no} className="sheet-thumb">
                   <img src={"data:image/png;base64," + sh.png} alt={sh.name + " sample sheet"} style={{ width: "100%", display: "block" }} />
-                  <div className="st-cap"><b>{sh.no}</b><span>{sh.name}{i === 1 ? " · REAL RENDER" : ""}</span></div>
+                  <div className="st-cap"><b>{sh.no}</b><span>{sh.name}{big && sh.no === "A-1" ? " \u00b7 REAL RENDER" : ""}</span></div>
                 </div>
               );
-            }) : [0, 1, 2, 3, 4].map(function (i) {
-              return (
-                <div key={"skel-" + i} className={"sheet-thumb" + (i === 1 ? " feature" : "")}>
-                  <div style={{ width: "100%", paddingTop: "66%", background: "var(--ruling-soft)" }} />
-                  <div className="st-cap"><b>&nbsp;</b><span>RENDERING</span></div>
-                </div>
-              );
-            })}
-          </div>
+            };
+            return (
+              <React.Fragment>
+                <div className="sheets-feature">{hero.map(function (s) { return thumb(s, true); })}</div>
+                <div className="sheets-strip">{rest.map(function (s) { return thumb(s, false); })}</div>
+              </React.Fragment>
+            );
+          })() : (
+            <React.Fragment>
+              <div className="sheets-feature">
+                {[0, 1].map(function (i) {
+                  return (
+                    <div key={"fskel-" + i} className="sheet-thumb">
+                      <div style={{ width: "100%", paddingTop: "66%", background: "var(--ruling-soft)" }} />
+                      <div className="st-cap"><b>&nbsp;</b><span>RENDERING</span></div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="sheets-strip">
+                {[0, 1, 2, 3, 4].map(function (i) {
+                  return (
+                    <div key={"skel-" + i} className="sheet-thumb">
+                      <div style={{ width: "100%", paddingTop: "66%", background: "var(--ruling-soft)" }} />
+                      <div className="st-cap"><b>&nbsp;</b><span>RENDERING</span></div>
+                    </div>
+                  );
+                })}
+              </div>
+            </React.Fragment>
+          )}
           <p style={{ marginTop: 14, fontFamily: "var(--mono)", fontSize: 11, color: "var(--mut)" }}>THE FULL SET REDRAWS FROM YOUR DESIGN AS YOU WORK</p>
         </div>
       </section>
