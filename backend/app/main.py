@@ -3152,5 +3152,141 @@ def _uxmock_render(p: dict, watermark: bool = True):
 # END S88.5 UX MOCK revert block
 # ============================================================
 
+
+# ============================================================
+# S96.5: REVIEW-STEP SHEET PREVIEWS (production wizard)
+# ============================================================
+# The Review step used to show three HAND-DRAWN SVG facsimiles of the sheets.
+# They never matched the real output -- the S88.5 mock had already dropped the
+# same idea because the mismatch "confuses trust". These endpoints render the
+# user's ACTUAL design through the SAME draw_* functions the PDF uses, so what
+# the customer sees before paying is what they get after.
+#
+# Composition is kept in lockstep with generate_blueprint_pdf() above:
+# zones -> 8 sheets (split plan/framing), no zones -> 7 (combined A-1).
+
+def _preview_sheet_plan(params: dict):
+    """Authoritative sheet list for a config. Mirrors generate_blueprint_pdf."""
+    complex_ = bool(params.get("zones"))
+
+    def _panel_plan(f_, p_, c_, s_):
+        draw_plan_and_framing(f_, p_, c_, s_, panels=("plan",))
+
+    def _panel_framing(f_, p_, c_, s_):
+        draw_plan_and_framing(f_, p_, c_, s_, panels=("framing",))
+
+    def _sheet_site(f_, p_, c_, s_):
+        draw_site_plan(f_, p_, c_)
+
+    def _sheet_checklist(f_, p_, c_, s_):
+        draw_checklist_sheet(f_, p_, c_, s_)
+
+    if complex_:
+        return [
+            ("A-1", "DECK PLAN", _panel_plan),
+            ("A-2", "DECK FRAMING", _panel_framing),
+            ("A-3", "ELEVATIONS", draw_elevations_sheet),
+            ("A-4", "GENERAL NOTES", draw_notes_sheet),
+            ("A-5", "STRUCTURAL DETAILS", draw_details_sheet),
+            ("A-6", "SITE PLAN", _sheet_site),
+            ("A-7", "DECK ATTACHMENT SHEET", _sheet_checklist),
+        ]
+    return [
+        ("A-1", "DECK PLAN & FRAMING", draw_plan_and_framing),
+        ("A-2", "ELEVATIONS", draw_elevations_sheet),
+        ("A-3", "GENERAL NOTES", draw_notes_sheet),
+        ("A-4", "STRUCTURAL DETAILS", draw_details_sheet),
+        ("A-5", "SITE PLAN", _sheet_site),
+        ("A-6", "DECK ATTACHMENT SHEET", _sheet_checklist),
+    ]
+
+
+@app.post("/api/preview-manifest")
+def preview_manifest(p: dict):
+    """Cheap: what sheets WOULD this design produce? No rendering.
+
+    Lets the Review step draw the right number of labelled skeletons
+    immediately, then fill each one in as its render arrives.
+    """
+    try:
+        params = DeckParams(**p).dict()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid params: {str(e)[:120]}")
+    sheets = [{"no": "A-0", "name": "COVER SHEET"}]
+    sheets += [{"no": n, "name": nm} for n, nm, _ in _preview_sheet_plan(params)]
+    return JSONResponse({"sheets": sheets, "count": len(sheets)})
+
+
+@app.post("/api/preview-sheet")
+def preview_sheet(p: dict):
+    """Render ONE sheet as a watermarked PNG.
+
+    One-at-a-time on purpose: the whole set is ~1.9MB of base64 and takes a
+    couple of seconds, so a single blocking response leaves the conversion page
+    blank exactly when it needs to look finished. The client asks for these in
+    priority order (cover and deck plan first) and paints each as it lands.
+
+    `dpi` is clamped: gallery thumbnails ask for something small, the lightbox
+    asks for full detail, and neither gets to request an unbounded render.
+    """
+    import base64
+    from io import BytesIO
+
+    idx = p.pop("_sheet_index", 0)
+    dpi = p.pop("_dpi", 40)
+    try:
+        dpi = max(12, min(110, int(dpi)))
+    except Exception:
+        dpi = 40
+    try:
+        params = DeckParams(**p).dict()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid params: {str(e)[:120]}")
+
+    calc = calculate_structure(params)
+    spec = build_permit_spec(params, calc)
+    pi = params.get("projectInfo") or {}
+    body = _preview_sheet_plan(params)
+
+    try:
+        idx = int(idx)
+    except Exception:
+        idx = 0
+    if idx < 0 or idx > len(body):
+        raise HTTPException(status_code=404, detail="No such sheet")
+
+    with render_scale():
+        fig = plt.figure(figsize=sheet_size())
+        fig.set_facecolor("white")
+        try:
+            if idx == 0:
+                sheet_no, sheet_name = "A-0", "COVER SHEET"
+                draw_cover_sheet(fig, params, calc, pi, None)
+            else:
+                sheet_no, sheet_name, draw_fn = body[idx - 1]
+                draw_fn(fig, params, calc, spec)
+                draw_title_block(fig, sheet_no, sheet_name, calc, pi)
+            # Watermark: this is a pre-purchase preview of a paid artifact.
+            fig.text(0.5, 0.5, "PREVIEW", rotation=28, ha="center", va="center",
+                     fontsize=110, color="#3d5a2e", alpha=0.22,
+                     fontweight="bold", zorder=1000)
+            fig.text(0.5, 0.36, "NOT FOR CONSTRUCTION \u00b7 SIMPLEBLUEPRINTS.XYZ",
+                     rotation=28, ha="center", va="center", fontsize=26,
+                     color="#3d5a2e", alpha=0.28, zorder=1000)
+            buf = BytesIO()
+            fig.savefig(buf, format="png", dpi=dpi, facecolor="white")
+            plt.close(fig)
+            return JSONResponse({
+                "no": sheet_no, "name": sheet_name, "index": idx,
+                "png": base64.b64encode(buf.getvalue()).decode("ascii"),
+            })
+        except Exception as e:
+            plt.close(fig)
+            return JSONResponse({
+                "no": "A-?", "name": "SHEET", "index": idx,
+                "error": str(e)[:200],
+            })
+
+
 # /js/ mount removed S26   all JS now served via /static/js/ (S25 mount)
 app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static-all")

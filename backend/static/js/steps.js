@@ -1668,6 +1668,94 @@ function StepContent(props) {
       p.snowLoad, p.frostZone, p.beamType, p.hasStairs, p.deckingType,
       p.overJoist, p.overBeam, p.overPostSize, p.overPostCount, p.overFooting]);
 
+  // S96.5: Real sheet previews for the Review step.
+  // Fetched ONE SHEET AT A TIME, in order, so the gallery paints progressively
+  // instead of sitting blank for ~2s waiting on the whole set. Cover and deck
+  // plan land first because they are the most convincing. A render token guards
+  // against a stale in-flight sequence overwriting a newer design's sheets.
+  const [previewSheets, setPreviewSheets] = _stUS([]);
+  // S96.5: when the title-block data is complete we show it as confirmable rows;
+  // this flips it back to the editable form on request.
+  const [infoEditing, setInfoEditing] = _stUS(false);
+  const [previewDone, setPreviewDone] = _stUS(0);
+  const [lightbox, setLightbox] = _stUS(null);
+  const [lightboxPng, setLightboxPng] = _stUS(null);
+  const previewTokenRef = React.useRef(0);
+
+  _stUE(function() {
+    if (step !== 4) return;
+    var token = ++previewTokenRef.current;
+    setPreviewDone(0);
+    setLightbox(null);
+    fetch("/api/preview-manifest", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(p),
+    }).then(function(r) { return r.json(); }).then(function(d) {
+      if (token !== previewTokenRef.current) return;
+      var list = (d.sheets || []).map(function(s) {
+        return { no: s.no, name: s.name, png: null, error: null };
+      });
+      setPreviewSheets(list);
+      // Walk the sheets in series. Sequential (not parallel) on purpose: each
+      // render is a matplotlib figure on the server, and firing 7-8 at once
+      // just queues them anyway while making the first one arrive later.
+      var i = 0;
+      function next() {
+        if (token !== previewTokenRef.current || i >= list.length) return;
+        var idx = i++;
+        var body = Object.assign({}, p, { _sheet_index: idx, _dpi: 20 });
+        fetch("/api/preview-sheet", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        }).then(function(r) { return r.json(); }).then(function(sh) {
+          if (token !== previewTokenRef.current) return;
+          setPreviewSheets(function(prev) {
+            var copy = prev.slice();
+            if (copy[idx]) copy[idx] = Object.assign({}, copy[idx], { png: sh.png || null, error: sh.error || null });
+            return copy;
+          });
+          setPreviewDone(function(n) { return n + 1; });
+          next();
+        }).catch(function() {
+          if (token !== previewTokenRef.current) return;
+          setPreviewSheets(function(prev) {
+            var copy = prev.slice();
+            if (copy[idx]) copy[idx] = Object.assign({}, copy[idx], { error: "fetch failed" });
+            return copy;
+          });
+          setPreviewDone(function(n) { return n + 1; });
+          next();
+        });
+      }
+      next();
+    }).catch(function() {
+      if (token !== previewTokenRef.current) return;
+      setPreviewSheets([]);
+    });
+  }, [step, p.width, p.depth, p.height, p.attachment, p.joistSpacing,
+      p.snowLoad, p.frostZone, p.beamType, p.hasStairs, p.deckingType,
+      p.railType, p.framingType, JSON.stringify(p.zones || []),
+      JSON.stringify(p.deckStairs || [])]);
+
+  // S96.5: pull a full-resolution copy when a sheet is opened. The gallery runs
+  // at dpi 20 to stay light; the lightbox needs real detail to be worth opening.
+  _stUE(function() {
+    setLightboxPng(null);
+    if (lightbox == null) return;
+    var token = previewTokenRef.current;
+    var body = Object.assign({}, p, { _sheet_index: lightbox, _dpi: 100 });
+    fetch("/api/preview-sheet", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).then(function(r) { return r.json(); }).then(function(sh) {
+      if (token !== previewTokenRef.current) return;
+      if (sh && sh.png) setLightboxPng(sh.png);
+    }).catch(function() {});
+  }, [lightbox]);
+
   // S54: AI Helper chat state - persists across step changes via window
   if (!window._chatMessages) window._chatMessages = [];
   const [chatMessages, setChatMessages] = _stUS(window._chatMessages);
@@ -4556,7 +4644,7 @@ function StepContent(props) {
       }
       if (guidePhase === 's4_generate') {
         s4Msg = "Ready to generate your blueprint package!";
-        s4Tip = "Click 'Generate Blueprint PDF' below. Your 4-sheet package will be ready in about 30 seconds.";
+        s4Tip = "Click 'Generate Blueprint PDF' below. Your " + (previewSheets.length || 7) + "-sheet package will be ready in about 30 seconds.";
       }
       return <GuidePanel
         phase={guidePhase}
@@ -4569,43 +4657,62 @@ function StepContent(props) {
         chatMessages={chatMessages} chatLoading={chatLoading} onSendMessage={sendChatMessage} onApplyActions={_applyActions} setChatMessages={setChatMessages}
       />;
     })()}
+    {/* S96.5: REAL sheet previews. This block used to be three hand-drawn SVG
+        facsimiles of the sheets -- shapes that approximated the output without
+        matching it. The S88.5 mock had already dropped that idea because a
+        preview that doesn't match the product erodes trust exactly when the
+        user is deciding to pay. These are the user's OWN design rendered by the
+        same draw_* functions that produce the PDF, fetched one sheet at a time
+        so the grid fills in instead of blocking on a ~2s all-or-nothing call. */}
     <div style={{ marginBottom: 14 }}>
-      <div style={{ fontSize: 10, fontWeight: 700, color: _br.gn, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 8 }}>Blueprint Preview</div>
-      <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 }}>
-        <div style={{ flex: "0 0 auto", width: 200, background: "#fff", border: `1px solid ${_br.bd}`, borderRadius: 6, overflow: "hidden", position: "relative" }}>
-          <div style={{ padding: "4px 8px", background: _br.wr, borderBottom: `1px solid ${_br.bd}` }}><span style={{ fontSize: 7, fontFamily: _mono, fontWeight: 700, color: _br.mu }}>SHEET A-1 {"\u2014"} DECK PLAN</span></div>
-          <div style={{ padding: 4, height: 130 }}>
-            <svg viewBox="0 0 200 120" style={{ width: "100%", height: "100%" }}>
-              <rect x="30" y="5" width={Math.min(140, c.W * 3.5)} height={15} fill="#e8e6e0" stroke="#888" strokeWidth="0.5" />
-              <text x={30 + Math.min(140, c.W * 3.5) / 2} y="14" textAnchor="middle" style={{ fontSize: 4, fill: "#aaa" }}>HOUSE</text>
-              <rect x="30" y="20" width={Math.min(140, c.W * 3.5)} height={Math.min(80, c.D * 5)} fill="#efe5d5" stroke="#333" strokeWidth="0.8" />
-              {c.attachment === "ledger" && <line x1="30" y1="20" x2={30 + Math.min(140, c.W * 3.5)} y2="20" stroke="#2e7d32" strokeWidth="1.5" />}
-              {Array.from({ length: Math.min(20, Math.ceil(c.W / (c.sp / 12))) }, (_, i) => { const x = 30 + (i + 1) * Math.min(140, c.W * 3.5) / Math.ceil(c.W / (c.sp / 12)); return x < 30 + Math.min(140, c.W * 3.5) ? <line key={i} x1={x} y1="21" x2={x} y2={20 + Math.min(80, c.D * 5) - 8} stroke="#ddd" strokeWidth="0.2" /> : null; })}
-              <line x1="32" y1={20 + Math.min(80, c.D * 5) - 8} x2={28 + Math.min(140, c.W * 3.5)} y2={20 + Math.min(80, c.D * 5) - 8} stroke="#c4960a" strokeWidth="1.5" />
-              {c.pp.map((px, i) => <circle key={i} cx={30 + (px / c.W) * Math.min(140, c.W * 3.5)} cy={20 + Math.min(80, c.D * 5) - 8} r="2" fill="#c4a060" stroke="#444" strokeWidth="0.3" />)}
-              <text x={30 + Math.min(140, c.W * 3.5) / 2} y={20 + Math.min(80, c.D * 5) / 2} textAnchor="middle" style={{ fontSize: 5, fill: "#888" }}>{c.joistSize} @ {c.sp}" O.C.</text>
-              <text x={30 + Math.min(140, c.W * 3.5) / 2} y={20 + Math.min(80, c.D * 5) + 8} textAnchor="middle" style={{ fontSize: 5, fill: "#c62828", fontWeight: 700 }}>{fmtFtIn(c.W)}</text>
-            </svg>
-          </div>
-          <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}><span style={{ fontSize: 22, fontWeight: 900, color: "rgba(61,90,46,0.08)", fontFamily: _mono, transform: "rotate(-20deg)", letterSpacing: 4 }}>PREVIEW</span></div>
-        </div>
-        <div style={{ flex: "0 0 auto", width: 200, background: "#fff", border: `1px solid ${_br.bd}`, borderRadius: 6, overflow: "hidden", position: "relative" }}>
-          <div style={{ padding: "4px 8px", background: _br.wr, borderBottom: `1px solid ${_br.bd}` }}><span style={{ fontSize: 7, fontFamily: _mono, fontWeight: 700, color: _br.mu }}>SHEET A-2 {"\u2014"} ELEVATIONS</span></div>
-          <div style={{ padding: 4, height: 130 }}><svg viewBox="0 0 200 120" style={{ width: "100%", height: "100%" }}><line x1="15" y1="85" x2="185" y2="85" stroke="#444" strokeWidth="0.5" />{(() => { const dw = Math.min(150, c.W * 3.5); const dxv = (200 - dw) / 2; const hSc = Math.min(4, 50 / c.H); const dy = 85 - c.H * hSc; return (<><rect x={dxv} y="15" width={dw} height={70} fill="#e8e6e0" stroke="#888" strokeWidth="0.3" /><polygon points={`${dxv-3},15 ${dxv+dw/2},5 ${dxv+dw+3},15`} fill="#888" stroke="#444" strokeWidth="0.3" />{c.pp.map((px, i) => <line key={i} x1={dxv+(px/c.W)*dw} y1="85" x2={dxv+(px/c.W)*dw} y2={dy} stroke="#c4a060" strokeWidth="1" />)}<rect x={dxv+2} y={dy+1} width={dw-4} height={3} fill="#c4960a" fillOpacity="0.8" stroke="#444" strokeWidth="0.2" /><line x1={dxv} y1={dy} x2={dxv+dw} y2={dy} stroke="#6B5340" strokeWidth="1.5" /><line x1={dxv} y1={dy-c.H*hSc*0.4} x2={dxv+dw} y2={dy-c.H*hSc*0.4} stroke="#333" strokeWidth="0.8" /><text x={dxv+dw+4} y={(85+dy)/2+1} style={{ fontSize: 5, fill: "#1565c0", fontWeight: 700 }}>{fmtFtIn(c.H)}</text><text x={dxv+dw/2} y="97" textAnchor="middle" style={{ fontSize: 5, fill: "#c62828", fontWeight: 700 }}>{fmtFtIn(c.W)}</text></>); })()}</svg></div>
-          <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}><span style={{ fontSize: 22, fontWeight: 900, color: "rgba(61,90,46,0.08)", fontFamily: _mono, transform: "rotate(-20deg)", letterSpacing: 4 }}>PREVIEW</span></div>
-        </div>
-        <div style={{ flex: "0 0 auto", width: 200, background: "#fff", border: `1px solid ${_br.bd}`, borderRadius: 6, overflow: "hidden", position: "relative" }}>
-          <div style={{ padding: "4px 8px", background: _br.wr, borderBottom: `1px solid ${_br.bd}` }}><span style={{ fontSize: 7, fontFamily: _mono, fontWeight: 700, color: _br.mu }}>SHEET A-3 {"\u2014"} DETAILS</span></div>
-          <div style={{ padding: 8, height: 130, display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "1fr 1fr", gap: 4 }}>
-            {[{ t: "LEDGER DETAIL", lines: [[10,30,10,80],[10,30,60,30],[20,30,20,80],[30,35,30,75],[40,35,40,75]] },{ t: "FOOTING DETAIL", lines: [[25,20,25,70],[45,20,45,70],[25,70,45,70],[30,15,40,15],[30,15,30,20],[40,15,40,20]] },{ t: "GUARD RAIL", lines: [[5,65,65,65],[5,15,65,15],[5,15,5,65],[65,15,65,65]] },{ t: "POST / BEAM", lines: [[25,80,25,30],[45,80,45,30],[10,30,60,30],[10,25,60,25]] }].map((detail, di) => (
-              <div key={di} style={{ background: "#fcfcfa", border: `0.5px solid ${_br.bd}`, borderRadius: 3, position: "relative", overflow: "hidden" }}><svg viewBox="0 0 70 90" style={{ width: "100%", height: "100%" }}>{detail.lines.map(([x1,y1,x2,y2], li) => <line key={li} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#bbb" strokeWidth="0.5" />)}<text x="35" y="87" textAnchor="middle" style={{ fontSize: 4.5, fill: "#aaa", fontWeight: 600 }}>{detail.t}</text></svg></div>
-            ))}
-          </div>
-          <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}><span style={{ fontSize: 22, fontWeight: 900, color: "rgba(61,90,46,0.08)", fontFamily: _mono, transform: "rotate(-20deg)", letterSpacing: 4 }}>PREVIEW</span></div>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 8 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: _br.gn, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>Your drawing set</div>
+        <div style={{ fontSize: 8, fontFamily: _mono, color: _br.mu }}>
+          {previewSheets.length > 0 ? (previewDone + " of " + previewSheets.length + " sheets") : "preparing\u2026"}
         </div>
       </div>
-      <div style={{ textAlign: "center", marginTop: 6 }}><span style={{ fontSize: 8, color: _br.mu, fontFamily: _mono }}>4 sheets included {"\u00B7"} Plan {"\u00B7"} Elevations {"\u00B7"} Details {"\u00B7"} Materials</span></div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 8 }}>
+        {previewSheets.map(function(sh, i) {
+          return <div key={i} onClick={function() { if (sh.png) setLightbox(i); }}
+            style={{ background: "#fff", border: "1px solid " + _br.bd, borderRadius: 6, overflow: "hidden", cursor: sh.png ? "zoom-in" : "default" }}>
+            <div style={{ height: 104, display: "flex", alignItems: "center", justifyContent: "center", background: sh.png ? "#fff" : _br.wr }}>
+              {sh.png
+                ? <img src={"data:image/png;base64," + sh.png} alt={sh.name} style={{ width: "100%", display: "block" }} />
+                : sh.error
+                  ? <span style={{ fontSize: 8, fontFamily: _mono, color: _br.rd, padding: 8, textAlign: "center" }}>RENDER ERROR</span>
+                  : <span style={{ fontSize: 8, fontFamily: _mono, color: _br.mu, letterSpacing: "1px" }}>DRAWING{"\u2026"}</span>}
+            </div>
+            <div style={{ padding: "4px 7px", borderTop: "1px solid " + _br.bd, background: _br.wr, display: "flex", justifyContent: "space-between", gap: 6 }}>
+              <span style={{ fontSize: 7, fontFamily: _mono, fontWeight: 700, color: _br.dk }}>{sh.no}</span>
+              <span style={{ fontSize: 7, fontFamily: _mono, color: _br.mu, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sh.name}</span>
+            </div>
+          </div>;
+        })}
+      </div>
+      <div style={{ textAlign: "center", marginTop: 6 }}>
+        <span style={{ fontSize: 8, color: _br.mu, fontFamily: _mono }}>
+          {previewSheets.length > 0
+            ? previewSheets.length + " sheets " + "\u00B7" + " drawn from your design by the same pipeline that makes your PDF"
+            : "Rendering your sheets\u2026"}
+        </span>
+      </div>
     </div>
+
+    {/* S96.5: full-size sheet inspection. Re-fetched at higher dpi so the
+        gallery can stay light without making the zoomed view mushy. */}
+    {lightbox != null && previewSheets[lightbox] && <div
+      onClick={function() { setLightbox(null); }}
+      style={{ position: "fixed", inset: 0, background: "rgba(20,24,18,0.82)", zIndex: 4000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, cursor: "zoom-out" }}>
+      <div style={{ maxWidth: 1100, width: "100%", background: "#fff", borderRadius: 8, overflow: "hidden" }}>
+        {lightboxPng
+          ? <img src={"data:image/png;base64," + lightboxPng} alt="sheet" style={{ width: "100%", display: "block" }} />
+          : <img src={"data:image/png;base64," + previewSheets[lightbox].png} alt="sheet" style={{ width: "100%", display: "block", filter: "blur(0.4px)" }} />}
+        <div style={{ padding: "8px 12px", borderTop: "1px solid " + _br.bd, display: "flex", justifyContent: "space-between", fontFamily: _mono, fontSize: 10, color: _br.mu }}>
+          <b style={{ color: _br.dk }}>{previewSheets[lightbox].no}</b>
+          <span>{previewSheets[lightbox].name} {"\u00B7"} {lightboxPng ? "CLICK ANYWHERE TO CLOSE" : "LOADING FULL SIZE\u2026"}</span>
+        </div>
+      </div>
+    </div>}
 
     {/* S60: Permit Readiness Card */}
     {(() => {
@@ -4657,17 +4764,43 @@ function StepContent(props) {
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10, marginBottom: 14 }}>
       <div style={{ padding: 12, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}` }}>
         <div style={{ fontSize: 9, fontWeight: 700, color: _br.gn, marginBottom: 6, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>Project</div>
-        <Spec l="Size" v={`${fmtFtIn(c.W)}\u00D7${fmtFtIn(c.D)} (${zc ? zc.totalArea : c.area} SF)`} /><Spec l="Height" v={fmtFtIn(c.H)} /><Spec l="Attach" v={c.attachment === "ledger" ? "Ledger" : "Free"} /><Spec l="Stairs" v={(() => { var ds = p.deckStairs || []; if (!ds.length) return "None"; if (ds.length === 1) { var s0 = ds[0]; return `${s0.location} ${fmtFtIn(s0.width || 4)} \u00B7 ${s0.numStringers || 3} stringers`; } return ds.map(function(s) { var zn = s.zoneId === 0 ? "Main" : (p.zones || []).reduce(function(a, z) { return z.id === s.zoneId ? (z.label || "Zone " + z.id) : a; }, "Zone " + s.zoneId); return zn + " " + s.location + " " + fmtFtIn(s.width || 4); }).join(", "); })()} /><Spec l="Deck" v={p.deckingType === "composite" ? "Composite" : "PT"} /><Spec l="Rail" v={`${p.railType === "fortress" ? "Fortress" : "Wood"} \u00B7 ${c.guardHeight || 36}"`} />
+        <Spec l="Size" v={`${fmtFtIn(c.W)}\u00D7${fmtFtIn(c.D)} (${zc ? zc.totalArea : c.area} SF)`} /><Spec l="Height" v={fmtFtIn(c.H)} /><Spec l="Attach" v={c.attachment === "ledger" ? "Ledger" : "Free"} /><Spec l="Stairs" v={(() => { var ds = p.deckStairs || []; if (!ds.length) return "Not included"; if (ds.length === 1) { var s0 = ds[0]; return `${s0.location} ${fmtFtIn(s0.width || 4)} \u00B7 ${s0.numStringers || 3} stringers`; } return ds.map(function(s) { var zn = s.zoneId === 0 ? "Main" : (p.zones || []).reduce(function(a, z) { return z.id === s.zoneId ? (z.label || "Zone " + z.id) : a; }, "Zone " + s.zoneId); return zn + " " + s.location + " " + fmtFtIn(s.width || 4); }).join(", "); })()} /><Spec l="Deck" v={p.deckingType === "composite" ? "Composite" : "PT"} /><Spec l="Rail" v={`${p.railType === "fortress" ? "Fortress" : "Wood"} \u00B7 ${c.guardHeight || 36}"`} />
       </div>
       <div style={{ padding: 12, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}` }}>
         <div style={{ fontSize: 9, fontWeight: 700, color: _br.gn, marginBottom: 6, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>Structure</div>
-        <Spec l="Joists" v={`${c.joistSize}@${c.sp}"`} /><Spec l="Beam" v={c.beamSize.replace("3-ply ","3\u00D7").replace("2-ply ","2\u00D7")} /><Spec l="Posts" v={`${c.postSize}\u00D7${zc ? c.nP + zc.extraPosts : c.nP}`} /><Spec l="Footings" v={`${c.fDiam}"\u00D8\u00D7${c.nF}`} /><Spec l="Load" v={`${c.TL} PSF`} color={_br.rd} />
+        <Spec l="Joists" v={`${c.joistSize}@${c.sp}"`} /><Spec l="Beam" v={c.beamSize.replace("3-ply ","3\u00D7").replace("2-ply ","2\u00D7")} /><Spec l="Posts" v={`${c.postSize}\u00D7${zc ? c.nP + zc.extraPosts : c.nP}`} /><Spec l="Footings" v={`${c.fDiam}"\u00D8\u00D7${c.nF}`} /><Spec l="Load" v={`${c.TL} PSF`} color={_br.rd} /><Spec l="Finishes" v={`${(p.deckingType === "composite" ? "Composite" : "PT pine")} / ${((p.railType || p.railingType || "fortress") === "wood" ? "Wood baluster" : "Fortress steel")}`} /><Spec l="Jurisdiction" v={_isPPRBD ? "Pikes Peak RBD" : "IRC 2021 (generic)"} />
         {c.warnings.length > 0 && <div style={{ fontSize: 8, color: _br.rd, marginTop: 4, fontFamily: _mono }}>{"\u26A0\uFE0F"} {c.warnings.length} warning{c.warnings.length > 1 ? "s" : ""}</div>}
       </div>
     </div>
 
     <div data-section="projectInfo" style={{ padding: 14, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}`, marginBottom: 14 }}>
       <div style={{ fontSize: 9, fontWeight: 700, color: _br.gn, marginBottom: 10, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>Project Information <span style={{ fontWeight: 400, color: _br.mu, fontSize: 8 }}>(prints on title block)</span></div>
+      {/* S96.5: This was a bare 6-field FORM on the page where the user decides
+          to pay -- blank inputs at the moment of commitment read as "something
+          is still missing". The data is almost always already known from the
+          address lookup, so show it as CONFIRMABLE ROWS and only open the form
+          when something is actually missing or the user asks to edit. */}
+      {(function() {
+        var _need = ["owner", "address", "city", "state", "zip"];
+        var _missing = _need.filter(function(f) { return !((info[f] || "").toString().trim()); });
+        if (infoEditing || _missing.length > 0) return null;
+        return <div>
+          {[["owner","Owner / Applicant"],["address","Project Address"],["city","City"],["state","State"],["zip","ZIP"],["lot","Lot / Parcel #"],["contractor","Contractor"]].map(function(row) {
+            var f = row[0], lbl = row[1], val = (info[f] || "").toString().trim();
+            if (!val) return null;
+            return <div key={f} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "4px 0", borderBottom: `1px solid ${_br.bd}` }}>
+              <span style={{ fontSize: 9, color: _br.mu, fontFamily: _mono }}>{lbl}</span>
+              <span style={{ fontSize: 10, color: _br.dk, fontFamily: _sans, fontWeight: 600, textAlign: "right" }}>{val}</span>
+            </div>;
+          })}
+          <button onClick={function() { setInfoEditing(true); }} style={{ marginTop: 8, background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 9, fontFamily: _mono, color: _br.gn, textDecoration: "underline" }}>Edit project info</button>
+        </div>;
+      })()}
+      {(function() {
+        var _need = ["owner", "address", "city", "state", "zip"];
+        var _missing = _need.filter(function(f) { return !((info[f] || "").toString().trim()); });
+        if (!infoEditing && _missing.length === 0) return null;
+        return <div>
       {[["owner", "Owner / Applicant Name"],["address", "Project Address"],["city", "City"]].map(([f, lbl]) => (
         <div key={f} style={{ marginBottom: 8 }}>
           <label style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, display: "block", marginBottom: 2 }}>{lbl}</label>
@@ -4682,6 +4815,8 @@ function StepContent(props) {
         <div style={{ flex: 1 }}><label style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, display: "block", marginBottom: 2 }}>Lot / Parcel #</label><input value={info.lot} onChange={e => setI("lot", e.target.value)} placeholder="Optional" style={{ width: "100%", padding: "7px 10px", border: `1px solid ${_br.bd}`, borderRadius: 5, fontSize: 12, fontFamily: _mono, color: _br.tx, background: "#fff", outline: "none" }} /></div>
         <div style={{ flex: 1 }}><label style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, display: "block", marginBottom: 2 }}>Contractor</label><input value={info.contractor} onChange={e => setI("contractor", e.target.value)} placeholder="Owner-Builder" style={{ width: "100%", padding: "7px 10px", border: `1px solid ${_br.bd}`, borderRadius: 5, fontSize: 12, fontFamily: _mono, color: _br.tx, background: "#fff", outline: "none" }} /></div>
       </div>
+        </div>;
+      })()}
     </div>
 
     {/* S50: PPRBD Deck Attachment Sheet checklist (PPRBD jurisdiction only) */}
