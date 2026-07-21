@@ -113,7 +113,7 @@
     out += T(fit.sx(sbp[0][0]) + 6, fit.sy(sbp[0][1]) - 6, 'SETBACK LINE', 10, viol.length ? WARN : CYAN);
 
     // street label along bottom
-    out += T(450, fit.sy(0) + 26, (st.street || 'STREET').toUpperCase() + ' — FRONT', 11, MUT, 'middle');
+    out += T(450, fit.sy(0) + 26, (st.street || 'STREET').toUpperCase() + ' \u00b7 FRONT', 11, MUT, 'middle');
 
     // house
     var h = st.house;
@@ -250,7 +250,7 @@
     // center area label
     var spec = SBPSpec.compute(st);
     out += T(X(dr.w / 2), Y(dr.d / 2), spec.area + ' S.F.', 15, INK, 'middle', ' font-weight="600"');
-    if (viol) out += T(X(dr.w / 2), Y(dr.d / 2) + 18, 'CROSSES SETBACK — CHECK SITE VIEW', 10, WARN, 'middle');
+    if (viol) out += T(X(dr.w / 2), Y(dr.d / 2) + 18, 'CROSSES SETBACK \u00b7 CHECK SITE VIEW', 10, WARN, 'middle');
     // red dimensions (production style)
     var RD = '#c62828';
     out += '<g stroke="' + RD + '" stroke-width="1" fill="none"><path d="M' + X(0) + ' ' + (Y(maxy) + 22) + ' H' + X(dr.w) + ' M' + X(0) + ' ' + (Y(maxy) + 17) + ' V' + (Y(maxy) + 27) + ' M' + X(dr.w) + ' ' + (Y(maxy) + 17) + ' V' + (Y(maxy) + 27) + '"/></g>';
@@ -339,7 +339,7 @@
         out += face([[sx0, sy0, zz], [sx1, sy0, zz], [sx1, sy1, zz], [sx0, sy1, zz]], 'fill="#e3ecf4" stroke="' + CYAN + '" stroke-width=".9"');
       }
     });
-    out += T(450, 596, 'AXONOMETRIC — DRAG SLIDERS OR SWITCH TO PLAN TO EDIT', 10.5, MUT, 'middle');
+    out += T(450, 596, 'AXONOMETRIC \u00b7 DRAG SLIDERS OR SWITCH TO PLAN TO EDIT', 10.5, MUT, 'middle');
     return out;
   }
 

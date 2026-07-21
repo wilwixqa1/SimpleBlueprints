@@ -17,7 +17,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/uxmock/css/site.css">
+<link rel="stylesheet" href="/static/uxmock/css/site.css?v=s95f">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -55,7 +55,7 @@
 <header class="hero">
   <div>
     <h1>Deck permit plans,<br>drawn from <span class="accent">your actual property.</span></h1>
-    <p class="lede">Type your address. We pull your lot lines, setbacks, and house footprint from public records — then you design your deck right on your property and download a complete permit drawing set. No graph paper, no drafter, no waiting.</p>
+    <p class="lede">Type your address. We pull your lot lines, setbacks, and house footprint from public records. You design your deck right on your property and download a complete permit drawing set. No graph paper, no drafter, no waiting.</p>
 
     <form class="addr-card sheet" action="/mock/app" method="get" aria-label="Start with your address">
       <div class="addr-head">
@@ -66,7 +66,7 @@
         <input type="text" name="address" placeholder="4739 Sweetgrass Ln, Colorado Springs, CO" autocomplete="street-address" aria-label="Property address">
         <button class="btn primary" type="submit">Find my lot</button>
       </div>
-      <p class="addr-alt">Have a property survey? <a href="/mock/app?mode=survey">Uploading it</a> is the most accurate start. Lookup can't find you and no survey? <a href="/mock/app?mode=manual">Draw your lot manually</a>. Free to design — pay only to download.</p>
+      <p class="addr-alt">Have a property survey? <a href="/mock/app?mode=survey">Uploading it</a> is the most accurate start. If lookup cannot find you and you have no survey, <a href="/mock/app?mode=manual">Draw your lot manually</a>. Free to design, and you pay only to download.</p>
     </form>
   </div>
 
@@ -103,21 +103,21 @@
   <div class="sec-head"><span class="sec-no">SEC. 01</span><h2 id="how-h">How it works</h2></div>
   <div class="acts">
     <article class="act">
-      <div class="act-tag">ACT I — YOUR PROPERTY</div>
+      <div class="act-tag">ACT I / YOUR PROPERTY</div>
       <h3>Enter your address</h3>
-      <p>We find your parcel in public records: lot shape, dimensions, zoning setbacks, and your house footprint. You confirm it with one click — or upload a survey and let our AI read it, or draw the lot yourself.</p>
+      <p>We find your parcel in public records: lot shape, dimensions, zoning setbacks, and your house footprint. Confirm it with one click, or upload a survey and let our AI read it, or draw the lot yourself.</p>
       <div class="act-time">≈ 15 SECONDS</div>
     </article>
     <article class="act">
-      <div class="act-tag">ACT II — YOUR DECK</div>
+      <div class="act-tag">ACT II / YOUR DECK</div>
       <h3>Design on your lot</h3>
-      <p>Drag your deck to size right on your property. Add wings, corners, and stairs. Joists, beams, posts, and footings size themselves to code as you drag — and setback problems show up instantly, not at the permit counter.</p>
+      <p>Drag your deck to size right on your property. Add wings, corners, and stairs. Joists, beams, posts, and footings size themselves to code as you drag, and setback problems show up instantly, not at the permit counter.</p>
       <div class="act-time">≈ 5 MINUTES</div>
     </article>
     <article class="act">
-      <div class="act-tag">ACT III — YOUR PLANS</div>
+      <div class="act-tag">ACT III / YOUR PLANS</div>
       <h3>Download your drawing set</h3>
-      <p>Preview every sheet free: site plan, deck plan, framing, elevations, details, notes, and checklist — all drawn from your design. Pay only when you're ready to download and submit.</p>
+      <p>Preview every sheet free: site plan, deck plan, framing, elevations, details, notes, and checklist, all drawn from your design. Pay only when you're ready to download and submit.</p>
       <div class="act-time">8 SHEETS · INSTANT</div>
     </article>
   </div>
@@ -126,7 +126,7 @@
 <section class="section" id="sheets" aria-labelledby="sheets-h" style="background:var(--paper);max-width:none">
   <div style="max-width:1160px;margin:0 auto">
     <div class="sec-head"><span class="sec-no">SEC. 02</span><h2 id="sheets-h">What your building department gets</h2></div>
-    <p style="max-width:64ch;margin-bottom:26px;color:#454d3f;font-size:15px">A complete permit submission set. Every sheet carries a title block with your address and parcel number, and every structural member cites the 2021 IRC section it was sized from. These aren't stock previews — the sheets below are drawn live from a real design session, the same way yours will be.</p>
+    <p style="max-width:64ch;margin-bottom:26px;color:#454d3f;font-size:15px">A complete permit submission set. Every sheet carries a title block with your address and parcel number, and every structural member cites the 2021 IRC section it was sized from. These are not stock previews. The sheets below are drawn live from a real design session, the same way yours will be.</p>
     <div class="sheets-strip" id="sample-sheets"><!-- filled by JS --></div>
     <p style="margin-top:14px;font-family:var(--mono);font-size:11px;color:var(--mut)">CLICK THE LARGE SHEET · THE FULL SET REDRAWS FROM YOUR DESIGN AS YOU WORK</p>
   </div>
@@ -160,7 +160,7 @@
       <a class="btn primary" href="/mock/app">Design free, pay at download</a>
     </div>
   </div>
-  <p style="text-align:center;margin-top:22px;font-family:var(--mono);font-size:12px;color:var(--mut)">A drafter charges $150–500 and takes days. Your whole design session is free — you only pay for the download.</p>
+  <p style="text-align:center;margin-top:22px;font-family:var(--mono);font-size:12px;color:var(--mut)">A drafter charges $150 to $500 and takes days. Your whole design session is free. You only pay for the download.</p>
 </section>
 
 <section class="section" aria-labelledby="faq-h" style="background:var(--paper);max-width:none">
@@ -169,7 +169,7 @@
     <div class="faq">
       <details>
         <summary>Do I need a permit to build a deck?</summary>
-        <p class="faq-a">In most jurisdictions, yes. Decks attached to a house, taller than 30 inches above grade, or larger than about 200 square feet typically require a building permit — which means a site plan and structural drawings. Your local building department makes the final call, and it's always worth a phone call to confirm before you build.</p>
+        <p class="faq-a">In most jurisdictions, yes. Decks attached to a house, taller than 30 inches above grade, or larger than about 200 square feet typically require a building permit, which means a site plan and structural drawings. Your local building department makes the final call, and it's always worth a phone call to confirm before you build.</p>
       </details>
       <details>
         <summary>What do I need to submit for a deck permit?</summary>
@@ -177,7 +177,7 @@
       </details>
       <details>
         <summary>How do you know what my property looks like?</summary>
-        <p class="faq-a">We look up your parcel in public records to get your lot boundary, dimensions, and zoning setbacks, and detect your house footprint from public mapping data. Nothing is submitted anywhere — you confirm and adjust everything yourself before designing. If records for your lot are thin, upload your property survey and our AI will read it, or draw the lot manually.</p>
+        <p class="faq-a">We look up your parcel in public records to get your lot boundary, dimensions, and zoning setbacks, and detect your house footprint from public mapping data. Nothing is submitted anywhere. You confirm and adjust everything yourself before designing. If records for your lot are thin, upload your property survey and our AI will read it, or draw the lot manually.</p>
       </details>
       <details>
         <summary>Are the structural calculations legitimate?</summary>
@@ -185,7 +185,7 @@
       </details>
       <details>
         <summary>What if my building department rejects the plans?</summary>
-        <p class="faq-a">Come back, revise your design, and re-download — revisions to a purchased plan set are free. Departments usually mark up exactly what they want changed, and most changes take minutes in the designer.</p>
+        <p class="faq-a">Come back, revise your design, and re-download. Revisions to a purchased plan set are free. Departments usually mark up exactly what they want changed, and most changes take minutes in the designer.</p>
       </details>
     </div>
   </div>
@@ -219,8 +219,8 @@
   <div class="f-legal">© 2026 SIMPLEBLUEPRINTS · PLANS SUPPORT YOUR PERMIT APPLICATION · YOUR BUILDING DEPARTMENT HAS FINAL AUTHORITY · UX MOCK S88.5</div>
 </footer>
 
-<script src="/static/uxmock/js/spec.js"></script>
-<script src="/static/uxmock/js/sheets.js"></script>
+<script src="/static/uxmock/js/spec.js?v=s95f"></script>
+<script src="/static/uxmock/js/sheets.js?v=s95f"></script>
 <script>
 // Render the 7 sample sheet thumbnails from a canned demo design
 document.addEventListener('DOMContentLoaded', function () {

@@ -220,7 +220,7 @@ a { color: var(--accent); }
 .price-card .pc-per { font-family: var(--mono); font-size: 11px; color: var(--mut); margin-bottom: 16px; }
 .price-card ul { list-style: none; margin: 0 0 20px; }
 .price-card li { font-size: 13.5px; padding: 6px 0; border-bottom: 0.5px solid var(--ruling-soft); display: flex; gap: 8px; }
-.price-card li::before { content: "—"; color: var(--accent); }
+.price-card li::before { content: "+"; color: var(--accent); }
 
 .faq { max-width: 780px; margin: 0 auto; }
 .faq details { border-bottom: 1px solid var(--ruling); }
@@ -231,7 +231,7 @@ a { color: var(--accent); }
 }
 .faq summary::-webkit-details-marker { display: none; }
 .faq summary::after { content: "+"; font-family: var(--mono); color: var(--accent); }
-.faq details[open] summary::after { content: "–"; }
+.faq details[open] summary::after { content: "-"; }
 .faq .faq-a { padding: 0 4px 18px; font-size: 14px; color: #454d3f; max-width: 68ch; }
 
 .footer { border-top: 1.5px solid var(--ink); background: var(--paper); }

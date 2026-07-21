@@ -32,9 +32,9 @@
     n.className = 'tb-val ' + (filled ? 'filled' : 'empty');
   }
   function updateTitleblock() {
-    tb('tb-address', S.address ? S.address : '— pending lookup —', !!S.address);
-    tb('tb-parcel', S.parcel ? (S.parcel.parcelId + ' · ' + (S.parcel.zoning || '').split(' ')[0]) : '—', !!S.parcel);
-    var dk = S.act >= 2 ? (S.deck.w + "' × " + S.deck.d + "' · " + S.deck.h + '" HIGH' + (S.zones.length ? ' · ' + S.zones.length + ' WING' + (S.zones.length > 1 ? 'S' : '') : '')) : '—';
+    tb('tb-address', S.address ? S.address : 'pending lookup', !!S.address);
+    tb('tb-parcel', S.parcel ? (S.parcel.parcelId + ' · ' + (S.parcel.zoning || '').split(' ')[0]) : 'not set', !!S.parcel);
+    var dk = S.act >= 2 ? (S.deck.w + "' × " + S.deck.d + "' · " + S.deck.h + '" HIGH' + (S.zones.length ? ' · ' + S.zones.length + ' WING' + (S.zones.length > 1 ? 'S' : '') : '')) : 'not set';
     tb('tb-deck', dk, S.act >= 2);
     tb('tb-set', (S.act >= 3 ? '8 OF 8 SHEETS · PREVIEW' : S.act === 2 ? 'DRAFTING…' : '0 OF 8 SHEETS'), S.act >= 3);
   }
@@ -101,10 +101,10 @@
     S.address = address;
     updateTitleblock();
     lookupStatus([
-      { id: 'parcel', label: 'Parcel records — lot shape + dimensions' },
-      { id: 'zoning', label: 'Zoning — setback requirements' },
-      { id: 'house', label: 'House footprint — mapping data' },
-      { id: 'street', label: 'Street edge — orientation check' }
+      { id: 'parcel', label: 'Parcel records: lot shape and dimensions' },
+      { id: 'zoning', label: 'Zoning: setback requirements' },
+      { id: 'house', label: 'House footprint: mapping data' },
+      { id: 'street', label: 'Street edge: orientation check' }
     ]);
     lsMark('parcel', 'doing');
     fetch('/api/mock/parcel?address=' + encodeURIComponent(address))
@@ -138,16 +138,16 @@
   }
   function renderConfirmRail(d) {
     hud().innerHTML = '';
-    hud().appendChild(el('<div class="hud-note">Found it. Confirm the house position and north arrow — drag either on the canvas.</div>'));
+    hud().appendChild(el('<div class="hud-note">Found it. Confirm the house position and north arrow. Drag either one on the canvas.</div>'));
     rail.innerHTML = '';
     var conf = (d && d.confidence) || { lot: 'high', house: 'high', street: 'verified' };
     rail.appendChild(el(
       '<div class="card"><h3>Is this your property? <span class="stamp-ok">RECORDS FOUND</span></h3>' +
       '<div class="spec-rows">' +
       '<div class="spec-row"><span class="sr-k">Address</span><span class="sr-v">' + S.address.split(',')[0] + '</span></div>' +
-      '<div class="spec-row"><span class="sr-k">Parcel</span><span class="sr-v">' + (S.parcel ? S.parcel.parcelId : '—') + '</span></div>' +
-      '<div class="spec-row"><span class="sr-k">Lot area</span><span class="sr-v">' + (S.parcel ? S.parcel.lotArea.toLocaleString() : '—') + ' SF</span></div>' +
-      '<div class="spec-row"><span class="sr-k">Zoning</span><span class="sr-v">' + (S.parcel ? S.parcel.zoning.split(' ')[0] : '—') + '</span></div>' +
+      '<div class="spec-row"><span class="sr-k">Parcel</span><span class="sr-v">' + (S.parcel ? S.parcel.parcelId : 'not set') + '</span></div>' +
+      '<div class="spec-row"><span class="sr-k">Lot area</span><span class="sr-v">' + (S.parcel ? S.parcel.lotArea.toLocaleString() : 'not set') + ' SF</span></div>' +
+      '<div class="spec-row"><span class="sr-k">Zoning</span><span class="sr-v">' + (S.parcel ? S.parcel.zoning.split(' ')[0] : 'not set') + '</span></div>' +
       '<div class="spec-row"><span class="sr-k">Lot boundary</span><span class="sr-v" style="color:var(--ok)">' + conf.lot.toUpperCase() + '</span></div>' +
       '<div class="spec-row"><span class="sr-k">House footprint</span><span class="sr-v" style="color:' + (conf.house === 'approximate' ? 'var(--mut)' : 'var(--ok)') + '">' + conf.house.toUpperCase() + (conf.house === 'approximate' ? ' \u2014 DRAG TO FIX' : '') + '</span></div>' +
       '</div>' +
@@ -159,7 +159,7 @@
       '<p style="font-size:11.5px;color:var(--mut);margin:0">Pulled from your zoning district. Adjust if your jurisdiction told you otherwise.</p>' +
       '<button class="btn quiet" id="sb-reset" style="white-space:nowrap">Reset to lookup</button></div></div>'));
     var goCard = el(
-      '<div class="card"><button class="btn primary" id="confirm-go" style="width:100%;justify-content:center">That\u2019s my house — design my deck</button>' +
+      '<div class="card"><button class="btn primary" id="confirm-go" style="width:100%;justify-content:center">That\u2019s my house, design my deck</button>' +
       '<p style="font-size:11.5px;color:var(--mut);margin-top:8px;text-align:center">You can come back and adjust any of this later.</p></div>');
     rail.appendChild(goCard);
     ['front', 'side', 'rear'].forEach(function (k) {
@@ -209,7 +209,7 @@
         lsMark('north', 'done');
         S.address = S.address || d.address;
         applyParcel(d);
-        toast('Survey read. North angle is low-confidence — check the dial.');
+        toast('Survey read. North angle is low-confidence. Check the dial.');
       }, 600);
     });
   }
@@ -274,9 +274,9 @@
     rail.appendChild(el(
       '<div class="card"><h3>Site conditions</h3>' +
       '<div class="slider-row"><label>Snow load</label><select id="cond-snow" style="grid-column:2/4;border:1px solid var(--ruling);border-radius:3px;padding:7px;font-family:var(--mono);font-size:12px;background:var(--paper)">' +
-      opt(30, '30 psf — typical', S.snow) + opt(50, '50 psf — heavy snow', S.snow) + opt(70, '70 psf — mountain', S.snow) + '</select></div>' +
+      opt(30, '30 psf, typical', S.snow) + opt(50, '50 psf, heavy snow', S.snow) + opt(70, '70 psf, mountain', S.snow) + '</select></div>' +
       '<div class="slider-row"><label>Frost depth</label><select id="cond-frost" style="grid-column:2/4;border:1px solid var(--ruling);border-radius:3px;padding:7px;font-family:var(--mono);font-size:12px;background:var(--paper)">' +
-      opt(24, '24 in', S.frost) + opt(36, '36 in — typical', S.frost) + opt(48, '48 in — cold climate', S.frost) + '</select></div>' +
+      opt(24, '24 in', S.frost) + opt(36, '36 in, typical', S.frost) + opt(48, '48 in, cold climate', S.frost) + '</select></div>' +
       '<p style="font-size:11.5px;color:var(--mut);margin-top:4px">The only two questions the code needs from you. Everything else is calculated.</p></div>'));
     // finishes
     rail.appendChild(el(
@@ -289,7 +289,7 @@
     // live spec
     rail.appendChild(el('<div class="card"><h3>Structure <span class="stamp-ok" id="spec-stamp">SIZED TO IRC 2021</span></h3><div class="spec-rows" id="spec-rows"></div></div>'));
     // AI helper (history persists in S._chat across re-renders)
-    if (!S._chat) S._chat = [{ who: 'bot', html: 'I can change the design for you — try \u201cmake it 18 by 14\u201d, \u201cadd stairs\u201d, or ask why a beam got bigger.' }];
+    if (!S._chat) S._chat = [{ who: 'bot', html: 'I can change the design for you. Try \u201cmake it 18 by 14\u201d, \u201cadd stairs\u201d, or ask why a beam got bigger.' }];
     rail.appendChild(el(
       '<div class="card"><h3>Ask the drafter</h3><div class="ai-log" id="ai-log">' +
       S._chat.map(function (m) { return '<div class="ai-msg ' + m.who + '">' + m.html + '</div>'; }).join('') +
@@ -458,7 +458,7 @@
       var extra = '';
       if (/wing|zone|l.?shape/.test(q) && S.zones.length < 3) { S.zones.push({ edge: /right/.test(q) ? 'right' : 'left', w: 8, d: 8 }); extra = ' + wing'; }
       if (/stair/.test(q) && !hasStair()) { S.stairs = [{ edge: 'front' }]; extra += ' + stairs'; }
-      return { changed: true, text: 'Done — deck set to ' + S.deck.w + "' × " + S.deck.d + "'" + (extra ? ', ' + extra.replace(/^\s\+\s/, 'added ') : '') + '. Structure has been re-sized below.', act: 'setSize(' + S.deck.w + ',' + S.deck.d + ')' + extra };
+      return { changed: true, text: 'Done. Deck set to ' + S.deck.w + "' × " + S.deck.d + "'" + (extra ? ', ' + extra.replace(/^\s\+\s/, 'added ') : '') + '. Structure has been re-sized below.', act: 'setSize(' + S.deck.w + ',' + S.deck.d + ')' + extra };
     }
     if (/remove (all )?stairs/.test(q)) { S.stairs = []; return { changed: true, text: 'All stairs removed.', act: 'removeStairs()' }; }
     if (/stair/.test(q)) {
@@ -476,14 +476,14 @@
       return { changed: true, text: 'Added stairs on the ' + (edge === 'front' ? 'outer' : edge) + ' edge. At ' + S.deck.h + '" high that\u2019s ' + Math.max(3, Math.round(S.deck.h / 7.5)) + ' risers.', act: 'addStair(' + edge + ')' };
     }
     if (/wing|zone/.test(q)) {
-      if (S.zones.length >= 3) return { changed: false, text: 'You\u2019re at the 3-wing limit — same cap as production. Remove one first.' };
+      if (S.zones.length >= 3) return { changed: false, text: 'You\u2019re at the 3-wing limit, the same cap as production. Remove one first.' };
       var edge = /right/.test(q) ? 'right' : 'left';
       S.zones.push({ edge: edge, w: 8, d: 8 });
       return { changed: true, text: 'Added an 8×8 ' + edge + ' wing. The framing plan will show it as a separate joist field.', act: 'addZone(' + edge + ')' };
     }
     if (/height\s*(\d+)/.test(q)) {
       S.deck.h = Math.min(96, +q.match(/height\s*(\d+)/)[1]);
-      return { changed: true, text: 'Height set to ' + S.deck.h + '". ' + (S.deck.h >= 30 ? 'That\u2019s over 30", so guards are required (IRC R312.1) — they\u2019re on your elevations.' : 'Under 30", so no guard requirement.'), act: 'setParam(height,' + S.deck.h + ')' };
+      return { changed: true, text: 'Height set to ' + S.deck.h + '". ' + (S.deck.h >= 30 ? 'That\u2019s over 30", so guards are required (IRC R312.1), and they\u2019re on your elevations.' : 'Under 30", so no guard requirement.'), act: 'setParam(height,' + S.deck.h + ')' };
     }
     if (/beam|why/.test(q)) {
       var spec = SBPSpec.compute(S);
@@ -640,18 +640,18 @@
       '<div class="spec-row"><span class="sr-k">Structure</span><span class="sr-v">' + spec.rows[0].v + ' / ' + spec.rows[1].v + '</span></div>' +
       '<div class="spec-row"><span class="sr-k">Finishes</span><span class="sr-v">' + S.finish.decking + ' / ' + S.finish.railing + '</span></div>' +
       '<div class="spec-row"><span class="sr-k">Stairs</span><span class="sr-v">' + (S.stairs.length || 'None') + (S.stairs.length ? ' SET' + (S.stairs.length > 1 ? 'S' : '') : '') + '</span></div>' +
-      '<div class="spec-row"><span class="sr-k">Jurisdiction</span><span class="sr-v">' + (S.jurisdiction ? S.jurisdiction.replace('Regional Building Department', 'RBD') : '—') + '</span></div>' +
+      '<div class="spec-row"><span class="sr-k">Jurisdiction</span><span class="sr-v">' + (S.jurisdiction ? S.jurisdiction.replace('Regional Building Department', 'RBD') : 'not set') + '</span></div>' +
       '</div></div>'));
     rail.appendChild(el(
       '<div class="card"><h3>Download</h3>' +
       '<div class="spec-rows">' +
-      '<div class="spec-row"><span class="sr-k">Standard — full 8-sheet set</span><span class="sr-v">$49</span></div>' +
-      '<div class="spec-row"><span class="sr-k">Complete — + cut list &amp; materials</span><span class="sr-v">$79</span></div>' +
+      '<div class="spec-row"><span class="sr-k">Standard: full 8-sheet set</span><span class="sr-v">$49</span></div>' +
+      '<div class="spec-row"><span class="sr-k">Complete: cut list &amp; materials</span><span class="sr-v">$79</span></div>' +
       '</div>' +
       '<button class="btn primary" id="buy" style="width:100%;justify-content:center;margin-top:12px">Download plan set</button>' +
       '<p style="font-size:11px;color:var(--mut);margin-top:8px;text-align:center">Free until this button. Revisions after purchase are free too.</p></div>'));
     rail.appendChild(el('<div class="card"><button class="btn ghost" id="back-design" style="width:100%;justify-content:center">Back to designing</button></div>'));
-    $('buy').addEventListener('click', function () { toast('Checkout is out of scope for this mock — this is where Stripe goes.'); });
+    $('buy').addEventListener('click', function () { toast('Checkout is out of scope for this mock. This is where Stripe goes.'); });
     $('back-design').addEventListener('click', function () { go(2); });
     hudless();
   }
@@ -707,7 +707,7 @@
     var root = $('lightbox-root');
     var inner = d.png ? '<img src="data:image/png;base64,' + d.png + '" style="width:100%;display:block" alt="' + d.name + '">' : (d.svg || '');
     root.innerHTML = '<div class="lightbox" id="lb"><div class="lb-inner">' + inner +
-      '<div class="st-cap" style="border-top:1px solid var(--ruling);padding:8px 12px;font-family:var(--mono);font-size:11px;color:var(--mut);display:flex;justify-content:space-between"><b>' + d.no + '</b><span>' + d.name + ' — CLICK ANYWHERE TO CLOSE</span></div></div></div>';
+      '<div class="st-cap" style="border-top:1px solid var(--ruling);padding:8px 12px;font-family:var(--mono);font-size:11px;color:var(--mut);display:flex;justify-content:space-between"><b>' + d.no + '</b><span>' + d.name + ' · CLICK ANYWHERE TO CLOSE</span></div></div></div>';
     $('lb').addEventListener('click', function () { root.innerHTML = ''; });
   }
 
