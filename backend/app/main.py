@@ -2767,6 +2767,14 @@ async def root(request: Request):
 # S88.5 UX MOCK (revert block -- delete this block + backend/static/uxmock/
 # to remove entirely). Clean-sheet journey prototype mounted at /mock.
 # Mock data only: no PDF, no compliance, no auth, no payments.
+#
+# !! S95 WARNING -- THIS BLOCK IS NO LONGER CLEANLY REVERTABLE !!
+# The PRODUCTION homepage (backend/static/js/home.js, S95 push 1) fetches
+# GET /api/mock/sample-sheets below for its hero image and sample sheet strip.
+# Deleting this block will leave the homepage hero on its drawn SVG fallback
+# and the sheet strip on skeletons. Before reverting, either promote
+# _uxmock_sample_sheets() into a real production route or remove the fetch in
+# home.js. Deliberate decision (Will, S95): accept the coupling for now.
 # ============================================================
 import asyncio as _uxmock_asyncio
 

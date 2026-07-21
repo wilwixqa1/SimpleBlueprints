@@ -18,49 +18,246 @@ window.products = [
   { id: "porch", name: "Porches", icon: "\u25A6", desc: "Screened & 3-season rooms" },
 ];
 
-function HomePage({ setPage, user, startNewProject }) {
-  const { br, mono, sans } = window.SB;
-  const products = window.products;
+function HomePage({ setPage, user, startNewProject, setInfo }) {
+  const [addr, setAddr] = React.useState("");
+  const [sheets, setSheets] = React.useState(null);
+
+  // Sample sheets rendered by the production drawing pipeline (cached server-side).
+  // NOTE: /api/mock/sample-sheets currently lives in the S88.5 fenced revert block
+  // in main.py. The homepage now depends on it, so that block is NO LONGER cleanly
+  // revertable. See the comment at the fence.
+  React.useEffect(function () {
+    var alive = true;
+    fetch("/api/mock/sample-sheets")
+      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(function (resp) {
+        if (!alive) return;
+        var list = (resp.sheets || []).filter(function (x) { return x.png; });
+        if (list.length) setSheets(list);
+      })
+      .catch(function () { /* hero keeps the drawn fallback */ });
+    return function () { alive = false; };
+  }, []);
+
+  // Address entered on the landing page seeds the wizard's project info, so the
+  // user does not retype it on step 1.
+  const start = function (mode) {
+    var a = (addr || "").trim();
+    if (a && setInfo) setInfo(function (prev) { return Object.assign({}, prev, { address: a }); });
+    if (mode) { try { window._sbStartMode = mode; } catch (e) {} }
+    if (startNewProject) { startNewProject(); } else { setPage("wizard"); }
+  };
+
+  const heroSite = sheets && sheets.filter(function (x) { return /SITE/.test(x.name); })[0];
+
   return (
-    <div style={{ minHeight: "100vh", background: br.cr }}>
-      <nav style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px", borderBottom: "1px solid " + br.bd }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{ width: 28, height: 28, background: br.gn, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center" }}><span style={{ color: "#fff", fontSize: 14, fontWeight: 900 }}>SB</span></div>
-          <span style={{ fontFamily: mono, fontSize: 15, fontWeight: 800, color: br.dk, letterSpacing: "0.5px" }}>simpleblueprints</span>
-          <span style={{ fontSize: 10, color: br.ac, fontWeight: 700, fontFamily: mono, border: "1px solid " + br.ac, padding: "1px 6px", borderRadius: 3, marginLeft: 4 }}>BETA</span>
+    <div className="sb-home">
+      <nav className="nav" aria-label="Main">
+        <a className="wordmark" href="/" onClick={function (e) { e.preventDefault(); }}>
+          <span className="wm-main">SimpleBlueprints</span>
+          <span className="wm-sub">DECK PERMIT PLANS</span>
+        </a>
+        <div className="nav-links">
+          <a href="#how">How it works</a>
+          <a href="#sheets">Your drawing set</a>
+          <a href="#pricing">Pricing</a>
+          {user && <a href="#projects" onClick={function (e) { e.preventDefault(); setPage("drafts"); }}>My projects</a>}
+          <button className="btn primary" style={{ padding: "9px 18px", fontSize: 13 }} onClick={function () { start(); }}>Start with your address</button>
         </div>
-        {user && (
-          <button onClick={function() { setPage("drafts"); }}
-            style={{ padding: "6px 14px", background: "transparent", border: "1px solid " + br.bd, borderRadius: 6, fontSize: 11, fontFamily: mono, color: br.dk, cursor: "pointer", fontWeight: 600 }}>
-            My Projects
-          </button>
-        )}
       </nav>
-      <div style={{ maxWidth: 900, margin: "0 auto", padding: "50px 20px 40px", textAlign: "center" }}>
-        <div style={{ fontSize: 11, fontFamily: mono, color: br.gn, fontWeight: 700, letterSpacing: "3px", textTransform: "uppercase", marginBottom: 16 }}>Permit-Ready Plans in Minutes</div>
-        <h1 style={{ fontFamily: sans, fontSize: "clamp(28px, 6vw, 52px)", fontWeight: 900, color: br.dk, lineHeight: 1.1, margin: "0 0 20px", letterSpacing: "-1px" }}>Simple structures.<br />Simple blueprints.</h1>
-        <p style={{ fontFamily: sans, fontSize: "clamp(14px, 2.5vw, 18px)", color: br.mu, maxWidth: 560, margin: "0 auto 40px", lineHeight: 1.6 }}>Configure your project, get IRC-compliant structural calculations, and download a professional drawing set. Draft your deck plans -- fast.</p>
-        <div style={{ display: "flex", gap: 32, justifyContent: "center", marginBottom: 60, flexWrap: "wrap" }}>
-          {[["01", "Configure", "Set dimensions, materials, and location"], ["02", "Calculate", "Auto-sized joists, beams, posts & footings"], ["03", "Download", "6-sheet PDF blueprint set + material list"]].map(([n, t, d]) => (
-            <div key={n} style={{ textAlign: "center", maxWidth: 180 }}><div style={{ fontFamily: mono, fontSize: 28, fontWeight: 900, color: br.gn, marginBottom: 4 }}>{n}</div><div style={{ fontFamily: sans, fontSize: 16, fontWeight: 700, color: br.dk, marginBottom: 4 }}>{t}</div><div style={{ fontFamily: sans, fontSize: 13, color: br.mu, lineHeight: 1.5 }}>{d}</div></div>
-          ))}
+
+      <header className="hero">
+        <div>
+          <h1>Deck permit plans,<br />drawn from <span className="accent">your actual property.</span></h1>
+          <p className="lede">Enter your address and we pull your lot lines, setbacks, and house footprint from public records. Design your deck on your real property, then download a complete permit drawing set with IRC structural calculations. No graph paper, no drafter, no waiting.</p>
+
+          <div className="addr-card sheet" aria-label="Start with your address">
+            <div className="addr-head">
+              <span className="tb-label">Project address</span>
+              <span className="mono" style={{ fontSize: 10, color: "var(--mut)" }}>FIELD 01 / TITLE BLOCK</span>
+            </div>
+            <div className="addr-row">
+              <input
+                type="text"
+                value={addr}
+                onChange={function (e) { setAddr(e.target.value); }}
+                onKeyDown={function (e) { if (e.key === "Enter") start(); }}
+                placeholder="4739 Sweetgrass Ln, Colorado Springs, CO"
+                autoComplete="street-address"
+                aria-label="Property address"
+              />
+              <button className="btn primary" type="button" onClick={function () { start(); }}>Find my lot</button>
+            </div>
+            <p className="addr-alt">Have a property survey? <a href="#survey" onClick={function (e) { e.preventDefault(); start("survey"); }}>Uploading it</a> is the most accurate start. If lookup cannot find you and you have no survey, <a href="#manual" onClick={function (e) { e.preventDefault(); start("manual"); }}>draw your lot manually</a>. Free to design, and free to preview every sheet.</p>
+          </div>
         </div>
-      </div>
-      <div style={{ maxWidth: 900, margin: "0 auto", padding: "0 20px 60px" }}>
-        <div style={{ fontSize: 11, fontFamily: mono, color: br.mu, fontWeight: 700, letterSpacing: "2px", textTransform: "uppercase", marginBottom: 20, textAlign: "center" }}>Choose Your Project</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 10 }}>
-          {products.map(pr => (
-            <button key={pr.id} onClick={() => pr.active && (startNewProject ? startNewProject() : setPage("wizard"))} style={{ padding: "24px 20px", background: "#fff", border: pr.active ? "2px solid " + br.gn : "1px solid " + br.bd, borderRadius: 10, cursor: pr.active ? "pointer" : "default", textAlign: "left", opacity: pr.active ? 1 : 0.55, position: "relative" }}>
-              {!pr.active && <span style={{ position: "absolute", top: 10, right: 10, fontSize: 8, fontFamily: mono, color: br.ac, fontWeight: 700, background: "#fef9e7", padding: "2px 8px", borderRadius: 3 }}>COMING SOON</span>}
-              <div style={{ fontSize: 24, marginBottom: 8 }}>{pr.icon}</div>
-              <div style={{ fontFamily: sans, fontSize: 16, fontWeight: 700, color: br.dk }}>{pr.name}</div>
-              <div style={{ fontFamily: sans, fontSize: 12, color: br.mu, marginTop: 2 }}>{pr.desc}</div>
-              {pr.active && <div style={{ marginTop: 12, fontSize: 11, fontFamily: mono, color: br.gn, fontWeight: 700 }}>Start Building {"\u2192"}</div>}
-            </button>
-          ))}
+
+        <figure className="hero-fig">
+          <div className="sheet" style={{ padding: 10 }}>
+            {heroSite ? (
+              <img src={"data:image/png;base64," + heroSite.png} alt="Sample site plan sheet drawn by the SimpleBlueprints pipeline" style={{ width: "100%", display: "block" }} />
+            ) : (
+              <svg viewBox="0 0 460 330" role="img" aria-label="Sample site plan drawing of a lot with a house and deck">
+                <rect width="460" height="330" fill="#0e2f4d" />
+                <g stroke="#a8c4dd" fill="none" strokeWidth="1">
+                  <g opacity=".14">
+                    <path d="M0 0 H460 M0 33 H460 M0 66 H460 M0 99 H460 M0 132 H460 M0 165 H460 M0 198 H460 M0 231 H460 M0 264 H460 M0 297 H460" />
+                    <path d="M0 0 V330 M46 0 V330 M92 0 V330 M138 0 V330 M184 0 V330 M230 0 V330 M276 0 V330 M322 0 V330 M368 0 V330 M414 0 V330" />
+                  </g>
+                  <polygon points="70,300 78,110 175,42 340,66 390,250 330,300" strokeWidth="1.6" />
+                  <polygon points="100,282 106,140 186,84 322,102 360,244 316,282" strokeDasharray="6 4" opacity=".5" />
+                  <rect x="150" y="170" width="130" height="86" strokeWidth="1.6" />
+                  <text x="215" y="218" fill="#a8c4dd" fontFamily="DM Mono, monospace" fontSize="11" textAnchor="middle">EXISTING RESIDENCE</text>
+                  <rect x="170" y="122" width="92" height="48" strokeWidth="1.8" fill="#a8c4dd" fillOpacity=".12" />
+                  <text x="216" y="149" fill="#e9f1f8" fontFamily="DM Mono, monospace" fontSize="10" textAnchor="middle">PROPOSED DECK</text>
+                  <text x="216" y="160" fill="#a8c4dd" fontFamily="DM Mono, monospace" fontSize="8.5" textAnchor="middle">16'-0" x 12'-0"</text>
+                  <path d="M170 112 H262 M170 108 V116 M262 108 V116" strokeWidth=".8" />
+                  <text x="216" y="106" fill="#a8c4dd" fontFamily="DM Mono, monospace" fontSize="8" textAnchor="middle">16'-0"</text>
+                  <circle cx="404" cy="52" r="20" /><path d="M404 66 V38 M404 38 l-6 10 M404 38 l6 10" />
+                  <text x="404" y="88" fill="#a8c4dd" fontFamily="DM Mono, monospace" fontSize="9" textAnchor="middle">N</text>
+                  <text x="150" y="316" fill="#a8c4dd" fontFamily="DM Mono, monospace" fontSize="8.5">SWEETGRASS LANE</text>
+                </g>
+              </svg>
+            )}
+          </div>
+          <figcaption className="cap">
+            {heroSite ? "SHEET " + heroSite.no + " · SITE PLAN · RENDERED BY THE PRODUCTION PIPELINE" : "SITE PLAN · AUTO-DRAWN FROM PARCEL RECORDS"}
+          </figcaption>
+        </figure>
+      </header>
+
+      <section className="section" id="how" aria-labelledby="how-h">
+        <div className="sec-head"><span className="sec-no">SEC. 01</span><h2 id="how-h">How it works</h2></div>
+        <div className="acts">
+          <article className="act">
+            <div className="act-tag">STEP 01 / YOUR PROPERTY</div>
+            <h3>Enter your address</h3>
+            <p>We find your parcel in public records: lot shape, dimensions, zoning setbacks, and your house footprint. Confirm it with one click, upload a survey and let our AI read it, or draw the lot yourself.</p>
+            <div className="act-time">ABOUT 15 SECONDS</div>
+          </article>
+          <article className="act">
+            <div className="act-tag">STEP 02 / YOUR DECK</div>
+            <h3>Design on your lot</h3>
+            <p>Size your deck right on your property. Add wings, corners, and stairs. Joists, beams, posts, and footings size themselves to code as you work, and setback problems surface immediately instead of at the permit counter.</p>
+            <div className="act-time">ABOUT 5 MINUTES</div>
+          </article>
+          <article className="act">
+            <div className="act-tag">STEP 03 / YOUR PLANS</div>
+            <h3>Download your drawing set</h3>
+            <p>Preview every sheet free: site plan, deck plan, framing, elevations, details, notes, and checklist, all drawn from your design. Submit the set to your building department when you are ready.</p>
+            <div className="act-time">8 SHEETS, INSTANT</div>
+          </article>
         </div>
-      </div>
-      <div style={{ borderTop: "1px solid " + br.bd, padding: "20px 32px", textAlign: "center" }}><span style={{ fontSize: 10, fontFamily: mono, color: br.mu }}>{"\u00A9"} 2026 SimpleBlueprints.com {"\u00B7"} Plans for reference -- verify with local building department</span></div>
+      </section>
+
+      <section className="section" id="sheets" aria-labelledby="sheets-h" style={{ background: "var(--paper)", maxWidth: "none" }}>
+        <div style={{ maxWidth: 1160, margin: "0 auto" }}>
+          <div className="sec-head"><span className="sec-no">SEC. 02</span><h2 id="sheets-h">What your building department gets</h2></div>
+          <p style={{ maxWidth: "64ch", marginBottom: 26, color: "#454d3f", fontSize: 15 }}>A complete deck permit submission set. Every sheet carries a title block with your address and parcel number, and every structural member cites the 2021 IRC section it was sized from. These are not stock previews. The sheets below are drawn live by the same pipeline that will draw yours.</p>
+          <div className="sheets-strip">
+            {sheets ? sheets.map(function (sh, i) {
+              return (
+                <div key={sh.no + "-" + i} className={"sheet-thumb" + (i === 1 ? " feature" : "")}>
+                  <img src={"data:image/png;base64," + sh.png} alt={sh.name + " sample sheet"} style={{ width: "100%", display: "block" }} />
+                  <div className="st-cap"><b>{sh.no}</b><span>{sh.name}{i === 1 ? " · REAL RENDER" : ""}</span></div>
+                </div>
+              );
+            }) : [0, 1, 2, 3, 4].map(function (i) {
+              return (
+                <div key={"skel-" + i} className={"sheet-thumb" + (i === 1 ? " feature" : "")}>
+                  <div style={{ width: "100%", paddingTop: "66%", background: "var(--ruling-soft)" }} />
+                  <div className="st-cap"><b>&nbsp;</b><span>RENDERING</span></div>
+                </div>
+              );
+            })}
+          </div>
+          <p style={{ marginTop: 14, fontFamily: "var(--mono)", fontSize: 11, color: "var(--mut)" }}>THE FULL SET REDRAWS FROM YOUR DESIGN AS YOU WORK</p>
+        </div>
+      </section>
+
+      <section className="section" id="pricing" aria-labelledby="pricing-h">
+        <div className="sec-head"><span className="sec-no">SEC. 03</span><h2 id="pricing-h">Pricing</h2></div>
+        <div className="pricing">
+          <div className="price-card">
+            <div className="pc-tier">Standard</div>
+            <div className="pc-price">Free</div>
+            <div className="pc-per">DURING BETA</div>
+            <ul>
+              <li>Complete 8-sheet permit drawing set (PDF)</li>
+              <li>Site plan drawn from your parcel records</li>
+              <li>IRC 2021 structural calculations with code citations</li>
+              <li>Unlimited revisions</li>
+            </ul>
+            <button className="btn ghost" onClick={function () { start(); }}>Start a design</button>
+          </div>
+          <div className="price-card featured">
+            <div className="pc-tier">Complete</div>
+            <div className="pc-price">Free</div>
+            <div className="pc-per">DURING BETA</div>
+            <ul>
+              <li>Everything in Standard</li>
+              <li>Cut list with every board length and quantity</li>
+              <li>Materials list organized by component</li>
+              <li>Hardware schedule with connector callouts</li>
+            </ul>
+            <button className="btn primary" onClick={function () { start(); }}>Start a design</button>
+          </div>
+        </div>
+        <p style={{ textAlign: "center", marginTop: 22, fontFamily: "var(--mono)", fontSize: 12, color: "var(--mut)" }}>SimpleBlueprints is in beta and everything is free while we are here. A drafter charges $150 to $500 and takes days.</p>
+      </section>
+
+      <section className="section" aria-labelledby="faq-h" style={{ background: "var(--paper)", maxWidth: "none" }}>
+        <div style={{ maxWidth: 1160, margin: "0 auto" }}>
+          <div className="sec-head"><span className="sec-no">SEC. 04</span><h2 id="faq-h">Deck permit questions</h2></div>
+          <div className="faq">
+            <details>
+              <summary>Do I need a permit to build a deck?</summary>
+              <p className="faq-a">In most jurisdictions, yes. Decks attached to a house, taller than 30 inches above grade, or larger than about 200 square feet typically require a building permit, which means a site plan and structural drawings. Your local building department makes the final call, so it is always worth a phone call before you build.</p>
+            </details>
+            <details>
+              <summary>What do I need to submit for a deck permit?</summary>
+              <p className="faq-a">Most departments want a site plan showing your lot, house, the proposed deck, and setback distances, plus a framing plan, elevations, structural details for footings, posts, and the ledger connection, and general notes. SimpleBlueprints generates all of these from one design session, in one drawing set.</p>
+            </details>
+            <details>
+              <summary>How do you know what my property looks like?</summary>
+              <p className="faq-a">We look up your parcel in public records to get your lot boundary, dimensions, and zoning setbacks, and detect your house footprint from public mapping data. Nothing is submitted anywhere. You confirm and adjust everything yourself before designing. If records for your lot are thin, upload your property survey and our AI will read it, or draw the lot manually.</p>
+            </details>
+            <details>
+              <summary>Are the structural calculations legitimate?</summary>
+              <p className="faq-a">Joists, beams, posts, and footings are sized from the 2021 International Residential Code prescriptive tables (R507), adjusted for your snow load and frost depth, with the code sections printed on your plans. Plans support your permit application, and the building department always has final authority.</p>
+            </details>
+            <details>
+              <summary>Can contractors use this for client projects?</summary>
+              <p className="faq-a">Yes. Contractors and deck builders use SimpleBlueprints to turn a site visit into a submittable drawing set the same day, with a title block carrying the project address and parcel number. Run as many properties as you need, and revise a set as many times as the plan examiner asks.</p>
+            </details>
+            <details>
+              <summary>What if my building department rejects the plans?</summary>
+              <p className="faq-a">Come back, revise your design, and download again. Revisions are free. Departments usually mark up exactly what they want changed, and most changes take minutes in the designer.</p>
+            </details>
+          </div>
+        </div>
+      </section>
+
+      <section className="section" style={{ textAlign: "center" }}>
+        <h2 className="disp" style={{ fontSize: "clamp(26px,4vw,44px)", marginBottom: 12 }}>Your lot is already on file.<br />Go look at it.</h2>
+        <button className="btn primary" style={{ fontSize: 16, padding: "15px 30px" }} onClick={function () { start(); }}>Start with your address</button>
+      </section>
+
+      <footer className="footer">
+        <div className="f-grid">
+          <div>
+            <a className="wordmark" href="/" style={{ marginBottom: 8 }} onClick={function (e) { e.preventDefault(); }}><span className="wm-main" style={{ fontSize: 18 }}>SimpleBlueprints</span></a>
+            <p style={{ fontSize: 12.5, color: "var(--mut)", maxWidth: "34ch" }}>Permit-ready deck plans drawn from your actual property. Free while we are in beta.</p>
+          </div>
+          <div>
+            <h4>Product</h4>
+            <a href="#how" >How it works</a>
+            <a href="#sheets">Sample drawing set</a>
+            <a href="#pricing">Pricing</a>
+          </div>
+        </div>
+        <div className="f-legal">{"\u00A9"} 2026 SIMPLEBLUEPRINTS · PLANS SUPPORT YOUR PERMIT APPLICATION · YOUR BUILDING DEPARTMENT HAS FINAL AUTHORITY</div>
+      </footer>
     </div>
   );
 }

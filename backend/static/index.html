@@ -3,10 +3,39 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SimpleBlueprints  -  Permit-Ready Deck Plans in Minutes</title>
+<title>Deck Permit Plans From Your Address | SimpleBlueprints</title>
+<meta name="description" content="Permit-ready deck plans drawn from your actual property. Enter your address, design your deck, and download a complete 8-sheet permit drawing set with IRC 2021 structural calculations. Built for homeowners and deck contractors. Free during beta.">
+<meta name="keywords" content="deck permit plans, permit ready deck plans, deck plan generator, deck blueprint for permit, deck plans for permits, deck framing plan, contractor deck drawings">
+<link rel="canonical" href="https://simpleblueprints.xyz/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Deck Permit Plans From Your Address | SimpleBlueprints">
+<meta property="og:description" content="Enter your address. We pull your lot, setbacks, and house from public records, and you design your deck on your actual property. Complete permit drawing set, free during beta.">
+<meta property="og:url" content="https://simpleblueprints.xyz/">
+<meta property="og:site_name" content="SimpleBlueprints">
+<meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {"@type": "Question", "name": "Do I need a permit to build a deck?",
+     "acceptedAnswer": {"@type": "Answer", "text": "In most jurisdictions, yes. Decks attached to a house, taller than 30 inches, or larger than 200 square feet typically require a building permit with a site plan and structural drawings. Your local building department makes the final call."}},
+    {"@type": "Question", "name": "What do I need to submit for a deck permit?",
+     "acceptedAnswer": {"@type": "Answer", "text": "Most building departments ask for a site plan showing your lot, house, deck, and setbacks, plus framing plans, elevations, structural details, and general notes. SimpleBlueprints generates all of these as one 8-sheet drawing set from your design."}},
+    {"@type": "Question", "name": "How does SimpleBlueprints know my property?",
+     "acceptedAnswer": {"@type": "Answer", "text": "We look up your parcel in public records to get your lot shape, dimensions, and zoning setbacks, and detect your house footprint from mapping data. You confirm and adjust everything before designing. You can also upload a property survey or draw your lot manually."}},
+    {"@type": "Question", "name": "Are the structural calculations code-compliant?",
+     "acceptedAnswer": {"@type": "Answer", "text": "Joists, beams, posts, and footings are sized from the 2021 International Residential Code prescriptive tables, with the code sections cited on your plans. Your building department always has final authority over approval."}},
+    {"@type": "Question", "name": "Can contractors use this for client projects?",
+     "acceptedAnswer": {"@type": "Answer", "text": "Yes. Contractors and deck builders use SimpleBlueprints to turn a site visit into a submittable drawing set the same day, with a title block carrying the project address and parcel number. Run as many properties as needed and revise a set as many times as the plan examiner asks."}}
+  ]
+}
+</script>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%233d5a2e'/><text x='16' y='22' text-anchor='middle' fill='white' font-size='16' font-weight='900' font-family='monospace'>SB</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,700;0,9..40,900;1,9..40,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,900;1,9..40,400&display=swap" rel="stylesheet">
+<!-- S95: homepage styles, scoped under .sb-home so the wizard is unaffected -->
+<link rel="stylesheet" href="/static/css/home.css?v=s95a">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
@@ -26,9 +55,9 @@
 <script type="text/babel" src="/static/js/engine.js?v=s81e.1"></script>
 <script type="text/babel" src="/static/js/stairGeometry.js?v=s92a"></script>
 <script type="text/babel" src="/static/js/zoneUtils.js?v=s94a"></script>
-<script type="text/babel" src="/static/js/home.js?v=s75a"></script>
+<script type="text/babel" src="/static/js/home.js?v=s95a"></script>
 <script src="/static/js/lotGeometry.js?v=s85a"></script>
-<script type="text/babel" src="/static/js/app.js?v=s87a"></script>
+<script type="text/babel" src="/static/js/app.js?v=s95a"></script>
 <!-- S62: Lazy loader for wizard dependencies -->
 <script>
 (function() {

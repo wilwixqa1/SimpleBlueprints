@@ -1171,7 +1171,7 @@ const App = function SimpleBlueprints() {
   var _effectiveVFlip = shapeVFlip;
 
   // HOME
-  if (page === "home") return <HomePage setPage={setPage} user={user} startNewProject={startNewProject} />;
+  if (page === "home") return <HomePage setPage={setPage} user={user} startNewProject={startNewProject} setInfo={setInfo} />;
   if (page === "drafts") return <DraftsPage setPage={setPage} user={user} API={API} loadProject={loadProject} startNewProject={startNewProject} />;
   if (page === "loading") return (
     <div style={{ minHeight: "100vh", background: br.cr, display: "flex", alignItems: "center", justifyContent: "center" }}>
