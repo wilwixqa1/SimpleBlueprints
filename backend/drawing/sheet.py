@@ -48,7 +48,7 @@ BASE_WIDTH = 14.0
 # visual design pass blesses a larger size. Read via getters below so callers
 # always see the current value. SBP_SHEET env var overrides for renders/design
 # sessions without touching the shipped default.
-_ACTIVE = os.environ.get("SBP_SHEET", "arch_d")
+_ACTIVE = os.environ.get("SBP_SHEET", "letter")
 if _ACTIVE not in SHEET_SIZES:
     _ACTIVE = "letter"
 
