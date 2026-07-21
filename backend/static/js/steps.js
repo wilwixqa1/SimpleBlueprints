@@ -4813,9 +4813,9 @@ function StepContent(props) {
           </tr></thead>
           <tbody>{(zc ? m.items.concat(zc.extraItems) : m.items).map(function(it, i) {
             return <tr key={i} style={{ borderBottom: `1px solid ${_br.wr}` }}>
-              <td style={{ padding: "4px 8px", color: _br.dk }}>{it.name}</td>
+              <td style={{ padding: "4px 8px", color: _br.dk }}>{it.item}</td>
               <td style={{ padding: "4px 8px", textAlign: "right", color: _br.gn }}>{it.qty}</td>
-              <td style={{ padding: "4px 8px", textAlign: "right", color: _br.mu }}>${it.ext}</td>
+              <td style={{ padding: "4px 8px", textAlign: "right", color: _br.mu }}>${(it.qty * it.cost).toFixed(0)}</td>
             </tr>;
           })}</tbody>
         </table>
