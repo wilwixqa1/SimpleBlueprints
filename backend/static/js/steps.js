@@ -4913,8 +4913,8 @@ function StepContent(props) {
         {isProduction && feedbackDone && <div style={{padding:10,background:"#e8f5e9",borderRadius:8,border:"1px solid #c8e6c9",marginTop:14,textAlign:"center"}}><span style={{fontSize:11,color:"#2e7d32",fontFamily:_sans,fontWeight:700}}>{"\u2713"} Thanks for your feedback!</span></div>}
       </div>
 
-      {/* ===== RIGHT: sticky summary + CTA rail ===== */}
-      <div style={{ flex: "0 0 322px", minWidth: 280, alignSelf: "flex-start", position: "sticky", top: 14 }}>
+      {/* ===== RIGHT: summary + CTA + guide rail ===== */}
+      <div style={{ flex: "0 0 322px", minWidth: 280 }}>
 
         {/* Drawing-set note */}
         <div style={{ padding: 16, background: "#fff", borderRadius: 8, border: "1px solid " + _br.bd, marginBottom: 14 }}>
@@ -4980,10 +4980,7 @@ function StepContent(props) {
             </div>}
           </div>;
         })()}
-      </div>
-    </div>
-
-    {/* ===== AI guide, moved to the bottom on the delivery page ===== */}
+        {/* AI guide -- lives in the rail below the CTA, using the space beside the tall left column */}
     {guideActive === true && (() => {
       var s4Msg = null, s4Tip = null;
       if (guidePhase === 's4_info') {
@@ -4995,9 +4992,9 @@ function StepContent(props) {
       }
       if (guidePhase === 's4_generate') {
         s4Msg = "Ready to generate your blueprint package!";
-        s4Tip = "Click 'Generate my plan set' in the panel on the right. Your " + (previewSheets.length || 7) + "-sheet package will be ready in about 30 seconds.";
+        s4Tip = "Click 'Generate my plan set' above. Your " + (previewSheets.length || 7) + "-sheet package will be ready in about 30 seconds.";
       }
-      return <div style={{ marginTop: 24 }}><GuidePanel
+      return <div style={{ marginTop: 14 }}><GuidePanel
         phase={guidePhase}
         onAction={guideHandleAction}
         onBack={guideBack}
@@ -5008,6 +5005,8 @@ function StepContent(props) {
         chatMessages={chatMessages} chatLoading={chatLoading} onSendMessage={sendChatMessage} onApplyActions={_applyActions} setChatMessages={setChatMessages}
       /></div>;
     })()}
+      </div>
+    </div>
 
     {/* S96.5: full-size sheet inspection. Re-fetched at higher dpi. */}
     {lightbox != null && previewSheets[lightbox] && <div
