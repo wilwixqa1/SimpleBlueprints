@@ -2999,6 +2999,12 @@ async def robots_txt():
     return Response(content=_ROBOTS_TXT, media_type="text/plain")
 
 
+@app.get("/favicon.ico")
+async def favicon():
+    # S99: browsers and Google's favicon crawler request this at the root path
+    return FileResponse(_STATIC_DIR / "favicon.ico", media_type="image/x-icon")
+
+
 @app.get("/sitemap.xml")
 async def sitemap_xml():
     return Response(content=_SITEMAP_XML, media_type="application/xml")
