@@ -2972,6 +2972,38 @@ async def admin_generate_test_suite(request: Request):
 from pathlib import Path as _Path
 _STATIC_DIR = _Path(__file__).parent.parent / "static"
 
+# S99: search engine discovery. Without these, crawlers have no map of the site
+# and (with zero backlinks) may never find it at all.
+_ROBOTS_TXT = """User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /api/
+Disallow: /mock
+
+Sitemap: https://simpleblueprints.xyz/sitemap.xml
+"""
+
+_SITEMAP_XML = """<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://simpleblueprints.xyz/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+</urlset>
+"""
+
+
+@app.get("/robots.txt")
+async def robots_txt():
+    return Response(content=_ROBOTS_TXT, media_type="text/plain")
+
+
+@app.get("/sitemap.xml")
+async def sitemap_xml():
+    return Response(content=_SITEMAP_XML, media_type="application/xml")
+
+
 @app.get("/")
 async def root(request: Request):
     index_path = _STATIC_DIR / "index.html"
