@@ -105,7 +105,7 @@
     if (loading) return new Promise(function(resolve) { callbacks.push(resolve); });
     loading = true;
 
-    var v = "v=s100f";
+    var v = "v=s100g";
     return loadScript("https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js")
       .then(function() {
         // Views can load in parallel (stairGeometry + zoneUtils already loaded)

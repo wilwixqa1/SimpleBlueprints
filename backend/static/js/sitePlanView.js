@@ -201,7 +201,9 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
     dragRef.current = {
       type: "house",
       offsetX: lot.x - hx,
-      offsetY: lot.y - hy
+      offsetY: lot.y - hy,
+      startHX: hx,
+      startHY: hy
     };
     setIsDragging(true);
   }
@@ -240,6 +242,17 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
 
   function onSvgPointerUp(e) {
     if (dragRef.current) {
+      // S100: measure how far the auto-placed house gets moved. Beta metric:
+      // quantifies auto-placement quality AND drag discoverability (zero
+      // events across sessions = users are not finding the drag).
+      if (dragRef.current.type === "house" && dragRef.current.startHX != null) {
+        var mdx = hx - dragRef.current.startHX;
+        var mdy = hy - dragRef.current.startHY;
+        var mdist = Math.sqrt(mdx * mdx + mdy * mdy);
+        if (mdist >= 1 && window._trackEvent) {
+          window._trackEvent('house_dragged', { dx: mdx, dy: mdy, dist_ft: Math.round(mdist * 10) / 10 });
+        }
+      }
       dragRef.current = null;
       setIsDragging(false);
     }

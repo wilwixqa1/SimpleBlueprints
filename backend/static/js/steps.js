@@ -1508,7 +1508,7 @@ function StepContent(props) {
             console.log("Building footprint: no buildings found" + (bldg.error ? " (error: " + bldg.error + ")" : ""));
             // S96.5: guideAdvance so this transition is recorded in guideHistory.
             u("_siteplanLoading", false);
-            u("_siteplanConfidence", { level: "low", messages: ["Building data unavailable. Dimensions are estimated from tax records.", "Verify house width, depth, and position."] });
+            u("_siteplanConfidence", { level: "low", messages: ["Building data unavailable. Dimensions are estimated from tax records.", "Drag the house on the plan to its real spot, then verify width and depth."] });
             if (guideActive) guideAdvance('verify_extracted');
             return;
           }
@@ -1552,7 +1552,7 @@ function StepContent(props) {
           if (!primary) {
             console.log("Building footprint: no building passed filter (>= 400sqft, < 250ft)");
             u("_siteplanLoading", false);
-            u("_siteplanConfidence", { level: "low", messages: ["Building data unavailable. Dimensions are estimated from tax records.", "Verify house width, depth, and position."] });
+            u("_siteplanConfidence", { level: "low", messages: ["Building data unavailable. Dimensions are estimated from tax records.", "Drag the house on the plan to its real spot, then verify width and depth."] });
             if (guideActive) guideAdvance('verify_extracted');
             return;
           }
@@ -1737,7 +1737,7 @@ function StepContent(props) {
             // Solar data available -- good signal for dimensions
           } else {
             _confLevel = _confLevel === "high" ? "medium" : "low";
-            _confMessages.push("House dimensions are estimated. Please verify width and depth.");
+            _confMessages.push("House size and position are estimates. Drag the house on the plan to its real spot, then verify width and depth.");
           }
           if (_confMessages.length === 0) {
             _confMessages.push("Street, position, and dimensions verified against satellite data.");
@@ -1754,7 +1754,7 @@ function StepContent(props) {
           } else {
             setFootprintFailed(true);
             u("_siteplanLoading", false);
-            u("_siteplanConfidence", { level: "low", messages: ["Building detection failed. Dimensions are estimated from tax records.", "Verify house width, depth, and position."] });
+            u("_siteplanConfidence", { level: "low", messages: ["Building detection failed. Dimensions are estimated from tax records.", "Drag the house on the plan to its real spot, then verify width and depth."] });
             if (guideActive) guideAdvance('verify_extracted');
           }
         });
