@@ -768,6 +768,12 @@ function estSteelMaterials(p, c) {
   return { items: items, sub: sub, tax: sub * 0.08, cont: sub * 0.05, total: sub * 1.13 };
 }
 
+function stockLen(ft) {
+  // S99: round an order length up to a real stock length
+  var stocks = [8, 10, 12, 14, 16, 20];
+  for (var i = 0; i < stocks.length; i++) { if (stocks[i] >= ft) return stocks[i]; }
+  return Math.ceil(ft);
+}
 function estMaterials(p, c) {
   // S75: Steel framing materials path
   if (c.framingType === "steel" || p.framingType === "steel") {
@@ -788,21 +794,30 @@ function estMaterials(p, c) {
     items.push({ cat: "Ledger", item: "Flashing", qty: 1, cost: 55 });
     items.push({ cat: "Ledger", item: "Lateral Load Connectors (DTT2Z)", qty: 2, cost: 32 });
   }
-  const jL = Math.ceil(c.D);
+  const jL = stockLen(Math.ceil(c.D));
   items.push({ cat: "Framing", item: `${c.joistSize} Joists ${jL}'`, qty: c.nJ + 4, cost: jL <= 10 ? 22 : jL <= 12 ? 32 : 42 });
-  items.push({ cat: "Framing", item: "Rim Joists", qty: Math.ceil(c.W / 12) + 2, cost: 32 });
+  items.push({ cat: "Framing", item: "Rim Joists", qty: Math.ceil(c.W / 12) + 2 * Math.ceil(c.D / 12), cost: 32 });
   if (c.midSpanBlocking) {
     items.push({ cat: "Framing", item: c.joistSize + " Blocking (mid-span)", qty: c.blockingCount, cost: 8 });
   }
-  items.push({ cat: "Hardware", item: "Joist Hangers", qty: c.nJ * 2, cost: 6 });
+  // S99: joists hang from the LEDGER only; on a dropped beam they bear on top
+  // (hurricane ties below). Flush-beam hangers are the separate LUS line.
+  if (c.attachment === "ledger") {
+    items.push({ cat: "Hardware", item: "Joist Hangers", qty: c.nJ, cost: 6 });
+  }
   items.push({ cat: "Hardware", item: "Hurricane Ties + Nails", qty: 1, cost: c.nJ * 2.75 + 50 });
-  const bds = Math.ceil(c.W / (5.5 / 12)) * 1.1;
+  // S99: cutout zones reduce the decking order proportionally
+  var _cutA = 0;
+  (p.zones || []).forEach(function(z) { if (z.type === "cutout") _cutA += (z.w || 0) * (z.d || 0); });
+  var _netRatio = Math.max(0, (c.W * c.D - _cutA) / (c.W * c.D));
+  const bds = Math.ceil(c.W / (5.5 / 12)) * 1.1 * _netRatio;
+  var _dkLen = stockLen(Math.ceil(c.D + 2));
   if (p.deckingType === "composite") {
-    items.push({ cat: "Decking", item: `Composite ${Math.ceil(c.D + 2)}'`, qty: Math.ceil(bds), cost: c.D <= 10 ? 28 : 38 });
+    items.push({ cat: "Decking", item: `Composite ${_dkLen}'`, qty: Math.ceil(bds), cost: c.D <= 10 ? 28 : 38 });
     items.push({ cat: "Decking", item: "Hidden Fasteners", qty: 1, cost: 175 });
   } else {
-    items.push({ cat: "Decking", item: `5/4x6 PT ${Math.ceil(c.D + 2)}'`, qty: Math.ceil(bds), cost: c.D <= 10 ? 12 : 18 });
-    items.push({ cat: "Decking", item: "Deck Screws 5lb", qty: Math.ceil(c.W * c.D / 50), cost: 32 });
+    items.push({ cat: "Decking", item: `5/4x6 PT ${_dkLen}'`, qty: Math.ceil(bds), cost: c.D <= 10 ? 12 : 18 });
+    items.push({ cat: "Decking", item: "Deck Screws 5lb", qty: Math.ceil(c.W * c.D * _netRatio / 50), cost: 32 });
   }
   const rP = Math.ceil(c.railLen / 6) + 1;
   if (p.railType === "fortress") {
@@ -859,6 +874,7 @@ function estMaterials(p, c) {
         items.push({ cat: "Stairs", item: "Landing Posts " + c.postSize + _label, qty: _totalLandingPosts, cost: c.postSize === "6x6" ? 48 : 24 });
         items.push({ cat: "Stairs", item: "Landing Post Bases" + _label, qty: _totalLandingPosts, cost: c.postSize === "6x6" ? 42 : 28 });
         items.push({ cat: "Stairs", item: "Landing Footings " + c.fDiam + '"' + _label, qty: _totalLandingPosts, cost: c.fDiam > 18 ? 28 : 18 });
+        items.push({ cat: "Stairs", item: "Landing Footing Concrete 80lb" + _label, qty: Math.ceil((Math.PI * Math.pow(c.fDiam / 24, 2) * (c.fDepth / 12)) / 0.6) * _totalLandingPosts, cost: 6.50 });
         items.push({ cat: "Stairs", item: "Landing Framing Lumber" + _label, qty: _numLandings * 4, cost: 22 });
         items.push({ cat: "Stairs", item: "Landing Decking" + _label, qty: _numLandings * Math.ceil(_sw + 2), cost: p.deckingType === "composite" ? 28 : 12 });
       }

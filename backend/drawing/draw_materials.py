@@ -124,6 +124,14 @@ def estimate_steel_materials(params, calc):
     return {"items": items, "subtotal": round(sub, 2), "tax": round(sub * 0.08, 2), "cont": round(sub * 0.05, 2), "total": round(sub * 1.13, 2)}
 
 
+def _stock_len(ft):
+    """S99: round an order length up to a real stock length (mirrors engine.js stockLen)."""
+    for L in (8, 10, 12, 14, 16, 20):
+        if L >= ft:
+            return L
+    return math.ceil(ft)
+
+
 def estimate_materials(params, calc):
     """Generate itemized material list matching frontend logic exactly."""
     # S75: Steel framing materials path
@@ -182,7 +190,7 @@ def estimate_materials(params, calc):
         items.append({"cat": "Ledger", "item": "Flashing", "qty": 1, "cost": 55})
 
     # Framing
-    jL = math.ceil(D)
+    jL = _stock_len(math.ceil(D))
     jCost = 22 if jL <= 10 else (32 if jL <= 12 else 42)
     # Lateral load connectors for ledger decks
     if calc.get("attachment") == "ledger":
@@ -194,7 +202,7 @@ def estimate_materials(params, calc):
         })
 
     items.append({"cat": "Framing", "item": f"{joistSize} Joists {jL}'", "qty": nJ + 4, "cost": jCost})
-    items.append({"cat": "Framing", "item": "Rim Joists", "qty": math.ceil(W / 12) + 2, "cost": 32})
+    items.append({"cat": "Framing", "item": "Rim Joists", "qty": math.ceil(W / 12) + 2 * math.ceil(D / 12), "cost": 32})
 
     # Mid-span blocking (when joist span > 7ft)
     if calc.get("mid_span_blocking", False):
@@ -208,7 +216,10 @@ def estimate_materials(params, calc):
             })
 
     # Hardware
-    items.append({"cat": "Hardware", "item": "Joist Hangers", "qty": nJ * 2, "cost": 6})
+    # S99: joists hang from the LEDGER only; on a dropped beam they bear on top
+    # (hurricane ties below). Flush-beam hangers are the separate LUS line.
+    if attachment == "ledger":
+        items.append({"cat": "Hardware", "item": "Joist Hangers", "qty": nJ, "cost": 6})
     # Flush beam: add beam-to-joist hangers
     # Ledger: joists meet 1 beam line from one side = nJ hangers
     # Freestanding: joists span between 2 beam lines = nJ * 2 hangers
@@ -218,13 +229,17 @@ def estimate_materials(params, calc):
     items.append({"cat": "Hardware", "item": "Hurricane Ties + Nails", "qty": 1, "cost": round(nJ * 2.75 + 50, 2)})
 
     # Decking
-    bds = math.ceil(W / (5.5 / 12)) * 1.1
+    # S99: cutout zones reduce the decking order proportionally
+    _cut_a = sum((z.get("w") or 0) * (z.get("d") or 0) for z in zones if z.get("type") == "cutout")
+    _net_ratio = max(0, (W * D - _cut_a) / (W * D))
+    bds = math.ceil(W / (5.5 / 12)) * 1.1 * _net_ratio
+    _dk_len = _stock_len(math.ceil(D + 2))
     if params.get("deckingType") == "composite":
-        items.append({"cat": "Decking", "item": f'Composite {math.ceil(D + 2)}\'', "qty": math.ceil(bds), "cost": 28 if D <= 10 else 38})
+        items.append({"cat": "Decking", "item": f"Composite {_dk_len}'", "qty": math.ceil(bds), "cost": 28 if D <= 10 else 38})
         items.append({"cat": "Decking", "item": "Hidden Fasteners", "qty": 1, "cost": 175})
     else:
-        items.append({"cat": "Decking", "item": f'5/4x6 PT {math.ceil(D + 2)}\'', "qty": math.ceil(bds), "cost": 12 if D <= 10 else 18})
-        items.append({"cat": "Decking", "item": "Deck Screws 5lb", "qty": math.ceil(W * D / 50), "cost": 32})
+        items.append({"cat": "Decking", "item": f"5/4x6 PT {_dk_len}'", "qty": math.ceil(bds), "cost": 12 if D <= 10 else 18})
+        items.append({"cat": "Decking", "item": "Deck Screws 5lb", "qty": math.ceil(W * D * _net_ratio / 50), "cost": 32})
 
     # Railing
     rP = math.ceil(railLen / 6) + 1
@@ -297,6 +312,7 @@ def estimate_materials(params, calc):
                 items.append({"cat": "Stairs", "item": f"Landing Posts {postSize}{label}", "qty": total_landing_posts, "cost": 48 if postSize == "6x6" else 24})
                 items.append({"cat": "Stairs", "item": f"Landing Post Bases{label}", "qty": total_landing_posts, "cost": 42 if postSize == "6x6" else 28})
                 items.append({"cat": "Stairs", "item": f'Landing Footings {fDiam}"{label}', "qty": total_landing_posts, "cost": 28 if fDiam > 18 else 18})
+                items.append({"cat": "Stairs", "item": f"Landing Footing Concrete 80lb{label}", "qty": math.ceil((math.pi * (fDiam / 24) ** 2 * (fDepth / 12)) / 0.6) * total_landing_posts, "cost": 6.50})
                 items.append({"cat": "Stairs", "item": f"Landing Framing Lumber{label}", "qty": num_landings * 4, "cost": 22})
                 items.append({"cat": "Stairs", "item": f"Landing Decking{label}", "qty": num_landings * math.ceil(sw + 2), "cost": 28 if params.get("deckingType") == "composite" else 12})
 

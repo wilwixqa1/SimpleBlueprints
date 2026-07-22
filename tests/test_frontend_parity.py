@@ -254,6 +254,13 @@ def _check_materials_parity():
         ("materials: two deckStairs (U-turn)",
          dict(base, deckStairs=[dict(stair), dict(stair2)])),
         ("materials: legacy hasStairs", dict(base, hasStairs=True, stairWidth=4)),
+        ("materials: freestanding", dict(base, attachment="freestanding")),
+        ("materials: non-stock depth (13')", dict(base, depth=13)),
+        # KNOWN GAP (S99, do not add yet): cutout-zone configs diverge because the
+        # JS calcStructure lacks the S96 notch-aware beam layout (JS: 3 posts,
+        # Python: 6 posts on a notched deck). The Python/PDF side is correct.
+        # Add a cutout case here once the notch-aware layout is ported to JS
+        # (part of the consolidation work).
     ]
     failures = 0
     repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
