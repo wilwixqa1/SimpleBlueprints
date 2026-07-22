@@ -1768,6 +1768,78 @@ async def api_delete_project(project_id: int, request: Request):
 
 import math as _math
 
+def _simplify_ring_ft(verts, tol=2.0):
+    """S100: Douglas-Peucker simplification of a closed polygon ring (feet coords).
+
+    County GIS parcels trace curved road frontage as many short arc segments
+    (4-6 ft each). Those tiny edges wreck downstream logic: the frontend picks
+    one arc chip as "the street edge" and rotates the whole lot to it, and the
+    site plan stamps overlapping dimension/setback labels per segment.
+    Collapsing near-collinear runs (sagitta < tol) fixes all of it. Coordinates
+    of surviving vertices are unchanged, so the parcel's coordinate frame (and
+    the building-footprint alignment that depends on it) is preserved.
+    """
+    n = len(verts) if verts else 0
+    if n <= 4:
+        return verts
+
+    def _perp(pt, a, b):
+        ax, ay = a; bx, by = b; px, py = pt
+        dx, dy = bx - ax, by - ay
+        seg = _math.hypot(dx, dy)
+        if seg < 1e-9:
+            return _math.hypot(px - ax, py - ay)
+        return abs(dy * px - dx * py + bx * ay - by * ax) / seg
+
+    def _dp(points):
+        # Iterative Douglas-Peucker on an open polyline; keeps endpoints.
+        keep = [False] * len(points)
+        keep[0] = keep[-1] = True
+        stack = [(0, len(points) - 1)]
+        while stack:
+            i, j = stack.pop()
+            if j <= i + 1:
+                continue
+            best_d, best_k = -1.0, None
+            for k in range(i + 1, j):
+                d = _perp(points[k], points[i], points[j])
+                if d > best_d:
+                    best_d, best_k = d, k
+            if best_d > tol and best_k is not None:
+                keep[best_k] = True
+                stack.append((i, best_k))
+                stack.append((best_k, j))
+        return [p for p, k in zip(points, keep) if k]
+
+    # Anchor the ring split at the two mutually most distant vertices so the
+    # simplification is stable regardless of where the ring happens to start.
+    ai, aj = 0, n // 2
+    best = -1.0
+    for i in range(n):
+        for j in range(i + 1, n):
+            d = (verts[i][0] - verts[j][0]) ** 2 + (verts[i][1] - verts[j][1]) ** 2
+            if d > best:
+                best, ai, aj = d, i, j
+    half_a = verts[ai:aj + 1]
+    half_b = verts[aj:] + verts[:ai + 1]
+    out = _dp(half_a)[:-1] + _dp(half_b)[:-1]
+    if len(out) < 3:
+        return verts
+    return out
+
+
+def _simplify_parcel_result(result):
+    """Apply ring simplification to a parcel-lookup result (fresh or cached)."""
+    try:
+        lot = result.get("lot") or {}
+        lv = lot.get("vertices")
+        if lv and len(lv) > 4:
+            lot["vertices"] = _simplify_ring_ft(lv, 2.0)
+    except Exception as e:
+        print(f"Parcel simplify error: {e}")
+    return result
+
+
 def _coords_to_feet(coords_raw):
     """Convert GeoJSON lat/lng polygon to local feet coordinates (SW corner origin)."""
     if not coords_raw or len(coords_raw) < 3:
@@ -2011,7 +2083,9 @@ async def parcel_lookup(request: Request):
     cached = get_cached_parcel(address, state)
     if cached:
         cached["_cached"] = True
-        return JSONResponse(cached)
+        # S100: simplify at response time so pre-existing cache entries with
+        # raw arc-segment polygons get fixed without a cache flush.
+        return JSONResponse(_simplify_parcel_result(cached))
 
     result = _realie_lookup(address, state, city, zip_code)
     if "error" in result:
@@ -2020,7 +2094,7 @@ async def parcel_lookup(request: Request):
     # Cache successful result
     set_cached_parcel(address, state, result)
 
-    return JSONResponse(result)
+    return JSONResponse(_simplify_parcel_result(result))
 
 
 # ============================================================

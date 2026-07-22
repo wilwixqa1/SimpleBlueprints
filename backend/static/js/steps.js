@@ -1198,7 +1198,10 @@ function StepContent(props) {
           edges = rotEdges;
           u("lotWidth", Math.round(rMaxX));
           u("lotDepth", Math.round(rMaxY));
-          u("northAngle", Math.round(rotDeg));
+          // S100: SVG rotate() is clockwise but the lot was rotated
+          // counterclockwise by rotDeg on screen, so the north arrow needs the
+          // complement. Previously stored +rotDeg, which mirrored the arrow.
+          u("northAngle", Math.round((360 - rotDeg) % 360));
           u("_lotRotation", 0);
           _s79Rotated = true;
           console.log("S79: Polygon-edge rotation applied: " + rotDeg.toFixed(1) + "deg from street edge " + streetIdx + " (edgeAngle=" + (streetEdgeAngle * 180 / Math.PI).toFixed(1) + "deg, edgeLen=" + streetEdgeLen.toFixed(0) + "ft)");
@@ -1370,7 +1373,8 @@ function StepContent(props) {
                 edges = corrEdges;
                 u("lotWidth", Math.round(rmaxX));
                 u("lotDepth", Math.round(rmaxY));
-                u("northAngle", Math.round(rotDegB));
+                // S100: complement for SVG clockwise rotate (see S79 site above)
+                u("northAngle", Math.round((360 - rotDegB) % 360));
                 u("_lotRotation", 0);
                 u("lotEdges", corrEdges);
                 u("lotVertices", rv2);

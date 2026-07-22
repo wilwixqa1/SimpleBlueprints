@@ -62,6 +62,9 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
       var eDx = esx2 - esx1, eDy = esy2 - esy1;
       var eNrm = Math.sqrt(eDx * eDx + eDy * eDy);
       if (eNrm < 1) continue;
+      // S100: skip labels on tiny edges (arc chips from GIS parcel traces);
+      // a dozen overlapping 8px labels render as garbage.
+      if (eLen < 6) continue;
       var eNx = -eDy / eNrm, eNy = eDx / eNrm;
       var scxP = sx(cxL), scyP = sy(cyL);
       if (eNx * (eMx - scxP) + eNy * (eMy - scyP) < 0) { eNx = -eNx; eNy = -eNy; }
@@ -128,7 +131,9 @@ window.SitePlanView = function SitePlanView({ p, c, u }) {
       var emx = (v1[0] + v2[0]) / 2, emy = (v1[1] + v2[1]) / 2;
       var edx = v2[0] - v1[0], edy = v2[1] - v1[1];
       var elen = Math.sqrt(edx * edx + edy * edy);
-      if (elen < 1) continue;
+      // S100: was < 1. Setback label text needs a real edge to sit on;
+      // per-arc-chip labels smear into an unreadable red cluster.
+      if (elen < 12) continue;
       var nx = -edy / elen, ny = edx / elen;
       if (nx * (cx - emx) + ny * (cy - emy) < 0) { nx = -nx; ny = -ny; }
       var lx = emx + nx * sbDists[si] * 0.5;
