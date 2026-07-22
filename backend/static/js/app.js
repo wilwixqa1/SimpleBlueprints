@@ -1237,7 +1237,7 @@ const App = function SimpleBlueprints() {
           The live canvas is hidden there and this column goes full width, so
           the finished drawing set is the whole surface instead of sharing the
           screen with controls that invite more editing. */}
-      <div style={{ maxWidth: step === 4 ? 1480 : 1180, margin: "0 auto", padding: "12px", display: "flex", gap: 16, flexWrap: "wrap" }}>
+      <div className="sbp-wizard-row" style={{ maxWidth: step === 4 ? 1480 : 1180, margin: "0 auto", padding: "12px", display: "flex", gap: 16, flexWrap: "wrap" }}>
         {/* LEFT: INPUTS */}
         <div style={{ flex: step === 4 ? "1 1 100%" : "1 1 320px", minWidth: 290 }}>
           <div style={step === 4 ? { background: "transparent", padding: 0 } : { background: "#fff", borderRadius: 10, padding: 22, border: `1px solid ${br.bd}`, boxShadow: "0 1px 8px rgba(0,0,0,0.04)" }}>
@@ -1269,7 +1269,7 @@ const App = function SimpleBlueprints() {
         </div>
 
         {/* RIGHT: PREVIEW */}
-        {step !== 4 && <div style={{ flex: "1 1 500px", minWidth: 280, alignSelf: "flex-start", position: "sticky", top: 14, maxHeight: "calc(100vh - 28px)", overflowY: "auto" }}>
+        {step !== 4 && <div className="sbp-preview-col" style={{ flex: "1 1 500px", minWidth: 280, alignSelf: "flex-start", position: "sticky", top: 14, maxHeight: "calc(100vh - 28px)", overflowY: "auto" }}>
           <div style={{ background: "#fff", borderRadius: 10, padding: 18, border: `1px solid ${br.bd}`, boxShadow: "0 1px 8px rgba(0,0,0,0.04)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
               <h3 style={{ margin: 0, fontSize: 12, fontWeight: 700, color: br.dk, fontFamily: mono, letterSpacing: "1px", textTransform: "uppercase" }}>{step === 0 ? "Site Plan Preview" : "Preview"}</h3>

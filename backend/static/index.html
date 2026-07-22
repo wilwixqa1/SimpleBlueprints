@@ -3,6 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+/* Mobile only (<=640px). These rules never fire above 640px, so the desktop
+   layout is untouched. They stack the wizard's side-by-side columns and undo
+   the desktop-only sticky / fixed-width behavior that overflows on a phone. */
+@media (max-width: 640px) {
+  .sbp-wizard-row { flex-direction: column !important; flex-wrap: nowrap !important; padding: 10px !important; }
+  .sbp-wizard-row > div { flex: 1 1 auto !important; width: 100% !important; min-width: 0 !important; max-width: 100% !important; }
+  .sbp-preview-col { position: static !important; top: auto !important; max-height: none !important; overflow: visible !important; }
+  .sbp-review-row { flex-direction: column !important; }
+  .sbp-review-row > div { flex: 1 1 auto !important; width: 100% !important; min-width: 0 !important; max-width: 100% !important; position: static !important; }
+}
+</style>
 <title>Deck Permit Plans From Your Address | SimpleBlueprints</title>
 <meta name="description" content="Permit-ready deck plans drawn from your actual property. Enter your address, design your deck, and download a complete 8-sheet permit drawing set with IRC 2021 structural calculations. Built for homeowners and deck contractors. Free during beta.">
 <meta name="keywords" content="deck permit plans, permit ready deck plans, deck plan generator, deck blueprint for permit, deck plans for permits, deck framing plan, contractor deck drawings">
@@ -57,7 +69,7 @@
 <script type="text/babel" src="/static/js/zoneUtils.js?v=s94a"></script>
 <script type="text/babel" src="/static/js/home.js?v=s95e"></script>
 <script src="/static/js/lotGeometry.js?v=s85a"></script>
-<script type="text/babel" src="/static/js/app.js?v=s97i"></script>
+<script type="text/babel" src="/static/js/app.js?v=s97k"></script>
 <!-- S62: Lazy loader for wizard dependencies -->
 <script>
 (function() {
@@ -93,7 +105,7 @@
     if (loading) return new Promise(function(resolve) { callbacks.push(resolve); });
     loading = true;
 
-    var v = "v=s97j";
+    var v = "v=s97k";
     return loadScript("https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js")
       .then(function() {
         // Views can load in parallel (stairGeometry + zoneUtils already loaded)

@@ -4767,7 +4767,7 @@ function StepContent(props) {
         while the user scrolls the detail. The AI guide drops to the bottom
         -- on a delivery page it's a helper, not the headline.
         ============================================================ */}
-    <div style={{ display: "flex", gap: 20, alignItems: "flex-start", flexWrap: "wrap" }}>
+    <div className="sbp-review-row" style={{ display: "flex", gap: 20, alignItems: "flex-start", flexWrap: "wrap" }}>
 
       {/* ===== LEFT: hero gallery + detail ===== */}
       <div style={{ flex: "1 1 600px", minWidth: 300 }}>
