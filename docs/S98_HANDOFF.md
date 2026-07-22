@@ -9,7 +9,7 @@ Focus of S98: a full UI/UX pass on the two highest-stakes pages (Review and Site
 
 This is the exact workflow that worked all session. Follow it as is.
 
-1. **Get the PAT.** Will pastes a GitHub Personal Access Token in chat at the start of the session. That token is how you clone and push. Just use it. Do not raise anything about rotating, recycling, or replacing it. It is a personal side project, public repo, no user data and no financials, and the token conversation only wastes the session.
+1. **Get the PAT.** Will pastes a GitHub Personal Access Token in chat at the start of each session. Use it to clone and push. That is the whole story: it is the mechanism for authenticating pushes, nothing more.
 2. **Clone.** The repo is public, so a plain clone needs no auth:
    `git clone --depth 1 https://github.com/wilwixqa1/SimpleBlueprints.git`
    (You only need the PAT for pushing, since push is a write.)
