@@ -1027,6 +1027,33 @@ function StepContent(props) {
         // closest to this point is the street edge.
         var nv = verts.length;
         var streetIdx = 0, rearIdx = 0;
+        // S100: street/rear edge candidacy filter. Corner chamfers and arc
+        // leftovers (e.g. a 16ft corner cut where two roads meet) must never
+        // be chosen as "the street edge" -- rotating the lot onto a chip tilts
+        // the whole plan. Candidates must be >= max(20ft, 15% of the longest
+        // edge), capped at 35ft so narrow real frontages (flag lots) qualify.
+        var _edgeLens = [];
+        var _maxEdgeLen = 0;
+        for (var eiL = 0; eiL < nv; eiL++) {
+          var niL = (eiL + 1) % nv;
+          var eLdx = verts[niL][0] - verts[eiL][0], eLdy = verts[niL][1] - verts[eiL][1];
+          var eLl = Math.sqrt(eLdx * eLdx + eLdy * eLdy);
+          _edgeLens.push(eLl);
+          if (eLl > _maxEdgeLen) _maxEdgeLen = eLl;
+        }
+        var _minStreetEdge = Math.min(35, Math.max(20, 0.15 * _maxEdgeLen));
+        if (_maxEdgeLen < _minStreetEdge) _minStreetEdge = 0; // degenerate tiny lot: no filter
+        function _edgeQualifies(ei) { return _edgeLens[ei] >= _minStreetEdge; }
+        function _distToEdge(px, py, ei) {
+          var a = verts[ei], b = verts[(ei + 1) % nv];
+          var abx = b[0] - a[0], aby = b[1] - a[1];
+          var L2 = abx * abx + aby * aby;
+          if (L2 < 1e-9) return Math.sqrt((px - a[0]) * (px - a[0]) + (py - a[1]) * (py - a[1]));
+          var t = ((px - a[0]) * abx + (py - a[1]) * aby) / L2;
+          t = Math.max(0, Math.min(1, t));
+          var qx = a[0] + t * abx, qy = a[1] + t * aby;
+          return Math.sqrt((px - qx) * (px - qx) + (py - qy) * (py - qy));
+        }
         // Convert Realie lat/lng to lot coordinates using raw GeoJSON
         var rawC = data.raw_coords;
         var propLotX = null, propLotY = null;
@@ -1052,9 +1079,11 @@ function StepContent(props) {
           var rayDx = propLotX - lotCx3, rayDy = propLotY - lotCy3;
           var rayLen = Math.sqrt(rayDx * rayDx + rayDy * rayDy);
           if (rayLen > 0.1) {
-            // Find which edge the ray hits
+            // Find which edge the ray hits (S100: qualifying edges only)
             var bestT = Infinity;
+            var _rayHit = false;
             for (var ei = 0; ei < nv; ei++) {
+              if (!_edgeQualifies(ei)) continue;
               var ni = (ei + 1) % nv;
               var ex = verts[ei][0], ey = verts[ei][1];
               var fx = verts[ni][0], fy = verts[ni][1];
@@ -1067,13 +1096,27 @@ function StepContent(props) {
               if (t > 0.01 && u2 >= 0 && u2 <= 1 && t < bestT) {
                 bestT = t;
                 streetIdx = ei;
+                _rayHit = true;
               }
+            }
+            // S100: ray exited through a filtered-out chamfer -- fall back to
+            // the qualifying edge nearest the address point.
+            if (!_rayHit) {
+              var _bestD = Infinity;
+              for (var eiF = 0; eiF < nv; eiF++) {
+                if (!_edgeQualifies(eiF)) continue;
+                var dF = _distToEdge(propLotX, propLotY, eiF);
+                if (dF < _bestD) { _bestD = dF; streetIdx = eiF; }
+              }
+              console.log("S100: Street ray hit no qualifying edge; nearest-edge fallback chose " + streetIdx);
             }
           }
           // Rear = edge hit by ray in opposite direction (centroid away from address point)
           var bestT2 = Infinity;
+          var _rearHit = false;
           var revDx = -rayDx, revDy = -rayDy;
           for (var ei = 0; ei < nv; ei++) {
+            if (!_edgeQualifies(ei)) continue;
             var ni = (ei + 1) % nv;
             var ex = verts[ei][0], ey = verts[ei][1];
             var fx = verts[ni][0], fy = verts[ni][1];
@@ -1085,13 +1128,23 @@ function StepContent(props) {
             if (t > 0.01 && u2 >= 0 && u2 <= 1 && t < bestT2) {
               bestT2 = t;
               rearIdx = ei;
+              _rearHit = true;
+            }
+          }
+          if (!_rearHit) {
+            var _bestD2 = -1;
+            for (var eiF2 = 0; eiF2 < nv; eiF2++) {
+              if (!_edgeQualifies(eiF2) || eiF2 === streetIdx) continue;
+              var dF2 = _distToEdge(propLotX, propLotY, eiF2);
+              if (dF2 > _bestD2) { _bestD2 = dF2; rearIdx = eiF2; }
             }
           }
           console.log("Street edge " + streetIdx + " detected via centroid->address ray. Centroid(" + lotCx3.toFixed(1) + "," + lotCy3.toFixed(1) + ") Addr(" + propLotX.toFixed(1) + "," + propLotY.toFixed(1) + ")");
         } else {
-          // Fallback: lowest average Y (most southern)
+          // Fallback: lowest average Y (most southern), qualifying edges only (S100)
           var minAvgY = Infinity, maxAvgY = -Infinity;
           for (var ei = 0; ei < nv; ei++) {
+            if (!_edgeQualifies(ei)) continue;
             var ni = (ei + 1) % nv;
             var avgY = (verts[ei][1] + verts[ni][1]) / 2;
             if (avgY < minAvgY) { minAvgY = avgY; streetIdx = ei; }
@@ -1276,12 +1329,24 @@ function StepContent(props) {
             for (var vi2 = 0; vi2 < nv2; vi2++) { cxL += origVerts[vi2][0]; cyL += origVerts[vi2][1]; }
             cxL /= nv2; cyL /= nv2;
             var bestEdge = -1, bestAngleDiff = 999;
+            // S100: same chamfer exclusion as the ray-cast pass. A corner
+            // chamfer's outward normal points between the two road bearings
+            // and can out-score both real frontage edges.
+            var _maxEL2 = 0;
+            for (var eiM = 0; eiM < nv2; eiM++) {
+              var niM = (eiM + 1) % nv2;
+              var eMdx = origVerts[niM][0] - origVerts[eiM][0], eMdy = origVerts[niM][1] - origVerts[eiM][1];
+              var eMl = Math.sqrt(eMdx * eMdx + eMdy * eMdy);
+              if (eMl > _maxEL2) _maxEL2 = eMl;
+            }
+            var _minEdge2 = Math.min(35, Math.max(20, 0.15 * _maxEL2));
+            if (_maxEL2 < _minEdge2) _minEdge2 = 0;
             for (var ei2 = 0; ei2 < nv2; ei2++) {
               var ni2 = (ei2 + 1) % nv2;
               var edx2 = origVerts[ni2][0] - origVerts[ei2][0];
               var edy2 = origVerts[ni2][1] - origVerts[ei2][1];
               var elen2 = Math.sqrt(edx2 * edx2 + edy2 * edy2);
-              if (elen2 < 1) continue;
+              if (elen2 < _minEdge2 || elen2 < 1) continue;
               var nx2 = -edy2 / elen2, ny2 = edx2 / elen2;
               var mx2 = (origVerts[ei2][0] + origVerts[ni2][0]) / 2;
               var my2 = (origVerts[ei2][1] + origVerts[ni2][1]) / 2;
@@ -1305,7 +1370,7 @@ function StepContent(props) {
                 var edx3 = origVerts[ni3][0] - origVerts[ei3][0];
                 var edy3 = origVerts[ni3][1] - origVerts[ei3][1];
                 var elen3 = Math.sqrt(edx3 * edx3 + edy3 * edy3);
-                if (elen3 < 1) continue;
+                if (elen3 < _minEdge2 || elen3 < 1) continue;
                 var nx3 = -edy3 / elen3, ny3 = edx3 / elen3;
                 var mx3 = (origVerts[ei3][0] + origVerts[ni3][0]) / 2;
                 var my3 = (origVerts[ei3][1] + origVerts[ni3][1]) / 2;

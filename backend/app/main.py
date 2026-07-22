@@ -1829,7 +1829,10 @@ def _simplify_ring_ft(verts, tol=2.0):
 
 
 def _simplify_parcel_result(result):
-    """Apply ring simplification to a parcel-lookup result (fresh or cached)."""
+    """Apply response-time fixups to a parcel-lookup result (fresh or cached):
+    ring simplification + house dim re-estimate. Doing this at the response
+    boundary means pre-existing cache entries get both fixes without a flush.
+    """
     try:
         lot = result.get("lot") or {}
         lv = lot.get("vertices")
@@ -1837,6 +1840,22 @@ def _simplify_parcel_result(result):
             lot["vertices"] = _simplify_ring_ft(lv, 2.0)
     except Exception as e:
         print(f"Parcel simplify error: {e}")
+    try:
+        # S100: cached entries may carry pre-fix estimates (sqft not divided
+        # by stories). estimated_* always came from _estimate_house_dims in
+        # this cache (Solar corrections happen client-side, never cached), so
+        # recomputing here is faithful.
+        bld = result.get("building") or {}
+        lot = result.get("lot") or {}
+        if bld.get("sqft"):
+            w, d = _estimate_house_dims(
+                bld.get("sqft"), lot.get("width") or 0, lot.get("depth") or 0,
+                bld.get("stories"))
+            if w and d:
+                bld["estimated_width"] = w
+                bld["estimated_depth"] = d
+    except Exception as e:
+        print(f"Parcel dims fixup error: {e}")
     return result
 
 
@@ -1859,14 +1878,21 @@ def _coords_to_feet(coords_raw):
     return vertices_ft, min_lat, min_lng
 
 
-def _estimate_house_dims(bldg_sqft, lot_width, lot_depth):
-    """Estimate house width/depth from building sqft."""
+def _estimate_house_dims(bldg_sqft, lot_width, lot_depth, stories=None):
+    """Estimate house width/depth from building sqft.
+
+    S100: Realie's building sqft is total living area across ALL floors, so
+    divide by story count to get the footprint (the Solar cross-check in
+    /api/building-footprint already does this; the fallback estimator didn't,
+    which drew 2-story houses at double footprint). The 40%-of-lot clamp stays
+    as a backstop for records with missing/wrong story counts.
+    """
     if not bldg_sqft or bldg_sqft <= 0:
         return None, None
     lot_area = lot_width * lot_depth
-    footprint = bldg_sqft
-    if lot_area > 0 and bldg_sqft > lot_area * 0.4:
-        footprint = bldg_sqft / 2.0
+    footprint = bldg_sqft / max(1, int(stories or 1))
+    if lot_area > 0 and footprint > lot_area * 0.4:
+        footprint = footprint / 2.0
     house_depth = round(_math.sqrt(footprint / 1.3), 1)
     house_width = round(house_depth * 1.3, 1)
     return house_width, house_depth
@@ -1982,7 +2008,14 @@ def _realie_lookup(address: str, state: str, city: str = "", zip_code: str = "")
             except (ValueError, TypeError):
                 pass
 
-    house_width, house_depth = _estimate_house_dims(bldg_sqft, lot_width, lot_depth)
+    # S100: parse stories before estimating dims (footprint = sqft / stories)
+    stories = None
+    try:
+        stories = int(prop.get("stories") or 0) or None
+    except (ValueError, TypeError):
+        pass
+
+    house_width, house_depth = _estimate_house_dims(bldg_sqft, lot_width, lot_depth, stories)
 
     lot_area_sqft = 0
     for key in ["landArea", "lotSize"]:
@@ -2017,11 +2050,7 @@ def _realie_lookup(address: str, state: str, city: str = "", zip_code: str = "")
     # S70: Extract existing structure indicators from Realie
     has_pool = bool(prop.get("hasPool") or prop.get("pool"))
     has_garage = bool(prop.get("hasGarage") or prop.get("garage"))
-    stories = None
-    try:
-        stories = int(prop.get("stories") or 0) or None
-    except (ValueError, TypeError):
-        pass
+    # (stories parsed earlier, before _estimate_house_dims)
 
     result = {
         "ok": True,
