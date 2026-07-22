@@ -125,7 +125,7 @@ function _renderChatText(text) {
 
 // S54: Phase-aware placeholder hints for chat input
 var _chatPlaceholders = {
-  has_survey: "Questions? Ask here (optional)",
+  has_survey: "Ask me anything, or describe what you want",
   upload_survey: "",
   extracting: "",
   shape_select: "",
@@ -660,6 +660,24 @@ function GuidePanel({ phase, onAction, onBack, history, onToggleOff, message, ti
     border: "1px solid " + _br.gn + "44",
     boxShadow: "0 2px 8px rgba(61,90,46,0.08)"
   }}>
+    {/* Assistant identity: makes it obvious this is a chattable AI helper,
+        not just a progress/form widget. Shared across all steps. */}
+    <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 12 }}>
+      <div style={{ width: 30, height: 30, borderRadius: 9, background: _br.gn, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 2px 6px rgba(61,90,46,0.28)" }}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 2.5l1.9 5.6 5.6 1.9-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.9L12 2.5z" fill="#fff" />
+          <path d="M18.6 14.4l.75 2.05 2.05.75-2.05.75-.75 2.05-.75-2.05-2.05-.75 2.05-.75.75-2.05z" fill="#fff" opacity="0.8" />
+        </svg>
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ fontSize: 13, fontWeight: 800, color: _br.dk, fontFamily: _sans }}>Deck Assistant</span>
+          <span style={{ fontSize: 7.5, fontWeight: 700, fontFamily: _mono, color: _br.gn, border: "1px solid " + _br.gn, borderRadius: 4, padding: "1px 5px", letterSpacing: "0.5px" }}>AI</span>
+        </div>
+        <div style={{ fontSize: 10, color: _br.mu, fontFamily: _sans }}>Ask me anything, or I'll walk you through each step.</div>
+      </div>
+    </div>
+
     {/* Progress bar */}
     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
       <div style={{ flex: 1, height: 4, background: _br.wr, borderRadius: 2, overflow: "hidden" }}>
