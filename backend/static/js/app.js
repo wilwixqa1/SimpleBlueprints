@@ -1269,7 +1269,7 @@ const App = function SimpleBlueprints() {
         </div>
 
         {/* RIGHT: PREVIEW */}
-        {step !== 4 && <div style={{ flex: "1 1 500px", minWidth: 280 }}>
+        {step !== 4 && <div style={{ flex: "1 1 500px", minWidth: 280, alignSelf: "flex-start", position: "sticky", top: 14, maxHeight: "calc(100vh - 28px)", overflowY: "auto" }}>
           <div style={{ background: "#fff", borderRadius: 10, padding: 18, border: `1px solid ${br.bd}`, boxShadow: "0 1px 8px rgba(0,0,0,0.04)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
               <h3 style={{ margin: 0, fontSize: 12, fontWeight: 700, color: br.dk, fontFamily: mono, letterSpacing: "1px", textTransform: "uppercase" }}>{step === 0 ? "Site Plan Preview" : "Preview"}</h3>

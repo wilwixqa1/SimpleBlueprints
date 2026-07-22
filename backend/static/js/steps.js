@@ -3470,7 +3470,7 @@ function StepContent(props) {
           </div>
           <div style={{ fontSize: 10.5, color: _br.mu, fontFamily: _sans, lineHeight: 1.45 }}>Your survey is the most accurate source there is. We read the lot lines, dimensions, house, and north arrow off the page, and you just confirm.</div>
         </button>
-        <button onClick={function() { if (window._trackEvent) window._trackEvent('guide_choice', { choice: 'manual', source: 'alt_ways_in' }); setGuideActive(false); }}
+        <button onClick={function() { if (window._trackEvent) window._trackEvent('guide_choice', { choice: 'manual', source: 'alt_ways_in' }); setGuideActive(false); setShowLotHouse(true); setTimeout(function() { var el = document.querySelector('[data-section="lotHouse"]'); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); }, 90); }}
           onMouseOver={function(e) { e.currentTarget.style.borderColor = _br.mu; }}
           onMouseOut={function(e) { e.currentTarget.style.borderColor = _br.bd; }}
           style={{ width: "100%", textAlign: "left", background: "#fff", border: "1px solid " + _br.bd, borderRadius: 8, padding: "12px 14px", cursor: "pointer", display: "block", transition: "border-color 0.15s" }}>
