@@ -3446,6 +3446,43 @@ function StepContent(props) {
         </div>
       </div>}
 
+      {/* Other ways in: survey upload + manual, ranked like the mock. Shown wherever
+          the address lookup is (so on a failed lookup the error sits right above these). */}
+      {guideSectionShown('addressLookup') && <div style={{ marginBottom: 14 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: _br.mu, fontFamily: _sans, marginBottom: 8, paddingLeft: 2 }}>Other ways in</div>
+        <input id="sitePlanInputAlt" type="file" accept=".pdf,.png,.jpg,.jpeg" style={{ display: "none" }} onChange={function(e) {
+          var file = e.target.files[0]; if (!file) return;
+          setSitePlanFile(file);
+          setSitePlanMode("upload");
+          if (window._trackEvent) window._trackEvent('survey_upload', { file_type: file.name.split('.').pop(), file_size: file.size, source: 'alt_ways_in' });
+          var reader = new FileReader();
+          reader.onload = function() { setSitePlanB64(reader.result.split(",")[1]); };
+          reader.readAsDataURL(file);
+          e.target.value = "";
+        }} />
+        <button onClick={function() { var el = document.getElementById("sitePlanInputAlt"); if (el) el.click(); }}
+          onMouseOver={function(e) { e.currentTarget.style.borderColor = _br.gn; }}
+          onMouseOut={function(e) { e.currentTarget.style.borderColor = _br.bd; }}
+          style={{ width: "100%", textAlign: "left", background: "#fff", border: "1px solid " + _br.bd, borderRadius: 8, padding: "12px 14px", marginBottom: 8, cursor: "pointer", display: "block", transition: "border-color 0.15s" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 3 }}>
+            <span style={{ fontSize: 12.5, fontWeight: 700, color: _br.dk, fontFamily: _sans }}>Upload a survey</span>
+            <span style={{ fontSize: 8, fontFamily: _mono, fontWeight: 700, color: _br.gn, border: "1px solid " + _br.gn, borderRadius: 4, padding: "2px 6px", whiteSpace: "nowrap", letterSpacing: "0.5px" }}>BEST IF YOU HAVE ONE</span>
+          </div>
+          <div style={{ fontSize: 10.5, color: _br.mu, fontFamily: _sans, lineHeight: 1.45 }}>Your survey is the most accurate source there is. We read the lot lines, dimensions, house, and north arrow off the page, and you just confirm.</div>
+        </button>
+        <button onClick={function() { if (window._trackEvent) window._trackEvent('guide_choice', { choice: 'manual', source: 'alt_ways_in' }); setGuideActive(false); }}
+          onMouseOver={function(e) { e.currentTarget.style.borderColor = _br.mu; }}
+          onMouseOut={function(e) { e.currentTarget.style.borderColor = _br.bd; }}
+          style={{ width: "100%", textAlign: "left", background: "#fff", border: "1px solid " + _br.bd, borderRadius: 8, padding: "12px 14px", cursor: "pointer", display: "block", transition: "border-color 0.15s" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 3 }}>
+            <span style={{ fontSize: 12.5, fontWeight: 700, color: _br.dk, fontFamily: _sans }}>Enter my lot manually</span>
+            <span style={{ fontSize: 8, fontFamily: _mono, fontWeight: 700, color: _br.mu, border: "1px solid " + _br.bd, borderRadius: 4, padding: "2px 6px", whiteSpace: "nowrap", letterSpacing: "0.5px" }}>LAST RESORT</span>
+          </div>
+          <div style={{ fontSize: 10.5, color: _br.mu, fontFamily: _sans, lineHeight: 1.45 }}>Use this if the lookup can't find your parcel and you don't have a survey. You'll set the lot size, house position, and setbacks yourself.</div>
+        </button>
+        <div style={{ fontSize: 9.5, color: _br.mu, fontFamily: _sans, marginTop: 8, paddingLeft: 2 }}>Whichever way in, you confirm everything before designing.</div>
+      </div>}
+
       {/* === LOT & HOUSE SLIDERS (collapsible, S31) === */}
       {guideSectionShown('lotHouse') && <><button onClick={function() { guideSectionToggle('lotHouse', showLotHouse, setShowLotHouse); }} style={{
         width: "100%", padding: "10px 14px", marginBottom: guideSectionVisible('lotHouse', showLotHouse) ? 0 : 14,
