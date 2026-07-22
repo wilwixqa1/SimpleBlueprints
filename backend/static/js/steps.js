@@ -1683,6 +1683,7 @@ function StepContent(props) {
   const [lightbox, setLightbox] = _stUS(null);
   const [lightboxPng, setLightboxPng] = _stUS(null);
   const previewTokenRef = React.useRef(0);
+  const coverImgRef = React.useRef(null);
   // S97: collapsed-materials toggle.
   const [materialsOpen, setMaterialsOpen] = _stUS(false);
 
@@ -1716,6 +1717,7 @@ function StepContent(props) {
       } catch (e) { coverCapP = Promise.resolve(null); }
       coverCapP.then(function(coverB64) {
       if (token !== previewTokenRef.current) return;
+      if (coverB64) coverImgRef.current = coverB64;
       // Walk the sheets in series. Sequential (not parallel) on purpose: each
       // render is a matplotlib figure on the server, and firing 7-8 at once
       // just queues them anyway while making the first one arrive later.
@@ -1767,6 +1769,7 @@ function StepContent(props) {
     if (lightbox == null) return;
     var token = previewTokenRef.current;
     var body = Object.assign({}, p, { _sheet_index: lightbox, _dpi: 100 });
+    if (lightbox === 0 && coverImgRef.current) body.coverImage = coverImgRef.current;
     fetch("/api/preview-sheet", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
