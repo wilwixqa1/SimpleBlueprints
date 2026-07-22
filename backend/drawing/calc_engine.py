@@ -599,8 +599,15 @@ def calculate_steel_structure(params):
     rail_length = width + depth * 2
     if attachment != "ledger":
         rail_length += width
-    if params.get("hasStairs"):
-        rail_length -= 3
+    _ds_rail = params.get("deckStairs") or []
+    if _ds_rail:
+        # S99: mirror engine.js -- each main-deck (zone 0) stair opens a gap
+        # of its own width in the guard rail
+        for _s in _ds_rail:
+            if (_s.get("zoneId") or 0) == 0:
+                rail_length -= _s.get("width") or 4
+    elif params.get("hasStairs"):
+        rail_length -= params.get("stairWidth") or 4
     if _main_corners:
         for _ck in ("BL", "BR", "FL", "FR"):
             _cc = _main_corners.get(_ck, {})
@@ -852,8 +859,15 @@ def calculate_structure(params):
         rail_length = width + depth * 2
     else:
         rail_length = width * 2 + depth * 2
-    if params.get("hasStairs"):
-        rail_length -= 3
+    _ds_rail = params.get("deckStairs") or []
+    if _ds_rail:
+        # S99: mirror engine.js -- each main-deck (zone 0) stair opens a gap
+        # of its own width in the guard rail
+        for _s in _ds_rail:
+            if (_s.get("zoneId") or 0) == 0:
+                rail_length -= _s.get("width") or 4
+    elif params.get("hasStairs"):
+        rail_length -= params.get("stairWidth") or 4
 
     # S61: Adjust railing length for chamfers
     # Each chamfer of size S removes 2S of axis-aligned edge and adds S*sqrt(2) diagonal

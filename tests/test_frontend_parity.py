@@ -20,6 +20,7 @@ Run: python3 tests/test_frontend_parity.py   -> "FRONTEND PARITY: all checks pas
 Requires node on PATH (same as the JS geometry suite).
 """
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -213,12 +214,74 @@ def _run():
             print("  [OK  ] %s" % name)
 
     failures += _check_legacy_fallback()
+    failures += _check_materials_parity()
 
     print()
     if failures:
         print("FRONTEND PARITY: %d check(s) FAILED" % failures)
         sys.exit(1)
     print("FRONTEND PARITY: all checks passed")
+
+
+def _check_materials_parity():
+    """S99: JS estMaterials vs Python estimate_materials, full line parity
+    (cat/item/qty/cost). Guards the seam that let deckStairs decks ship a PDF
+    materials sheet with no stair materials at all."""
+    from drawing.calc_engine import calculate_structure
+    from drawing.draw_materials import estimate_materials
+
+    node_src = (
+        'const fs=require("fs");global.window={};'
+        'eval(fs.readFileSync("backend/static/js/stairGeometry.js","utf8"));'
+        'eval(fs.readFileSync("backend/static/js/engine.js","utf8"));'
+        'const p=JSON.parse(process.argv[1]);'
+        'const c=window.calcStructure(p);'
+        'console.log(JSON.stringify(window.estMaterials(p,c).items));'
+    )
+    # Canonical _base() config (all keys), per docs: copy from test_notch_posts
+    base = dict(width=20, depth=14, height=4, houseWidth=40, houseDepth=30,
+                attachment="ledger", joistSpacing=16, deckingType="composite",
+                snowLoad="moderate", frostZone="cold", lotWidth=80, lotDepth=120,
+                setbackFront=25, setbackSide=5, setbackRear=20, houseOffsetSide=20,
+                beamType="dropped", framingType="wood", railType="wood")
+    stair = {"id": 1, "zoneId": 0, "location": "front", "offset": 2,
+             "width": 4, "numStringers": 3, "template": "straight"}
+    stair2 = {"id": 2, "zoneId": 0, "location": "right", "offset": 4,
+              "width": 5, "numStringers": 4, "template": "switchback"}
+    cases = [
+        ("materials: no stairs", dict(base)),
+        ("materials: one deckStair", dict(base, deckStairs=[dict(stair)])),
+        ("materials: two deckStairs (U-turn)",
+         dict(base, deckStairs=[dict(stair), dict(stair2)])),
+        ("materials: legacy hasStairs", dict(base, hasStairs=True, stairWidth=4)),
+    ]
+    failures = 0
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    for name, p in cases:
+        out = subprocess.run(["node", "-e", node_src, json.dumps(p)],
+                             capture_output=True, text=True, cwd=repo_root)
+        if out.returncode != 0:
+            print("  [FAIL] %-40s node error: %s" % (name, out.stderr.strip()[:200]))
+            failures += 1
+            continue
+        js = [(i["cat"], i["item"], i["qty"], round(float(i["cost"]), 2))
+              for i in json.loads(out.stdout)]
+        py = [(i["cat"], i["item"], i["qty"], round(float(i["cost"]), 2))
+              for i in estimate_materials(p, calculate_structure(p))["items"]]
+        if js != py:
+            failures += 1
+            print("  [FAIL] %-40s materials mismatch (js %d / py %d lines)"
+                  % (name, len(js), len(py)))
+            for a, b in list(zip(js, py))[:60]:
+                if a != b:
+                    print("         JS: %s\n         PY: %s" % (a, b))
+            for extra in (set(js) - set(py)):
+                print("         JS-only: %s" % (extra,))
+            for extra in (set(py) - set(js)):
+                print("         PY-only: %s" % (extra,))
+        else:
+            print("  [OK  ] %s (%d lines)" % (name, len(js)))
+    return failures
 
 
 if __name__ == "__main__":

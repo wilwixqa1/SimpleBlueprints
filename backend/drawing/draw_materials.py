@@ -12,6 +12,7 @@ import matplotlib.patches as patches
 
 from .zone_utils import get_exposed_edges
 from .calc_engine import get_joist_spans_for_load, auto_select_beam
+from .stair_utils import compute_stair_geometry
 
 BRAND = {
     "dark": "#1a1f16", "green": "#3d5a2e", "cream": "#faf8f3",
@@ -186,7 +187,7 @@ def estimate_materials(params, calc):
     # Lateral load connectors for ledger decks
     if calc.get("attachment") == "ledger":
         items.append({
-            "cat": "LEDGER",
+            "cat": "Ledger",
             "item": "Lateral Load Connectors (DTT2Z)",
             "qty": 2,
             "cost": 32.00,
@@ -200,7 +201,7 @@ def estimate_materials(params, calc):
         blocking_count = calc.get("blocking_count", 0)
         if blocking_count > 0:
             items.append({
-                "cat": "FRAMING",
+                "cat": "Framing",
                 "item": f'{calc["joist_size"]} Blocking (mid-span)',
                 "qty": blocking_count,
                 "cost": 8.00,
@@ -234,14 +235,70 @@ def estimate_materials(params, calc):
     else:
         items.append({"cat": "Railing", "item": "Wood Rail Kit (8')", "qty": math.ceil(railLen / 8), "cost": 85})
 
-    # Stairs
-    if calc.get("stairs"):
-        st = calc["stairs"]
-        items.append({"cat": "Stairs", "item": f'2\u00d712 Stringers {st["stringer_length_ft"]}\'', "qty": st["num_stringers"], "cost": 38})
-        items.append({"cat": "Stairs", "item": "Stair Treads 2\u00d712", "qty": st["num_treads"], "cost": 18})
-        items.append({"cat": "Stairs", "item": "Stair Stringer Brackets", "qty": st["num_stringers"], "cost": 8})
-        if st.get("has_landing"):
-            items.append({"cat": "Stairs", "item": "Landing Pad Concrete", "qty": 2, "cost": 6.50})
+    # Stairs (S99: port of the frontend S65+S81d multi-stair materials block.
+    # engine.js estMaterials is the reference implementation; the old Python
+    # block only understood the legacy single-stair params, so decks configured
+    # via deckStairs got NO stair materials on the PDF sheet at all.)
+    all_ds = params.get("deckStairs") or []
+    if not all_ds and params.get("hasStairs") and c.get("height", 0) > 0.5:
+        # Legacy single-stair configs: synthesize one deckStairs entry so both
+        # shapes flow through the same emitter (mirrors the JS fallback intent).
+        all_ds = [{
+            "id": 1, "zoneId": 0,
+            "location": params.get("stairLocation", "front"),
+            "width": params.get("stairWidth", 4),
+            "numStringers": params.get("numStringers", 3),
+            "template": params.get("stairTemplate", "straight"),
+        }]
+    if all_ds:
+        main_h = params.get("deckHeight") or c.get("height", 0)
+        zones_list = params.get("zones", []) or []
+        for si, s in enumerate(all_ds):
+            anchor_id = s.get("zoneId") or 0
+            if anchor_id == 0:
+                from_h = main_h
+            else:
+                az = next((z for z in zones_list if z.get("id") == anchor_id), None)
+                from_h = az["h"] if (az and az.get("h") is not None) else main_h
+            to_h = 0
+            is_transitional = False
+            if s.get("_landsOnZoneId") is not None:
+                tz = next((z for z in zones_list if z.get("id") == s.get("_landsOnZoneId")), None)
+                if tz:
+                    to_h = tz["h"] if tz.get("h") is not None else main_h
+                    is_transitional = True
+            stair_h = abs(from_h - to_h)
+            if stair_h <= 0.5:
+                continue
+            sw = s.get("width") or 4
+            ns = s.get("numStringers") or 3
+            tmpl = s.get("template") or "straight"
+            geom = compute_stair_geometry(
+                tmpl, stair_h, stair_width=sw, num_stringers=ns,
+                run_split=(s["runSplit"] / 100 if s.get("runSplit") else None),
+                landing_depth=s.get("landingDepth") or None,
+                stair_gap=s.get("stairGap") if s.get("stairGap") is not None else 0.5,
+            )
+            n_r = math.ceil(stair_h * 12 / 7.5)
+            n_t = n_r - 1
+            total_run = n_t * 10.5
+            stringer_ft = round(math.sqrt((stair_h * 12) ** 2 + total_run ** 2) / 12 + 1, 1)
+            total_stringers = geom["totalStringers"] if geom else ns
+            num_landings = len(geom["landings"]) if geom else 0
+            total_landing_posts = geom["totalLandingPosts"] if geom else 0
+            label = "" if (si == 0 and (s.get("zoneId") or 0) == 0) else f" (Stair {si + 1})"
+            s_cost = 22 if stringer_ft <= 8 else (35 if stringer_ft <= 12 else 48)
+            items.append({"cat": "Stairs", "item": f"2x12 Stair Stringers {stringer_ft}'{label}", "qty": total_stringers, "cost": s_cost})
+            items.append({"cat": "Stairs", "item": f"5/4x12 PT Treads{label}", "qty": n_t * math.ceil(sw / 1), "cost": 18})
+            items.append({"cat": "Stairs", "item": f"Stair Stringer Brackets{label}", "qty": total_stringers, "cost": 8})
+            # Transitional stairs land on a deck surface, not grade -> no landing
+            # footings/posts/bases (treads/stringers/brackets still required).
+            if num_landings > 0 and not is_transitional:
+                items.append({"cat": "Stairs", "item": f"Landing Posts {postSize}{label}", "qty": total_landing_posts, "cost": 48 if postSize == "6x6" else 24})
+                items.append({"cat": "Stairs", "item": f"Landing Post Bases{label}", "qty": total_landing_posts, "cost": 42 if postSize == "6x6" else 28})
+                items.append({"cat": "Stairs", "item": f'Landing Footings {fDiam}"{label}', "qty": total_landing_posts, "cost": 28 if fDiam > 18 else 18})
+                items.append({"cat": "Stairs", "item": f"Landing Framing Lumber{label}", "qty": num_landings * 4, "cost": 22})
+                items.append({"cat": "Stairs", "item": f"Landing Decking{label}", "qty": num_landings * math.ceil(sw + 2), "cost": 28 if params.get("deckingType") == "composite" else 12})
 
     # Misc
     items.append({"cat": "Misc", "item": "Joist Tape + Misc", "qty": 1, "cost": 120})
