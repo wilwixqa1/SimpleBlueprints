@@ -11,7 +11,11 @@ CURRENT ARCHITECTURE: S79 polygon-edge rotation. NOT the S73 coordinate
 unification (deleted by S78/S79 -- commits feb4eee, 1e40b4c). Any context
 file claiming S73 is the live architecture is stale. Philosophy:
 "good enough, never wrong" -- optimize the floor, dimensions are sacred,
-position is flexible, never push the house to a lot edge.
+position is flexible, never push the house hard against a lot edge.
+(S100 refinement: measured X is kept when the house fits, clamped to the
+nearest fitting position with the 2ft margin on small overshoot, centered
+only when the house fills the span or overshoot >15ft / likely wrong
+building. Previously any misfit centered.)
 
 DATA FLOW:
 1. Realie parcel lookup returns lot vertices + address geocode.

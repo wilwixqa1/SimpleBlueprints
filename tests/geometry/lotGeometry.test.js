@@ -204,6 +204,37 @@ Object.keys(SHAPES).forEach(function (shapeName) {
 
 /* ------------------------------------------------------------- reporting */
 console.log("");
+// ---- S100: explicit clamp-vs-center behavior (positionHouse.placeAt) ----
+(function () {
+  var lot = [[0, 0], [60, 0], [60, 120], [0, 120]]; // clean 60x120 rectangle
+  function place(hw, cx) {
+    return G.positionHouse({ verts: lot, lotW: 60, lotD: 120, hw: hw, hd: 25,
+      centroid: [cx, 50], addrPoint: null });
+  }
+  // availSpan=60, house 30 -> maxOffset = 60-30-2 = 28
+  // 1. Fits at measured X: centroid 20 -> off = 20-15-0 = 5, plain centroid
+  var p1 = place(30, 20);
+  ok("S100 C1 fits keeps measured X", p1.method === "centroid" && Math.abs(p1.houseLeftX - 5) <= 0.5,
+    "method=" + p1.method + " leftX=" + p1.houseLeftX);
+  // 2. Small overshoot: centroid 50 -> off = 35 > 28, over by 7 -> clamp to 28
+  var p2 = place(30, 50);
+  ok("S100 C2 small overshoot clamps", p2.method === "centroid+clampedX" && Math.abs(p2.houseLeftX - 28) <= 0.5,
+    "method=" + p2.method + " leftX=" + p2.houseLeftX);
+  // 3. Huge overshoot with centroid still inside the lot: house 40 wide,
+  // centroid 55 -> off = 35, maxOffset = 18, over by 17 (>15) -> center (10)
+  var p3 = place(40, 55);
+  ok("S100 C3 huge overshoot centers", p3.method === "centroid+centeredX" && Math.abs(p3.houseLeftX - 10) <= 0.5,
+    "method=" + p3.method + " leftX=" + p3.houseLeftX);
+  // 4. House fills span (57 on 60): no meaningful X -> center
+  var p4 = place(57, 50);
+  ok("S100 C4 span-filling house centers", p4.method === "centroid+centeredX",
+    "method=" + p4.method);
+  // 5. Left overshoot unchanged: centroid 5 -> off = -10 -> clamps to 2, plain method
+  var p5 = place(30, 5);
+  ok("S100 C5 left overshoot clamps to margin", p5.method === "centroid" && Math.abs(p5.houseLeftX - 2) <= 0.5,
+    "method=" + p5.method + " leftX=" + p5.houseLeftX);
+})();
+
 console.log("lotGeometry invariant tests");
 console.log("  passed: " + passed + "   failed: " + failed + "   warnings: " + warned);
 if (warnings.length) {

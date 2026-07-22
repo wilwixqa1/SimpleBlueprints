@@ -12,8 +12,11 @@
  *   - Rotation is derived from the street edge of the polygon (Realie data),
  *     never from external road bearings. "Good enough, never wrong."
  *   - Rotation skipped when street edge is already near-horizontal (<3 deg).
- *   - Dimensions are sacred, position is flexible: a house that does not fit
- *     is centered, never pushed to a lot edge.
+ *   - Dimensions are sacred, position is flexible: measured X is kept when
+ *     the house fits, clamped to the nearest fitting position (2ft margin)
+ *     on small overshoot, and centered only when the house fills the span
+ *     or the overshoot is >15ft (likely wrong building). Never hard against
+ *     a lot edge. (S100; was: any misfit centered.)
  *   - houseAngle is always 0 under S79.
  *
  * Loaded in the browser via <script> (attaches to window.lotGeometry) and in
@@ -305,14 +308,28 @@
       var off = Math.max(2, Math.round(px - hw2 / 2 - te.left));
       var maxOffset = Math.max(2, Math.round(availSpan - hw2 - 2));
       var centered = false;
+      var clamped = false;
       if (off > maxOffset) {
-        off = Math.max(2, Math.round((availSpan - hw2) / 2));
-        centered = true;
+        /* S100: prefer clamping to the nearest fitting position over
+         * centering. Centering discards the measured X entirely; clamping
+         * keeps the signal (a house measured tight to one side draws tight
+         * to that side, still behind the 2ft margin). Mirrors what the left
+         * side always did (off < 2 clamps to 2). Center only when the house
+         * essentially fills the span (no meaningful X exists) or the
+         * overshoot is so large the measurement smells like a wrong
+         * building (> 15ft past the limit). */
+        if (availSpan - hw2 < 6 || off - maxOffset > 15) {
+          off = Math.max(2, Math.round((availSpan - hw2) / 2));
+          centered = true;
+        } else {
+          off = maxOffset;
+          clamped = true;
+        }
       }
       if (off < 2) off = 2;
       var st = toStored(off, te.left, d);
       return { offset: st.offset, dist: d, houseLeftX: st.houseLeftX,
-               method: methodName + (centered ? "+centeredX" : "") };
+               method: methodName + (centered ? "+centeredX" : (clamped ? "+clampedX" : "")) };
     }
 
     if (opts.centroid && verts && verts.length >= 3 &&
