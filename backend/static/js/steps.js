@@ -3639,10 +3639,21 @@ function StepContent(props) {
         <Slider label="Lot depth (street to back)" value={p.lotDepth} min={50} max={400} field="lotDepth" u={u} p={p} focused={guideFieldFocused('lotDepth')} />
         <div style={{ fontSize: 9, fontWeight: 700, color: _br.mu, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 8, marginTop: 12 }}>House Position</div>
         {p._autoHouseOffset != null ? <>
-          {!showHouseAdj ? <div style={{ padding: "8px 10px", background: "#f0fdf4", borderRadius: 6, border: "1px solid #bbf7d0", marginBottom: 12 }}>
-            <div style={{ fontSize: 8, fontFamily: _mono, color: _br.gn, fontWeight: 600, marginBottom: 4 }}>{"\u2713"} Auto-detected from satellite data</div>
+          {!showHouseAdj ? <div style={{ padding: "8px 10px", background: (p._autoHouseDist != null && (p.houseOffsetSide !== p._autoHouseOffset || p.houseDistFromStreet !== p._autoHouseDist || p.houseWidth !== p._autoHouseWidth || p.houseDepth !== p._autoHouseDepth)) ? "#fefce8" : "#f0fdf4", borderRadius: 6, border: "1px solid " + ((p._autoHouseDist != null && (p.houseOffsetSide !== p._autoHouseOffset || p.houseDistFromStreet !== p._autoHouseDist || p.houseWidth !== p._autoHouseWidth || p.houseDepth !== p._autoHouseDepth)) ? "#fde68a" : "#bbf7d0"), marginBottom: 12 }}>
+            {(p._autoHouseDist != null && (p.houseOffsetSide !== p._autoHouseOffset || p.houseDistFromStreet !== p._autoHouseDist || p.houseWidth !== p._autoHouseWidth || p.houseDepth !== p._autoHouseDepth))
+              ? <div style={{ fontSize: 8, fontFamily: _mono, color: "#92400e", fontWeight: 600, marginBottom: 4 }}>{"\u270E"} House adjusted by you (auto-detected values saved)</div>
+              : <div style={{ fontSize: 8, fontFamily: _mono, color: _br.gn, fontWeight: 600, marginBottom: 4 }}>{"\u2713"} Auto-detected from satellite data</div>}
             <div style={{ fontSize: 8, fontFamily: _mono, color: _br.mu }}>House: {p.houseWidth}' x {p.houseDepth}', offset {p.houseOffsetSide}' from left, {p.houseDistFromStreet}' from street</div>
-            <button onClick={function() { setShowHouseAdj(true); }} style={{ marginTop: 6, fontSize: 8, fontFamily: _mono, color: _br.dk, background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>Adjust manually</button>
+            <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 6 }}>
+              <button onClick={function() { setShowHouseAdj(true); }} style={{ fontSize: 8, fontFamily: _mono, color: _br.dk, background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>Adjust manually</button>
+              {(p._autoHouseDist != null && (p.houseOffsetSide !== p._autoHouseOffset || p.houseDistFromStreet !== p._autoHouseDist || p.houseWidth !== p._autoHouseWidth || p.houseDepth !== p._autoHouseDepth)) && <button onClick={function() {
+                u("houseOffsetSide", p._autoHouseOffset);
+                u("houseDistFromStreet", p._autoHouseDist);
+                u("houseWidth", p._autoHouseWidth);
+                u("houseDepth", p._autoHouseDepth);
+                if (window._trackEvent) window._trackEvent('house_reset', {});
+              }} style={{ fontSize: 8, fontFamily: _mono, color: "#b91c1c", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 4, padding: "3px 8px", cursor: "pointer" }}>{"\u21A9"} Reset to lookup</button>}
+            </div>
           </div> : <div>
             <div style={{ padding: "8px 10px", background: "#fefce8", borderRadius: 6, border: "1px solid #fde68a", marginBottom: 8 }}>
               <div style={{ fontSize: 8, fontFamily: _mono, color: "#92400e", fontWeight: 600 }}>{"\u26A0"} Only adjust if the position doesn't match your property</div>
@@ -3656,7 +3667,8 @@ function StepContent(props) {
               u("houseDistFromStreet", p._autoHouseDist);
               u("houseWidth", p._autoHouseWidth);
               u("houseDepth", p._autoHouseDepth);
-            }} style={{ fontSize: 8, fontFamily: _mono, color: "#b91c1c", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 4, padding: "4px 8px", cursor: "pointer", marginBottom: 8 }}>{"\u21A9"} Reset to detected values</button>}
+              if (window._trackEvent) window._trackEvent('house_reset', {});
+            }} style={{ fontSize: 8, fontFamily: _mono, color: "#b91c1c", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 4, padding: "4px 8px", cursor: "pointer", marginBottom: 8 }}>{"\u21A9"} Reset to lookup</button>}
             <button onClick={function() { setShowHouseAdj(false); }} style={{ fontSize: 8, fontFamily: _mono, color: _br.mu, background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline", display: "block", marginBottom: 8 }}>Hide adjustments</button>
           </div>}
         </> : <>
