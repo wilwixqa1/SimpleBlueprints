@@ -1777,24 +1777,47 @@ def _realie_lookup(address: str, state: str, city: str = "", zip_code: str = "")
     qs = urllib.parse.urlencode(params)
     url = f"https://app.realie.ai/api/public/property/address/?{qs}"
 
-    try:
-        req = urllib.request.Request(url, headers={
-            "Authorization": api_key,
-            "Accept": "application/json",
-            "User-Agent": "SimpleBlueprints/1.0"
-        })
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            raw = resp.read().decode()
-            data = json.loads(raw)
-    except urllib.error.HTTPError as e:
-        body = ""
+    req = urllib.request.Request(url, headers={
+        "Authorization": api_key,
+        "Accept": "application/json",
+        "User-Agent": "SimpleBlueprints/1.0"
+    })
+    # Transient failures (cold connection, timeout, rate limit, upstream 5xx) were
+    # forcing users to click "Find my lot" a second time -- the first call failed,
+    # the warm second call worked. Retry a few times with a short backoff so that
+    # first-try hiccup is invisible. We do NOT retry genuine 4xx (bad address, no
+    # parcel, auth) because those won't change on retry.
+    raw = None
+    data = None
+    last_error = None
+    RETRYABLE = (429, 500, 502, 503, 504)
+    for attempt in range(3):
         try:
-            body = e.read().decode()
-        except Exception:
-            pass
-        return {"error": f"Realie API HTTP {e.code}: {body[:500]}"}
-    except Exception as e:
-        return {"error": f"Realie API error: {str(e)}"}
+            with urllib.request.urlopen(req, timeout=12) as resp:
+                raw = resp.read().decode()
+                data = json.loads(raw)
+            last_error = None
+            break
+        except urllib.error.HTTPError as e:
+            body = ""
+            try:
+                body = e.read().decode()
+            except Exception:
+                pass
+            err = {"error": f"Realie API HTTP {e.code}: {body[:500]}"}
+            if e.code in RETRYABLE and attempt < 2:
+                last_error = err
+                time.sleep(0.4 * (attempt + 1))
+                continue
+            return err  # non-retryable (4xx) -- fail fast
+        except Exception as e:
+            # timeouts, connection resets, JSON decode errors: all worth a retry
+            last_error = {"error": f"Realie API error: {str(e)}"}
+            if attempt < 2:
+                time.sleep(0.4 * (attempt + 1))
+                continue
+    if data is None:
+        return last_error or {"error": "Realie API error: no response"}
 
     prop = data.get("property", {})
     if not prop:
