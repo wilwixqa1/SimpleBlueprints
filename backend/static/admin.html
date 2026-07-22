@@ -4,671 +4,487 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>SimpleBlueprints Admin</title>
-<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;700;900&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Urbanist:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
 <style>
-:root{--bg:#0d1117;--bg2:#161b22;--bg3:#21262d;--border:#30363d;--text:#c9d1d9;--text2:#8b949e;--text3:#484f58;--blue:#58a6ff;--green:#3fb950;--red:#f85149;--orange:#d29922;--purple:#bc8cff}
-*{margin:0;padding:0;box-sizing:border-box}
-body{background:var(--bg);color:var(--text);font-family:'DM Sans',system-ui,sans-serif;min-height:100vh}
-.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center}
-.login-box{background:var(--bg2);border:1px solid var(--border);padding:40px 36px;border-radius:12px;width:340px}
-.login-box h1{font-size:18px;color:var(--blue);margin-bottom:4px}
-.login-box .sub{margin-bottom:20px}
-.login-box input{width:100%;border:1px solid var(--border);background:var(--bg);color:var(--text);padding:10px 14px;border-radius:6px;font-family:'DM Mono',monospace;font-size:13px;margin-bottom:12px;outline:none}
-.login-box input:focus{border-color:var(--blue)}
-.login-box button{width:100%;background:#238636;border:none;color:#fff;padding:10px;border-radius:6px;font-family:'DM Mono',monospace;font-size:13px;font-weight:600;cursor:pointer}
-.login-box button:hover{background:#2ea043}
-.login-error{color:var(--red);font-size:11px;font-family:'DM Mono',monospace;margin-bottom:10px;display:none}
-.dash{display:none}
-.dash.active{display:block}
-.wrap{max-width:1200px;margin:0 auto;padding:28px 24px}
-.header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px}
-h1{font-size:22px;color:var(--blue);margin-bottom:4px}
-.sub{font-size:12px;color:var(--text3);font-family:'DM Mono',monospace}
-.btn{background:var(--bg3);border:1px solid var(--border);color:var(--text2);padding:6px 16px;border-radius:6px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;text-decoration:none}
-.btn:hover{background:var(--border);color:var(--text)}
+  :root { --navy:#182241; --navy-mid:#536c7c; --bg:#f7f7f7; --white:#fff; --border:#e0e0e0; --green:#2d6a2d; --orange:#b35a00; --red:#c0392b; }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg);color:var(--navy);font-family:'Urbanist',sans-serif}
 
-.date-bar{display:flex;align-items:center;gap:8px;margin-bottom:24px;flex-wrap:wrap}
-.date-bar label{font-size:11px;font-weight:500;color:var(--text3);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.5px}
-.qbtn{background:var(--bg2);border:1px solid var(--border);color:var(--text2);padding:5px 12px;border-radius:6px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer}
-.qbtn:hover{border-color:var(--text2)}
-.qbtn.active{background:#238636;border-color:#238636;color:#fff}
+  .login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,#182241,#536c7c)}
+  .login-box{background:var(--white);padding:48px 40px;border-radius:16px;width:360px;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+  .login-box h1{font-size:1.4rem;font-weight:600;margin-bottom:6px}
+  .login-box p{font-size:.85rem;color:var(--navy-mid);margin-bottom:24px}
+  .login-box input{width:100%;border:1px solid var(--border);padding:12px 16px;border-radius:8px;font-family:inherit;font-size:.9rem;margin-bottom:16px;outline:none}
+  .login-box input:focus{border-color:var(--navy-mid)}
+  .login-box button{width:100%;background:var(--navy);color:var(--white);border:none;padding:13px;border-radius:8px;font-family:inherit;font-size:.9rem;font-weight:600;cursor:pointer}
+  .login-box button:hover{background:#2a3a5c}
+  .login-error{color:var(--red);font-size:.82rem;margin-bottom:12px;display:none}
 
-.section-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--text3);font-family:'DM Mono',monospace;margin:28px 0 14px;padding-top:16px;border-top:1px solid var(--border)}
-.section-label:first-of-type{border-top:none;margin-top:0}
+  .dash{display:none}
+  .dash.active{display:block}
+  .dash-nav{background:var(--navy);padding:16px 40px;display:flex;align-items:center;justify-content:space-between}
+  .dash-nav h1{color:var(--white);font-size:1.1rem;font-weight:600}
+  .dash-nav .phase-tag{display:inline-block;margin-left:12px;font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.85);background:rgba(255,255,255,.14);padding:3px 10px;border-radius:12px;vertical-align:middle}
+  .dash-nav-right{display:flex;gap:16px;align-items:center}
+  .dash-nav a{color:rgba(255,255,255,.7);font-size:.82rem;text-decoration:none;cursor:pointer}
+  .dash-nav a:hover{color:var(--white)}
+  .dash-body{max-width:1200px;margin:0 auto;padding:32px 40px}
 
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:20px}
-.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
-.card{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:18px}
-.card .label{font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
-.card .val{font-size:28px;font-weight:900;color:#e6edf3}
-.card .val.green{color:var(--green)}
-.card .val.orange{color:var(--orange)}
-.card .val.red{color:var(--red)}
-.card .val.blue{color:var(--blue)}
-.card .val.purple{color:var(--purple)}
-.card .detail{font-size:11px;color:var(--text3);font-family:'DM Mono',monospace;margin-top:4px}
-.card-title{font-size:14px;font-weight:700;color:var(--text);margin-bottom:14px}
+  .section-label{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--navy-mid);margin-bottom:12px;margin-top:8px}
 
-table{width:100%;border-collapse:collapse;background:var(--bg2);border:1px solid var(--border);border-radius:8px;overflow:hidden}
-th{text-align:left;padding:10px 14px;font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:1px;background:var(--bg);border-bottom:1px solid var(--border)}
-td{padding:8px 14px;font-size:12px;font-family:'DM Mono',monospace;border-bottom:1px solid #21262d;color:var(--text)}
-tr:last-child td{border-bottom:none}
-tr:hover td{background:rgba(88,166,255,.03)}
+  .controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:24px}
+  .controls .lbl{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--navy-mid);margin-right:2px}
+  .pill{background:var(--white);border:1px solid var(--border);color:var(--navy-mid);padding:6px 14px;border-radius:20px;font-family:inherit;font-size:.8rem;font-weight:600;cursor:pointer}
+  .pill:hover{border-color:var(--navy-mid)}
+  .pill.active{background:var(--navy);border-color:var(--navy);color:var(--white)}
+  .controls .spacer{width:16px}
+  .compare-note{font-size:.78rem;color:var(--navy-mid);margin-left:auto}
 
-.chart{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:18px;height:180px;display:flex;align-items:flex-end;gap:3px}
-.chart-bar{border-radius:2px 2px 0 0;min-width:6px;flex:1;position:relative;cursor:default}
-.chart-bar:hover{opacity:.8}
-.chart-bar .tip{display:none;position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:var(--border);color:#e6edf3;padding:4px 8px;border-radius:4px;font-size:10px;font-family:'DM Mono',monospace;white-space:nowrap;margin-bottom:4px;z-index:2}
-.chart-bar:hover .tip{display:block}
+  .stat-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;margin-bottom:20px}
+  .stat-card{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:24px}
+  .stat-card .label{font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--navy-mid);margin-bottom:8px}
+  .stat-card .value{font-size:2rem;font-weight:600;color:var(--navy)}
+  .stat-card .value.green{color:var(--green)}
+  .stat-card .value.muted{color:var(--navy-mid)}
+  .stat-card .sub{font-size:.78rem;color:var(--navy-mid);margin-top:4px}
+  .delta-up{color:var(--green);font-weight:700}
+  .delta-down{color:var(--red);font-weight:700}
+  .delta-flat{color:var(--navy-mid);font-weight:600}
 
-.funnel{display:flex;gap:2px;align-items:stretch;margin-bottom:20px}
-.funnel-step{flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:12px 8px;text-align:center;position:relative}
-.funnel-step .f-name{font-size:10px;font-family:'DM Mono',monospace;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
-.funnel-step .f-val{font-size:20px;font-weight:900;color:#e6edf3}
-.funnel-step .f-pct{font-size:10px;font-family:'DM Mono',monospace;color:var(--green);margin-top:3px}
-.funnel-step .f-pct.low{color:var(--red)}
-.funnel-arrow{display:flex;align-items:center;color:var(--text3);font-size:14px;padding:0 2px}
+  .section-title{font-size:1.1rem;font-weight:600;margin-bottom:16px;color:var(--navy)}
+  .card{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:24px}
+  .card .note{font-size:.78rem;color:var(--navy-mid);margin-bottom:14px}
 
-.tag{display:inline-block;font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;font-family:'DM Mono',monospace}
-.tag-user{background:#1f3a1f;color:var(--green)}
-.tag-ai{background:#1f2a3f;color:var(--blue)}
-.tag-stuck{background:#3f1f1f;color:var(--red)}
-.tag-feature{background:#2f2a1f;color:var(--orange)}
+  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:0}
+  .grid-2 .card{margin-bottom:24px}
 
-.msg-bubble{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px 14px;margin-bottom:8px;font-size:12px;font-family:'DM Mono',monospace;line-height:1.5}
+  table{width:100%;border-collapse:collapse}
+  th{text-align:left;font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--navy-mid);padding:10px 12px;border-bottom:2px solid var(--border)}
+  td{padding:11px 12px;font-size:.84rem;color:var(--navy);border-bottom:1px solid var(--border)}
+  tr:last-child td{border-bottom:none}
+  tr:hover td{background:rgba(83,108,124,.04)}
+  .num{text-align:right}
+  th.num{text-align:right}
+  .empty-msg{color:var(--navy-mid);font-size:.84rem;text-align:center;padding:18px 0}
 
-.toggle-head{display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none}
-.toggle-head .chevron{font-size:10px;color:var(--text3);transition:transform .2s}
-.toggle-head .chevron.open{transform:rotate(90deg)}
-.collapsible{overflow:hidden;max-height:0;transition:max-height .3s ease-out}
-.collapsible.open{max-height:5000px;transition:max-height .5s ease-in}
+  .bar-chart{display:flex;align-items:flex-end;gap:8px;height:160px;padding:24px 0 0}
+  .bar-col{display:flex;flex-direction:column;align-items:center;gap:4px;flex:1;min-width:0;justify-content:flex-end}
+  .bar{border-radius:4px 4px 0 0;width:100%;min-height:4px;transition:height .3s}
+  .bar.navy{background:var(--navy)}
+  .bar.green{background:var(--green)}
+  .bar.mid{background:var(--navy-mid)}
+  .bar-label{font-size:.65rem;color:var(--navy-mid);font-weight:500;text-align:center;line-height:1.2;max-height:2.4em;overflow:hidden;word-break:break-word;width:100%}
+  .bar-value{font-size:.72rem;font-weight:600;color:var(--navy)}
 
-.empty{text-align:center;padding:32px;color:var(--text3);font-size:12px;font-family:'DM Mono',monospace}
+  .funnel-row{display:flex;align-items:center;gap:14px;padding:7px 0}
+  .funnel-label{width:150px;font-size:.84rem;font-weight:600;color:var(--navy);flex-shrink:0}
+  .funnel-track{flex:1;background:#eef0f3;border-radius:6px;height:26px;position:relative;overflow:hidden}
+  .funnel-bar{background:var(--navy);height:100%;border-radius:6px;min-width:2px;transition:width .3s}
+  .funnel-bar.future{background:#c6ccd6}
+  .funnel-nums{width:190px;flex-shrink:0;font-size:.78rem;color:var(--navy-mid);text-align:right}
+  .funnel-nums b{color:var(--navy);font-size:.86rem}
+  .funnel-drop{color:var(--red);font-weight:600}
+  .funnel-future-tag{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--navy-mid)}
 
-@media(max-width:768px){
-  .grid{grid-template-columns:repeat(2,1fr)}
-  .grid-2{grid-template-columns:1fr}
-  .funnel{flex-direction:column}
-  .funnel-arrow{transform:rotate(90deg);justify-content:center}
-  .wrap{padding:16px 12px}
-}
+  .export-btn{background:var(--navy);color:var(--white);border:none;padding:10px 24px;border-radius:8px;font-family:inherit;font-size:.84rem;font-weight:600;cursor:pointer}
+  .export-btn:hover{background:#2a3a5c}
+  .tools-toggle{cursor:pointer;user-select:none}
+  .tools-body{display:none;margin-top:16px}
+  .tools-body.open{display:block}
+  .tools-row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+  pre.json{background:#f2f3f5;border:1px solid var(--border);border-radius:8px;padding:14px;font-size:.72rem;max-height:320px;overflow:auto;margin-top:8px}
+
+  .tag{display:inline-block;font-size:.7rem;font-weight:600;padding:3px 8px;border-radius:12px}
+  .tag-yes{background:#e8f4e8;color:#2d6a2d}
+  .tag-no{background:#f2f3f5;color:#536c7c}
+
+  @media (max-width:900px){
+    .stat-cards{grid-template-columns:repeat(2,1fr)}
+    .grid-2{grid-template-columns:1fr}
+    .dash-body{padding:24px 16px}
+    .dash-nav{padding:14px 16px}
+    .funnel-nums{width:130px}
+    .funnel-label{width:110px;font-size:.76rem}
+  }
 </style>
 </head>
 <body>
 
-<!-- Login -->
 <div class="login-wrap" id="login-screen">
   <div class="login-box">
     <h1>SimpleBlueprints Admin</h1>
-    <div class="sub">Enter admin password to access the dashboard.</div>
-    <div class="login-error" id="login-error">Invalid password. Try again.</div>
+    <p>Enter the admin password to continue.</p>
+    <div class="login-error" id="login-error">Invalid password.</div>
     <input type="password" id="admin-pw" placeholder="Password" onkeydown="if(event.key==='Enter')doLogin()"/>
-    <button onclick="doLogin()">Sign In</button>
+    <button onclick="doLogin()">Sign in</button>
   </div>
 </div>
 
-<!-- Dashboard -->
-<div class="dash" id="dashboard">
-<div class="wrap" id="app">
-  <div style="text-align:center;padding:60px;color:var(--text3);font-family:'DM Mono',monospace">Loading dashboard...</div>
-</div>
+<div class="dash" id="dash">
+  <div class="dash-nav">
+    <h1>SimpleBlueprints Admin<span class="phase-tag" id="nav-phase"></span></h1>
+    <div class="dash-nav-right">
+      <a onclick="load()">Refresh</a>
+      <a onclick="logout()">Log out</a>
+    </div>
+  </div>
+  <div class="dash-body">
+
+    <div class="controls">
+      <span class="lbl">Range</span>
+      <button class="pill days-pill active" data-days="7" onclick="setDays(7)">7d</button>
+      <button class="pill days-pill" data-days="14" onclick="setDays(14)">14d</button>
+      <button class="pill days-pill" data-days="30" onclick="setDays(30)">30d</button>
+      <button class="pill days-pill" data-days="60" onclick="setDays(60)">60d</button>
+      <button class="pill days-pill" data-days="90" onclick="setDays(90)">90d</button>
+      <span class="spacer"></span>
+      <span class="lbl">Data</span>
+      <button class="pill phase-pill active" data-phase="all" onclick="setPhase('all')">All</button>
+      <button class="pill phase-pill" data-phase="testing" onclick="setPhase('testing')">Testing</button>
+      <button class="pill phase-pill" data-phase="beta" onclick="setPhase('beta')">Beta</button>
+      <button class="pill phase-pill" data-phase="production" onclick="setPhase('production')">Production</button>
+      <span class="compare-note" id="compare-note"></span>
+    </div>
+
+    <div class="section-label">Overview</div>
+    <div class="stat-cards">
+      <div class="stat-card"><div class="label">Unique Visitors</div><div class="value" id="ov-visitors">&mdash;</div><div class="sub" id="ov-visitors-d"></div></div>
+      <div class="stat-card"><div class="label">Sessions</div><div class="value" id="ov-sessions">&mdash;</div><div class="sub" id="ov-sessions-d"></div></div>
+      <div class="stat-card"><div class="label">Engaged Wizard</div><div class="value" id="ov-wizard">&mdash;</div><div class="sub" id="ov-wizard-d"></div></div>
+      <div class="stat-card"><div class="label">Plans Generated</div><div class="value green" id="ov-pdfs">&mdash;</div><div class="sub" id="ov-pdfs-d"></div></div>
+    </div>
+    <div class="stat-cards">
+      <div class="stat-card"><div class="label">Property Lookups</div><div class="value" id="ov-lookups">&mdash;</div><div class="sub" id="ov-lookups-d"></div></div>
+      <div class="stat-card"><div class="label">Reached Review</div><div class="value" id="ov-review">&mdash;</div><div class="sub" id="ov-review-d"></div></div>
+      <div class="stat-card"><div class="label">Purchases</div><div class="value muted" id="ov-purchases">0</div><div class="sub">Stripe not yet live</div></div>
+      <div class="stat-card"><div class="label">Revenue</div><div class="value muted" id="ov-revenue">$0.00</div><div class="sub">Stripe not yet live</div></div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="section-title" id="chart-visitors-title">Visitors by Day</div>
+        <div id="chart-visitors" class="bar-chart"></div>
+      </div>
+      <div class="card">
+        <div class="section-title">Plans Generated by Day</div>
+        <div id="chart-pdfs" class="bar-chart"></div>
+      </div>
+    </div>
+
+    <div class="section-label">Funnel</div>
+    <div class="card">
+      <div class="note" id="funnel-note"></div>
+      <div id="funnel"></div>
+    </div>
+
+    <div class="section-label">Acquisition</div>
+    <div class="card">
+      <div class="section-title" style="margin-bottom:4px">Channels</div>
+      <div class="note" id="acq-note"></div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>Source</th><th>Medium</th><th>Campaign</th><th class="num">Sessions</th><th class="num">Visitors</th></tr></thead>
+          <tbody id="channels-tbody"><tr><td colspan="5" class="empty-msg">Loading&hellip;</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="section-title">Top Referrers</div>
+        <table><thead><tr><th>Referrer</th><th class="num">Sessions</th></tr></thead>
+        <tbody id="referrers-tbody"><tr><td colspan="2" class="empty-msg">No data yet</td></tr></tbody></table>
+      </div>
+      <div class="card">
+        <div class="section-title">Landing Paths</div>
+        <table><thead><tr><th>Path</th><th class="num">Sessions</th></tr></thead>
+        <tbody id="landing-tbody"><tr><td colspan="2" class="empty-msg">No data yet</td></tr></tbody></table>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="section-title">Devices</div>
+        <div id="chart-devices" class="bar-chart" style="height:120px"></div>
+      </div>
+      <div class="card">
+        <div class="section-title">Traffic Quality</div>
+        <table><tbody id="bots-tbody"></tbody></table>
+      </div>
+    </div>
+
+    <div class="section-label">Product Quality</div>
+    <div class="stat-cards">
+      <div class="stat-card"><div class="label">Lookup Events</div><div class="value" id="q-lookups">&mdash;</div><div class="sub" id="q-lookups-sub"></div></div>
+      <div class="stat-card"><div class="label">Extraction Success</div><div class="value" id="q-extract">&mdash;</div><div class="sub" id="q-extract-sub"></div></div>
+      <div class="stat-card"><div class="label">PDF Success</div><div class="value" id="q-pdf">&mdash;</div><div class="sub" id="q-pdf-sub"></div></div>
+      <div class="stat-card"><div class="label">AI Guide Cost</div><div class="value" id="q-ai">&mdash;</div><div class="sub" id="q-ai-sub"></div></div>
+    </div>
+
+    <div class="section-label">Users</div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div class="section-title" style="margin-bottom:0" id="users-title">Registered Users</div>
+        <button class="export-btn" onclick="exportUsersCSV()">Export CSV</button>
+      </div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>Email</th><th>Name</th><th>Opted In</th><th>Created</th><th>Last Login</th><th class="num">Plans</th></tr></thead>
+          <tbody id="users-tbody"><tr><td colspan="6" class="empty-msg">Loading&hellip;</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <div class="section-title">Recent Generations</div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>Time</th><th>User</th><th>Size</th><th>Height</th><th>Attach</th><th>Decking</th><th>Stairs</th></tr></thead>
+          <tbody id="recent-tbody"><tr><td colspan="7" class="empty-msg">Loading&hellip;</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="section-label">Admin Tools</div>
+    <div class="card">
+      <div class="section-title tools-toggle" onclick="toggleTools()" style="margin-bottom:0">Tools <span id="tools-caret" style="font-size:.8rem;color:var(--navy-mid)">(click to expand)</span></div>
+      <div class="tools-body" id="tools-body">
+        <div class="tools-row">
+          <button class="export-btn" onclick="exportUsersCSV()">Export Users CSV</button>
+          <button class="export-btn" onclick="loadPlanQuality()">Plan Quality Report</button>
+          <button class="export-btn" onclick="downloadTestSuite()">Download Test Suite</button>
+          <button class="export-btn" onclick="loadLocations()">Project Locations</button>
+        </div>
+        <div id="tools-out"></div>
+      </div>
+    </div>
+
+  </div>
 </div>
 
 <script>
-var D = null, S = null; // D = legacy stats, S = tracking stats
-var activeDays = 30;
 var adminPw = '';
+var activeDays = 7;
+var activePhase = 'all';
 
-function doLogin() {
-  var pw = document.getElementById('admin-pw').value;
-  fetch('/api/admin/login', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({password: pw})
-  }).then(function(res) {
-    if (!res.ok) throw new Error('bad');
-    adminPw = pw;
-    document.getElementById('login-screen').style.display = 'none';
-    document.getElementById('dashboard').classList.add('active');
-    load();
-  }).catch(function() {
-    var err = document.getElementById('login-error');
-    err.style.display = 'block';
-    document.getElementById('admin-pw').value = '';
-    document.getElementById('admin-pw').focus();
-  });
-}
+function $(id){ return document.getElementById(id); }
+function esc(s){ var d=document.createElement('div'); d.textContent=(s==null?'':String(s)); return d.innerHTML; }
+function n(v){ return (v==null?0:v).toLocaleString(); }
+function pct(a,b){ return b>0 ? Math.round(a/b*100) : 0; }
 
-function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
-function ts(e) {
-  var d = (Date.now()/1000 - e);
-  if (d < 60) return Math.floor(d) + 's ago';
-  if (d < 3600) return Math.floor(d/60) + 'm ago';
-  if (d < 86400) return Math.floor(d/3600) + 'h ago';
-  return Math.floor(d/86400) + 'd ago';
+function doLogin(){
+  var pw = $('admin-pw').value;
+  fetch('/api/admin/login', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({password:pw})})
+    .then(function(r){
+      if(!r.ok) throw new Error('bad');
+      adminPw = pw;
+      $('login-screen').style.display='none';
+      $('dash').classList.add('active');
+      load();
+    })
+    .catch(function(){ $('login-error').style.display='block'; });
 }
-function pct(n, total) { return total > 0 ? Math.round(n / total * 100) : 0; }
-function fmtMs(ms) {
-  if (!ms || ms <= 0) return '--';
-  if (ms < 1000) return Math.round(ms) + 'ms';
-  if (ms < 60000) return (ms/1000).toFixed(1) + 's';
-  return (ms/60000).toFixed(1) + 'm';
-}
+function logout(){ adminPw=''; location.reload(); }
 
-async function load() {
-  try {
-    var hdrs = {'X-Admin-Password': adminPw};
-    var [r1, r2] = await Promise.all([
-      fetch('/admin/api/stats', {headers: hdrs}),
-      fetch('/admin/api/tracking?days=' + activeDays, {headers: hdrs})
-    ]);
-    D = await r1.json();
-    S = await r2.json();
-    render();
-  } catch(e) {
-    document.getElementById('app').innerHTML = '<div class="empty">Error: ' + e.message + '</div>';
-  }
-}
-
-function setDays(d) {
+function setDays(d){
   activeDays = d;
-  document.querySelectorAll('.qbtn').forEach(function(b) { b.classList.remove('active'); });
-  var el = document.getElementById('qb-' + d);
-  if (el) el.classList.add('active');
+  document.querySelectorAll('.days-pill').forEach(function(b){ b.classList.toggle('active', +b.dataset.days===d); });
+  load();
+}
+function setPhase(p){
+  activePhase = p;
+  document.querySelectorAll('.phase-pill').forEach(function(b){ b.classList.toggle('active', b.dataset.phase===p); });
   load();
 }
 
-function toggleSection(name) {
-  var body = document.getElementById('body-' + name);
-  var chev = document.getElementById('chev-' + name);
-  body.classList.toggle('open');
-  chev.classList.toggle('open');
+function load(){
+  var hdrs = {'X-Admin-Password': adminPw};
+  Promise.all([
+    fetch('/admin/api/analytics?days='+activeDays+'&phase='+activePhase, {headers:hdrs}).then(function(r){return r.json();}),
+    fetch('/admin/api/stats', {headers:hdrs}).then(function(r){return r.json();})
+  ]).then(function(res){
+    renderAnalytics(res[0]);
+    renderStats(res[1]);
+  }).catch(function(e){ console.error('load failed', e); });
 }
 
-function exportCSV() {
-  fetch('/admin/api/users/csv', {headers: {'X-Admin-Password': adminPw}})
-    .then(function(res) { if (!res.ok) throw new Error('Failed'); return res.blob(); })
-    .then(function(blob) {
-      var url = URL.createObjectURL(blob);
-      var a = document.createElement('a'); a.href = url; a.download = 'simpleblueprints-users.csv'; a.click();
-      URL.revokeObjectURL(url);
-    }).catch(function(e) { alert('Export failed: ' + e.message); });
+function delta(cur, prev){
+  if(prev===0 && cur===0) return '<span class="delta-flat">&ndash;</span> vs prev';
+  if(prev===0) return '<span class="delta-up">new</span> vs prev';
+  var ch = Math.round((cur-prev)/prev*100);
+  if(ch>0) return '<span class="delta-up">&#9650; '+ch+'%</span> vs prev '+activeDays+'d';
+  if(ch<0) return '<span class="delta-down">&#9660; '+Math.abs(ch)+'%</span> vs prev '+activeDays+'d';
+  return '<span class="delta-flat">&ndash; 0%</span> vs prev '+activeDays+'d';
 }
 
-function renderBarChart(data, color) {
-  if (!data || data.length === 0) return '<div class="empty" style="width:100%">No data yet</div>';
-  var max = Math.max.apply(null, data.map(function(d){return d.value})) || 1;
-  return data.map(function(d) {
-    var h = Math.max(4, (d.value / max) * 140);
-    var c = d.color || color || 'var(--green)';
-    return '<div class="chart-bar" style="height:'+h+'px;background:'+c+'"><div class="tip">'+esc(d.label)+': '+(d.display||d.value)+'</div></div>';
-  }).join('');
-}
+function renderAnalytics(A){
+  var c = A.overview.current, p = A.overview.previous;
+  $('nav-phase').textContent = activePhase==='all' ? 'All data' : activePhase;
+  $('compare-note').textContent = 'Comparing to the previous '+activeDays+' days';
 
-function render() {
-  if (!D || !S) return;
-  var g = D.generations, u = D.users, pv = D.page_views, p = D.popular;
-  var f = S.funnel || {}, ai = S.ai_helper || {}, ext = S.extraction || {};
-  var sess = S.sessions || {}, chk = S.checkout || {};
+  $('ov-visitors').textContent = n(c.visitors);   $('ov-visitors-d').innerHTML = delta(c.visitors, p.visitors);
+  $('ov-sessions').textContent = n(c.sessions);   $('ov-sessions-d').innerHTML = delta(c.sessions, p.sessions);
+  $('ov-wizard').textContent = n(c.wizard_sessions); $('ov-wizard-d').innerHTML = delta(c.wizard_sessions, p.wizard_sessions);
+  $('ov-pdfs').textContent = n(c.pdfs);           $('ov-pdfs-d').innerHTML = delta(c.pdfs, p.pdfs);
+  $('ov-lookups').textContent = n(c.lookup_sessions); $('ov-lookups-d').innerHTML = delta(c.lookup_sessions, p.lookup_sessions);
+  $('ov-review').textContent = n(c.review_sessions);  $('ov-review-d').innerHTML = delta(c.review_sessions, p.review_sessions);
+  $('ov-purchases').textContent = n(c.purchases);
 
-  // Funnel values
-  var fSteps = [
-    {name:'Visit', val: sess.total_sessions || pv.total || 0},
-    {name:'Login', val: (f.auth_login||{}).sessions || u.total || 0},
-    {name:'Upload', val: (f.survey_upload||{}).sessions || 0},
-    {name:'Extract', val: (f.extraction_complete||{}).sessions || 0},
-    {name:'Shape', val: (f.shape_confirmed||{}).sessions || 0},
-    {name:'Generate', val: (f.pdf_generate_complete||{}).sessions || g.total || 0},
-    {name:'Checkout', val: chk.starts || 0},
-    {name:'Paid', val: chk.completes || 0}
-  ];
-
-  var html = '';
-
-  // Header
-  html += '<div class="header"><div><h1>SimpleBlueprints Dashboard</h1><div class="sub">Analytics, Funnel, AI Intelligence</div></div><div style="display:flex;gap:8px"><button class="btn" onclick="exportCSV()">Export CSV</button><button class="btn" onclick="load()">Refresh</button></div></div>';
-
-  // Date range
-  html += '<div class="date-bar"><label>Period:</label>';
-  [7,30,60,90].forEach(function(d) {
-    html += '<button class="qbtn' + (activeDays===d?' active':'') + '" id="qb-'+d+'" onclick="setDays('+d+')">'+d+'d</button>';
-  });
-  html += '</div>';
-
-  // ============ SECTION 1: REVENUE PIPELINE ============
-  html += '<div class="section-label">Revenue Pipeline</div>';
+  // Daily charts
+  barChart('chart-visitors', A.daily.map(function(d){ return {label:d.day.slice(5), value:d.visitors}; }), 'navy');
+  barChart('chart-pdfs', A.daily.map(function(d){ return {label:d.day.slice(5), value:d.pdfs}; }), 'green');
+  $('chart-visitors-title').textContent = 'Visitors by Day ('+activeDays+'d)';
 
   // Funnel
-  html += '<div class="funnel">';
-  fSteps.forEach(function(s, i) {
-    if (i > 0) {
-      var prev = fSteps[i-1].val;
-      var dropPct = prev > 0 ? pct(s.val, prev) : 0;
-      html += '<div class="funnel-arrow">&rarr;</div>';
-    }
-    html += '<div class="funnel-step"><div class="f-name">'+s.name+'</div><div class="f-val">'+s.val+'</div>';
-    if (i > 0) {
-      var p2 = fSteps[i-1].val > 0 ? pct(s.val, fSteps[i-1].val) : 0;
-      html += '<div class="f-pct'+(p2 < 30?' low':'')+'">'+p2+'%</div>';
-    }
-    html += '</div>';
-  });
-  html += '</div>';
+  renderFunnel(A.funnel);
 
-  // Summary cards
-  html += '<div class="grid">';
-  html += '<div class="card"><div class="label">PDFs Generated</div><div class="val">'+g.total+'</div><div class="detail">'+g.today+' today, '+g.this_week+' this week</div></div>';
-  html += '<div class="card"><div class="label">Registered Users</div><div class="val">'+u.total+'</div><div class="detail">'+u.today+' today, '+u.this_week+' this week</div></div>';
-  html += '<div class="card"><div class="label">Email Opt-ins</div><div class="val green">'+u.opted_in+'</div><div class="detail">of '+u.total+' total</div></div>';
-  var pvTraffic = pv.traffic || {};
-  var pvHuman = (pvTraffic.total||0) - (pvTraffic.bots||0);
-  var pvBotPct = (pvTraffic.total||0) > 0 ? pct(pvTraffic.bots||0, pvTraffic.total) : 0;
-  html += '<div class="card"><div class="label">Page Views</div><div class="val">'+pvHuman+'</div><div class="detail">human (' + (pvTraffic.unique_human_ips||0) + ' unique IPs). '+pv.today+' today.</div></div>';
-  html += '<div class="card"><div class="label">Bot Traffic</div><div class="val'+(pvBotPct>50?' orange':'')+'">'+pvBotPct+'%</div><div class="detail">'+(pvTraffic.bots||0)+' bot / '+(pvTraffic.total||0)+' total</div></div>';
-  html += '<div class="card"><div class="label">Checkout Starts</div><div class="val blue">'+(chk.starts||0)+'</div><div class="detail">'+(chk.abandons||0)+' abandoned</div></div>';
-  html += '<div class="card"><div class="label">Purchases</div><div class="val green">'+(chk.completes||0)+'</div><div class="detail">'+((chk.starts||0)>0?pct(chk.completes||0,chk.starts)+'% conversion':'no checkouts yet')+'</div></div>';
-  html += '</div>';
+  // Acquisition
+  var since = A.acquisition.tracked_since;
+  $('acq-note').textContent = since
+    ? 'Session attribution (UTM, referrer, device, bot flag) collected since '+since+'. Older events have no attribution.'
+    : 'Session attribution starts collecting with the first visit after this deploy.';
+  fillTable('channels-tbody', A.acquisition.by_channel, function(r){
+    return '<tr><td>'+esc(r.source)+'</td><td>'+esc(r.medium||'&mdash;')+'</td><td>'+esc(r.campaign||'&mdash;')+'</td><td class="num">'+n(r.sessions)+'</td><td class="num">'+n(r.visitors)+'</td></tr>';
+  }, 5);
+  fillTable('referrers-tbody', A.acquisition.referrers, function(r){
+    return '<tr><td style="word-break:break-all">'+esc(r.referrer)+'</td><td class="num">'+n(r.sessions)+'</td></tr>';
+  }, 2);
+  fillTable('landing-tbody', A.acquisition.landing, function(r){
+    return '<tr><td>'+esc(r.path)+'</td><td class="num">'+n(r.sessions)+'</td></tr>';
+  }, 2);
+  barChart('chart-devices', A.acquisition.devices.map(function(d){ return {label:d.device, value:d.sessions}; }), 'mid');
+  var b = A.acquisition.bots;
+  $('bots-tbody').innerHTML =
+    '<tr><td>Human sessions</td><td class="num"><b>'+n(b.human_sessions)+'</b></td></tr>'+
+    '<tr><td>Bot sessions (excluded from all metrics above)</td><td class="num">'+n(b.bot_sessions)+'</td></tr>';
 
-  // Daily chart
-  var mx = Math.max.apply(null, D.daily.map(function(x){return x.count}).concat([1]));
-  html += '<div class="card"><div class="card-title">Daily Generations ('+activeDays+'d)</div><div class="chart">';
-  if (D.daily.length === 0) {
-    html += '<div class="empty" style="width:100%">No data yet</div>';
-  } else {
-    html += D.daily.map(function(x) {
-      return '<div class="chart-bar" style="height:'+Math.max(x.count/mx*100,4)+'%;background:var(--green)"><div class="tip">'+x.date+': '+x.count+'</div></div>';
-    }).join('');
-  }
-  html += '</div></div>';
-
-  // ============ TRAFFIC BREAKDOWN ============
-  var dt = pv.daily_traffic || [];
-  if (dt.length > 0) {
-    var dtMx = Math.max.apply(null, dt.map(function(x){return x.unique_ips}).concat([1]));
-    html += '<div class="card"><div class="card-title">Daily Unique Visitors (human, '+activeDays+'d)</div><div class="chart">';
-    html += dt.map(function(x) {
-      return '<div class="chart-bar" style="height:'+Math.max(x.unique_ips/dtMx*100,4)+'%;background:var(--blue)"><div class="tip">'+x.day+': '+x.unique_ips+' unique ('+x.views+' views)</div></div>';
-    }).join('');
-    html += '</div></div>';
-  }
-
-  html += '<div class="grid">';
-  // Top paths
-  var tp = pv.top_paths || [];
-  if (tp.length > 0) {
-    html += '<div class="card"><div class="card-title">Top Pages (human)</div><table><tr><th>Path</th><th>Views</th><th>Unique IPs</th></tr>';
-    tp.forEach(function(r) {
-      html += '<tr><td style="font-family:\'DM Mono\',monospace;font-size:11px">'+r.path+'</td><td>'+r.views+'</td><td>'+r.unique_ips+'</td></tr>';
-    });
-    html += '</table></div>';
-  }
-  // Top bots
-  var tb = pv.top_bots || [];
-  if (tb.length > 0) {
-    html += '<div class="card"><div class="card-title">Bot Breakdown</div><table><tr><th>Bot</th><th>Hits</th></tr>';
-    tb.forEach(function(r) {
-      html += '<tr><td>'+r.bot_name+'</td><td>'+r.hits+'</td></tr>';
-    });
-    html += '</table></div>';
-  }
-  html += '</div>';
-
-  // Traffic diagnostics row 2
-  html += '<div class="grid">';
-  // IP visit frequency
-  var ipf = pv.ip_frequency || [];
-  if (ipf.length > 0) {
-    html += '<div class="card"><div class="card-title">Visitor Frequency (human IPs)</div><table><tr><th>Bucket</th><th>IPs</th><th>Page Views</th></tr>';
-    ipf.forEach(function(r) {
-      html += '<tr><td>'+r.bucket+'</td><td>'+r.ip_count+'</td><td>'+r.total_views+'</td></tr>';
-    });
-    html += '</table></div>';
-  }
-  // Top human user agents
-  var thua = pv.top_human_uas || [];
-  if (thua.length > 0) {
-    html += '<div class="card"><div class="card-title">Top "Human" User Agents</div><table><tr><th>User Agent</th><th>Hits</th><th>IPs</th></tr>';
-    thua.forEach(function(r) {
-      html += '<tr><td style="font-family:\'DM Mono\',monospace;font-size:10px;word-break:break-all;max-width:400px">'+r.ua_short+'</td><td>'+r.hits+'</td><td>'+r.unique_ips+'</td></tr>';
-    });
-    html += '</table></div>';
-  }
-  html += '</div>';
-
-  // ============ SECTION 2: PRODUCT FUNNEL ============
-  html += '<div class="section-label">Product Quality</div>';
-
-  html += '<div class="grid">';
-  var extTotal = ext.total || 0;
-  var extSuccess = ext.successes || 0;
-  var extRate = extTotal > 0 ? pct(extSuccess, extTotal) : 0;
-  html += '<div class="card"><div class="label">Extraction Success</div><div class="val'+(extRate>=80?' green':extRate>=50?' orange':' red')+'">'+extRate+'%</div><div class="detail">'+extSuccess+'/'+extTotal+' total</div></div>';
-  html += '<div class="card"><div class="label">Avg Extract Time</div><div class="val">'+fmtMs(ext.avg_duration_ms)+'</div></div>';
-
-  var ac = S.auto_confirm || {};
-  var acAccept = ac.accept || 0;
-  var acDismiss = ac.dismiss || 0;
-  var acTotal = acAccept + acDismiss;
-  html += '<div class="card"><div class="label">Auto-confirm Accept</div><div class="val green">'+(acTotal>0?pct(acAccept,acTotal)+'%':'--')+'</div><div class="detail">'+acAccept+' accept, '+acDismiss+' dismiss</div></div>';
-
-  var am = S.auto_mirror || {};
-  html += '<div class="card"><div class="label">Auto-mirror Fires</div><div class="val">'+(am.fires||0)+'</div><div class="detail">'+(am.user_flips||0)+' user flips after</div></div>';
-  html += '</div>';
-
-  // Extraction confidence breakdown
-  var cb = ext.confidence_breakdown || {};
-  var cbKeys = Object.keys(cb);
-  if (cbKeys.length > 0) {
-    // Friendly labels for confidence fields
-    var fieldLabels = {lotEdges:'Lot Edges', lotArea:'Lot Area', houseWidth:'House Width', houseDepth:'House Depth',
-      setbacks:'Setbacks', houseOffsetSide:'House Offset', houseDistFromStreet:'Dist from Street',
-      cornerAngles:'Corner Angles', address:'Address', siteObjects:'Site Objects'};
-    html += '<div class="card"><div class="card-title">Extraction Confidence</div><table><tr><th>Field</th><th style="color:var(--green)">High</th><th style="color:var(--orange)">Med</th><th style="color:var(--red)">Low</th></tr>';
-    cbKeys.sort().forEach(function(k) {
-      var d = cb[k], total = (d.high||0) + (d.medium||0) + (d.low||0);
-      var label = fieldLabels[k] || k;
-      html += '<tr><td>'+label+'</td>';
-      html += '<td style="color:var(--green)">'+(d.high||0)+(total>0?' ('+pct(d.high||0,total)+'%)':'')+'</td>';
-      html += '<td style="color:var(--orange)">'+(d.medium||0)+(total>0?' ('+pct(d.medium||0,total)+'%)':'')+'</td>';
-      html += '<td style="color:var(--red)">'+(d.low||0)+(total>0?' ('+pct(d.low||0,total)+'%)':'')+'</td>';
-      html += '</tr>';
-    });
-    html += '</table></div>';
-  }
-
-  // Step timing
-  var timing = S.step_timing || [];
-  if (timing.length > 0) {
-    html += '<div class="card"><div class="card-title">Median Time per Step</div><table><tr><th>Step</th><th>Median</th><th>Avg</th><th>Transitions</th></tr>';
-    var stepNames = ['0: Site Plan','1: Deck Design','2: Structure','3: Materials','4: Generate'];
-    timing.forEach(function(t) {
-      var name = stepNames[t.from_step] || 'Step '+t.from_step;
-      html += '<tr><td>'+name+'</td><td>'+fmtMs(t.median_ms)+'</td><td>'+fmtMs(t.avg_ms)+'</td><td>'+t.transitions+'</td></tr>';
-    });
-    html += '</table></div>';
-  }
-
-  // Errors
-  var errors = S.errors || [];
-  if (errors.length > 0) {
-    html += '<div class="card"><div class="card-title">Errors ('+activeDays+'d)</div><table><tr><th>Type</th><th>Error</th><th>Count</th></tr>';
-    errors.forEach(function(e) {
-      html += '<tr><td><span class="tag tag-stuck">'+esc(e.event_type)+'</span></td><td>'+esc((e.error||'').substring(0,80))+'</td><td>'+e.c+'</td></tr>';
-    });
-    html += '</table></div>';
-  }
-
-  // ============ SECTION 2b: PLAN QUALITY MATRIX (S58) ============
-  html += '<div class="section-label">Plan Quality Matrix</div>';
-  html += '<div id="plan-quality-section"><button onclick="loadPlanQuality()" style="padding:8px 16px;border:1px solid var(--border);background:#fff;border-radius:6px;cursor:pointer;font-family:\'DM Mono\',monospace;font-size:11px">Run Test Matrix</button> <button onclick="generateTestSuite()" style="padding:8px 16px;border:1px solid var(--border);background:#fff;border-radius:6px;cursor:pointer;font-family:\'DM Mono\',monospace;font-size:11px">Generate PDF Test Suite</button><div style="font-size:10px;color:var(--text3);margin-top:6px">15 configs: checker validation (fast) or full PDF generation (zip download, ~60-90s)</div></div>';
-
-  // ============ SECTION 3: AI HELPER INTELLIGENCE ============
-  html += '<div class="section-label">AI Helper Intelligence</div>';
-
-  html += '<div class="grid">';
-  html += '<div class="card"><div class="label">Total AI Messages</div><div class="val purple">'+(ai.total_messages||0)+'</div><div class="detail">'+(ai.sessions_with_ai||0)+' sessions used AI</div></div>';
-  html += '<div class="card"><div class="label">Avg Messages/Session</div><div class="val">'+(ai.avg_per_session||0)+'</div></div>';
-  html += '<div class="card"><div class="label">Total AI Cost</div><div class="val orange">$'+((ai.total_cost_cents||0)/100).toFixed(2)+'</div><div class="detail">$'+((ai.avg_cost_per_session||0)/100).toFixed(2)+' avg/session</div></div>';
-  html += '<div class="card"><div class="label">Actions Applied</div><div class="val green">'+(ai.total_actions||0)+'</div><div class="detail">'+(ai.responses_with_actions||0)+' responses had actions</div></div>';
-  html += '<div class="card"><div class="label">Avg Response Time</div><div class="val">'+fmtMs(ai.avg_response_ms)+'</div></div>';
-  html += '</div>';
-
-  // Classify breakdown
-  var classifyData = ai.classify_breakdown || [];
-  if (classifyData.length > 0) {
-    var classifyColors = {feature_request:'var(--orange)',bug_report:'var(--red)',confusion:'var(--red)',frustration:'var(--red)',positive_feedback:'var(--green)',general_question:'var(--blue)',configuration_help:'var(--purple)'};
-    html += '<div class="card"><div class="card-title">Message Categories</div><div class="chart" style="height:140px">';
-    html += renderBarChart(classifyData.map(function(c) {
-      var label = (c.classify||'unknown').replace(/_/g,' ');
-      return {label: label, value: c.c, color: classifyColors[c.classify]||'var(--text2)'};
-    }));
-    html += '</div></div>';
-  }
-
-  // Opus Insight Report
-  var insight = S.latest_insight;
-  if (insight) {
-    html += '<div class="card" style="border-color:var(--purple)">';
-    html += '<div class="card-title" style="color:var(--purple)">AI Product Insights</div>';
-    html += '<div style="font-size:10px;font-family:DM Mono,monospace;color:var(--text3);margin-bottom:14px">Auto-generated by Opus from '+insight.conversation_count+' conversations ('+insight.trigger_type+') '+(insight.created_at ? new Date(insight.created_at).toLocaleDateString() : '')+'</div>';
-
-    var sections = [
-      {key:'feature_requests', title:'Feature Requests', color:'var(--orange)', icon:'!'},
-      {key:'pain_points', title:'Pain Points', color:'var(--red)', icon:'!'},
-      {key:'product_issues', title:'Product Issues', color:'var(--red)', icon:'!'},
-      {key:'usage_patterns', title:'Usage Patterns', color:'var(--blue)', icon:'i'},
-      {key:'recommendations', title:'Recommendations', color:'var(--green)', icon:'*'}
-    ];
-    sections.forEach(function(sec) {
-      var items = insight[sec.key] || [];
-      if (items.length === 0) return;
-      html += '<div style="margin-bottom:16px"><div style="font-size:11px;font-weight:700;color:'+sec.color+';font-family:DM Mono,monospace;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">'+sec.title+' ('+items.length+')</div>';
-      items.forEach(function(item) {
-        html += '<div style="padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;margin-bottom:4px;font-size:12px;font-family:DM Mono,monospace;line-height:1.5;border-left:3px solid '+sec.color+'">'+esc(item)+'</div>';
-      });
-      html += '</div>';
-    });
-    html += '</div>';
-  }
-
-  // Stuck sessions
-  var stuck = ai.stuck_sessions || [];
-  if (stuck.length > 0) {
-    html += '<div class="card"><div class="card-title">Stuck Users (4+ messages on same step)</div><table><tr><th>Session</th><th>Step</th><th>Messages</th><th>First Message</th></tr>';
-    stuck.forEach(function(s) {
-      var stepName = stepNames[s.step] || 'Step '+s.step;
-      html += '<tr><td>'+esc((s.session_id||'').substring(0,12))+'...</td><td>'+stepName+'</td><td><span class="tag tag-stuck">'+s.msg_count+'</span></td><td>'+esc((s.first_msg||'').substring(0,60))+'</td></tr>';
-    });
-    html += '</table></div>';
-  }
-
-  // Common questions
-  var questions = ai.common_questions || [];
-  if (questions.length > 0) {
-    html += '<div class="card"><div class="card-title">Most Common Questions</div><table><tr><th>Message</th><th>Count</th></tr>';
-    questions.slice(0,15).forEach(function(q) {
-      html += '<tr><td>'+esc((q.msg||'').substring(0,80))+'</td><td>'+q.c+'</td></tr>';
-    });
-    html += '</table></div>';
-  }
-
-  // Recent conversations (collapsed)
-  var convos = ai.recent_conversations || [];
-  if (convos.length > 0) {
-    html += '<div style="margin-bottom:20px"><div class="toggle-head" onclick="toggleSection(\'convos\')"><div class="section-label" style="border:none;margin:0;padding:0;cursor:pointer">Recent AI Conversations ('+convos.length+')</div><span class="chevron" id="chev-convos">&#9654;</span></div>';
-    html += '<div class="collapsible" id="body-convos"><div class="card" style="margin-top:12px;max-height:500px;overflow-y:auto">';
-    convos.forEach(function(c) {
-      var isUser = c.role === 'user';
-      var tag = isUser ? '<span class="tag tag-user">user</span>' : '<span class="tag tag-ai">ai</span>';
-      var stepLabel = c.step !== null ? ' step:'+c.step : '';
-      var phase = c.guide_phase ? ' phase:'+c.guide_phase : '';
-      var actions = (c.action_count||0) > 0 ? ' <span class="tag tag-feature">'+c.action_count+' actions</span>' : '';
-      var time = c.created_at ? new Date(c.created_at).toLocaleString() : '';
-      html += '<div class="msg-bubble">'+tag+actions+' <span style="font-size:10px;color:var(--text3)">'+time+stepLabel+phase+'</span><br/>'+esc((c.message||'').substring(0,200))+'</div>';
-    });
-    html += '</div></div></div>';
-  }
-
-  // ============ SECTION 4: POPULAR CONFIGS ============
-  html += '<div class="section-label">Popular Configurations</div>';
-  html += '<div class="grid-2">';
-  // Sizes
-  html += '<div class="card"><div class="card-title">Popular Deck Sizes</div>';
-  if (p.sizes.length > 0) {
-    var maxSz = Math.max.apply(null, p.sizes.map(function(x){return x.count}));
-    p.sizes.forEach(function(x) {
-      var w = Math.max(x.count/maxSz*100,5);
-      html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span style="font-size:11px;font-family:DM Mono,monospace;color:var(--text2);min-width:70px">'+x.size+'</span><div style="height:16px;background:var(--green);border-radius:3px;width:'+w+'%"></div><span style="font-size:11px;font-family:DM Mono,monospace;color:var(--text3)">'+x.count+'</span></div>';
-    });
-  } else { html += '<div class="empty">No data yet</div>'; }
-  html += '</div>';
-
-  // Preferences
-  html += '<div class="card"><div class="card-title">Preferences</div>';
-  var allPrefs = p.attachment.concat(p.decking);
-  if (allPrefs.length > 0) {
-    var maxP = Math.max.apply(null, allPrefs.map(function(x){return x.count}));
-    allPrefs.forEach(function(x) {
-      var w = Math.max(x.count/maxP*100,5);
-      html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span style="font-size:11px;font-family:DM Mono,monospace;color:var(--text2);min-width:100px">'+(x.type||x.size||'unknown')+'</span><div style="height:16px;background:var(--blue);border-radius:3px;width:'+w+'%"></div><span style="font-size:11px;font-family:DM Mono,monospace;color:var(--text3)">'+x.count+'</span></div>';
-    });
-  } else { html += '<div class="empty">No data yet</div>'; }
-  html += '</div></div>';
-
-  // ============ SECTION 5: USERS & TOOLS (collapsed) ============
-  html += '<div class="section-label" style="cursor:pointer" onclick="toggleSection(\'users\')"><span class="chevron" id="chev-users" style="font-size:10px;margin-right:6px">&#9654;</span>Users &amp; Admin Tools</div>';
-  html += '<div class="collapsible" id="body-users">';
-
-  // Users table
-  html += '<div class="card"><div class="card-title">Registered Users ('+D.user_list.length+')</div>';
-  if (D.user_list.length > 0) {
-    html += '<div style="overflow-x:auto;max-height:400px;overflow-y:auto"><table><tr><th>Email</th><th>Name</th><th>Opted In</th><th>Generations</th><th>Signed Up</th><th>Last Login</th></tr>';
-    D.user_list.forEach(function(u) {
-      html += '<tr><td>'+esc(u.email)+'</td><td>'+esc(u.name||'--')+'</td><td>'+(u.opted_in?'<span style="color:var(--green)">Yes</span>':'<span style="color:var(--red)">No</span>')+'</td><td>'+u.generations+'</td><td>'+ts(u.created)+'</td><td>'+ts(u.last_login)+'</td></tr>';
-    });
-    html += '</table></div>';
-  } else { html += '<div class="empty">No users yet</div>'; }
-  html += '</div>';
-
-  // Recent generations
-  html += '<div class="card"><div class="card-title">Recent Generations</div>';
-  if (D.recent.length > 0) {
-    html += '<div style="overflow-x:auto;max-height:300px;overflow-y:auto"><table><tr><th>When</th><th>User</th><th>Size</th><th>Height</th><th>Area</th><th>Attach</th><th>Decking</th><th>Stairs</th></tr>';
-    D.recent.forEach(function(r) {
-      html += '<tr><td>'+ts(r.time)+'</td><td>'+esc(r.email)+'</td><td>'+r.size+'</td><td>'+r.height+'</td><td>'+r.area+' SF</td><td>'+r.attachment+'</td><td>'+r.decking+'</td><td>'+(r.stairs?'<span style="color:var(--green)">'+r.stair_loc+'</span>':'--')+'</td></tr>';
-    });
-    html += '</table></div>';
-  } else { html += '<div class="empty">No generations yet</div>'; }
-  html += '</div>';
-
-  html += '</div>'; // end collapsible
-
-  // S62: Project Locations
-  html += '<div class="section-label">Project Locations</div>';
-  html += '<div id="locations-section"><button onclick="loadLocations()" style="padding:8px 16px;border:1px solid var(--border);background:#fff;border-radius:6px;cursor:pointer;font-family:\'DM Mono\',monospace;font-size:11px">Load Location Data</button></div>';
-
-  document.getElementById('app').innerHTML = html;
+  // Quality
+  var q = A.quality;
+  $('q-lookups').textContent = n(q.lookups);
+  $('q-lookups-sub').textContent = n(q.survey_uploads)+' survey uploads';
+  var exTot = q.extractions||0, exOk = q.extraction_successes||0;
+  $('q-extract').textContent = exTot>0 ? pct(exOk, exTot)+'%' : '\u2014';
+  $('q-extract-sub').textContent = exTot>0
+    ? exOk+'/'+exTot+(q.extraction_avg_ms?', avg '+(q.extraction_avg_ms/1000).toFixed(1)+'s':'')
+    : 'No extractions in range';
+  var starts = q.pdf_starts||0, done = q.pdf_completes||0, errs = q.pdf_errors||0;
+  $('q-pdf').textContent = starts>0 ? pct(done, starts)+'%' : '\u2014';
+  $('q-pdf-sub').textContent = done+' delivered, '+errs+' errors, '+starts+' attempts';
+  $('q-ai').textContent = '$'+((A.ai.cost_cents||0)/100).toFixed(2);
+  $('q-ai-sub').textContent = n(A.ai.messages)+' messages in '+n(A.ai.sessions)+' sessions';
 }
 
-load();
-setInterval(load, 30000);
-
-// S58: Plan Quality Matrix
-async function loadPlanQuality() {
-  var el = document.getElementById('plan-quality-section');
-  el.innerHTML = '<div style="color:var(--text3);font-size:11px">Running 15 configurations...</div>';
-  try {
-    var r = await fetch('/admin/api/plan-quality', {headers: {'X-Admin-Password': adminPw}});
-    var d = await r.json();
-    var html = '<table><tr><th>Configuration</th><th>Status</th><th>Score</th><th>Issues</th></tr>';
-    var statusColors = {ready:'var(--green)',warnings:'var(--orange)',not_ready:'var(--red)',unsupported:'var(--orange)'};
-    var statusLabels = {ready:'READY',warnings:'WARN',not_ready:'FAIL',unsupported:'NOTE'};
-    d.configs.forEach(function(c) {
-      var color = statusColors[c.overall_status] || 'var(--text3)';
-      var label = statusLabels[c.overall_status] || c.overall_status;
-      html += '<tr>';
-      html += '<td style="font-size:11px">'+c.name+'</td>';
-      html += '<td><span class="tag" style="background:'+color+';color:#fff;padding:2px 6px;border-radius:3px;font-size:9px">'+label+'</span></td>';
-      html += '<td style="font-weight:700;color:'+color+'">'+Math.round(c.readiness_pct*100)+'%</td>';
-      html += '<td style="font-size:10px;color:var(--text3)">';
-      if (c.failing_checks.length === 0) {
-        html += 'All '+c.total+' checks passed';
-      } else {
-        c.failing_checks.forEach(function(f) {
-          var fc = f.severity === 'error' ? 'var(--red)' : 'var(--orange)';
-          html += '<div style="color:'+fc+'">'+f.id+': '+f.message+'</div>';
-        });
+function renderFunnel(steps){
+  var live = steps.filter(function(s){ return !s.future; });
+  var max = Math.max.apply(null, live.map(function(s){ return s.sessions; }).concat([1]));
+  var top = steps[0] ? steps[0].sessions : 0;
+  var html = '';
+  for(var i=0;i<steps.length;i++){
+    var s = steps[i];
+    var w = Math.max(2, Math.round(s.sessions/max*100));
+    var nums;
+    if(s.future && s.sessions===0){
+      nums = '<span class="funnel-future-tag">Awaiting Stripe</span>';
+      w = 2;
+    } else {
+      var ofTop = pct(s.sessions, top);
+      var stepConv = i>0 && steps[i-1].sessions>0 ? pct(s.sessions, steps[i-1].sessions) : null;
+      nums = '<b>'+n(s.sessions)+'</b> &middot; '+ofTop+'% of sessions';
+      if(stepConv!==null && i>0){
+        nums += stepConv<100 ? ' &middot; <span class="funnel-drop">'+stepConv+'% step</span>' : ' &middot; '+stepConv+'% step';
       }
-      html += '</td></tr>';
+    }
+    html += '<div class="funnel-row"><div class="funnel-label">'+esc(s.label)+'</div>'+
+            '<div class="funnel-track"><div class="funnel-bar'+(s.future?' future':'')+'" style="width:'+w+'%"></div></div>'+
+            '<div class="funnel-nums">'+nums+'</div></div>';
+  }
+  $('funnel').innerHTML = html;
+  $('funnel-note').textContent = 'Distinct human sessions reaching each stage in the selected range. Step % is conversion from the previous stage.';
+}
+
+function barChart(id, data, color){
+  var el = $(id);
+  if(!data || data.length===0){ el.innerHTML = '<div class="empty-msg" style="width:100%">No data in range</div>'; return; }
+  var max = Math.max.apply(null, data.map(function(d){ return d.value; }).concat([1]));
+  var html = '';
+  data.forEach(function(d){
+    var h = Math.max(4, Math.round(d.value/max*100));
+    html += '<div class="bar-col"><div class="bar-value">'+n(d.value)+'</div>'+
+            '<div class="bar '+color+'" style="height:'+h+'%"></div>'+
+            '<div class="bar-label">'+esc(d.label)+'</div></div>';
+  });
+  el.innerHTML = html;
+}
+
+function fillTable(id, rows, rowFn, cols){
+  var el = $(id);
+  if(!rows || rows.length===0){ el.innerHTML = '<tr><td colspan="'+cols+'" class="empty-msg">No data yet</td></tr>'; return; }
+  el.innerHTML = rows.map(rowFn).join('');
+}
+
+function fmtTs(ts){
+  if(!ts) return '\u2014';
+  try { return new Date(ts*1000).toLocaleDateString('en-US',{month:'short',day:'numeric'}); } catch(e){ return '\u2014'; }
+}
+
+function renderStats(D){
+  var ul = D.user_list || [];
+  $('users-title').textContent = 'Registered Users ('+ul.length+')';
+  fillTable('users-tbody', ul, function(u){
+    return '<tr><td>'+esc(u.email)+'</td><td>'+esc(u.name||'\u2014')+'</td>'+
+      '<td>'+(u.opted_in?'<span class="tag tag-yes">Yes</span>':'<span class="tag tag-no">No</span>')+'</td>'+
+      '<td>'+fmtTs(u.created)+'</td><td>'+fmtTs(u.last_login)+'</td><td class="num">'+n(u.generations)+'</td></tr>';
+  }, 6);
+  var recent = (D.recent||[]).slice(0,15);
+  fillTable('recent-tbody', recent, function(r){
+    return '<tr><td>'+fmtTs(r.time)+'</td><td>'+esc(r.email||r.name||'\u2014')+'</td><td>'+esc(r.size)+'</td>'+
+      '<td>'+esc(r.height)+'</td><td>'+esc(r.attachment||'\u2014')+'</td><td>'+esc(r.decking||'\u2014')+'</td>'+
+      '<td>'+(r.stairs?'Yes':'No')+'</td></tr>';
+  }, 7);
+}
+
+function toggleTools(){
+  var b = $('tools-body');
+  b.classList.toggle('open');
+  $('tools-caret').textContent = b.classList.contains('open') ? '(click to collapse)' : '(click to expand)';
+}
+
+function exportUsersCSV(){
+  fetch('/admin/api/users/csv', {headers:{'X-Admin-Password': adminPw}})
+    .then(function(r){ return r.blob(); })
+    .then(function(blob){
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'sbp_users.csv';
+      a.click();
+      URL.revokeObjectURL(a.href);
     });
-    html += '</table>';
-    // Summary bar
-    var okCount = d.configs.filter(function(c){return c.overall_status==='ready'}).length;
-    html += '<div style="margin-top:8px;font-size:11px;color:var(--text2)">'+okCount+'/'+d.configs.length+' configurations pass 100%. ';
-    var failCount = d.configs.filter(function(c){return c.overall_status==='not_ready'}).length;
-    if (failCount > 0) html += '<span style="color:var(--red)">'+failCount+' have structural violations.</span>';
-    html += '</div>';
-    el.innerHTML = '<div class="card" style="max-width:100%"><div class="card-title">Permit Readiness Matrix</div>' + html + '</div>';
-  } catch(e) {
-    el.innerHTML = '<div style="color:var(--red)">Error: '+e.message+'</div>';
-  }
 }
-
-// S59: PDF Test Suite Generator
-async function generateTestSuite() {
-  var el = document.getElementById('plan-quality-section');
-  var origHTML = el.innerHTML;
-  el.innerHTML = '<div style="color:var(--text3);font-size:11px">Generating 15 PDFs... this takes 60-90 seconds. <span id="suite-timer">0s</span></div>';
-  var t0 = Date.now();
-  var timer = setInterval(function() {
-    var s = Math.round((Date.now() - t0) / 1000);
-    var span = document.getElementById('suite-timer');
-    if (span) span.textContent = s + 's';
-  }, 1000);
-  try {
-    var r = await fetch('/admin/api/generate-test-suite', {headers: {'X-Admin-Password': adminPw}});
-    clearInterval(timer);
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    var blob = await r.blob();
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement('a');
-    a.href = url;
-    var cd = r.headers.get('Content-Disposition') || '';
-    var fn = cd.match(/filename=([^\s;]+)/);
-    a.download = fn ? fn[1] : 'SB_TestSuite.zip';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    var elapsed = Math.round((Date.now() - t0) / 1000);
-    el.innerHTML = origHTML + '<div style="margin-top:8px;font-size:11px;color:var(--green)">Test suite downloaded (' + elapsed + 's). Check manifest.txt for details.</div>';
-  } catch(e) {
-    clearInterval(timer);
-    el.innerHTML = origHTML + '<div style="margin-top:8px;color:var(--red);font-size:11px">Error: ' + e.message + '</div>';
-  }
+function loadPlanQuality(){
+  $('tools-out').innerHTML = '<div class="empty-msg">Loading&hellip;</div>';
+  fetch('/admin/api/plan-quality', {headers:{'X-Admin-Password': adminPw}})
+    .then(function(r){ return r.json(); })
+    .then(function(j){ $('tools-out').innerHTML = '<pre class="json">'+esc(JSON.stringify(j, null, 2))+'</pre>'; })
+    .catch(function(){ $('tools-out').innerHTML = '<div class="empty-msg">Failed to load.</div>'; });
 }
-// S62: Project Location Analytics
-async function loadLocations() {
-  var el = document.getElementById('locations-section');
-  el.innerHTML = '<div style="color:var(--text3);font-size:11px">Loading location data...</div>';
-  try {
-    var r = await fetch('/admin/api/locations', {headers: {'X-Admin-Password': adminPw}});
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    var d = await r.json();
-    var html = '';
-    html += '<div style="font-size:12px;margin-bottom:12px;color:var(--text2)">';
-    html += d.total_projects + ' total projects, ' + d.with_location + ' with location data';
-    html += '</div>';
-    if (d.by_state.length > 0) {
-      html += '<div class="card" style="max-width:100%"><div class="card-title">By State</div>';
-      html += '<table style="width:100%;font-size:11px;border-collapse:collapse">';
-      html += '<tr style="border-bottom:1px solid var(--border)"><th style="text-align:left;padding:4px 8px">State</th><th style="text-align:right;padding:4px 8px">Projects</th></tr>';
-      d.by_state.forEach(function(row) {
-        html += '<tr><td style="padding:4px 8px">' + esc(row.state || '?') + '</td>';
-        html += '<td style="text-align:right;padding:4px 8px;font-weight:700">' + row.count + '</td></tr>';
-      });
-      html += '</table></div>';
-    }
-    if (d.by_city.length > 0) {
-      html += '<div class="card" style="max-width:100%;margin-top:12px"><div class="card-title">By City</div>';
-      html += '<table style="width:100%;font-size:11px;border-collapse:collapse">';
-      html += '<tr style="border-bottom:1px solid var(--border)"><th style="text-align:left;padding:4px 8px">City</th><th style="text-align:left;padding:4px 8px">State</th><th style="text-align:right;padding:4px 8px">Projects</th></tr>';
-      d.by_city.forEach(function(row) {
-        html += '<tr><td style="padding:4px 8px">' + esc(row.city || '?') + '</td>';
-        html += '<td style="padding:4px 8px">' + esc(row.state || '?') + '</td>';
-        html += '<td style="text-align:right;padding:4px 8px;font-weight:700">' + row.count + '</td></tr>';
-      });
-      html += '</table></div>';
-    }
-    if (d.by_state.length === 0) {
-      html += '<div class="empty">No location data yet. Projects will show here once users enter addresses.</div>';
-    }
-    el.innerHTML = html;
-  } catch(e) {
-    el.innerHTML = '<div style="color:var(--red)">Error: ' + e.message + '</div>';
-  }
+function loadLocations(){
+  $('tools-out').innerHTML = '<div class="empty-msg">Loading&hellip;</div>';
+  fetch('/admin/api/locations', {headers:{'X-Admin-Password': adminPw}})
+    .then(function(r){ return r.json(); })
+    .then(function(j){ $('tools-out').innerHTML = '<pre class="json">'+esc(JSON.stringify(j, null, 2))+'</pre>'; })
+    .catch(function(){ $('tools-out').innerHTML = '<div class="empty-msg">Failed to load.</div>'; });
 }
-
+function downloadTestSuite(){
+  $('tools-out').innerHTML = '<div class="empty-msg">Generating test suite (can take a minute)&hellip;</div>';
+  fetch('/admin/api/generate-test-suite', {headers:{'X-Admin-Password': adminPw}})
+    .then(function(r){ if(!r.ok) throw new Error('fail'); return r.blob(); })
+    .then(function(blob){
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'sbp_test_suite.zip';
+      a.click();
+      URL.revokeObjectURL(a.href);
+      $('tools-out').innerHTML = '';
+    })
+    .catch(function(){ $('tools-out').innerHTML = '<div class="empty-msg">Failed to generate.</div>'; });
+}
 </script>
 </body>
 </html>

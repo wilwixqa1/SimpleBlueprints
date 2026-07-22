@@ -1357,3 +1357,198 @@ def store_feedback(feedback: dict):
          feedback.get("price", ""), feedback.get("feedback", ""), feedback.get("email", ""))
     )
     conn.commit()
+
+
+# ============================================================
+# ANALYTICS V2 (S100: new admin dashboard)
+# ============================================================
+
+def _phase_sql(phase: str, col: str = "e.phase"):
+    """Return (sql_fragment, params) for an optional phase filter."""
+    if phase in ("testing", "beta", "production"):
+        return f" AND {col} = %s", [phase]
+    return "", []
+
+
+def get_analytics_v2(days: int = 30, phase: str = "all") -> dict:
+    """Everything the S100 admin dashboard needs, in one payload.
+
+    Facts come from events (historical data works back to S55). Dimensions
+    (UTM, referrer, device, bot flag) come from the sessions table, which only
+    accumulates from S100 onward; acquisition numbers are therefore scoped to
+    sessions_tracked_since. Bot filtering on events uses a LEFT JOIN to
+    sessions: rows with no session row (pre-S100) are treated as human.
+    """
+    days = min(max(int(days), 1), 90)
+    with get_db() as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        pf, pargs = _phase_sql(phase)
+        spf, spargs = _phase_sql(phase, "phase")
+        human = "(s.session_id IS NULL OR NOT s.is_bot)"
+        base_join = "FROM events e LEFT JOIN sessions s ON s.session_id = e.session_id"
+
+        # --- OVERVIEW (current period vs previous period) ---
+        def _overview(start_expr, end_expr):
+            cur.execute(f"""
+                SELECT
+                    COUNT(DISTINCT e.anonymous_id) FILTER (WHERE e.anonymous_id IS NOT NULL) AS visitors,
+                    COUNT(DISTINCT e.session_id) AS sessions,
+                    COUNT(DISTINCT e.session_id) FILTER (WHERE e.event_type <> 'session_start') AS wizard_sessions,
+                    COUNT(DISTINCT e.session_id) FILTER (WHERE e.event_type IN ('parcel_lookup','survey_upload')) AS lookup_sessions,
+                    COUNT(DISTINCT e.session_id) FILTER (WHERE e.event_type = 'step_change' AND e.event_data->>'to_step' = '4') AS review_sessions,
+                    COUNT(*) FILTER (WHERE e.event_type = 'pdf_generate_complete') AS pdfs,
+                    COUNT(DISTINCT e.session_id) FILTER (WHERE e.event_type = 'pdf_generate_complete') AS pdf_sessions,
+                    COUNT(*) FILTER (WHERE e.event_type = 'checkout_start') AS checkout_starts,
+                    COUNT(*) FILTER (WHERE e.event_type = 'checkout_complete') AS purchases
+                {base_join}
+                WHERE e.created_at >= {start_expr} AND e.created_at < {end_expr}
+                    AND {human}{pf}
+            """, pargs)
+            return dict(cur.fetchone())
+
+        overview_now = _overview(f"NOW() - INTERVAL '{days} days'", "NOW()")
+        overview_prev = _overview(f"NOW() - INTERVAL '{days * 2} days'",
+                                  f"NOW() - INTERVAL '{days} days'")
+
+        # --- DAILY SERIES (current period) ---
+        cur.execute(f"""
+            SELECT TO_CHAR(DATE(e.created_at), 'YYYY-MM-DD') AS day,
+                   COUNT(DISTINCT e.anonymous_id) AS visitors,
+                   COUNT(DISTINCT e.session_id) AS sessions,
+                   COUNT(*) FILTER (WHERE e.event_type = 'pdf_generate_complete') AS pdfs
+            {base_join}
+            WHERE e.created_at >= NOW() - INTERVAL '{days} days'
+                AND {human}{pf}
+            GROUP BY DATE(e.created_at) ORDER BY day
+        """, pargs)
+        daily = [dict(r) for r in cur.fetchall()]
+
+        # --- FUNNEL (distinct human sessions per stage, current period) ---
+        cur.execute(f"""
+            SELECT
+                COUNT(DISTINCT e.session_id) AS s_sessions,
+                COUNT(DISTINCT e.session_id) FILTER (WHERE e.event_type <> 'session_start') AS s_wizard,
+                COUNT(DISTINCT e.session_id) FILTER (WHERE e.event_type IN ('parcel_lookup','survey_upload','shape_confirmed','guide_choice')) AS s_property,
+                COUNT(DISTINCT e.session_id) FILTER (WHERE e.event_type = 'shape_confirmed') AS s_shape,
+                COUNT(DISTINCT e.session_id) FILTER (WHERE e.event_type = 'step_change' AND e.event_data->>'to_step' IN ('2','3','4')) AS s_structure,
+                COUNT(DISTINCT e.session_id) FILTER (WHERE e.event_type = 'step_change' AND e.event_data->>'to_step' IN ('3','4')) AS s_finishes,
+                COUNT(DISTINCT e.session_id) FILTER (WHERE e.event_type = 'step_change' AND e.event_data->>'to_step' = '4') AS s_review,
+                COUNT(DISTINCT e.session_id) FILTER (WHERE e.event_type = 'pdf_generate_start') AS s_generate,
+                COUNT(DISTINCT e.session_id) FILTER (WHERE e.event_type = 'pdf_generate_complete') AS s_pdf,
+                COUNT(DISTINCT e.session_id) FILTER (WHERE e.event_type = 'checkout_start') AS s_checkout,
+                COUNT(DISTINCT e.session_id) FILTER (WHERE e.event_type = 'checkout_complete') AS s_purchase
+            {base_join}
+            WHERE e.created_at >= NOW() - INTERVAL '{days} days'
+                AND {human}{pf}
+        """, pargs)
+        f = dict(cur.fetchone())
+        funnel = [
+            {"key": "sessions",  "label": "Sessions",           "sessions": f["s_sessions"]},
+            {"key": "wizard",    "label": "Engaged wizard",     "sessions": f["s_wizard"]},
+            {"key": "property",  "label": "Property entered",   "sessions": f["s_property"]},
+            {"key": "shape",     "label": "Shape confirmed",    "sessions": f["s_shape"]},
+            {"key": "structure", "label": "Reached Structure",  "sessions": f["s_structure"]},
+            {"key": "finishes",  "label": "Reached Finishes",   "sessions": f["s_finishes"]},
+            {"key": "review",    "label": "Reached Review",     "sessions": f["s_review"]},
+            {"key": "generate",  "label": "Generate clicked",   "sessions": f["s_generate"]},
+            {"key": "pdf",       "label": "PDF delivered",      "sessions": f["s_pdf"]},
+            {"key": "checkout",  "label": "Checkout started",   "sessions": f["s_checkout"], "future": True},
+            {"key": "purchase",  "label": "Purchased",          "sessions": f["s_purchase"], "future": True},
+        ]
+
+        # --- ACQUISITION (sessions table; accumulates from S100 deploy) ---
+        cur.execute(f"SELECT TO_CHAR(MIN(first_seen), 'YYYY-MM-DD') AS since FROM sessions WHERE TRUE{spf}", spargs)
+        row = cur.fetchone()
+        tracked_since = row["since"] if row else None
+
+        acq_where = f"first_seen >= NOW() - INTERVAL '{days} days' AND NOT is_bot{spf}"
+
+        cur.execute(f"""
+            SELECT COALESCE(utm_source,
+                       CASE WHEN referrer IS NULL OR referrer = '' THEN '(direct)' ELSE '(referral)' END) AS source,
+                   COALESCE(utm_medium, '') AS medium,
+                   COALESCE(utm_campaign, '') AS campaign,
+                   COUNT(*) AS sessions,
+                   COUNT(DISTINCT anonymous_id) AS visitors
+            FROM sessions WHERE {acq_where}
+            GROUP BY 1, 2, 3 ORDER BY sessions DESC LIMIT 15
+        """, spargs)
+        by_channel = [dict(r) for r in cur.fetchall()]
+
+        cur.execute(f"""
+            SELECT referrer, COUNT(*) AS sessions
+            FROM sessions WHERE {acq_where} AND referrer IS NOT NULL AND referrer <> ''
+            GROUP BY referrer ORDER BY sessions DESC LIMIT 10
+        """, spargs)
+        referrers = [dict(r) for r in cur.fetchall()]
+
+        cur.execute(f"""
+            SELECT COALESCE(landing_path, '(unknown)') AS path, COUNT(*) AS sessions
+            FROM sessions WHERE {acq_where}
+            GROUP BY 1 ORDER BY sessions DESC LIMIT 10
+        """, spargs)
+        landing = [dict(r) for r in cur.fetchall()]
+
+        cur.execute(f"""
+            SELECT COALESCE(device, 'unknown') AS device, COUNT(*) AS sessions
+            FROM sessions WHERE {acq_where}
+            GROUP BY 1 ORDER BY sessions DESC
+        """, spargs)
+        devices = [dict(r) for r in cur.fetchall()]
+
+        cur.execute(f"""
+            SELECT COUNT(*) FILTER (WHERE is_bot) AS bot_sessions,
+                   COUNT(*) FILTER (WHERE NOT is_bot) AS human_sessions
+            FROM sessions
+            WHERE first_seen >= NOW() - INTERVAL '{days} days'{spf}
+        """, spargs)
+        bots = dict(cur.fetchone())
+
+        # --- PRODUCT QUALITY ---
+        cur.execute(f"""
+            SELECT
+                COUNT(*) FILTER (WHERE e.event_type = 'parcel_lookup') AS lookups,
+                COUNT(*) FILTER (WHERE e.event_type = 'survey_upload') AS survey_uploads,
+                COUNT(*) FILTER (WHERE e.event_type = 'extraction_complete') AS extractions,
+                COUNT(*) FILTER (WHERE e.event_type = 'extraction_complete'
+                    AND (e.event_data->>'success')::boolean = TRUE) AS extraction_successes,
+                AVG((e.event_data->>'duration_ms')::numeric)
+                    FILTER (WHERE e.event_type = 'extraction_complete') AS extraction_avg_ms,
+                COUNT(*) FILTER (WHERE e.event_type = 'extraction_error') AS extraction_errors,
+                COUNT(*) FILTER (WHERE e.event_type = 'pdf_generate_start') AS pdf_starts,
+                COUNT(*) FILTER (WHERE e.event_type = 'pdf_generate_complete') AS pdf_completes,
+                COUNT(*) FILTER (WHERE e.event_type = 'pdf_generate_error') AS pdf_errors
+            {base_join}
+            WHERE e.created_at >= NOW() - INTERVAL '{days} days'
+                AND {human}{pf}
+        """, pargs)
+        quality = dict(cur.fetchone())
+        if quality.get("extraction_avg_ms") is not None:
+            quality["extraction_avg_ms"] = float(quality["extraction_avg_ms"])
+
+        cur.execute(f"""
+            SELECT COUNT(*) FILTER (WHERE role = 'user') AS messages,
+                   COUNT(DISTINCT session_id) AS sessions,
+                   COALESCE(SUM(cost_cents), 0) AS cost_cents
+            FROM ai_conversations
+            WHERE created_at >= NOW() - INTERVAL '{days} days'{spf}
+        """, spargs)
+        ai = dict(cur.fetchone())
+        ai["cost_cents"] = float(ai["cost_cents"] or 0)
+
+        return {
+            "range": {"days": days, "phase": phase},
+            "overview": {"current": overview_now, "previous": overview_prev},
+            "daily": daily,
+            "funnel": funnel,
+            "acquisition": {
+                "tracked_since": tracked_since,
+                "by_channel": by_channel,
+                "referrers": referrers,
+                "landing": landing,
+                "devices": devices,
+                "bots": bots,
+            },
+            "quality": quality,
+            "ai": ai,
+        }

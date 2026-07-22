@@ -2717,6 +2717,14 @@ async def admin_stats(request: Request):
     _check_admin(request)
     return get_stats()
 
+@app.get("/admin/api/analytics")
+async def admin_analytics(request: Request, days: int = 30, phase: str = "all"):
+    """S100: unified payload for the rebuilt admin dashboard."""
+    _check_admin(request)
+    from app.database import get_analytics_v2
+    return get_analytics_v2(days, phase)
+
+
 @app.get("/admin/api/tracking")
 async def admin_tracking(request: Request, days: int = 30):
     """S55: Tracking stats for new admin dashboard."""
