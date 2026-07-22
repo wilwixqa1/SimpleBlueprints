@@ -5,6 +5,7 @@ Connection pooling via ThreadedConnectionPool (S55).
 """
 
 import os
+import re
 import time
 import json
 import psycopg2
@@ -39,6 +40,46 @@ BOT_EXTRA_SQL = (
 )
 IS_BOT_SQL = f"(LOWER(user_agent) SIMILAR TO '{BOT_PATTERN}'{BOT_EXTRA_SQL})"
 NOT_BOT_SQL = f"(NOT {IS_BOT_SQL})"
+
+# S100: Python-side mirrors of the SQL bot heuristics, used to flag sessions
+# at insert time. Keep the token list in sync with BOT_PATTERN above.
+_BOT_TOKENS = [
+    "bot", "crawl", "spider", "slurp", "bingpreview", "facebookexternalhit",
+    "semrush", "ahref", "bytespider", "gptbot", "claudebot", "petalbot", "yandex",
+    "baidu", "duckduckbot", "ia_archiver", "mj12bot", "dotbot", "rogerbot",
+    "dataforseo", "blexbot", "seznambot", "megaindex",
+    "go-http-client", "python-requests", "curl/", "wget/", "scrapy",
+    "headless", "phantom", "puppeteer",
+    "palo alto", "nessus", "qualys", "nikto", "nmap", "zgrab", "masscan",
+    "req/", "httpx/", "axios/", "node-fetch", "undici", "okhttp", "java/",
+    "dalvik/", "nexus 5 build", "mra58n",
+    "trident/", "msie ",
+]
+_OLD_CHROME_RE = re.compile(r"chrome/([1-9]|1[0-9])\.")
+
+
+def is_bot_ua(user_agent: str) -> bool:
+    """Heuristic bot check on a raw user agent string (mirrors IS_BOT_SQL)."""
+    ua = (user_agent or "").strip().lower()
+    if len(ua) < 15 or ua == "mozilla/5.0":
+        return True
+    if any(tok in ua for tok in _BOT_TOKENS):
+        return True
+    if _OLD_CHROME_RE.search(ua):
+        return True
+    return False
+
+
+def classify_device(user_agent: str) -> str:
+    """Rough device class from a user agent: mobile / tablet / desktop / unknown."""
+    ua = (user_agent or "").lower()
+    if not ua:
+        return "unknown"
+    if "ipad" in ua or "tablet" in ua or ("android" in ua and "mobile" not in ua):
+        return "tablet"
+    if "mobi" in ua or "iphone" in ua or "android" in ua:
+        return "mobile"
+    return "desktop"
 
 # ============================================================
 # CONNECTION POOL (S55)
@@ -148,6 +189,39 @@ def init_tables():
         cur.execute("CREATE INDEX IF NOT EXISTS idx_events_type ON events(event_type)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_events_session ON events(session_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_events_created ON events(created_at)")
+        # S100: Sessions dimension table (analytics rebuild).
+        # One row per browser session. Enriched server-side (ip_hash, user_agent,
+        # bot flag, device class) and client-side (UTMs, click IDs, referrer,
+        # landing path, first-touch snapshot). Every analytics query joins
+        # events (facts) to sessions (dimensions) on session_id.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS sessions (
+                session_id TEXT PRIMARY KEY,
+                anonymous_id TEXT,
+                user_id INTEGER,
+                first_seen TIMESTAMPTZ DEFAULT NOW(),
+                last_seen TIMESTAMPTZ DEFAULT NOW(),
+                ip_hash TEXT,
+                user_agent TEXT,
+                device TEXT,
+                referrer TEXT,
+                landing_path TEXT,
+                utm_source TEXT,
+                utm_medium TEXT,
+                utm_campaign TEXT,
+                utm_term TEXT,
+                utm_content TEXT,
+                gclid TEXT,
+                fbclid TEXT,
+                first_touch JSONB,
+                is_bot BOOLEAN DEFAULT FALSE,
+                event_count INTEGER DEFAULT 0,
+                phase TEXT
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_sessions_anon ON sessions(anonymous_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_sessions_first_seen ON sessions(first_seen)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_sessions_utm_source ON sessions(utm_source)")
         # S55: AI Conversations table (full text for intelligence)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS ai_conversations (
@@ -563,6 +637,70 @@ def log_events_batch(events: list):
                 ))
     except Exception as e:
         print(f"Batch event log error: {e}")
+
+
+def upsert_session(sess: dict):
+    """S100: Insert or refresh one sessions row. Fire-and-forget safe.
+
+    First write wins for attribution fields (referrer, landing, UTMs, click IDs,
+    first_touch): they arrive with the session_start event and must not be
+    overwritten by later batches that lack them. last_seen and event_count
+    always advance. user_id upgrades from NULL once the visitor logs in.
+    """
+    try:
+        with get_db() as conn:
+            cur = conn.cursor()
+            cur.execute("""
+                INSERT INTO sessions (
+                    session_id, anonymous_id, user_id, ip_hash, user_agent, device,
+                    referrer, landing_path,
+                    utm_source, utm_medium, utm_campaign, utm_term, utm_content,
+                    gclid, fbclid, first_touch, is_bot, event_count, phase,
+                    first_seen, last_seen
+                )
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW(),NOW())
+                ON CONFLICT (session_id) DO UPDATE SET
+                    last_seen    = NOW(),
+                    event_count  = sessions.event_count + EXCLUDED.event_count,
+                    user_id      = COALESCE(EXCLUDED.user_id, sessions.user_id),
+                    anonymous_id = COALESCE(sessions.anonymous_id, EXCLUDED.anonymous_id),
+                    ip_hash      = COALESCE(sessions.ip_hash, EXCLUDED.ip_hash),
+                    user_agent   = COALESCE(sessions.user_agent, EXCLUDED.user_agent),
+                    device       = COALESCE(sessions.device, EXCLUDED.device),
+                    referrer     = COALESCE(sessions.referrer, EXCLUDED.referrer),
+                    landing_path = COALESCE(sessions.landing_path, EXCLUDED.landing_path),
+                    utm_source   = COALESCE(sessions.utm_source, EXCLUDED.utm_source),
+                    utm_medium   = COALESCE(sessions.utm_medium, EXCLUDED.utm_medium),
+                    utm_campaign = COALESCE(sessions.utm_campaign, EXCLUDED.utm_campaign),
+                    utm_term     = COALESCE(sessions.utm_term, EXCLUDED.utm_term),
+                    utm_content  = COALESCE(sessions.utm_content, EXCLUDED.utm_content),
+                    gclid        = COALESCE(sessions.gclid, EXCLUDED.gclid),
+                    fbclid       = COALESCE(sessions.fbclid, EXCLUDED.fbclid),
+                    first_touch  = COALESCE(sessions.first_touch, EXCLUDED.first_touch),
+                    is_bot       = sessions.is_bot OR EXCLUDED.is_bot
+            """, (
+                sess.get("session_id"),
+                sess.get("anonymous_id"),
+                sess.get("user_id"),
+                sess.get("ip_hash"),
+                (sess.get("user_agent") or "")[:300] or None,
+                sess.get("device"),
+                (sess.get("referrer") or "")[:300] or None,
+                (sess.get("landing_path") or "")[:300] or None,
+                (sess.get("utm_source") or "")[:200] or None,
+                (sess.get("utm_medium") or "")[:200] or None,
+                (sess.get("utm_campaign") or "")[:200] or None,
+                (sess.get("utm_term") or "")[:200] or None,
+                (sess.get("utm_content") or "")[:200] or None,
+                (sess.get("gclid") or "")[:300] or None,
+                (sess.get("fbclid") or "")[:300] or None,
+                Json(sess["first_touch"]) if sess.get("first_touch") else None,
+                bool(sess.get("is_bot")),
+                int(sess.get("event_count") or 0),
+                SB_PHASE,
+            ))
+    except Exception as e:
+        print(f"Session upsert error: {e}")
 
 
 def link_anonymous_to_user(anonymous_id: str, user_id: int):

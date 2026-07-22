@@ -135,14 +135,34 @@
   window._linkTrackingToUser = linkToUser;
   window._flushTracking = flushQueue;
 
-  // --- Auto-track session start ---
+  // --- Auto-track session start (S100: full attribution capture) ---
   var startData = {};
   try {
     var sp = new URLSearchParams(window.location.search);
-    if (sp.get('utm_source')) startData.utm_source = sp.get('utm_source');
-    if (sp.get('utm_medium')) startData.utm_medium = sp.get('utm_medium');
-    if (sp.get('utm_campaign')) startData.utm_campaign = sp.get('utm_campaign');
+    var AT_KEYS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term',
+                   'utm_content', 'gclid', 'fbclid'];
+    for (var i = 0; i < AT_KEYS.length; i++) {
+      var v = sp.get(AT_KEYS[i]);
+      if (v) startData[AT_KEYS[i]] = v.substring(0, 200);
+    }
     if (document.referrer) startData.referrer = document.referrer.substring(0, 200);
+    startData.landing_path = (window.location.pathname || '/').substring(0, 200);
+
+    // First-touch attribution: snapshot the very first visit's attribution
+    // once, forever (localStorage, next to sb_anon_id). Later, purchases and
+    // signups get stamped with original acquisition source, not last click.
+    var FT_KEY = 'sb_first_touch';
+    var ft = null;
+    try { ft = JSON.parse(localStorage.getItem(FT_KEY)); } catch (e2) {}
+    if (!ft || typeof ft !== 'object' || !ft.ts) {
+      ft = { ts: Date.now(), landing_path: startData.landing_path };
+      if (startData.referrer) ft.referrer = startData.referrer;
+      for (var j = 0; j < AT_KEYS.length; j++) {
+        if (startData[AT_KEYS[j]]) ft[AT_KEYS[j]] = startData[AT_KEYS[j]];
+      }
+      try { localStorage.setItem(FT_KEY, JSON.stringify(ft)); } catch (e3) {}
+    }
+    startData.first_touch = ft;
   } catch(e) {}
   trackEvent('session_start', startData);
 

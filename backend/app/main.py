@@ -51,6 +51,7 @@ from app.database import (
     get_all_users, log_generation as db_log_generation, log_page_view as db_log_page_view,
     get_stats, log_event, log_events_batch, log_ai_message,
     link_anonymous_to_user, get_tracking_stats,
+    upsert_session, is_bot_ua, classify_device,
     should_generate_insight, get_conversations_for_insight,
     get_event_summary_for_insight, save_insight,
     create_project, list_projects, get_project, update_project, delete_project,
@@ -92,6 +93,40 @@ async def https_redirect(request: Request, call_next):
         url = request.url.replace(scheme="https")
         return RedirectResponse(url=str(url), status_code=301)
     return await call_next(request)
+
+
+# S100: shared client identity helpers (Railway sits behind a proxy, so the
+# real client IP is the first entry of x-forwarded-for, not request.client).
+def _client_ip(request: Request) -> str:
+    fwd = request.headers.get("x-forwarded-for")
+    if fwd:
+        return fwd.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+def _client_ip_hash(request: Request) -> str:
+    return hashlib.sha256(f"sb:{_client_ip(request)}".encode()).hexdigest()[:16]
+
+
+# S100: page views for every HTML-serving route, not just the homepage.
+# Whitelist keeps API calls and static assets out of the table.
+_PAGEVIEW_PATHS = {"/", "/mock", "/mock/app", "/admin"}
+
+@app.middleware("http")
+async def pageview_logger(request: Request, call_next):
+    response = await call_next(request)
+    try:
+        if (request.method == "GET"
+                and request.url.path in _PAGEVIEW_PATHS
+                and getattr(response, "status_code", 0) == 200):
+            db_log_page_view(
+                _client_ip_hash(request),
+                request.url.path,
+                request.headers.get("user-agent", "")[:200],
+            )
+    except Exception:
+        pass
+    return response
 
 # S84: CORS locked to the production origin (was "*"). The frontend is served
 # from the same origin as the API, so cross-origin browser access isn't needed.
@@ -2492,6 +2527,54 @@ async def building_footprint(request: Request):
 # EVENT TRACKING (S55)
 # ============================================================
 
+_ATTRIBUTION_KEYS = ("utm_source", "utm_medium", "utm_campaign", "utm_term",
+                     "utm_content", "gclid", "fbclid", "referrer", "landing_path")
+
+
+def _upsert_sessions_from_events(request: Request, user_id, events: list):
+    """S100: derive one sessions row per session_id present in an event batch.
+
+    Server-enriched fields (ip_hash, user_agent, device, is_bot) come from the
+    request; attribution fields come from the session_start event payload when
+    present in the batch. upsert_session is first-write-wins on attribution.
+    """
+    try:
+        ua = request.headers.get("user-agent", "")[:300]
+        ip_hash = _client_ip_hash(request)
+        bot = is_bot_ua(ua)
+        device = classify_device(ua)
+        by_sid = {}
+        for evt in events:
+            sid = evt.get("session_id") or ""
+            if not sid:
+                continue
+            s = by_sid.setdefault(sid, {
+                "session_id": sid,
+                "anonymous_id": evt.get("anonymous_id"),
+                "user_id": user_id,
+                "ip_hash": ip_hash,
+                "user_agent": ua,
+                "device": device,
+                "is_bot": bot,
+                "event_count": 0,
+            })
+            s["event_count"] += 1
+            if evt.get("event_type") == "session_start":
+                data = evt.get("event_data") or {}
+                if isinstance(data, dict):
+                    for k in _ATTRIBUTION_KEYS:
+                        v = data.get(k)
+                        if v:
+                            s[k] = str(v)
+                    ft = data.get("first_touch")
+                    if isinstance(ft, dict):
+                        s["first_touch"] = ft
+        for sess in by_sid.values():
+            upsert_session(sess)
+    except Exception as e:
+        print(f"Session meta error: {e}")
+
+
 @app.post("/api/track")
 async def track_event(request: Request):
     """Fire-and-forget single event tracking."""
@@ -2508,6 +2591,7 @@ async def track_event(request: Request):
             "guide_phase": body.get("guide_phase"),
         }
         log_event(event)
+        _upsert_sessions_from_events(request, user_id, [event])
         return {"ok": True}
     except Exception as e:
         print(f"Track error: {e}")
@@ -2524,6 +2608,7 @@ async def track_events_batch(request: Request):
         for evt in events:
             evt["user_id"] = user_id
         log_events_batch(events)
+        _upsert_sessions_from_events(request, user_id, events)
         return {"ok": True, "count": len(events)}
     except Exception as e:
         print(f"Batch track error: {e}")
@@ -2600,7 +2685,9 @@ _admin_attempts = {}
 @app.post("/api/admin/login")
 async def admin_login(request: Request):
     """Validate admin password."""
-    ip = request.client.host if request.client else "unknown"
+    # S100: use the real client IP (x-forwarded-for) so all visitors don't
+    # share the Railway proxy's IP in one rate-limit bucket.
+    ip = _client_ip(request)
     now = time.time()
     attempts = [t for t in _admin_attempts.get(ip, []) if now - t < 900]
     if len(attempts) >= 5:
@@ -2778,11 +2865,8 @@ _STATIC_DIR = _Path(__file__).parent.parent / "static"
 async def root(request: Request):
     index_path = _STATIC_DIR / "index.html"
     if index_path.exists():
-        try:
-            ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "unknown").split(",")[0].strip()
-            ip_hash = hashlib.sha256(f"sb:{ip}".encode()).hexdigest()[:16]
-            db_log_page_view(ip_hash, "/", request.headers.get("user-agent", "")[:200])
-        except: pass
+        # S100: page view logging moved to the pageview_logger middleware
+        # (which covers /, /mock, /mock/app, /admin) to avoid double counting.
         return FileResponse(str(index_path), media_type="text/html")
     return {"message": "SimpleBlueprints API is running"}
 
