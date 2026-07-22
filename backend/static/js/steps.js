@@ -3394,41 +3394,6 @@ function StepContent(props) {
       {/* S49: Choice screen (first time only) */}
       {step === 0 && guideActive === null && <GuideChoiceScreen onChoose={guideChoose} />}
 
-      {/* S49: Guide panel (when active) */}
-      {step === 0 && guideActive === true && !traceMode && (() => {
-        var s0Msg = null, s0Tip = null;
-        if (guidePhase === 'upload_survey') {
-          if (sitePlanFile && !extracting && !extractResult) {
-            s0Msg = "Survey uploaded! Now click 'Set Up Lot from Survey' below to extract your dimensions.";
-            s0Tip = null;
-          }
-        }
-        if (guidePhase === 'shape_select') {
-          if (compareMode) {
-            s0Msg = "Find the page showing your lot boundary, then tap the shape that matches.";
-            s0Tip = "Use the page arrows on the left to navigate your survey. Select a shape on the right, then click Confirm.";
-          }
-        }
-        if (guidePhase === 'site_elements_check') {
-          var _existingEls = (p.siteElements || []);
-          if (_existingEls.length > 0) {
-            var _elNames = _existingEls.map(function(e) { return e.label || e.type; }).join(", ");
-            s0Msg = "We found: " + _elNames + ". Anything else on your lot?";
-            s0Tip = "If everything looks right, continue to the next step.";
-          }
-        }
-        return <GuidePanel
-          phase={guidePhase}
-          onAction={guideHandleAction}
-          onBack={guideBack}
-          history={guideHistory}
-          onToggleOff={function() { setGuideActive(false); }}
-          message={s0Msg}
-          tip={s0Tip}
-          chatMessages={chatMessages} chatLoading={chatLoading} onSendMessage={sendChatMessage} onApplyActions={_applyActions} setChatMessages={setChatMessages}
-        />;
-      })()}
-
       {/* S73: Footprint detection failure warning */}
       {footprintFailed && guideActive && guidePhase === 'verify_extracted' && <div style={{ padding: "10px 14px", background: "#fefce8", borderRadius: 8, border: "1px solid #fde68a", marginBottom: 14 }}>
         <div style={{ fontSize: 11, fontFamily: _sans, color: "#92400e", fontWeight: 600, marginBottom: 4 }}>{"\u26A0"} House detection unavailable</div>
@@ -3450,8 +3415,9 @@ function StepContent(props) {
       </div>}
 
       {/* === ADDRESS LOOKUP (S63) === */}
-      {guideSectionShown('addressLookup') && <div data-section="addressLookup" style={{ padding: 14, background: _br.wr, borderRadius: 8, border: "1px solid " + _br.bd, marginBottom: 14 }}>
-        <div style={{ fontSize: 9, fontWeight: 700, color: _br.mu, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 10 }}>Property Address</div>
+      {guideSectionShown('addressLookup') && <div data-section="addressLookup" style={{ padding: 18, background: "#fff", borderRadius: 10, border: "1px solid " + _br.bd, marginBottom: 14, boxShadow: "0 2px 12px rgba(26,31,22,0.06)" }}>
+        <div style={{ fontSize: 17, fontWeight: 800, color: _br.dk, fontFamily: _sans, letterSpacing: "-0.2px", marginBottom: 3 }}>Find your property</div>
+        <div style={{ fontSize: 11.5, color: _br.mu, fontFamily: _sans, lineHeight: 1.5, marginBottom: 12 }}>Enter your address and we'll pull your lot lines, setbacks, and house footprint from public records.</div>
         <input type="text" placeholder="Street address (e.g. 123 Main St)" value={parcelAddress}
           onChange={function(e) { setParcelAddress(e.target.value); setParcelError(null); }}
           style={{ width: "100%", padding: "10px 12px", fontSize: 12, fontFamily: _mono, border: "1px solid " + _br.bd, borderRadius: 6, marginBottom: 8, boxSizing: "border-box" }} />
@@ -3470,13 +3436,13 @@ function StepContent(props) {
           style={{ width: "100%", padding: "12px 16px", fontSize: 12, fontWeight: 700, fontFamily: _mono, color: "#fff", marginBottom: 8,
             background: (!parcelAddress || !parcelState || parcelLoading) ? _br.mu : _br.gn,
             border: "none", borderRadius: 6, cursor: (!parcelAddress || !parcelState || parcelLoading) ? "default" : "pointer" }}>
-          {parcelLoading ? "Looking up..." : "Look Up Property"}
+          {parcelLoading ? "Finding your lot..." : "Find my lot"}
         </button>
         {parcelError && <div style={{ fontSize: 11, color: "#dc2626", fontFamily: _mono, padding: "8px 10px", background: "#fef2f2", borderRadius: 6, marginBottom: 8 }}>
           {parcelError}
         </div>}
         <div style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, lineHeight: 1.5 }}>
-          We look up your lot shape and house position from public parcel records. You can adjust everything after.
+          Nothing is submitted anywhere. We only read public parcel records, and you can adjust everything after we find it.
         </div>
       </div>}
 
@@ -4336,6 +4302,42 @@ function StepContent(props) {
         </div>
         <div style={{ fontSize: 8, color: _br.mu, fontFamily: _mono, marginTop: 4 }}>Most codes cap at 30-50%. Check your local zoning ordinance.</div>
       </div>
+
+      {/* Guide panel: moved to the BOTTOM on step 0 so its chat box isn't mistaken for the address bar. It's a helper here, not the entry point. */}
+      {step === 0 && guideActive === true && !traceMode && (() => {
+        var s0Msg = null, s0Tip = null;
+        if (guidePhase === 'upload_survey') {
+          if (sitePlanFile && !extracting && !extractResult) {
+            s0Msg = "Survey uploaded! Now click 'Set Up Lot from Survey' below to extract your dimensions.";
+            s0Tip = null;
+          }
+        }
+        if (guidePhase === 'shape_select') {
+          if (compareMode) {
+            s0Msg = "Find the page showing your lot boundary, then tap the shape that matches.";
+            s0Tip = "Use the page arrows on the left to navigate your survey. Select a shape on the right, then click Confirm.";
+          }
+        }
+        if (guidePhase === 'site_elements_check') {
+          var _existingEls = (p.siteElements || []);
+          if (_existingEls.length > 0) {
+            var _elNames = _existingEls.map(function(e) { return e.label || e.type; }).join(", ");
+            s0Msg = "We found: " + _elNames + ". Anything else on your lot?";
+            s0Tip = "If everything looks right, continue to the next step.";
+          }
+        }
+        return <div style={{ marginTop: 20, paddingTop: 18, borderTop: "1px solid " + _br.bd }}><GuidePanel
+          phase={guidePhase}
+          onAction={guideHandleAction}
+          onBack={guideBack}
+          history={guideHistory}
+          onToggleOff={function() { setGuideActive(false); }}
+          message={s0Msg}
+          tip={s0Tip}
+          chatMessages={chatMessages} chatLoading={chatLoading} onSendMessage={sendChatMessage} onApplyActions={_applyActions} setChatMessages={setChatMessages}
+        /></div>;
+      })()}
+
     </>;
   }
 
