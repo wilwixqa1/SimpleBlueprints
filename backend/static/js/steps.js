@@ -1517,12 +1517,36 @@ function StepContent(props) {
             var b = bldg.buildings[bi];
             console.log("  #" + bi + ": " + b.width + "x" + b.depth + " area=" + b.area_sqft + "sqft dist=" + b.dist_from_center + "ft angle=" + b.angle + " type=" + b.type);
           }
-          // Find the primary residence: closest building with area > 400 sqft
+          // Find the primary residence.
+          // S100: prefer buildings whose centroid is INSIDE the parcel. The
+          // geocoded address point can sit closer to a neighbor's house than
+          // to the right one (Tulsa: two "house" polygons within 31ft of the
+          // point). The secondary-structure logic already applied this check;
+          // primary selection did not. Pass 2 keeps the old nearest-any
+          // behavior for when OSM/parcel misalignment pushes even the right
+          // house's centroid over the boundary line.
           var primary = null;
-          for (var bi = 0; bi < bldg.buildings.length; bi++) {
-            var b = bldg.buildings[bi];
-            if (b.area_sqft >= 400 && b.dist_from_center < 250) {
-              primary = b; break;
+          var _pv0 = data.lot.vertices;
+          if (_pv0 && _pv0.length >= 3 && window.lotGeometry && window.lotGeometry.pointInPolygon) {
+            for (var bi0 = 0; bi0 < bldg.buildings.length; bi0++) {
+              var b0 = bldg.buildings[bi0];
+              if (b0.area_sqft >= 400 && b0.dist_from_center < 250 &&
+                  b0.centroid_ft &&
+                  window.lotGeometry.pointInPolygon(b0.centroid_ft[0], b0.centroid_ft[1], _pv0)) {
+                primary = b0;
+                console.log("S100: Primary building chosen IN-PARCEL: " + b0.width + "x" + b0.depth + " dist=" + b0.dist_from_center + "ft angle=" + b0.angle);
+                break;
+              }
+            }
+          }
+          if (!primary) {
+            for (var bi = 0; bi < bldg.buildings.length; bi++) {
+              var b = bldg.buildings[bi];
+              if (b.area_sqft >= 400 && b.dist_from_center < 250) {
+                primary = b;
+                console.log("S100: Primary building FALLBACK (no in-parcel candidate): " + b.width + "x" + b.depth + " dist=" + b.dist_from_center + "ft");
+                break;
+              }
             }
           }
           if (!primary) {
