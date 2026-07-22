@@ -1533,8 +1533,29 @@ function StepContent(props) {
             return;
           }
           // Apply building dimensions from Solar/Overpass
+          // S100: primary.width runs along the building's LONG axis and
+          // primary.angle is that axis's direction in the unrotated lot frame.
+          // Compare against the street edge direction (same frame): if the
+          // long axis is closer to perpendicular than parallel, the long
+          // dimension is the house DEPTH, not width. (Croaton: angle=94.3 vs
+          // street 4.5 -> 58ft house drawn sideways.) Solar-only entries
+          // report angle=0, which folds to "parallel" = previous behavior.
           var hw2 = Math.round(primary.width);
           var hd2 = Math.round(primary.depth);
+          try {
+            var _origV = data.lot.vertices;
+            if (primary.angle && _origV && _origV.length >= 3) {
+              var _sv1a = _origV[streetIdx], _sv2a = _origV[(streetIdx + 1) % _origV.length];
+              var _stAngD = Math.atan2(_sv2a[1] - _sv1a[1], _sv2a[0] - _sv1a[0]) * 180 / Math.PI;
+              var _relA = Math.abs(primary.angle - _stAngD) % 180;
+              if (_relA > 90) _relA = 180 - _relA;
+              if (_relA > 45) {
+                hw2 = Math.round(primary.depth);
+                hd2 = Math.round(primary.width);
+                console.log("S100: Building long axis " + primary.angle + "deg is perpendicular to street (" + _stAngD.toFixed(1) + "deg, rel=" + _relA.toFixed(1) + "). Width/depth swapped: " + hw2 + "x" + hd2);
+              }
+            }
+          } catch (eOr) { console.log("S100: orientation check skipped: " + eOr.message); }
           u("houseWidth", hw2);
           u("houseDepth", hd2);
           u("houseAngle", 0); // S78: always 0, Solar bbox is axis-aligned
