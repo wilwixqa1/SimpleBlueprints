@@ -1,8 +1,14 @@
-"""S100: tests for the dedicated stair support assembly.
+"""S100: tests for stair support detailing.
 
-The IRC has no prescriptive table for framing that carries stairs, so this
-module encodes the accepted field detail (two footings, two posts, a header the
-stringers bear on) plus an explicit boundary where it stops being valid.
+Every assertion here traces to an APPROVED Rutstein permit set, not to a rule
+we invented:
+
+  Ilaria  -- wood, straight stair to grade, NO stair posts, 4in concrete pad,
+             stringer notched for PT plate.
+  Welborn -- steel Fortress, straight stairs to grade, NO stair posts,
+             stringer anchor brackets + straps.
+  Loucks  -- wood, switchback with an ELEVATED landing carried on 4x4 PT
+             posts w/ ABU44Z base + BCS2-2/4 cap, (4) PLCS.
 
 Run: python3 tests/test_stair_support.py
 """
@@ -13,8 +19,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend"))
 
 from drawing.stair_support import (  # noqa: E402
     compute_stair_support, compute_all_stair_supports, stair_top_reaction,
-    stair_run_length, select_header_size, HEADER_BEARING_EACH_SIDE,
-    MAX_PRESCRIPTIVE_REACTION_LB,
+    landing_post_xy, MAX_PRESCRIPTIVE_REACTION_LB,
+    LANDING_POST_SIZE_WOOD, LANDING_POST_BASE_WOOD, LANDING_POST_CAP_WOOD,
+    GRADE_PAD_MIN_THICKNESS_IN, STAIR_BRACKET_STEEL,
 )
 from drawing.stair_utils import compute_stair_geometry  # noqa: E402
 
@@ -26,108 +33,162 @@ def check(cond, msg):
         failures.append(msg)
 
 
-def geo(template="straight", height=4.0, sw=4, ns=3):
+def geo(template="straight", height=6.0, sw=4, ns=3):
     return compute_stair_geometry(template=template, height=height,
                                   stair_width=sw, num_stringers=ns)
 
 
-# ---- 1. Header straddles the stair, so posts never sit in the stairway -----
-# This is the whole point of the detail: the stair opening stays clear.
-for sw in [3, 4, 5, 6]:
-    for ang in [0, 90, 180, 270]:
-        s = compute_stair_support(20.0, 12.0, ang, sw, geometry=geo(sw=sw),
-                                  total_rise=4.0, deck_height=4.0)
-        for p in s["posts"]:
-            if ang in (0, 180):
-                inside = (20.0 - sw / 2.0) < p["x"] < (20.0 + sw / 2.0)
-            else:
-                inside = (12.0 - sw / 2.0) < p["y"] < (12.0 + sw / 2.0)
-            check(not inside,
-                  "sw=%s ang=%s: post at (%s,%s) sits inside the stairway"
-                  % (sw, ang, p["x"], p["y"]))
+# ---- 1. ILARIA / WELBORN: a straight run to grade gets NO posts ------------
+# This is the majority case and the one an earlier revision got wrong by
+# inventing a two-post header assembly that appears in none of the sets.
+for h in [2, 4, 6, 8, 10, 13]:
+    for sw in [3, 4, 5]:
+        for ang in [0, 90, 180, 270]:
+            s = compute_stair_support(20.0, 12.0, ang, sw,
+                                      geometry=geo(height=float(h), sw=sw),
+                                      total_rise=float(h), deck_height=float(h))
+            check(s["kind"] == "grade_pad",
+                  "straight h=%s sw=%s ang=%s: kind=%s, expected grade_pad"
+                  % (h, sw, ang, s["kind"]))
+            check(s["landings"] == [],
+                  "straight h=%s sw=%s: expected no landings, got %d"
+                  % (h, sw, len(s["landings"])))
+            check(landing_post_xy([s]) == [],
+                  "straight h=%s sw=%s: a straight stair to grade must add NO posts"
+                  % (h, sw))
+            check(s["grade_pad"] is not None, "grade stair should specify a pad")
+            check(s["grade_pad"]["min_thickness_in"] == GRADE_PAD_MIN_THICKNESS_IN,
+                  "pad thickness should match the Ilaria detail")
 
-# ---- 2. Header spans the clear width plus bearing each side ----------------
-for sw in [3, 4, 5, 6]:
-    s = compute_stair_support(20.0, 12.0, 0, sw, geometry=geo(sw=sw),
-                              total_rise=4.0)
-    span = s["header"]["clear_span"]
-    expect = sw + 2 * HEADER_BEARING_EACH_SIDE
-    check(abs(span - expect) < 1e-6,
-          "sw=%s: header clear span %.2f, expected %.2f" % (sw, span, expect))
-    hx = abs(s["header"]["x1"] - s["header"]["x0"])
-    check(abs(hx - expect) < 1e-6,
-          "sw=%s: header geometric length %.2f != clear span %.2f" % (sw, hx, expect))
+# ---- 2. There is no header anywhere in the output -------------------------
+# The header/two-post detail came from a retrofit article, not a permit set.
+s = compute_stair_support(20.0, 12.0, 0, 4, geometry=geo(), total_rise=6.0)
+check("header" not in s, "output must not contain a header detail")
+for lnd in s.get("landings") or []:
+    check("header" not in lnd, "landing must not contain a header detail")
 
-# ---- 3. Two posts, two footings, footings under posts ---------------------
-s = compute_stair_support(20.0, 12.0, 0, 4, geometry=geo(), total_rise=4.0)
-check(len(s["posts"]) == 2, "expected 2 posts, got %d" % len(s["posts"]))
-check(len(s["footings"]) == 2, "expected 2 footings, got %d" % len(s["footings"]))
-for p, f in zip(s["posts"], s["footings"]):
-    check(abs(p["x"] - f["x"]) < 1e-9 and abs(p["y"] - f["y"]) < 1e-9,
-          "footing not under its post")
+# ---- 3. LOUCKS: an elevated landing gets four corner posts ----------------
+for template in ["lLeft", "lRight", "switchback", "wideLanding"]:
+    g = geo(template=template, height=6.0)
+    s = compute_stair_support(20.0, 12.0, 0, 4, geometry=g, total_rise=6.0,
+                              deck_height=6.0)
+    check(s["kind"] == "elevated_landing",
+          "%s: kind=%s, expected elevated_landing" % (template, s["kind"]))
+    check(len(s["landings"]) == len(g["landings"]),
+          "%s: landing count mismatch" % template)
+    for lnd in s["landings"]:
+        # At the Loucks width (4ft switchback -> 8.5ft landing) the detail is
+        # exactly (4) PLCS. Wider landings add intermediate posts in pairs.
+        check(len(lnd["posts"]) >= 4,
+              "%s: landing has %d posts, expected at least the (4) corners"
+              % (template, len(lnd["posts"])))
+        check(len(lnd["posts"]) % 2 == 0,
+              "%s: landing posts should come in pairs, got %d"
+              % (template, len(lnd["posts"])))
+        check(lnd["post_size"] == LANDING_POST_SIZE_WOOD,
+              "%s: post size %s, Loucks uses %s"
+              % (template, lnd["post_size"], LANDING_POST_SIZE_WOOD))
+        check(lnd["post_base"] == LANDING_POST_BASE_WOOD,
+              "%s: post base %s, Loucks uses %s"
+              % (template, lnd["post_base"], LANDING_POST_BASE_WOOD))
+        check(lnd["post_cap"] == LANDING_POST_CAP_WOOD,
+              "%s: post cap %s, Loucks uses %s"
+              % (template, lnd["post_cap"], LANDING_POST_CAP_WOOD))
 
-# ---- 4. Reaction grows with stair size, and is never negative -------------
+# wrapAround has two landings -> two sets of four posts
+g = geo(template="wrapAround", height=8.0)
+s = compute_stair_support(20.0, 12.0, 0, 4, geometry=g, total_rise=8.0)
+check(len(s["landings"]) == 2, "wrapAround should have 2 landings")
+check(len(landing_post_xy([s])) >= 8,
+      "wrapAround (2 landings) should have at least 8 landing posts, got %d"
+      % len(landing_post_xy([s])))
+
+# ---- 4. Landing posts sit at the landing's corners, not inside it ---------
+g = geo(template="switchback", height=6.0)
+s = compute_stair_support(20.0, 12.0, 0, 4, geometry=g, total_rise=6.0)
+lnd = s["landings"][0]
+r = lnd["rect"]
+x_lo, x_hi = min(r["x0"], r["x1"]), max(r["x0"], r["x1"])
+y_lo, y_hi = min(r["y0"], r["y1"]), max(r["y0"], r["y1"])
+for p in lnd["posts"]:
+    on_x_edge = abs(p["x"] - x_lo) < 0.01 or abs(p["x"] - x_hi) < 0.01
+    on_y_edge = abs(p["y"] - y_lo) < 0.01 or abs(p["y"] - y_hi) < 0.01
+    check(on_x_edge or on_y_edge,
+          "landing post (%s,%s) is not on an edge of [%s,%s]x[%s,%s]"
+          % (p["x"], p["y"], x_lo, x_hi, y_lo, y_hi))
+    check(x_lo - 0.01 <= p["x"] <= x_hi + 0.01
+          and y_lo - 0.01 <= p["y"] <= y_hi + 0.01,
+          "landing post (%s,%s) lies outside the landing" % (p["x"], p["y"]))
+
+# ---- 5. WELBORN: the steel path uses brackets, never a pad-and-plate ------
+s = compute_stair_support(20.0, 12.0, 0, 4, geometry=geo(), total_rise=6.0,
+                          framing_type="steel")
+check(STAIR_BRACKET_STEEL in s["hardware"],
+      "steel straight stair should call out the stringer anchor bracket")
+check(landing_post_xy([s]) == [], "steel straight stair should add no posts")
+
+s_steel_land = compute_stair_support(20.0, 12.0, 0, 4,
+                                     geometry=geo(template="switchback", height=6.0),
+                                     total_rise=6.0, framing_type="steel")
+for lnd in s_steel_land["landings"]:
+    check(lnd["post_base"] is None,
+          "steel landing should not carry Simpson wood hardware")
+    check("steel" in lnd["post_size"].lower(),
+          "steel landing post size should be the steel post, got %s" % lnd["post_size"])
+
+# ---- 6. Rotation puts landing posts in the right world quadrant ----------
+# A landing on a right-exit stair must not land back on top of the deck origin.
+for ang in [0, 90, 180, 270]:
+    s = compute_stair_support(20.0, 12.0, ang, 4,
+                              geometry=geo(template="switchback", height=6.0),
+                              total_rise=6.0)
+    pts = landing_post_xy([s])
+    check(len(pts) >= 4, "ang=%s: expected at least 4 landing posts" % ang)
+    check(len(set(pts)) == len(pts),
+          "ang=%s: landing posts collapsed onto each other" % ang)
+
+# ---- 7. Reaction is reported, monotonic, and never sizes a printed member -
 prev = -1.0
 for h in [2, 4, 6, 8, 10, 13]:
     r = stair_top_reaction(4, geo(height=float(h)), total_rise=float(h))
-    check(r > 0, "rise %s: non-positive reaction %s" % (h, r))
-    check(r >= prev, "rise %s: reaction %s decreased from %s" % (h, r, prev))
+    check(r > 0, "rise %s: non-positive reaction" % h)
+    check(r >= prev, "rise %s: reaction decreased" % h)
     prev = r
 
-prev = -1.0
-for sw in [3, 4, 5, 6]:
-    r = stair_top_reaction(sw, geo(sw=sw, height=8.0), total_rise=8.0)
-    check(r >= prev, "width %s: reaction %s decreased from %s" % (sw, r, prev))
-    prev = r
-
-# ---- 5. Ordinary residential stairs stay inside the prescriptive detail ----
-# If routine configs trip the engineer flag, the calibration is wrong.
+# ---- 8. Routine residential configs never demand an engineer -------------
 for h in [2, 4, 6, 8, 10, 13]:
     for sw in [3, 4, 5]:
-        s = compute_stair_support(20.0, 12.0, 0, sw, geometry=geo(sw=sw, height=float(h)),
-                                  total_rise=float(h), deck_height=float(h))
-        check(not s["needs_engineer"],
-              "routine config rise=%s width=%s flagged for engineering: %s"
-              % (h, sw, s["reason"]))
+        for t in ["straight", "lLeft", "switchback"]:
+            s = compute_stair_support(20.0, 12.0, 0, sw,
+                                      geometry=geo(template=t, height=float(h), sw=sw),
+                                      total_rise=float(h), deck_height=float(h))
+            check(not s["needs_engineer"],
+                  "routine %s h=%s sw=%s flagged: %s" % (t, h, sw, s["reason"]))
 
-# ---- 6. The boundary actually triggers ------------------------------------
-# A very wide stair exceeds the header table.
-s = compute_stair_support(20.0, 12.0, 0, 12, geometry=geo(sw=12, height=8.0),
-                          total_rise=8.0)
-check(s["needs_engineer"], "12ft-wide stair should require engineering")
-check(s["reason"] is not None, "needs_engineer set without a reason")
-
-# A very tall, very wide stair exceeds the reaction ceiling.
-big = stair_top_reaction(10, geo(sw=10, height=20.0), total_rise=20.0)
+# ---- 9. The engineering threshold still triggers on a genuine outlier ----
+big = stair_top_reaction(10, geo(height=20.0, sw=10), total_rise=20.0)
 check(big > MAX_PRESCRIPTIVE_REACTION_LB,
-      "expected a config above the prescriptive reaction ceiling, got %s" % big)
+      "expected an outlier above the reaction ceiling, got %s" % big)
+s = compute_stair_support(20.0, 12.0, 0, 10, geometry=geo(height=20.0, sw=10),
+                          total_rise=20.0)
+check(s["needs_engineer"], "outlier config should require engineering")
+check(s["reason"], "needs_engineer set without a reason")
 
-# ---- 7. Header size is monotonic in span ----------------------------------
-sizes = [select_header_size(sp) for sp in [3.0, 4.0, 5.0, 6.0, 7.0, 8.0]]
-check(all(x is not None for x in sizes), "header table gap inside 3-8ft")
-check(sizes == sorted(sizes, key=lambda s: int(s.split("x")[-1])),
-      "header sizes not monotonic in span: %s" % sizes)
-
-# ---- 8. Transitional stairs are skipped -----------------------------------
+# ---- 10. Transitional stairs are skipped; empty input is safe ------------
 resolved = [
     {"stair": {"id": 1, "width": 4}, "world_anchor_x": 10.0, "world_anchor_y": 12.0,
      "angle": 0, "geometry": geo(),
-     "elevation_info": {"isTransitional": False, "totalRise": 4.0}},
+     "elevation_info": {"isTransitional": False, "totalRise": 6.0}},
     {"stair": {"id": 2, "width": 4}, "world_anchor_x": 20.0, "world_anchor_y": 12.0,
      "angle": 0, "geometry": geo(),
      "elevation_info": {"isTransitional": True, "totalRise": 2.0}},
 ]
-out = compute_all_stair_supports(resolved, deck_height=4.0)
-check(len(out) == 1, "transitional stair should be skipped, got %d assemblies" % len(out))
+out = compute_all_stair_supports(resolved, deck_height=6.0)
+check(len(out) == 1, "transitional stair should be skipped, got %d" % len(out))
 check(out[0]["stair_id"] == 1, "wrong stair kept")
-
-# ---- 9. No stairs -> no assemblies ----------------------------------------
-check(compute_all_stair_supports([], deck_height=4.0) == [], "empty input should give []")
-check(compute_all_stair_supports(None, deck_height=4.0) == [], "None input should give []")
-
-# ---- 10. Missing geometry falls back to a rise-based estimate -------------
-r = stair_top_reaction(4, None, total_rise=6.0)
-check(r > 0, "fallback reaction should be positive when geometry is absent")
+check(compute_all_stair_supports([], deck_height=4.0) == [], "empty input -> []")
+check(compute_all_stair_supports(None, deck_height=4.0) == [], "None input -> []")
+check(landing_post_xy([]) == [], "landing_post_xy([]) should be []")
 
 print("")
 if failures:

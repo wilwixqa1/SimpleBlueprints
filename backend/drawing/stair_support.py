@@ -1,210 +1,269 @@
-"""S100: Dedicated stair support assembly (posts + footings + header).
+"""S100: Stair support detailing, derived from approved permit sets.
 
-BACKGROUND
-----------
-The IRC's joist, beam and footing span tables cover only UNIFORM dead/live/snow
-load on the deck surface. They do not cover the CONCENTRATED load that the top
-of a set of stair stringers delivers into the deck frame, and the code contains
-no prescriptive table for sizing framing that carries stairs -- there are too
-many variables (stair span, width, location, landing type).
+WHY THIS MODULE EXISTS
+----------------------
+calc_engine sizes beams from ``design_load = max(40, snow_load)`` -- uniform
+load only. Stair stringer load never enters beam or footing sizing. That gap is
+inherited from the IRC itself: the span tables cover only uniform load on the
+deck surface, and the code has no prescriptive table for framing that carries
+stairs (Mike Guertin, FHB #322 -- too many variables).
 
-Consequence for this engine, confirmed by inspection of calc_engine:
-``design_load`` is ``max(40, snow_load)``, i.e. uniform only. Stair stringer
-load has never entered beam or footing sizing. The main beam is sized as if the
-stairs were not there.
+The obvious move is to invent a rule. We did not. Instead this module encodes
+what three APPROVED Rutstein permit sets actually show:
 
-The accepted field practice (Mike Guertin, Fine Homebuilding #322; and the
-common answer in deck-building practice) is NOT to thread the main beam's posts
-around the stair, but to give the stairs their OWN support: two footings, two
-posts, and a header that the stringers bear on. That relieves the deck frame of
-the stair load entirely, which is exactly what makes the uniform-load tables
-valid again for the main structure.
+  Ilaria  (wood, straight stair to grade)
+      No dedicated stair support at all. "STAIR AT LOWER LANDING DETAIL"
+      shows the stringer NOTCHED FOR PLATE bearing on a MIN. 4" THICK
+      concrete landing at grade, 12" MIN. dimensions. Deck posts are 6x6 PT
+      w/ Simpson ABU66Z base + BCS2-3/6 cap on 21" piers.
 
-WHAT THIS MODULE DOES
----------------------
-Given a resolved stair (its world anchor, width, and exit direction), returns
-the dedicated support assembly:
+  Welborn (steel Fortress Evolution, straight stairs to grade)
+      No dedicated stair support either. Stringers hang from the deck
+      structure: "Stair Stringer Anchor Bracket", "Stair Strap", "Preset
+      7-1/2in/11in Stair Bracket". The only posts on the plan are the deck's
+      3.5" x 3.5" steel posts.
 
-  * ``header``: the member the stringer tops bear on, spanning the stair width
-    plus a bearing allowance each side.
-  * ``posts``:  two posts, one under each end of the header.
-  * ``footings``: one per post.
+  Loucks  (wood, SWITCHBACK stair with an ELEVATED LANDING)
+      The landing IS supported -- as a framed platform on its OWN posts:
+      4x4 PT posts w/ Simpson ABU44Z base + BCS2-2/4 cap, (4) PLCS, on their
+      own piers. Lighter than the deck's 6x6 / ABU66Z system, and separate
+      from it.
 
-It also reports the stair's approximate reaction so the header/post sizing is
-traceable rather than asserted.
+THE RULE, as the sets actually practice it
+------------------------------------------
+Support keys off the LANDING, not off the stair:
 
-SCOPE BOUNDARY (deliberate, and stated on the drawing)
-------------------------------------------------------
-This assembly is a PRESCRIPTIVE, conservative detail for ordinary residential
-deck stairs. It is not a substitute for engineered design. Where the computed
-reaction exceeds the range this detail is good for, ``needs_engineer`` is set
-so the caller can print a note rather than silently emit a number we cannot
-stand behind.
+  * Stair runs to grade  -> NO posts, NO header. It bears on a concrete pad
+    (wood) or hangs from stringer brackets (steel).
+  * Stair has an ELEVATED landing -> that landing is a framed platform on
+    four corner posts with their own footings.
+
+Note what is absent from all three sets: a header spanning the stringer tops
+on two posts. That detail belongs to Guertin's article, which is a RETROFIT
+for an existing under-built deck, not a new-construction permit drawing. An
+earlier revision of this module built exactly that; the reference sets
+corrected us.
 
 This module is PURE (no matplotlib, no I/O) so it is unit-testable in isolation.
 """
 
 EPS = 1e-6
 
-# Bearing allowance each side of the clear stair width, so the header extends
-# past the outer stringers far enough to land on a post.
-HEADER_BEARING_EACH_SIDE = 0.5  # ft
+# Grade landing pad, per the "STAIR AT LOWER LANDING DETAIL" in Ilaria/Loucks.
+GRADE_PAD_MIN_THICKNESS_IN = 4.0
+GRADE_PAD_MIN_DIM_IN = 12.0
 
-# Load model for the stair itself. IRC R301.5 puts stairs at the same 40 psf
-# live load as the deck; dead load for a wood stair assembly is taken at 10 psf.
+# Elevated landing posts, per Loucks. Deliberately lighter than the deck's 6x6.
+LANDING_POST_SIZE_WOOD = "4x4"
+LANDING_POST_BASE_WOOD = "Simpson ABU44Z"
+LANDING_POST_CAP_WOOD = "Simpson BCS2-2/4"
+LANDING_PIER_DIA_IN = 20.0  # Loucks uses 20in dia piers
+
+# Steel path (Fortress Evolution), per Welborn.
+STAIR_BRACKET_STEEL = "Stair Stringer Anchor Bracket"
+STAIR_STRAP_STEEL = "Stair Strap"
+LANDING_POST_SIZE_STEEL = '3.5in x 3.5in steel post'
+
+# Load model, used only to flag outliers -- never to size a member we then
+# print without a reference set backing it. IRC R301.5 puts stairs at the same
+# 40 psf live load as the deck; 10 psf dead for a wood stair assembly.
 STAIR_LIVE_PSF = 40.0
 STAIR_DEAD_PSF = 10.0
-
-# The top of the stringers delivers roughly half the total stair weight (the
-# other half goes to grade at the bottom). Simple statics for a simply-supported
-# inclined member, which is how this detail is normally reasoned about.
 TOP_REACTION_FRACTION = 0.5
 
-# Beyond this the two-post/one-header prescriptive detail stops being clearly
-# conservative and the assembly should be engineered.
+# Beyond this, the prescriptive detail the reference sets show stops being
+# clearly conservative and the assembly should be engineered.
 MAX_PRESCRIPTIVE_REACTION_LB = 4000.0
 
-# Header sizing: (max clear span ft, nominal size). Doubled members, SPF/DF-L,
-# carrying the stair top reaction as a point/near-uniform load. Conservative
-# relative to IRC R507.5 beam tables at the equivalent tributary.
-_HEADER_TABLE = [
-    (4.0, "2-ply 2x8"),
-    (6.0, "2-ply 2x10"),
-    (8.0, "2-ply 2x12"),
-]
+# Widest landing the (4)-corner-post detail covers WITHOUT an intermediate
+# post. Loucks' approved landing is a 4ft switchback, which computes to 8.5ft
+# (two flights side by side plus the gap) -- that is the widest span we have
+# direct evidence for. A wider landing is not an engineering event; it just
+# needs a post partway along the long side, which is ordinary framing. Beyond
+# MAX_LANDING_SPAN_FT the platform stops being a simple prescriptive detail.
+MAX_PRESCRIPTIVE_LANDING_SPAN_FT = 8.5
+MAX_LANDING_SPAN_FT = 16.0
 
 
 def stair_run_length(geometry):
-    """Total horizontal run of a stair, in feet, from its template geometry.
-
-    Uses the sum of the run rects' extent along the direction of travel, which
-    is what determines how much stair weight exists (and therefore how much
-    lands on the top header).
-    """
+    """Total horizontal run of a stair in feet, from its template geometry."""
     if not geometry:
         return 0.0
     total = 0.0
     for run in geometry.get("runs", []) or []:
         r = run.get("rect") or {}
-        # Runs travel along whichever axis is longer for that rect; the tread
-        # axis tells us which, but taking the max is equivalent and avoids
-        # depending on a field that older geometry dicts may not carry.
         total += max(float(r.get("w", 0.0)), float(r.get("h", 0.0)))
     return total
 
 
 def stair_top_reaction(stair_width, geometry, total_rise=None):
-    """Approximate load (lb) delivered by the stringer tops into the deck.
+    """Approximate load (lb) the stringer tops deliver into the deck frame.
 
-    Returns a float. The stair's plan area carries live + dead; roughly half of
-    that reaches the top bearing point.
+    Reported for traceability and for the engineering-threshold check. It does
+    NOT size any printed member.
     """
     sw = float(stair_width or 4.0)
     run = stair_run_length(geometry)
     if run <= EPS:
-        # Fall back to an estimate from rise if geometry is unavailable:
-        # a code-compliant stair runs about 1.4 ft horizontally per ft of rise.
         run = float(total_rise or 0.0) * 1.4
-    plan_area = sw * run
-    total_load = plan_area * (STAIR_LIVE_PSF + STAIR_DEAD_PSF)
-    return total_load * TOP_REACTION_FRACTION
+    return sw * run * (STAIR_LIVE_PSF + STAIR_DEAD_PSF) * TOP_REACTION_FRACTION
 
 
-def select_header_size(clear_span_ft):
-    """Smallest tabulated doubled header that spans ``clear_span_ft``."""
-    for max_span, size in _HEADER_TABLE:
-        if clear_span_ft <= max_span + EPS:
-            return size
-    return None  # beyond the prescriptive detail
+def _to_world(rect, wax, way, angle):
+    """Rotate a stair-local rect into deck-frame world coords."""
+    ang = int(round(float(angle or 0))) % 360
+    x, y = float(rect.get("x", 0.0)), float(rect.get("y", 0.0))
+    w, h = float(rect.get("w", 0.0)), float(rect.get("h", 0.0))
+    if ang == 0:
+        return {"x0": wax + x, "y0": way + y, "x1": wax + x + w, "y1": way + y + h}
+    if ang == 90:
+        return {"x0": wax + y, "y0": way - (x + w), "x1": wax + y + h, "y1": way - x}
+    if ang == 270:
+        return {"x0": wax - (y + h), "y0": way + x, "x1": wax - y, "y1": way + x + w}
+    return {"x0": wax - (x + w), "y0": way - (y + h), "x1": wax - x, "y1": way - y}
+
+
+def _post_to_world(pt, wax, way, angle):
+    ang = int(round(float(angle or 0))) % 360
+    px, py = float(pt[0]), float(pt[1])
+    if ang == 0:
+        return (wax + px, way + py)
+    if ang == 90:
+        return (wax + py, way - px)
+    if ang == 270:
+        return (wax - py, way + px)
+    return (wax - px, way - py)
+
+
+def _intermediate_landing_posts(world, span, n_bays):
+    """Evenly spaced posts along a landing's long side, both edges.
+
+    Returns the interior post pairs only -- the four corners are already
+    supplied by the geometry. With ``n_bays`` bays there are ``n_bays - 1``
+    interior stations, each getting a post on both long edges.
+    """
+    x_lo, x_hi = min(world["x0"], world["x1"]), max(world["x0"], world["x1"])
+    y_lo, y_hi = min(world["y0"], world["y1"]), max(world["y0"], world["y1"])
+    wide_in_x = (x_hi - x_lo) >= (y_hi - y_lo)
+    out = []
+    for i in range(1, n_bays):
+        f = float(i) / n_bays
+        if wide_in_x:
+            x = x_lo + (x_hi - x_lo) * f
+            out.append({"x": round(x, 3), "y": round(y_lo, 3)})
+            out.append({"x": round(x, 3), "y": round(y_hi, 3)})
+        else:
+            y = y_lo + (y_hi - y_lo) * f
+            out.append({"x": round(x_lo, 3), "y": round(y, 3)})
+            out.append({"x": round(x_hi, 3), "y": round(y, 3)})
+    return out
 
 
 def compute_stair_support(world_anchor_x, world_anchor_y, angle, stair_width,
-                          geometry=None, total_rise=None, deck_height=None):
-    """Return the dedicated support assembly for one stair.
-
-    Coordinates are deck-frame world feet, matching beam_layout / stair_utils:
-    +x right along the house, +y outward from the house.
-
-    ``angle`` is the stair's rotation: 0 = exits front (+y), 90 = exits right
-    (+x), 270 = exits left (-x), 180 = exits back (-y).
+                          geometry=None, total_rise=None, deck_height=None,
+                          framing_type="wood"):
+    """Return the stair's support detailing, matching the reference sets.
 
     Returns::
 
         {
-          "header": {"x0","y0","x1","y1","size","clear_span"},
-          "posts":   [{"x","y","height"}, ...],
-          "footings":[{"x","y"}, ...],
+          "kind": "grade_pad" | "elevated_landing",
+          "grade_pad": {...} or None,
+          "landings":  [ {rect, posts:[{x,y}], post_size, post_base,
+                          post_cap, pier_dia_in, span_ft}, ... ],
+          "hardware":  [str, ...],
           "reaction_lb": float,
           "needs_engineer": bool,
           "reason": str or None,
         }
 
-    The header is placed AT the stair's top bearing line, perpendicular to the
-    direction of travel, and extends ``HEADER_BEARING_EACH_SIDE`` past the clear
-    stair width on each side so each end lands on a post.
+    A stair with no landings (the straight run, and the majority case) gets
+    ``kind == "grade_pad"``, an empty ``landings`` list, and NO posts. That is
+    what Ilaria and Welborn both show.
     """
     sw = float(stair_width or 4.0)
-    ax = float(world_anchor_x)
-    ay = float(world_anchor_y)
-    ang = int(round(float(angle or 0))) % 360
-
-    half = sw / 2.0 + HEADER_BEARING_EACH_SIDE
-    clear_span = sw + 2 * HEADER_BEARING_EACH_SIDE
-
-    # Header runs perpendicular to travel, centered on the anchor.
-    if ang == 0 or ang == 180:
-        # Travel along y -> header runs along x.
-        x0, x1 = ax - half, ax + half
-        y0 = y1 = ay
-        post_pts = [(x0, ay), (x1, ay)]
-    else:
-        # Travel along x -> header runs along y.
-        y0, y1 = ay - half, ay + half
-        x0 = x1 = ax
-        post_pts = [(ax, y0), (ax, y1)]
+    wax = float(world_anchor_x)
+    way = float(world_anchor_y)
+    is_steel = str(framing_type or "wood").lower() == "steel"
 
     reaction = stair_top_reaction(sw, geometry, total_rise)
-    size = select_header_size(clear_span)
+    raw_landings = (geometry or {}).get("landings") or []
 
+    landings = []
     needs_engineer = False
     reason = None
-    if size is None:
+
+    for lnd in raw_landings:
+        rect = lnd.get("rect") or {}
+        world = _to_world(rect, wax, way, angle)
+        posts = [{"x": round(px, 3), "y": round(py, 3)}
+                 for (px, py) in (_post_to_world(p, wax, way, angle)
+                                  for p in (lnd.get("posts") or []))]
+        span = max(float(rect.get("w", 0.0)), float(rect.get("h", 0.0)))
+        # A landing wider than the corner-post detail gets intermediate posts
+        # along its long side, evenly spaced so no bay exceeds the detail.
+        # Only genuinely oversized platforms fall out to an engineer.
+        n_bays = 1
+        while span / n_bays > MAX_PRESCRIPTIVE_LANDING_SPAN_FT + EPS:
+            n_bays += 1
+        if span > MAX_LANDING_SPAN_FT + EPS:
+            needs_engineer = True
+            reason = ("Landing span %.1f ft exceeds the prescriptive platform "
+                      "detail (max %.1f ft)." % (span, MAX_LANDING_SPAN_FT))
+        if n_bays > 1:
+            posts = posts + _intermediate_landing_posts(world, span, n_bays)
+        landings.append({
+            "rect": {k: round(v, 3) for k, v in world.items()},
+            "posts": posts,
+            "post_size": LANDING_POST_SIZE_STEEL if is_steel else LANDING_POST_SIZE_WOOD,
+            "post_base": None if is_steel else LANDING_POST_BASE_WOOD,
+            "post_cap": None if is_steel else LANDING_POST_CAP_WOOD,
+            "pier_dia_in": None if is_steel else LANDING_PIER_DIA_IN,
+            "span_ft": round(span, 2),
+        })
+
+    if reaction > MAX_PRESCRIPTIVE_REACTION_LB:
         needs_engineer = True
-        reason = ("Stair width %.1f ft exceeds the prescriptive header detail "
-                  "(max %.1f ft clear span)." % (sw, _HEADER_TABLE[-1][0]))
-        size = _HEADER_TABLE[-1][1]
-    elif reaction > MAX_PRESCRIPTIVE_REACTION_LB:
-        needs_engineer = True
-        reason = ("Stair top reaction %.0f lb exceeds the prescriptive detail "
+        reason = ("Stair top reaction %.0f lb exceeds the prescriptive range "
                   "(%.0f lb)." % (reaction, MAX_PRESCRIPTIVE_REACTION_LB))
 
-    post_h = float(deck_height) if deck_height is not None else None
-    posts = [{"x": round(px, 3), "y": round(py, 3), "height": post_h}
-             for (px, py) in post_pts]
-    footings = [{"x": p["x"], "y": p["y"]} for p in posts]
+    if landings:
+        kind = "elevated_landing"
+        grade_pad = None
+    else:
+        # Straight run to grade: no posts, no header. Ilaria + Welborn.
+        kind = "grade_pad"
+        grade_pad = {
+            "min_thickness_in": GRADE_PAD_MIN_THICKNESS_IN,
+            "min_dim_in": GRADE_PAD_MIN_DIM_IN,
+            "note": "Notch stringer for PT plate; bear on concrete landing.",
+        }
+
+    if is_steel:
+        hardware = [STAIR_BRACKET_STEEL, STAIR_STRAP_STEEL]
+    else:
+        hardware = ["Stringer notched for PT plate"]
+        if landings:
+            hardware = hardware + [LANDING_POST_BASE_WOOD, LANDING_POST_CAP_WOOD]
 
     return {
-        "header": {
-            "x0": round(x0, 3), "y0": round(y0, 3),
-            "x1": round(x1, 3), "y1": round(y1, 3),
-            "size": size,
-            "clear_span": round(clear_span, 2),
-        },
-        "posts": posts,
-        "footings": footings,
+        "kind": kind,
+        "grade_pad": grade_pad,
+        "landings": landings,
+        "hardware": hardware,
         "reaction_lb": round(reaction, 0),
         "needs_engineer": needs_engineer,
         "reason": reason,
     }
 
 
-def compute_all_stair_supports(resolved_stairs, deck_height=None):
-    """Map ``resolve_all_stairs()`` output to a list of support assemblies.
+def compute_all_stair_supports(resolved_stairs, deck_height=None,
+                               framing_type="wood"):
+    """Map ``resolve_all_stairs()`` output to support detailing per stair.
 
-    Grade-bearing stairs get an assembly. Transitional stairs (landing on
-    another deck zone) are skipped: their top and bottom both bear on framed
-    structure that is already sized, so a ground-bearing post/footing pair is
-    not the right detail.
+    Transitional stairs (landing on another deck zone) are skipped: both ends
+    bear on framing that is already sized, so neither a grade pad nor a
+    ground-bearing post set is the right detail.
     """
     out = []
     for rs in resolved_stairs or []:
@@ -219,7 +278,22 @@ def compute_all_stair_supports(resolved_stairs, deck_height=None):
             geometry=rs.get("geometry"),
             total_rise=elev.get("totalRise"),
             deck_height=deck_height,
+            framing_type=framing_type,
         )
         support["stair_id"] = (rs.get("stair") or {}).get("id")
         out.append(support)
     return out
+
+
+def landing_post_xy(supports):
+    """Flat list of (x, y) landing post centers across all supports.
+
+    Useful to the post-in-opening oracles and to the materials estimator, and
+    keeps callers out of the nested structure.
+    """
+    pts = []
+    for s in supports or []:
+        for lnd in s.get("landings") or []:
+            for p in lnd.get("posts") or []:
+                pts.append((p["x"], p["y"]))
+    return pts
