@@ -131,6 +131,64 @@ TEMPLATES.forEach(t => {
   }));
 });
 
+// ---- 6. ELEVATION GATING (S100 push 11, Will-flagged) ---------------------
+// Parts that have descended below the deck framing pass UNDERNEATH and must
+// not cut the deck. Regression: an inset L-Left removed ~1.8ft of extra
+// decking on the left because run1 (the L's foot, 2.75ft below deck) was
+// included in the cut span.
+console.log('6. Below-deck stair parts must not cut');
+const FRAME_DEPTH = (1 / 12) + (9.25 / 12);
+const stairPartsAtDeckLevel = window.stairPartsAtDeckLevel;
+
+// 6a. metadata present
+(() => {
+  const sg = geo('lLeft', 4, 4.4);
+  const fp = stairFootprintRects(sg, 20, 8, 0);
+  check(fp.every(b => typeof b.topEl === 'number'), 'footprint rects missing topEl');
+  check(fp.some(b => b.topEl < -1), 'lLeft should have a part well below deck');
+})();
+
+// 6b. the exact Will-reported case: 40x12 deck, inset L-Left, cut stays 4ft
+[1.5, 3.0, 4.5, 6.0].forEach(inset => {
+  const sg = geo('lLeft', 4, 4.4);
+  const clipped = clipRectsTo(stairFootprintRects(sg, 20, 12 - inset, 0), 0, 40, 0, 12);
+  const level = stairPartsAtDeckLevel(clipped, FRAME_DEPTH);
+  const span = unionSpan(level);
+  if (span) {
+    const w = span.xMax - span.xMin;
+    check(Math.abs(w - 4.0) < 0.01,
+      `lLeft inset ${inset}ft: cut width ${w.toFixed(2)}ft, expected 4.00ft (stair width)`);
+  }
+});
+
+// 6c. general rule: the cut span must never exceed the stair width for any
+// template whose lower runs fold away below deck level.
+['lLeft', 'lRight', 'switchback', 'wrapAround'].forEach(t => {
+  DECKS.forEach(([W, D]) => WIDTHS.forEach(sw => {
+    const sg = geo(t, sw, 4.4);
+    if (!sg) return;
+    [1.5, 3, 4.5].forEach(inset => {
+      if (D - inset < 1) return;
+      const clipped = clipRectsTo(stairFootprintRects(sg, W / 2, D - inset, 0), 0, W, 0, D);
+      const level = stairPartsAtDeckLevel(clipped, FRAME_DEPTH);
+      level.forEach(b => {
+        check(b.topEl > -FRAME_DEPTH - 0.01,
+          `${t} ${W}x${D} sw${sw} inset${inset}: kept a part at topEl ${b.topEl.toFixed(2)}`);
+      });
+    });
+  }));
+});
+
+// 6d. straight stairs have a single run at deck level -> filter is a no-op
+DECKS.forEach(([W, D]) => WIDTHS.forEach(sw => RISES.forEach(h => {
+  const sg = geo('straight', sw, h);
+  if (!sg) return;
+  const clipped = clipRectsTo(stairFootprintRects(sg, W / 2, D - 3, 0), 0, W, 0, D);
+  const level = stairPartsAtDeckLevel(clipped, FRAME_DEPTH);
+  check(JSON.stringify(level) === JSON.stringify(clipped),
+    `straight ${W}x${D} sw${sw} h${h}: elevation filter changed the cut`);
+})));
+
 console.log('');
 if (failures) { console.log(`STAIR FOOTPRINT: ${failures} FAILURES`); process.exit(1); }
 console.log('STAIR FOOTPRINT: all checks passed');

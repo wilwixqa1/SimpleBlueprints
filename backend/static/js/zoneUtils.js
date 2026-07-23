@@ -361,7 +361,9 @@ window.atZoneCap = function(p) { return ((p && p.zones) || []).filter(function(z
 
   // stairFootprintRects (S100): world-space rects for EVERY part of a stair
   // (all runs + all landings), given a resolved stair geometry, its world
-  // anchor and its rotation. Returns [{xMin,xMax,zMin,zMax}, ...].
+  // anchor and its rotation. Returns [{xMin,xMax,zMin,zMax,topEl,botEl}, ...]
+  // where topEl/botEl are elevations RELATIVE TO THE DECK SURFACE (0 = deck
+  // top, negative = below).
   //
   // WHY THIS EXISTS: consumers used to approximate a stair's deck-plane
   // footprint with runs[0] alone. For a STRAIGHT stair runs[0] IS the whole
@@ -374,6 +376,11 @@ window.atZoneCap = function(p) { return ((p && p.zones) || []).filter(function(z
   // dead space between folded runs, which is what caused the spurious 4ft
   // hole S81e reverted. Union is strictly tighter than bbox and strictly
   // larger than runs[0].
+  //
+  // ELEVATION (S100 push 11): a part that has already descended below the
+  // deck framing passes UNDER the deck and must NOT cut a hole -- e.g. the
+  // foot of an L-stair, or the lower runs of a switchback/wrap. Callers
+  // filter on topEl via stairPartsAtDeckLevel().
   function stairFootprintRects(sg, wax, waz, angle) {
     if (!sg) return [];
     var ang = Math.round(angle || 0) % 360;
@@ -384,10 +391,41 @@ window.atZoneCap = function(p) { return ((p && p.zones) || []).filter(function(z
       if (ang === 270) return { xMin: wax - (r.y + r.h), xMax: wax - r.y, zMin: waz + r.x, zMax: waz + r.x + r.w };
       return { xMin: wax - (r.x + r.w), xMax: wax - r.x, zMin: waz - (r.y + r.h), zMax: waz - r.y };
     }
+    var riseFt = (sg.riseIn || 0) / 12;
     var out = [];
-    (sg.runs || []).forEach(function(it) { out.push(toWorld(it.rect)); });
-    (sg.landings || []).forEach(function(it) { out.push(toWorld(it.rect)); });
+    var cum = 0;
+    // Runs descend in declaration order; each landing sits at the elevation
+    // reached by the runs preceding it.
+    var landingEl = {};
+    (sg.runs || []).forEach(function(it, i) {
+      var top = -cum * riseFt;
+      cum += (it.risers || 0);
+      var bot = -cum * riseFt;
+      var b = toWorld(it.rect);
+      b.topEl = top; b.botEl = bot; b.part = 'run' + i;
+      out.push(b);
+      landingEl[i] = bot;
+    });
+    (sg.landings || []).forEach(function(it, i) {
+      var el = (landingEl[i] != null) ? landingEl[i] : 0;
+      var b = toWorld(it.rect);
+      b.topEl = el; b.botEl = el; b.part = 'landing' + i;
+      out.push(b);
+    });
     return out;
+  }
+
+  // stairPartsAtDeckLevel (S100 push 11): keep only the parts whose TOP is at
+  // or above the underside of the deck framing. Those are the parts that
+  // actually break the deck plane and need an opening. Parts already below
+  // (the foot of an L, lower runs of a switchback/wrap) pass underneath and
+  // must leave the decking, joists, railing and posts intact.
+  function stairPartsAtDeckLevel(rects, frameDepthFt) {
+    var fd = (frameDepthFt == null) ? 0.75 : frameDepthFt;
+    return (rects || []).filter(function(b) {
+      if (b.topEl == null) return true;   // no elevation info -> conservative
+      return b.topEl > -fd - 0.01;
+    });
   }
 
   // clipRectsTo (S100): keep only the portions of `rects` that fall inside
@@ -400,7 +438,10 @@ window.atZoneCap = function(p) { return ((p && p.zones) || []).filter(function(z
     (rects || []).forEach(function(b) {
       var x0 = Math.max(b.xMin, xMin), x1 = Math.min(b.xMax, xMax);
       var z0 = Math.max(b.zMin, zMin), z1 = Math.min(b.zMax, zMax);
-      if (x1 - x0 > e && z1 - z0 > e) out.push({ xMin: x0, xMax: x1, zMin: z0, zMax: z1 });
+      if (x1 - x0 > e && z1 - z0 > e) {
+        out.push({ xMin: x0, xMax: x1, zMin: z0, zMax: z1,
+          topEl: b.topEl, botEl: b.botEl, part: b.part });
+      }
     });
     return out;
   }
@@ -1006,6 +1047,7 @@ window.atZoneCap = function(p) { return ((p && p.zones) || []).filter(function(z
   window.getExposedEdges = getExposedEdges;
   window.computeStairOpenings = computeStairOpenings;
   window.stairFootprintRects = stairFootprintRects;
+  window.stairPartsAtDeckLevel = stairPartsAtDeckLevel;
   window.clipRectsTo = clipRectsTo;
   window.unionSpan = unionSpan;
   window.getAddableEdges = getAddableEdges;
