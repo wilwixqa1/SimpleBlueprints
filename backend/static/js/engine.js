@@ -748,7 +748,7 @@ function estSteelMaterials(p, c) {
       // S81d: transitional stairs land on a deck surface, not grade -> no landing footings/posts.
       if (numLandings > 0 && !isTransitional) {
         items.push({ cat: "Stairs", item: "Landing Posts" + label, qty: totalLandingPosts, cost: 85 });
-        items.push({ cat: "Stairs", item: "Landing Post Bases" + label, qty: totalLandingPosts, cost: 35 });
+        items.push({ cat: "Stairs", item: "Landing Post Bases (Simpson ABU44Z)" + label, qty: totalLandingPosts, cost: 28 });
         items.push({ cat: "Stairs", item: "Landing Footings " + c.fDiam + '"' + label, qty: totalLandingPosts, cost: c.fDiam > 18 ? 28 : 18 });
         items.push({ cat: "Stairs", item: "Landing Framing Lumber" + label, qty: numLandings * 4, cost: 22 });
         items.push({ cat: "Stairs", item: "Landing Decking" + label, qty: numLandings * Math.ceil(sw + 2), cost: p.deckingType === "composite" ? 28 : 12 });
@@ -783,7 +783,11 @@ function estMaterials(p, c) {
   const bags = Math.ceil((Math.PI * (c.fDiam / 24) ** 2 * (c.fDepth / 12)) / 0.6) * c.nF;
   items.push({ cat: "Foundation", item: "Concrete 80lb bags", qty: bags, cost: 6.5 });
   items.push({ cat: "Foundation", item: `Sonotube ${c.fDiam}"`, qty: c.nF, cost: c.fDiam > 18 ? 28 : 18 });
-  items.push({ cat: "Foundation", item: "Post Base Hardware", qty: c.nF, cost: c.postSize === "6x6" ? 42 : 28 });
+  // S100: named post base + cap, per the approved reference sets.
+  var _abu = c.postSize === "6x6" ? "ABU66Z" : "ABU44Z";
+  items.push({ cat: "Foundation", item: "Post Bases (Simpson " + _abu + ")", qty: c.nF, cost: c.postSize === "6x6" ? 42 : 28 });
+  var _bcs = c.postSize === "6x6" ? "BCS2-3/6" : "BCS2-2/4";
+  items.push({ cat: "Foundation", item: "Post Caps (Simpson " + _bcs + ")", qty: c.nF, cost: c.postSize === "6x6" ? 24 : 18 });
   items.push({ cat: "Posts", item: `${c.postSize} PT Posts`, qty: c.totalPosts, cost: c.postSize === "6x6" ? 48 : 24 });
   items.push({ cat: "Posts", item: "Post Cap Hardware", qty: c.totalPosts, cost: c.postSize === "6x6" ? 38 : 22 });
   const plies = parseInt(c.beamSize[0]); const isLVL = c.beamSize.includes("LVL");
@@ -803,9 +807,12 @@ function estMaterials(p, c) {
   // S99: joists hang from the LEDGER only; on a dropped beam they bear on top
   // (hurricane ties below). Flush-beam hangers are the separate LUS line.
   if (c.attachment === "ledger") {
-    items.push({ cat: "Hardware", item: "Joist Hangers", qty: c.nJ, cost: 6 });
+    // S100: named hanger, matching the reference sets (LUS210 for 2x10, LUS26 for 2x6).
+    var _lus = String(c.joistSize || "").indexOf("2x6") >= 0 ? "LUS26" : "LUS210";
+    items.push({ cat: "Hardware", item: "Joist Hangers (Simpson " + _lus + ")", qty: c.nJ, cost: 6 });
   }
-  items.push({ cat: "Hardware", item: "Hurricane Ties + Nails", qty: 1, cost: c.nJ * 2.75 + 50 });
+  items.push({ cat: "Hardware", item: "Hurricane Ties (Simpson H2.5)", qty: c.nJ, cost: 2.75 });
+  items.push({ cat: "Hardware", item: "Joist Hanger Nails (10d, 5 lb box)", qty: 1, cost: 50 });
   // S99: cutout zones reduce the decking order proportionally
   var _cutA = 0;
   (p.zones || []).forEach(function(z) { if (z.type === "cutout") _cutA += (z.w || 0) * (z.d || 0); });
@@ -872,7 +879,7 @@ function estMaterials(p, c) {
       // Treads/stringers/brackets above are still required.
       if (_numLandings > 0 && !_isTransitional) {
         items.push({ cat: "Stairs", item: "Landing Posts " + c.postSize + _label, qty: _totalLandingPosts, cost: c.postSize === "6x6" ? 48 : 24 });
-        items.push({ cat: "Stairs", item: "Landing Post Bases" + _label, qty: _totalLandingPosts, cost: c.postSize === "6x6" ? 42 : 28 });
+        items.push({ cat: "Stairs", item: "Landing Post Bases (Simpson ABU44Z)" + _label, qty: _totalLandingPosts, cost: 28 });
         items.push({ cat: "Stairs", item: "Landing Footings " + c.fDiam + '"' + _label, qty: _totalLandingPosts, cost: c.fDiam > 18 ? 28 : 18 });
         items.push({ cat: "Stairs", item: "Landing Footing Concrete 80lb" + _label, qty: Math.ceil((Math.PI * Math.pow(c.fDiam / 24, 2) * (c.fDepth / 12)) / 0.6) * _totalLandingPosts, cost: 6.50 });
         items.push({ cat: "Stairs", item: "Landing Framing Lumber" + _label, qty: _numLandings * 4, cost: 22 });
@@ -886,7 +893,7 @@ function estMaterials(p, c) {
     items.push({ cat: "Stairs", item: "Stair Stringer Brackets", qty: st.totalStringers, cost: 8 });
     if (st.numLandings > 0) {
       items.push({ cat: "Stairs", item: "Landing Posts " + c.postSize, qty: st.totalLandingPosts, cost: c.postSize === "6x6" ? 48 : 24 });
-      items.push({ cat: "Stairs", item: "Landing Post Bases", qty: st.totalLandingPosts, cost: c.postSize === "6x6" ? 42 : 28 });
+      items.push({ cat: "Stairs", item: "Landing Post Bases (Simpson ABU44Z)", qty: st.totalLandingPosts, cost: 28 });
       items.push({ cat: "Stairs", item: "Landing Footings " + c.fDiam + '"', qty: st.totalLandingPosts, cost: c.fDiam > 18 ? 28 : 18 });
       items.push({ cat: "Stairs", item: "Landing Framing Lumber", qty: st.numLandings * 4, cost: 22 });
       items.push({ cat: "Stairs", item: "Landing Decking", qty: st.numLandings * Math.ceil(st.width + 2), cost: p.deckingType === "composite" ? 28 : 12 });
@@ -897,7 +904,8 @@ function estMaterials(p, c) {
     // Flush beam: joists hang into beam with hangers
     // Ledger: 1 beam line = nJ hangers. Freestanding: 2 beam lines = nJ * 2
     var _flushMult = c.attachment === 'freestanding' ? 2 : 1;
-    items.push({ cat: "Hardware", item: "Beam Joist Hangers (LUS)", qty: c.nJ * _flushMult, cost: 4 });
+    var _lusB = String(c.joistSize || "").indexOf("2x6") >= 0 ? "LUS26" : "LUS210";
+    items.push({ cat: "Hardware", item: "Beam Joist Hangers (Simpson " + _lusB + ")", qty: c.nJ * _flushMult, cost: 4 });
   }
   const sub = items.reduce((s, i) => s + i.qty * i.cost, 0);
   return { items, sub, tax: sub * 0.08, cont: sub * 0.05, total: sub * 1.13 };

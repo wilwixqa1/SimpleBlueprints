@@ -171,7 +171,15 @@ def estimate_materials(params, calc):
     bags = math.ceil((math.pi * (fDiam / 24) ** 2 * (fDepth / 12)) / 0.6) * nF
     items.append({"cat": "Foundation", "item": "Concrete 80lb bags", "qty": bags, "cost": 6.50})
     items.append({"cat": "Foundation", "item": f'Sonotube {fDiam}"', "qty": nF, "cost": 28 if fDiam > 18 else 18})
-    items.append({"cat": "Foundation", "item": "Post Base Hardware", "qty": nF, "cost": 42 if postSize == "6x6" else 28})
+    # S100: named post base, per the reference sets. Ilaria/Loucks specify
+    # Simpson ABU66Z for 6x6 posts and ABU44Z for 4x4.
+    _abu = "ABU66Z" if postSize == "6x6" else "ABU44Z"
+    items.append({"cat": "Foundation", "item": f"Post Bases (Simpson {_abu})", "qty": nF, "cost": 42 if postSize == "6x6" else 28})
+    # S100: post-to-beam caps were missing from the estimate entirely. Both
+    # reference sets call them out alongside the bases ("'ABU66Z' POST BASE
+    # AND 'BCS2-3/6' POST CAP"), so a real build buys one per post.
+    _bcs = "BCS2-3/6" if postSize == "6x6" else "BCS2-2/4"
+    items.append({"cat": "Foundation", "item": f"Post Caps (Simpson {_bcs})", "qty": nF, "cost": 24 if postSize == "6x6" else 18})
 
     # Posts
     items.append({"cat": "Posts", "item": f"{postSize} PT Posts", "qty": totalPosts, "cost": 48 if postSize == "6x6" else 24})
@@ -219,14 +227,23 @@ def estimate_materials(params, calc):
     # S99: joists hang from the LEDGER only; on a dropped beam they bear on top
     # (hurricane ties below). Flush-beam hangers are the separate LUS line.
     if attachment == "ledger":
-        items.append({"cat": "Hardware", "item": "Joist Hangers", "qty": nJ, "cost": 6})
+        # S100: named hanger. Reference sets specify LUS210 for 2x10 joists
+        # ("W/ LUS210 @ EACH END"), LUS26 for 2x6.
+        _lus = "LUS26" if "2x6" in str(c.get("joist_size", "")) else "LUS210"
+        items.append({"cat": "Hardware", "item": f"Joist Hangers (Simpson {_lus})", "qty": nJ, "cost": 6})
     # Flush beam: add beam-to-joist hangers
     # Ledger: joists meet 1 beam line from one side = nJ hangers
     # Freestanding: joists span between 2 beam lines = nJ * 2 hangers
     if c.get("beam_type", "dropped") == "flush":
         _flush_mult = 2 if c.get("attachment") == "freestanding" else 1
-        items.append({"cat": "Hardware", "item": "Beam Joist Hangers (LUS)", "qty": nJ * _flush_mult, "cost": 4})
-    items.append({"cat": "Hardware", "item": "Hurricane Ties + Nails", "qty": 1, "cost": round(nJ * 2.75 + 50, 2)})
+        _lus_b = "LUS26" if "2x6" in str(c.get("joist_size", "")) else "LUS210"
+        items.append({"cat": "Hardware", "item": f"Beam Joist Hangers (Simpson {_lus_b})", "qty": nJ * _flush_mult, "cost": 4})
+    # S100: hurricane ties are a NAMED part at a real quantity, not a qty-1
+    # dollar lump. Simpson H2.5 is what the approved reference sets specify
+    # ("'H2.5' EA. JOIST TO BEAM BELOW" -- Ilaria and Loucks both), one per
+    # joist-to-beam bearing point. Nails are a separate consumable line.
+    items.append({"cat": "Hardware", "item": "Hurricane Ties (Simpson H2.5)", "qty": nJ, "cost": 2.75})
+    items.append({"cat": "Hardware", "item": "Joist Hanger Nails (10d, 5 lb box)", "qty": 1, "cost": 50})
 
     # Decking
     # S99: cutout zones reduce the decking order proportionally
@@ -310,7 +327,9 @@ def estimate_materials(params, calc):
             # footings/posts/bases (treads/stringers/brackets still required).
             if num_landings > 0 and not is_transitional:
                 items.append({"cat": "Stairs", "item": f"Landing Posts {postSize}{label}", "qty": total_landing_posts, "cost": 48 if postSize == "6x6" else 24})
-                items.append({"cat": "Stairs", "item": f"Landing Post Bases{label}", "qty": total_landing_posts, "cost": 42 if postSize == "6x6" else 28})
+                # S100: landings use their OWN lighter 4x4 posts per the Loucks set
+                # (4x4 PT w/ ABU44Z base + BCS2-2/4 cap), not the deck post size.
+                items.append({"cat": "Stairs", "item": f"Landing Post Bases (Simpson ABU44Z){label}", "qty": total_landing_posts, "cost": 28})
                 items.append({"cat": "Stairs", "item": f'Landing Footings {fDiam}"{label}', "qty": total_landing_posts, "cost": 28 if fDiam > 18 else 18})
                 items.append({"cat": "Stairs", "item": f"Landing Footing Concrete 80lb{label}", "qty": math.ceil((math.pi * (fDiam / 24) ** 2 * (fDepth / 12)) / 0.6) * total_landing_posts, "cost": 6.50})
                 items.append({"cat": "Stairs", "item": f"Landing Framing Lumber{label}", "qty": num_landings * 4, "cost": 22})
