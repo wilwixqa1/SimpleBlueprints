@@ -410,16 +410,14 @@ window.buildDeckScene = function(scene, p, c, THREE) {
     var _fpOnDeck = window.clipRectsTo
       ? window.clipRectsTo(_fpAll, z0wx, z0wx + W, z0wz, z0wz + D)
       : [];
-    // S100 push 11: only parts still at deck level break the deck plane. The
-    // foot of an L-stair (and the lower runs of switchback/wrap) have already
-    // descended below the joists and pass UNDERNEATH -- cutting for them
-    // removed decking on the left of an inset L-stair (Will-flagged).
-    // Framing depth = decking (1in) + joist (9.25in nominal 2x10, matches jH2
-    // used by the joist/rim builders below). Declared locally: jH2 is defined
-    // further down and would hoist as undefined here.
+    // S100 push 12: open the deck above any stair part a person occupies
+    // without headroom -- the landing especially. Push 11 excluded the
+    // landing as "below deck", leaving decking 33in over a platform you
+    // stand on (Will-flagged). Parts that have descended past headroom
+    // depth genuinely pass underneath and still need no cut.
     var _frameDepthFt = (1 / 12) + (9.25 / 12);
-    if (window.stairPartsAtDeckLevel) {
-      _fpOnDeck = window.stairPartsAtDeckLevel(_fpOnDeck, _frameDepthFt);
+    if (window.stairPartsNeedingOpening) {
+      _fpOnDeck = window.stairPartsNeedingOpening(_fpOnDeck, _frameDepthFt);
     }
     var _sp = window.unionSpan ? window.unionSpan(_fpOnDeck) : null;
     if (!_sp) return;  // stair does not overlap the deck plane -> no cut (edge stairs)
@@ -803,13 +801,14 @@ window.buildDeckScene = function(scene, p, c, THREE) {
     // L-shapes) the bbox covers dead air between runs; cutting there removes
     // decking and railing that nothing passes through.
     if (swb.fpRects && swb.fpRects.length) {
-      // S100 push 11: only parts still at deck level count. A part that has
-      // descended below the framing passes under the deck, so it must not
-      // suppress a rail post or cut a railing above it.
+      // S100 push 12: a part only claims the space above it if headroom is
+      // insufficient there. A run that has descended past headroom depth
+      // passes under the deck and must not suppress a rail post above it.
       var _fdFt = (1 / 12) + (9.25 / 12);
+      var _needFt = window.STAIR_HEADROOM_FT || (80 / 12);
       for (var i = 0; i < swb.fpRects.length; i++) {
         var b = swb.fpRects[i];
-        if (b.topEl != null && b.topEl <= -_fdFt - 0.01) continue;
+        if (b.topEl != null && (-b.topEl - _fdFt) >= _needFt - 0.01) continue;
         if (wx >= b.xMin - 0.01 && wx <= b.xMax + 0.01 &&
             wz >= b.zMin - 0.01 && wz <= b.zMax + 0.01) return true;
       }

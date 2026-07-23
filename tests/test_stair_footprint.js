@@ -131,14 +131,15 @@ TEMPLATES.forEach(t => {
   }));
 });
 
-// ---- 6. ELEVATION GATING (S100 push 11, Will-flagged) ---------------------
+// ---- 6. HEADROOM GATING (S100 push 12, Will-flagged) ----------------------
 // Parts that have descended below the deck framing pass UNDERNEATH and must
 // not cut the deck. Regression: an inset L-Left removed ~1.8ft of extra
 // decking on the left because run1 (the L's foot, 2.75ft below deck) was
 // included in the cut span.
-console.log('6. Below-deck stair parts must not cut');
+console.log("6. Headroom rule: open the deck over occupied stair space");
 const FRAME_DEPTH = (1 / 12) + (9.25 / 12);
-const stairPartsAtDeckLevel = window.stairPartsAtDeckLevel;
+const HEADROOM = 80 / 12;
+const stairPartsNeedingOpening = window.stairPartsNeedingOpening;
 
 // 6a. metadata present
 (() => {
@@ -148,21 +149,25 @@ const stairPartsAtDeckLevel = window.stairPartsAtDeckLevel;
   check(fp.some(b => b.topEl < -1), 'lLeft should have a part well below deck');
 })();
 
-// 6b. the exact Will-reported case: 40x12 deck, inset L-Left, cut stays 4ft
-[1.5, 3.0, 4.5, 6.0].forEach(inset => {
+// 6b. the reported case: 40x12 deck, inset L-Left. The opening width follows
+// the parts that actually overlap the deck WITHOUT headroom -- 4ft (run0
+// only) at shallow insets, wider once the L's foot comes over the deck too.
+[[1.5, 4.0], [3.0, 4.0], [4.5, 5.8], [6.0, 5.8]].forEach(([inset, expectW]) => {
   const sg = geo('lLeft', 4, 4.4);
   const clipped = clipRectsTo(stairFootprintRects(sg, 20, 12 - inset, 0), 0, 40, 0, 12);
-  const level = stairPartsAtDeckLevel(clipped, FRAME_DEPTH);
-  const span = unionSpan(level);
+  const kept = stairPartsNeedingOpening(clipped, FRAME_DEPTH, HEADROOM);
+  const span = unionSpan(kept);
   if (span) {
     const w = span.xMax - span.xMin;
-    check(Math.abs(w - 4.0) < 0.01,
-      `lLeft inset ${inset}ft: cut width ${w.toFixed(2)}ft, expected 4.00ft (stair width)`);
+    check(Math.abs(w - expectW) < 0.01,
+      `lLeft inset ${inset}ft: cut width ${w.toFixed(2)}ft, expected ${expectW}ft`);
   }
 });
 
-// 6c. general rule: the cut span must never exceed the stair width for any
-// template whose lower runs fold away below deck level.
+// 6c. general rule: a part is kept iff clear height under the deck framing is
+// less than required headroom. Parts with adequate headroom genuinely pass
+// underneath and must be excluded; parts without it are occupied space and
+// must be opened above (IRC R311.7.2, 6ft-8in).
 ['lLeft', 'lRight', 'switchback', 'wrapAround'].forEach(t => {
   DECKS.forEach(([W, D]) => WIDTHS.forEach(sw => {
     const sg = geo(t, sw, 4.4);
@@ -170,21 +175,40 @@ const stairPartsAtDeckLevel = window.stairPartsAtDeckLevel;
     [1.5, 3, 4.5].forEach(inset => {
       if (D - inset < 1) return;
       const clipped = clipRectsTo(stairFootprintRects(sg, W / 2, D - inset, 0), 0, W, 0, D);
-      const level = stairPartsAtDeckLevel(clipped, FRAME_DEPTH);
-      level.forEach(b => {
-        check(b.topEl > -FRAME_DEPTH - 0.01,
-          `${t} ${W}x${D} sw${sw} inset${inset}: kept a part at topEl ${b.topEl.toFixed(2)}`);
+      const kept = stairPartsNeedingOpening(clipped, FRAME_DEPTH, HEADROOM);
+      const keptSet = new Set(kept.map(b => b.part));
+      clipped.forEach(b => {
+        const clear = -b.topEl - FRAME_DEPTH;
+        const shouldKeep = clear < HEADROOM - 0.01;
+        check(keptSet.has(b.part) === shouldKeep,
+          `${t} ${W}x${D} sw${sw} inset${inset} ${b.part}: clear ${clear.toFixed(2)}ft, ` +
+          `kept=${keptSet.has(b.part)} expected=${shouldKeep}`);
       });
     });
   }));
 });
+
+// 6e. THE REPORTED BUG: on a 4ft deck the L-Left landing has only 33in of
+// headroom, so the deck MUST open above it. Push 11 wrongly excluded it.
+(() => {
+  const sg = geo('lLeft', 4, 4.4);
+  const clipped = clipRectsTo(stairFootprintRects(sg, 20, 9, 0), 0, 40, 0, 12);
+  const kept = stairPartsNeedingOpening(clipped, FRAME_DEPTH, HEADROOM);
+  const landing = clipped.find(b => b.part && b.part.indexOf('landing') === 0);
+  if (landing) {
+    const clear = (-landing.topEl - FRAME_DEPTH) * 12;
+    check(clear < 80, `landing clear height ${clear.toFixed(0)}in should be under 80in`);
+    check(kept.some(b => b.part === landing.part),
+      'landing with 33in headroom must be kept (deck must open above it)');
+  }
+})();
 
 // 6d. straight stairs have a single run at deck level -> filter is a no-op
 DECKS.forEach(([W, D]) => WIDTHS.forEach(sw => RISES.forEach(h => {
   const sg = geo('straight', sw, h);
   if (!sg) return;
   const clipped = clipRectsTo(stairFootprintRects(sg, W / 2, D - 3, 0), 0, W, 0, D);
-  const level = stairPartsAtDeckLevel(clipped, FRAME_DEPTH);
+  const level = stairPartsNeedingOpening(clipped, FRAME_DEPTH, HEADROOM);
   check(JSON.stringify(level) === JSON.stringify(clipped),
     `straight ${W}x${D} sw${sw} h${h}: elevation filter changed the cut`);
 })));

@@ -415,16 +415,29 @@ window.atZoneCap = function(p) { return ((p && p.zones) || []).filter(function(z
     return out;
   }
 
-  // stairPartsAtDeckLevel (S100 push 11): keep only the parts whose TOP is at
-  // or above the underside of the deck framing. Those are the parts that
-  // actually break the deck plane and need an opening. Parts already below
-  // (the foot of an L, lower runs of a switchback/wrap) pass underneath and
-  // must leave the decking, joists, railing and posts intact.
-  function stairPartsAtDeckLevel(rects, frameDepthFt) {
-    var fd = (frameDepthFt == null) ? 0.75 : frameDepthFt;
+  // stairPartsNeedingOpening (S100 push 12): a stair part needs a hole in the
+  // deck when a person USING it would not have headroom -- not merely when it
+  // sits at deck level.
+  //
+  // Push 11 got this wrong in both directions. It kept only parts whose top
+  // was at/above the framing, which (a) correctly dropped the foot of an
+  // L-stair that truly passes underneath, but (b) also dropped the LANDING,
+  // leaving decking over a platform people stand on. On a 4ft-high deck an
+  // L-Left landing sits 2.75ft down: 33in of headroom where IRC R311.7.2
+  // requires 80in. You cannot walk onto that landing.
+  //
+  // Rule: measure clear height from the top of the part to the underside of
+  // the deck framing. If it is less than the required headroom, that part is
+  // occupied space and the deck must open above it. Parts far enough below
+  // (a run that has descended past headroom depth) pass under and need no cut.
+  var STAIR_HEADROOM_FT = 80 / 12;  // IRC R311.7.2 -- 6ft-8in
+  function stairPartsNeedingOpening(rects, frameDepthFt, headroomFt) {
+    var fd = (frameDepthFt == null) ? 0.77 : frameDepthFt;
+    var need = (headroomFt == null) ? STAIR_HEADROOM_FT : headroomFt;
     return (rects || []).filter(function(b) {
-      if (b.topEl == null) return true;   // no elevation info -> conservative
-      return b.topEl > -fd - 0.01;
+      if (b.topEl == null) return true;          // no elevation info -> conservative
+      var clear = -b.topEl - fd;                 // top of part to underside of framing
+      return clear < need - 0.01;
     });
   }
 
@@ -1047,7 +1060,8 @@ window.atZoneCap = function(p) { return ((p && p.zones) || []).filter(function(z
   window.getExposedEdges = getExposedEdges;
   window.computeStairOpenings = computeStairOpenings;
   window.stairFootprintRects = stairFootprintRects;
-  window.stairPartsAtDeckLevel = stairPartsAtDeckLevel;
+  window.stairPartsNeedingOpening = stairPartsNeedingOpening;
+  window.STAIR_HEADROOM_FT = STAIR_HEADROOM_FT;
   window.clipRectsTo = clipRectsTo;
   window.unionSpan = unionSpan;
   window.getAddableEdges = getAddableEdges;
