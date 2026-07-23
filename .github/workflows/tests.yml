@@ -37,6 +37,9 @@ jobs:
       - name: Stair deck-plane footprint (S100 P0-3D, straight-stair invariant)
         run: node tests/test_stair_footprint.js
 
+      - name: Stair support assembly (S100, dedicated stair posts/header)
+        run: python3 tests/test_stair_support.py
+
       - name: Structural verification (IRC known-answer tests, S60 baseline)
         run: python3 tests/test_structural.py
 
