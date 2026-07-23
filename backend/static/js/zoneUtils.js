@@ -359,6 +359,64 @@ window.atZoneCap = function(p) { return ((p && p.zones) || []).filter(function(z
     return openings.length ? openings : null;
   }
 
+  // stairFootprintRects (S100): world-space rects for EVERY part of a stair
+  // (all runs + all landings), given a resolved stair geometry, its world
+  // anchor and its rotation. Returns [{xMin,xMax,zMin,zMax}, ...].
+  //
+  // WHY THIS EXISTS: consumers used to approximate a stair's deck-plane
+  // footprint with runs[0] alone. For a STRAIGHT stair runs[0] IS the whole
+  // stair, so that was correct -- and that is exactly why straight stairs
+  // always rendered right. Every other template has landings and further
+  // runs that were invisible to the footprint, so nothing was cut for them
+  // and the stair clipped through solid deck (S97 P0-3D).
+  //
+  // The union of real rects is deliberately NOT the bbox: the bbox spans the
+  // dead space between folded runs, which is what caused the spurious 4ft
+  // hole S81e reverted. Union is strictly tighter than bbox and strictly
+  // larger than runs[0].
+  function stairFootprintRects(sg, wax, waz, angle) {
+    if (!sg) return [];
+    var ang = Math.round(angle || 0) % 360;
+    if (ang < 0) ang += 360;
+    function toWorld(r) {
+      if (ang === 0)   return { xMin: wax + r.x, xMax: wax + r.x + r.w, zMin: waz + r.y, zMax: waz + r.y + r.h };
+      if (ang === 90)  return { xMin: wax + r.y, xMax: wax + r.y + r.h, zMin: waz - (r.x + r.w), zMax: waz - r.x };
+      if (ang === 270) return { xMin: wax - (r.y + r.h), xMax: wax - r.y, zMin: waz + r.x, zMax: waz + r.x + r.w };
+      return { xMin: wax - (r.x + r.w), xMax: wax - r.x, zMin: waz - (r.y + r.h), zMax: waz - r.y };
+    }
+    var out = [];
+    (sg.runs || []).forEach(function(it) { out.push(toWorld(it.rect)); });
+    (sg.landings || []).forEach(function(it) { out.push(toWorld(it.rect)); });
+    return out;
+  }
+
+  // clipRectsTo (S100): keep only the portions of `rects` that fall inside
+  // the given deck-plane bounds. Rects with no real overlap are dropped, so
+  // an edge stair that sits entirely off the deck yields [] (no cut) --
+  // preserving today's correct behavior for edge-anchored straight stairs.
+  function clipRectsTo(rects, xMin, xMax, zMin, zMax, eps) {
+    var e = (eps == null) ? 0.02 : eps;
+    var out = [];
+    (rects || []).forEach(function(b) {
+      var x0 = Math.max(b.xMin, xMin), x1 = Math.min(b.xMax, xMax);
+      var z0 = Math.max(b.zMin, zMin), z1 = Math.min(b.zMax, zMax);
+      if (x1 - x0 > e && z1 - z0 > e) out.push({ xMin: x0, xMax: x1, zMin: z0, zMax: z1 });
+    });
+    return out;
+  }
+
+  // unionSpan (S100): collapse clipped footprint rects to the axis-aligned
+  // span the deck3d gap consumers expect.
+  function unionSpan(rects) {
+    if (!rects || !rects.length) return null;
+    var xMin = Infinity, xMax = -Infinity, zMin = Infinity, zMax = -Infinity;
+    rects.forEach(function(b) {
+      xMin = Math.min(xMin, b.xMin); xMax = Math.max(xMax, b.xMax);
+      zMin = Math.min(zMin, b.zMin); zMax = Math.max(zMax, b.zMax);
+    });
+    return { xMin: xMin, xMax: xMax, zMin: zMin, zMax: zMax };
+  }
+
   function mergeSegments(edges) {
     var groups = {};
     edges.forEach(function(e) {
@@ -947,6 +1005,9 @@ window.atZoneCap = function(p) { return ((p && p.zones) || []).filter(function(z
   window.getCompositeOutline = getCompositeOutline;
   window.getExposedEdges = getExposedEdges;
   window.computeStairOpenings = computeStairOpenings;
+  window.stairFootprintRects = stairFootprintRects;
+  window.clipRectsTo = clipRectsTo;
+  window.unionSpan = unionSpan;
   window.getAddableEdges = getAddableEdges;
   window.validateZone = validateZone;
   window.addZoneDefaults = addZoneDefaults;

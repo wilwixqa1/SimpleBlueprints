@@ -366,8 +366,12 @@ window.buildDeckScene = function(scene, p, c, THREE) {
       xMin: _zwx, xMax: _zwx + zr.w,
       zMin: _zwz, zMax: _zwz + zr.d
     };
+    // S100: carry the per-part footprint rects alongside the bbox so consumers
+    // can test true containment instead of the bbox's dead space.
+    var _fpRects = window.stairFootprintRects
+      ? window.stairFootprintRects(_sg, _wax, _waz, _stPl.angle || 0) : null;
     allStairWBBs.push({ xMin: _wbb.xMin, xMax: _wbb.xMax, zMin: _wbb.zMin, zMax: _wbb.zMax,
-      zoneId: stairDef.zoneId, anchorWorldRect: _anchorZoneWorldRect });
+      zoneId: stairDef.zoneId, anchorWorldRect: _anchorZoneWorldRect, fpRects: _fpRects });
     resolvedStairs.push({ def: stairDef, zoneRect: zr, sg: _sg, stPl: _stPl, exitSide: _exit,
       wbb: _wbb, wax: _wax, waz: _waz, zwx: _zwx, zwz: _zwz, stW: stairDef.width || 4,
       fromH: _fromH, toH: _toH, isTransitional: _isTransitional,
@@ -382,51 +386,42 @@ window.buildDeckScene = function(scene, p, c, THREE) {
   resolvedStairs.forEach(function(rs) {
     if (rs.def.zoneId !== 0) return;
     if (!exitSide) exitSide = rs.exitSide;
-    var stPl = rs.stPl, wbb = rs.wbb;
-    var r0 = rs.sg.runs[0].rect;
-    // S81e: Gap zMin/zMax for deck-board/joist cutting must come from run 0's
-    // rect, NOT the full stair bbox. The wrap template has landing 2 and run 3
-    // geometry at negative local y (beside the deck, not under it), which
-    // inflates wbb backward past the anchor and used to cut a 4ft-wide hole
-    // in the deck at the stair base. Using run 0 alone keeps the cut scoped
-    // to the actual portion of the stair that intersects the deck plane.
-    // For all current templates, run 0 starts at y=0 and extends away from
-    // the deck, so front-exit stairs produce a zero-length cut (correct,
-    // because the deck rim joist is the actual boundary).
+    var stPl = rs.stPl;
+    // S100 (P0-3D fix): the deck-plane footprint is the union of ALL runs and
+    // landings that actually overlap zone 0 -- not runs[0] alone.
+    //
+    // Straight stairs are UNCHANGED by this: runs[0] IS the whole stair, so
+    // the union equals the old rect exactly (asserted over 375 configs in
+    // tests/test_stair_footprint.js). Straight stairs rendering correctly was
+    // never a special case -- it was this rule applied to a one-rect stair.
+    //
+    // Every other template has landings / later runs that the old code never
+    // looked at, so nothing was cut for them and the stair (and its railing)
+    // clipped through solid deck: wrapAround at ANY anchor, and wideLanding /
+    // lLeft / lRight / switchback whenever anchored inboard of the edge.
+    //
+    // Union, NOT bbox: the bbox spans the dead air between folded runs, which
+    // is what produced the spurious 4ft hole S81e reverted. Union is strictly
+    // tighter than bbox and strictly wider than runs[0].
+    var _fpAll = window.stairFootprintRects
+      ? window.stairFootprintRects(rs.sg, rs.wax, rs.waz, rs.stPl.angle || 0)
+      : [{ xMin: rs.wax + rs.sg.runs[0].rect.x, xMax: rs.wax + rs.sg.runs[0].rect.x + rs.sg.runs[0].rect.w,
+           zMin: rs.waz + rs.sg.runs[0].rect.y, zMax: rs.waz + rs.sg.runs[0].rect.y + rs.sg.runs[0].rect.h }];
+    var _fpOnDeck = window.clipRectsTo
+      ? window.clipRectsTo(_fpAll, z0wx, z0wx + W, z0wz, z0wz + D)
+      : [];
+    var _sp = window.unionSpan ? window.unionSpan(_fpOnDeck) : null;
+    if (!_sp) return;  // stair does not overlap the deck plane -> no cut (edge stairs)
+
     if (rs.exitSide === "front" && !frontGap) {
-      var _r0zMin = rs.waz + r0.y;
-      var _r0zMax = rs.waz + r0.y + r0.h;
-      stairClipD = Math.max(0, _r0zMax - _r0zMin);
-      var sxMin = rs.wax + r0.x, sxMax = rs.wax + r0.x + r0.w;
-      if (sxMax > z0wx && sxMin < z0wx + W) {
-        frontGap = { min: Math.max(sxMin, z0wx), max: Math.min(sxMax, z0wx + W),
-          zMin: Math.max(_r0zMin, z0wz), zMax: Math.min(_r0zMax, z0wz + D) };
-      }
+      stairClipD = Math.max(0, _sp.zMax - _sp.zMin);
+      frontGap = { min: _sp.xMin, max: _sp.xMax, zMin: _sp.zMin, zMax: _sp.zMax };
     } else if (rs.exitSide === "right" && !rightGap) {
-      // right-exit rotation: stair local +x maps to world -z, so run0's world
-      // z-range is [waz - r0.x - r0.w, waz - r0.x]
-      var _r0zMinR = rs.waz - r0.x - r0.w;
-      var _r0zMaxR = rs.waz - r0.x;
-      var _r0xMinR = rs.wax + r0.y;
-      var _r0xMaxR = rs.wax + r0.y + r0.h;
-      stairClipD = Math.max(0, _r0xMaxR - _r0xMinR);
-      if (_r0zMaxR > z0wz && _r0zMinR < z0wz + D) {
-        rightGap = { min: Math.max(_r0zMinR, z0wz), max: Math.min(_r0zMaxR, z0wz + D),
-          xMin: Math.max(_r0xMinR, z0wx),
-          xMax: Math.min(_r0xMaxR, z0wx + W) };
-      }
+      stairClipD = Math.max(0, _sp.xMax - _sp.xMin);
+      rightGap = { min: _sp.zMin, max: _sp.zMax, xMin: _sp.xMin, xMax: _sp.xMax };
     } else if (rs.exitSide === "left" && !leftGap) {
-      // left-exit rotation: stair local +x maps to world +z
-      var _r0zMinL = rs.waz + r0.x;
-      var _r0zMaxL = rs.waz + r0.x + r0.w;
-      var _r0xMinL = rs.wax - r0.y - r0.h;
-      var _r0xMaxL = rs.wax - r0.y;
-      stairClipD = Math.max(0, _r0xMaxL - _r0xMinL);
-      if (_r0zMaxL > z0wz && _r0zMinL < z0wz + D) {
-        leftGap = { min: Math.max(_r0zMinL, z0wz), max: Math.min(_r0zMaxL, z0wz + D),
-          xMin: Math.max(_r0xMinL, z0wx),
-          xMax: Math.min(_r0xMaxL, z0wx + W) };
-      }
+      stairClipD = Math.max(0, _sp.xMax - _sp.xMin);
+      leftGap = { min: _sp.zMin, max: _sp.zMax, xMin: _sp.xMin, xMax: _sp.xMax };
     }
   });
   var leftAtEdge = leftGap && leftGap.xMin <= z0wx + 0.1;
@@ -789,8 +784,22 @@ window.buildDeckScene = function(scene, p, c, THREE) {
     if (swb.zoneId === 0) return false; // zone 0 handled by frontGap etc.
     var r = swb.anchorWorldRect;
     if (!r) return false; // missing anchor rect -> be conservative, do not cut
-    return wx >= r.xMin - 0.01 && wx <= r.xMax + 0.01 &&
-           wz >= r.zMin - 0.01 && wz <= r.zMax + 0.01;
+    var inAnchorZone = wx >= r.xMin - 0.01 && wx <= r.xMax + 0.01 &&
+                       wz >= r.zMin - 0.01 && wz <= r.zMax + 0.01;
+    if (!inAnchorZone) return false;
+    // S100: additionally require the point to fall inside an ACTUAL stair part,
+    // not merely the bounding box. For folded templates (switchback/wrapAround/
+    // L-shapes) the bbox covers dead air between runs; cutting there removes
+    // decking and railing that nothing passes through.
+    if (swb.fpRects && swb.fpRects.length) {
+      for (var i = 0; i < swb.fpRects.length; i++) {
+        var b = swb.fpRects[i];
+        if (wx >= b.xMin - 0.01 && wx <= b.xMax + 0.01 &&
+            wz >= b.zMin - 0.01 && wz <= b.zMax + 0.01) return true;
+      }
+      return false;
+    }
+    return true;
   }
 
   composite.forEach(function(cr) {
