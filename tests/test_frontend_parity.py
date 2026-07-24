@@ -231,7 +231,13 @@ def _check_materials_parity():
     from drawing.draw_materials import estimate_materials
 
     node_src = (
-        'const fs=require("fs");global.window={};'
+        # S101: zoneUtils.js is REQUIRED here -- engine.js reads
+        # window.getCutoutRects for the notch-aware post layout. Without it the
+        # cutout cases silently fall back to the flat legacy row and "pass"
+        # against a wrong JS answer. global.window=global so zoneUtils' own
+        # window.* assignments resolve the same way they do in the browser.
+        'const fs=require("fs");global.window=global;'
+        'eval(fs.readFileSync("backend/static/js/zoneUtils.js","utf8"));'
         'eval(fs.readFileSync("backend/static/js/stairGeometry.js","utf8"));'
         'eval(fs.readFileSync("backend/static/js/engine.js","utf8"));'
         'const p=JSON.parse(process.argv[1]);'
@@ -256,12 +262,40 @@ def _check_materials_parity():
         ("materials: legacy hasStairs", dict(base, hasStairs=True, stairWidth=4)),
         ("materials: freestanding", dict(base, attachment="freestanding")),
         ("materials: non-stock depth (13')", dict(base, depth=13)),
-        # KNOWN GAP (S99, do not add yet): cutout-zone configs diverge because the
-        # JS calcStructure lacks the S96 notch-aware beam layout (JS: 3 posts,
-        # Python: 6 posts on a notched deck). The Python/PDF side is correct.
-        # Add a cutout case here once the notch-aware layout is ported to JS
-        # (part of the consolidation work).
+        # S101: the S99 known gap is CLOSED. computeBeamLayout is now ported to
+        # JS (stairGeometry.js) and engine.js derives pp/totalPosts/postHeights
+        # from it, so cutout configs agree. These were the divergent cases.
+        ("materials: centered 4ft notch",
+         dict(base, zones=[_cutout("front", 4, 4, off=8)])),
+        ("materials: off-center notch",
+         dict(base, zones=[_cutout("front", 4, 5, off=4)])),
+        ("materials: 6ft notch (was JS 3 / PY 6 posts)",
+         dict(base, zones=[_cutout("front", 6, 5, off=7)])),
+        ("materials: front-left notch",
+         dict(base, width=18, depth=12, zones=[_cutout("front-left", 5, 4)])),
+        ("materials: freestanding + notch",
+         dict(base, attachment="freestanding", zones=[_cutout("front", 4, 4, off=8)])),
+        ("materials: notch + front stair",
+         dict(base, zones=[_cutout("front", 4, 4, off=8)],
+              deckStairs=[dict(stair)])),
     ]
+    # S101: cutout configs expose a SEPARATE, pre-existing divergence in the
+    # RAILING path -- Python counts the notch's added perimeter, JS's railLen
+    # does not (verified on stock main at df60ddd, before the S101 port: 7 kits
+    # PY vs 6 JS). That is a different subsystem from the beam/post layout this
+    # port covers, and fixing it changes materials output, so it is filed as a
+    # backlog item rather than bundled in here. Until it is fixed, the cutout
+    # cases below assert parity on every line EXCEPT Railing; the flat cases
+    # continue to assert full parity including Railing.
+    RAIL_GAP_CASES = {
+        "materials: centered 4ft notch",
+        "materials: off-center notch",
+        "materials: 6ft notch (was JS 3 / PY 6 posts)",
+        "materials: front-left notch",
+        "materials: freestanding + notch",
+        "materials: notch + front stair",
+    }
+
     failures = 0
     repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     for name, p in cases:
@@ -271,10 +305,13 @@ def _check_materials_parity():
             print("  [FAIL] %-40s node error: %s" % (name, out.stderr.strip()[:200]))
             failures += 1
             continue
+        _skip_rail = name in RAIL_GAP_CASES
         js = [(i["cat"], i["item"], i["qty"], round(float(i["cost"]), 2))
-              for i in json.loads(out.stdout)]
+              for i in json.loads(out.stdout)
+              if not (_skip_rail and i["cat"] == "Railing")]
         py = [(i["cat"], i["item"], i["qty"], round(float(i["cost"]), 2))
-              for i in estimate_materials(p, calculate_structure(p))["items"]]
+              for i in estimate_materials(p, calculate_structure(p))["items"]
+              if not (_skip_rail and i["cat"] == "Railing")]
         if js != py:
             failures += 1
             print("  [FAIL] %-40s materials mismatch (js %d / py %d lines)"

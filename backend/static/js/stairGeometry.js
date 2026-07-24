@@ -203,6 +203,106 @@ function frontEdgeProfile(width, depth, cutRects) {
   return merged;
 }
 
+// ============================================================
+// S101: JS port of beam_layout.py -- cutout-aware beam + post layout.
+// Line-by-line mirror of the Python (backend/drawing/beam_layout.py) so the
+// two cannot drift; test_frontend_parity cross-checks them. Before this the
+// frontend used a flat legacy post row computed from width alone, so a notched
+// deck showed 3 posts on screen where the PDF correctly showed 4+, and a post
+// could appear stranded over the void. INVARIANT: on a deck with no front
+// cutout this reproduces the legacy positions exactly, so plain decks are
+// unchanged.
+// ============================================================
+var BL_EPS = 1e-6;
+var BL_DEFAULT_SETBACK = 1.5;  // ft the beam sits in from the edge it supports
+var BL_MIN_POST_SEP = 2.0;     // ft; below this the two end posts collapse to one (S90)
+
+// EXACT legacy post x-positions. Preserved byte-for-byte for the flat deck.
+function _legacyPosts(width, numPosts) {
+  var out = [];
+  for (var i = 0; i < numPosts; i++) {
+    if (numPosts === 1) out.push(width / 2);
+    else out.push(+(2 + i * (width - 4) / (numPosts - 1)).toFixed(2));
+  }
+  return out;
+}
+
+// Post x-positions along one beam segment so no post-to-post span exceeds
+// maxBeamSpan. S90: a segment near 4 ft wide would stack two end posts at
+// (nearly) the same x -- collapse to a single centered post instead.
+function _postsForSegment(x0, x1, maxBeamSpan) {
+  var segW = x1 - x0;
+  if (segW - 4.0 < BL_MIN_POST_SEP - BL_EPS) {
+    return [+(x0 + segW / 2.0).toFixed(2)];
+  }
+  var n = Math.max(2, Math.ceil(segW / maxBeamSpan - BL_EPS) + 1);
+  var out = [];
+  for (var i = 0; i < n; i++) out.push(+(x0 + 2 + i * (segW - 4) / (n - 1)).toFixed(2));
+  return out;
+}
+
+// Returns { segments:[{x0,x1,beamY,maxCant,posts:[x...]}], postXY:[[x,y]...],
+//           stepped:bool, overLimit:bool }
+function computeBeamLayout(width, depth, cutRects, numPosts, cantileverMax,
+                           setback, maxBeamSpan) {
+  if (setback === undefined || setback === null) setback = BL_DEFAULT_SETBACK;
+  if (maxBeamSpan === undefined || maxBeamSpan === null) maxBeamSpan = 8.0;
+
+  var profile = frontEdgeProfile(width, depth, cutRects);
+  var hasFrontCut = profile.length > 1 ||
+                    (profile.length > 0 && Math.abs(profile[0][2] - depth) > BL_EPS);
+
+  // ---- Flat / no-front-cutout: reproduce the legacy layout EXACTLY. ----
+  if (!hasFrontCut) {
+    var flatY = +(depth - setback).toFixed(2);
+    var flatPosts = _legacyPosts(width, numPosts);
+    return {
+      segments: [{ x0: 0.0, x1: +width, beamY: flatY,
+                   maxCant: setback, posts: flatPosts }],
+      postXY: flatPosts.map(function(px) { return [px, flatY]; }),
+      stepped: false,
+      overLimit: false
+    };
+  }
+
+  var minEdge = Math.min.apply(null, profile.map(function(s) { return s[2]; }));
+  var maxEdge = Math.max.apply(null, profile.map(function(s) { return s[2]; }));
+
+  // ---- Option b: can ONE straight beam serve the whole deck? ----
+  var straightY = minEdge - setback;
+  var straightCant = maxEdge - straightY;
+  if (straightY > BL_EPS && straightCant <= cantileverMax + BL_EPS) {
+    var sPosts = _postsForSegment(0.0, +width, maxBeamSpan);
+    var sy = +straightY.toFixed(2);
+    return {
+      segments: [{ x0: 0.0, x1: +width, beamY: sy,
+                   maxCant: +straightCant.toFixed(2), posts: sPosts }],
+      postXY: sPosts.map(function(px) { return [px, sy]; }),
+      stepped: false,
+      overLimit: false
+    };
+  }
+
+  // ---- Option a: step the beam to follow each edge level. ----
+  var segments = [];
+  var postXY = [];
+  var overLimit = false;
+  profile.forEach(function(seg) {
+    var a = seg[0], b = seg[1], ey = seg[2];
+    var by = +(ey - setback).toFixed(2);
+    if (by <= BL_EPS) {
+      by = +Math.max(ey - Math.min(setback, ey * 0.5), 0.5).toFixed(2);
+    }
+    var cant = +(ey - by).toFixed(2);
+    if (cant > cantileverMax + BL_EPS) overLimit = true;
+    var segPosts = _postsForSegment(a, b, maxBeamSpan);
+    segments.push({ x0: a, x1: b, beamY: by, maxCant: cant, posts: segPosts });
+    segPosts.forEach(function(px) { postXY.push([px, by]); });
+  });
+
+  return { segments: segments, postXY: postXY, stepped: true, overLimit: overLimit };
+}
+
 // JS port of stair_utils._front_edge_y_for_span: shallowest (min) front-edge y
 // across [x0, x1] -- the notch-back edge when the stair footprint overlaps a
 // notch, so the stair sits at the real edge instead of floating over the void.
@@ -253,4 +353,7 @@ window.computeStairGeometry = computeStairGeometry;
 window.getStairPlacement = getStairPlacement;
 window.getStairPlacementForZone = getStairPlacementForZone;
 window.frontEdgeProfile = frontEdgeProfile;
+window.computeBeamLayout = computeBeamLayout;   // S101
+window._legacyPosts = _legacyPosts;             // S101 (test surface)
+window._postsForSegment = _postsForSegment;     // S101 (test surface)
 window.snapStairToEdge = snapStairToEdge;

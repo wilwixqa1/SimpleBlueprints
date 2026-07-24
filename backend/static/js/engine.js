@@ -460,16 +460,40 @@ function calcStructure(p) {
   const autoPostSize = postSize;
   if (p.overPostSize) { postSize = p.overPostSize; }
 
-  const pp = []; for (let i = 0; i < nP; i++) pp.push(+(2 + i * (W - 4) / (nP - 1)).toFixed(2));
+  // S101: cutout-aware beam + post layout (JS port of S89/S96 beam_layout.py).
+  // Mirrors calc_engine.py: the legacy even-spaced row is the FLAT-deck answer,
+  // which computeBeamLayout's flat branch reproduces byte-for-byte; on a notched
+  // deck the beam steps to follow the real front edge so no post is stranded
+  // over a cutout. Falls back to the legacy formula if stairGeometry.js has not
+  // loaded (defensive: engine.js must stay usable standalone).
+  var pp;
+  var beamLayout = null;
+  if (window.computeBeamLayout && window.getCutoutRects) {
+    // getZone0() reads deckWidth/deckDepth and falls back to a hardcoded 16x12
+    // when they are absent, which would resolve every cutout against the wrong
+    // parent rect. calcStructure's params use width/depth, so supply both --
+    // the same shim deck3d.js and elevationView.js already apply at their call
+    // sites. Python's get_cutout_rects reads params["width"]/["depth"] directly.
+    var _pz = Object.assign({}, p, { deckWidth: W, deckDepth: D });
+    var _cutRects = window.getCutoutRects(_pz);
+    var _cantMax = +(jSpan / 4.0).toFixed(2);
+    beamLayout = window.computeBeamLayout(W, D, _cutRects, nP, _cantMax, 1.5, 8.0);
+    pp = beamLayout.postXY.map(function(xy) { return xy[0]; });
+  } else {
+    pp = [];
+    for (let i = 0; i < nP; i++) pp.push(+(2 + i * (W - 4) / (nP - 1)).toFixed(2));
+  }
 
   // S34: Slope-adjusted post heights per position
   // Reference: ground at house attachment (y=0, x=W/2). Slope causes ground to
   // drop (downhill) or rise (uphill) relative to reference. Post height adjusts accordingly.
+  // S101: iterate pp (the notch-aware list), not nP -- mirrors calc_engine.py,
+  // which loops post_positions. Previously these diverged on a notched deck.
   var slopePct = (p.slopePercent || 0) / 100;
   var slopeDir = p.slopeDirection || "front-to-back";
   var beamDepth = D - 1.5;
   var postHeights = [];
-  for (var hi = 0; hi < nP; hi++) {
+  for (var hi = 0; hi < pp.length; hi++) {
     var groundDrop = 0; // positive = ground is lower = post is taller
     if (slopeDir === "front-to-back") groundDrop = slopePct * beamDepth;
     else if (slopeDir === "back-to-front") groundDrop = -slopePct * beamDepth;
@@ -521,7 +545,10 @@ function calcStructure(p) {
     guardHeight = guardRequired ? Math.max(p.overGuardHeight, 36) : p.overGuardHeight;
   }
 
-  const totalPosts = attachment === "ledger" ? nP : nP * 2;
+  // S101: count the ACTUAL posts from the notch-aware layout, not the legacy
+  // nP. Mirrors calc_engine.py (len(post_positions), doubled for freestanding).
+  // Identical to nP on a flat deck; larger on a notched one.
+  const totalPosts = attachment === "ledger" ? pp.length : pp.length * 2;
   let stairs = null;
   if (p.hasStairs && H > 0.5) {
     const stairW = p.stairWidth || 4;
