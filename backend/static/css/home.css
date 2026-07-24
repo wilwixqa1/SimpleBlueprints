@@ -243,3 +243,102 @@
 .sb-home .footer .f-legal { border-top: 0.5px solid var(--ruling); padding: 14px; text-align: center; font-family: var(--mono); font-size: 10.5px; color: var(--mut); }
 .sb-home /* ================= APP (journey) ================= */
 .app-shell { min-height: 100vh; display: flex; flex-direction: column; background: var(--vellum); }
+
+/* =============================================================
+   S101: MOBILE — home page only (<= 760px)
+   =============================================================
+   APPENDED, not edited. Every rule below lives inside a media
+   query, so above the breakpoint the cascade is byte-identical
+   to what shipped before and the desktop layout cannot move.
+   Scoped to .sb-home / .footer / .titleblock — the marketing
+   page. The wizard app is styled with ~814 inline style objects
+   that CSS selectors cannot reach, so it is deliberately out of
+   scope here and needs a JS breakpoint instead.
+
+   Breakpoint is 760px: below the 980px sheets-feature rule that
+   already exists, above the widest phone in landscape.
+   ============================================================= */
+@media (max-width: 760px) {
+
+  /* ---- Nav: wordmark over links, links centered and wrapping.
+     26px gaps push 4+ items past 380px otherwise.
+     NOTE: the selector is .nav (not .sb-home .nav) because the base
+     rule at the top of the LANDING section is a bare .nav — matching
+     its specificity is what lets these overrides land. .nav is also
+     position:sticky, so keep this block short: a tall sticky header
+     eats phone viewport on every scroll. ---- */
+  .nav {
+    flex-direction: column; gap: 10px;
+    padding: 12px clamp(14px, 4vw, 20px);
+  }
+  .sb-home .nav-links {
+    gap: 16px; flex-wrap: wrap; justify-content: center;
+    row-gap: 8px;
+  }
+  .sb-home .nav-links a { font-size: 13px; letter-spacing: 1px; }
+
+  /* ---- Hero: single column. The 1.05fr/.95fr split leaves each
+     side ~180px on a phone, which squeezes the h1 to unreadable. ---- */
+  .sb-home .hero {
+    grid-template-columns: 1fr;
+    padding: clamp(24px, 6vw, 40px) clamp(14px, 4vw, 20px) 28px;
+    gap: 28px;
+  }
+  /* clamp()'s 6.2vw floor is 40px, which overflows 380px viewports
+     at this character count. Drop the floor on small screens. */
+  .sb-home .hero h1 { font-size: clamp(30px, 8.5vw, 44px); }
+  .sb-home .hero .lede { font-size: 15px; margin: 14px 0 22px; }
+
+  /* ---- Address card: the primary CTA. Stack input above button
+     so neither gets squeezed; 16px font stops iOS Safari from
+     auto-zooming on focus, which otherwise breaks the layout. ---- */
+  .sb-home .addr-card { max-width: 100%; }
+  .sb-home .addr-row { flex-direction: column; gap: 8px; }
+  .sb-home .addr-row input {
+    border-right: 1.5px solid var(--ink);
+    border-radius: 3px;
+    font-size: 16px;
+    padding: 13px 12px;
+  }
+  .sb-home .addr-row .btn {
+    border-radius: 3px;
+    width: 100%;
+    padding: 14px 18px;   /* >=44px tall: iOS touch target minimum */
+  }
+
+  /* ---- Stacked content grids ---- */
+  .sb-home .acts { grid-template-columns: 1fr; gap: 14px; }
+  .sb-home .act { padding: 18px; }
+  .sb-home .act h3 { font-size: 19px; }
+
+  .sb-home .sheets-feature { grid-template-columns: 1fr; }
+  /* 140px minmax yields 2 cramped columns at 380px; 1 reads better. */
+  .sb-home .sheets-strip { grid-template-columns: 1fr; gap: 12px; }
+
+  .sb-home .pricing { grid-template-columns: 1fr; gap: 16px; }
+
+  /* ---- Section rhythm ---- */
+  .sb-home .section { padding: clamp(28px, 7vw, 40px) clamp(14px, 4vw, 20px); }
+  .sb-home .sec-head {
+    flex-wrap: wrap; gap: 8px;
+    padding-bottom: 8px; margin-bottom: 20px;
+  }
+
+  /* ---- FAQ: 44px min touch target on the summary row ---- */
+  .sb-home .faq summary { padding: 15px 4px; font-size: 15px; }
+
+  /* ---- Footer ---- */
+  .sb-home .footer .f-grid {
+    grid-template-columns: 1fr; gap: 22px;
+    padding: 28px clamp(14px, 4vw, 20px);
+  }
+  .sb-home .footer a { padding: 6px 0; }   /* easier tap targets */
+}
+
+/* ---- Very narrow phones (iPhone SE and similar) ---- */
+@media (max-width: 380px) {
+  .sb-home .hero h1 { font-size: 28px; }
+  .sb-home .wordmark .wm-main { font-size: 19px; letter-spacing: 2px; }
+  .sb-home .nav-links { gap: 12px; }
+  .sb-home .nav-links a { font-size: 12px; }
+}
