@@ -902,6 +902,26 @@ function estMaterials(p, c) {
       items.push({ cat: "Stairs", item: "2x12 Stair Stringers " + _stringerFt + "'" + _label, qty: _totalStringers, cost: _stringerFt <= 8 ? 22 : _stringerFt <= 12 ? 35 : 48 });
       items.push({ cat: "Stairs", item: "5/4x12 PT Treads" + _label, qty: _nT * Math.ceil(_sw / 1), cost: 18 });
       items.push({ cat: "Stairs", item: "Stair Stringer Brackets" + _label, qty: _totalStringers, cost: 8 });
+      // S102: stair guard + handrail. Line-by-line mirror of the block in
+      // draw_materials.py estimate_materials -- see that file for the full
+      // rationale and the IRC citations. Guard (R312.1.1) both open sides where
+      // the drop exceeds 30"; handrail (R311.7.8) at 4+ risers. Uses the RAW
+      // sloped run, NOT _stringerFt (which carries a +1 ft waste allowance).
+      // Any change here must land in draw_materials.py in the same push.
+      var _needsGuard = _stairH * 12 > 30;
+      var _needsHandrail = _nR >= 4;
+      if (_needsGuard || _needsHandrail) {
+        var _railSides = _needsGuard ? 2 : 1;
+        var _slopedFt = Math.sqrt((_stairH * 12) ** 2 + _totalRun ** 2) / 12;
+        var _stairRailFt = _slopedFt * _railSides;
+        if (p.railType === "fortress") {
+          items.push({ cat: "Railing", item: "Fortress Stair Panels" + _label, qty: Math.ceil(_stairRailFt / 7), cost: 95 });
+          items.push({ cat: "Railing", item: "Fortress Stair Posts" + _label, qty: Math.ceil(_stairRailFt / 6) + _railSides, cost: 45 });
+          items.push({ cat: "Railing", item: "Stair Top Rail + Brackets" + _label, qty: Math.ceil(_stairRailFt / 7), cost: 62 });
+        } else {
+          items.push({ cat: "Railing", item: "Wood Stair Rail Kit (8')" + _label, qty: Math.ceil(_stairRailFt / 8), cost: 95 });
+        }
+      }
       // S81d: transitional stairs land on a deck surface, not grade -> no landing footings/posts/bases.
       // Treads/stringers/brackets above are still required.
       if (_numLandings > 0 && !_isTransitional) {
@@ -918,6 +938,26 @@ function estMaterials(p, c) {
     items.push({ cat: "Stairs", item: "2x12 Stair Stringers " + st.stringerFt + "'", qty: st.totalStringers, cost: st.stringerFt <= 8 ? 22 : st.stringerFt <= 12 ? 35 : 48 });
     items.push({ cat: "Stairs", item: "5/4x12 PT Treads", qty: st.nTreads * Math.ceil(st.width / 1), cost: 18 });
     items.push({ cat: "Stairs", item: "Stair Stringer Brackets", qty: st.totalStringers, cost: 8 });
+    // S102: stair guard + handrail on the LEGACY hasStairs branch. Python folds
+    // legacy configs into its deckStairs loop (draw_materials.py synthesizes a
+    // single entry), so this branch has to reproduce the same numbers to keep
+    // test_frontend_parity's "legacy hasStairs" case green. Recomputed from
+    // st.nRisers rather than st.runFt because runFt is rounded to 1 decimal and
+    // Python uses the exact (n_risers - 1) * 10.5.
+    var _lNeedsGuard = c.H * 12 > 30;
+    var _lNeedsHandrail = st.nRisers >= 4;
+    if (_lNeedsGuard || _lNeedsHandrail) {
+      var _lSides = _lNeedsGuard ? 2 : 1;
+      var _lRun = (st.nRisers - 1) * 10.5;
+      var _lStairRailFt = (Math.sqrt((c.H * 12) ** 2 + _lRun ** 2) / 12) * _lSides;
+      if (p.railType === "fortress") {
+        items.push({ cat: "Railing", item: "Fortress Stair Panels", qty: Math.ceil(_lStairRailFt / 7), cost: 95 });
+        items.push({ cat: "Railing", item: "Fortress Stair Posts", qty: Math.ceil(_lStairRailFt / 6) + _lSides, cost: 45 });
+        items.push({ cat: "Railing", item: "Stair Top Rail + Brackets", qty: Math.ceil(_lStairRailFt / 7), cost: 62 });
+      } else {
+        items.push({ cat: "Railing", item: "Wood Stair Rail Kit (8')", qty: Math.ceil(_lStairRailFt / 8), cost: 95 });
+      }
+    }
     if (st.numLandings > 0) {
       items.push({ cat: "Stairs", item: "Landing Posts " + c.postSize, qty: st.totalLandingPosts, cost: c.postSize === "6x6" ? 48 : 24 });
       items.push({ cat: "Stairs", item: "Landing Post Bases (Simpson ABU44Z)", qty: st.totalLandingPosts, cost: 28 });
