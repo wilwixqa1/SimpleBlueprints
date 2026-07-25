@@ -92,7 +92,14 @@ def compute_checklist(params, calc):
     """
     height_inches = params.get("height", 4) * 12  # height is in feet
     footing_depth = calc.get("footing_depth", 36)
-    attachment = params.get("attachmentType", "attached")
+    # S102: this read `attachmentType`, which NOTHING in the repo ever writes.
+    # The wizard writes `attachment` (steps.js:2983, values "ledger" |
+    # "freestanding"), so this always fell back to "attached" and the
+    # freestanding checklist row was always NO -- a wrong statement on a
+    # submitted document whenever the customer selected Freestanding.
+    # Read `attachment` first, keep `attachmentType` as a fallback in case any
+    # stored/older config carries it.
+    attachment = params.get("attachment") or params.get("attachmentType") or "ledger"
 
     # Auto-computable values get True/False; unknowable items get None
     defaults = {
