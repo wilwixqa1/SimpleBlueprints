@@ -68,7 +68,7 @@
   Phase 2 (deferred):  Three.js + stairs + zones + views + steps = loaded on wizard entry.
 -->
 <script type="text/babel" src="/static/js/steelDeckData.js?v=s75a"></script>
-<script type="text/babel" src="/static/js/engine.js?v=s101a"></script>
+<script type="text/babel" src="/static/js/engine.js?v=s102a"></script>
 <script type="text/babel" src="/static/js/stairGeometry.js?v=s101a"></script>
 <script type="text/babel" src="/static/js/zoneUtils.js?v=s101a"></script>
 <script type="text/babel" src="/static/js/home.js?v=s95e"></script>
@@ -109,7 +109,7 @@
     if (loading) return new Promise(function(resolve) { callbacks.push(resolve); });
     loading = true;
 
-    var v = "v=s101a";
+    var v = "v=s102b";
     return loadScript("https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js")
       .then(function() {
         // Views can load in parallel (stairGeometry + zoneUtils already loaded)
