@@ -151,8 +151,18 @@ def draw_footing_detail(ax, params, calc, spec=None):
     # Post
     post_visual_w = 2.2 if post_size == "6x6" else 1.5
     ax.add_patch(patches.Rectangle((3 + (pier_width - post_visual_w) / 2, 0.5),
-                 post_visual_w, 6, fc=BRAND["post"], ec=BRAND["dark"], lw=1))
-    ax.text(10, 4.5, f'{post_size} PT POST', fontsize=5, fontweight='bold', color=BRAND["dark"])
+                 post_visual_w, 6, fc=BRAND["steel"] if _is_steel else BRAND["post"],
+                 ec=BRAND["dark"], lw=1))
+    # S102: this label was hardcoded f'{post_size} PT POST' with no is_steel
+    # check, while draw_post_beam_detail on the SAME sheet already printed
+    # 'FORTRESS 3.5" STEEL POST'. On a steel set post_size is "3.5x3.5 Steel",
+    # so it rendered "3.5x3.5 Steel PT POST" -- PT means pressure-treated wood,
+    # so the label contradicted itself and the sheet contradicted its own
+    # neighbouring detail. Matches draw_post_beam_detail's wording exactly.
+    if _is_steel:
+        ax.text(10, 4.5, 'FORTRESS 3.5" STEEL POST', fontsize=5, fontweight='bold', color=BRAND["dark"])
+    else:
+        ax.text(10, 4.5, f'{post_size} PT POST', fontsize=5, fontweight='bold', color=BRAND["dark"])
 
     # Rebar (subtle, not the visual focus)
     ax.plot([4, 4], [-pier_visual_depth + 0.5, 0], color='#b04040', lw=0.5, ls='--')
