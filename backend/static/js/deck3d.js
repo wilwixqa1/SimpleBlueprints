@@ -465,6 +465,58 @@ window.buildDeckScene = function(scene, p, c, THREE) {
   var leftAtEdge = leftGap && leftGap.xMin <= z0wx + 0.1;
   var rightAtEdge = rightGap && rightGap.xMax >= z0wx + W - 0.1;
 
+  // ------------------------------------------------------------------
+  // S102: GUARD-RAIL openings, computed separately from the gaps above.
+  //
+  // frontGap / leftGap / rightGap answer "where must the DECKING and JOISTS be
+  // cut", which correctly runs through clipRectsTo + stairPartsNeedingOpening
+  // (the headroom rule). But they are also the only thing that opens the guard
+  // rail, and for that they are wrong: getStairPlacementForZone anchors a front
+  // stair at anchorY == deck depth, so run0 starts EXACTLY at the front edge and
+  // extends outward. clipRectsTo needs >0.02ft of real overlap, gets 0, drops
+  // the rect, _sp comes back null, the forEach hits `return`, and frontGap stays
+  // null. The rail then falls to the `else` branch and is drawn straight across
+  // the stair -- a guard across the way out.
+  //
+  // The rail question is much simpler: where does the stair cross the guard
+  // line? That is the span of the FIRST run on that edge, regardless of whether
+  // any decking needs cutting.
+  //
+  // These are deliberately SEPARATE variables. Folding this into frontGap would
+  // start cutting joists, rim and boards at an edge-anchored stair where nothing
+  // should be cut, which would corrupt the framing plan on the permit set.
+  //
+  // run0 specifically, not the stair bbox: on a switchback or wraparound the
+  // bbox spans the dead air between folded runs and would open far more rail
+  // than the stair actually occupies.
+  // ------------------------------------------------------------------
+  var railGapFront = null, railGapLeft = null, railGapRight = null;
+  resolvedStairs.forEach(function(rs) {
+    if (rs.def.zoneId !== 0) return;
+    var _rr = window.stairFootprintRects
+      ? window.stairFootprintRects(rs.sg, rs.wax, rs.waz, rs.stPl.angle || 0) : null;
+    if (!_rr || !_rr.length) return;
+    var _r0 = null;
+    for (var _ri = 0; _ri < _rr.length; _ri++) {
+      if (_rr[_ri].part === "run0") { _r0 = _rr[_ri]; break; }
+    }
+    if (!_r0) _r0 = _rr[0];
+    if (rs.exitSide === "front" && !railGapFront) {
+      railGapFront = { min: _r0.xMin, max: _r0.xMax };
+    } else if (rs.exitSide === "right" && !railGapRight) {
+      railGapRight = { min: _r0.zMin, max: _r0.zMax };
+    } else if (rs.exitSide === "left" && !railGapLeft) {
+      railGapLeft = { min: _r0.zMin, max: _r0.zMax };
+    }
+  });
+  // Effective openings used ONLY by the railing code below. Prefer the existing
+  // deck-cut gap when it already reaches the edge (inboard stairs, landings that
+  // genuinely sit on the deck), otherwise fall back to the run0 span.
+  var railOpenFront = (frontGap && frontGap.zMax >= z0wz + D - 0.1)
+    ? { min: frontGap.min, max: frontGap.max } : railGapFront;
+  var railOpenLeft = leftAtEdge ? { min: leftGap.min, max: leftGap.max } : railGapLeft;
+  var railOpenRight = rightAtEdge ? { min: rightGap.min, max: rightGap.max } : railGapRight;
+
   // Helper: check if a world-space point is inside zone 0
   function inZone0(wx, wz) {
     return wx >= z0wx - 0.01 && wx <= z0wx + W + 0.01 && wz >= z0wz - 0.01 && wz <= z0wz + D + 0.01;
@@ -952,30 +1004,33 @@ window.buildDeckScene = function(scene, p, c, THREE) {
       var ex1 = cx + e.x1, ey1 = cz + e.y1, ex2 = cx + e.x2, ey2 = cz + e.y2;
 
       // Check if this edge overlaps a stair gap on zone 0
+      // S102: railOpenFront/Left/Right instead of frontGap/leftGap/rightGap --
+      // same openings the single-zone path below uses, so a notched deck and a
+      // plain deck open the guard in the same place.
       if (e.dir === "h") {
 // Horizontal edge   check front gap
-        if (frontGap && Math.abs(ey1 - (z0wz + D)) < 0.1) {
+        if (railOpenFront && Math.abs(ey1 - (z0wz + D)) < 0.1) {
 // This edge is on zone 0's front   split around stair gap
-          if (ex1 < frontGap.min - 0.05) addRail(ex1, ey1, Math.min(ex2, frontGap.min), ey1);
-          if (ex2 > frontGap.max + 0.05) addRail(Math.max(ex1, frontGap.max), ey1, ex2, ey1);
-          if (frontGap.min > ex1 + 0.1) addRailPost(frontGap.min, ey1);
-          if (frontGap.max < ex2 - 0.1) addRailPost(frontGap.max, ey1);
+          if (ex1 < railOpenFront.min - 0.05) addRail(ex1, ey1, Math.min(ex2, railOpenFront.min), ey1);
+          if (ex2 > railOpenFront.max + 0.05) addRail(Math.max(ex1, railOpenFront.max), ey1, ex2, ey1);
+          if (railOpenFront.min > ex1 + 0.1) addRailPost(railOpenFront.min, ey1);
+          if (railOpenFront.max < ex2 - 0.1) addRailPost(railOpenFront.max, ey1);
           return;
         }
       } else {
 // Vertical edge   check left/right gap
-        if (leftAtEdge && Math.abs(ex1 - z0wx) < 0.1) {
-          if (ey1 < leftGap.min - 0.05) addRail(ex1, ey1, ex1, Math.min(ey2, leftGap.min));
-          if (ey2 > leftGap.max + 0.05) addRail(ex1, Math.max(ey1, leftGap.max), ex1, ey2);
-          if (leftGap.min > ey1 + 0.1) addRailPost(ex1, leftGap.min);
-          if (leftGap.max < ey2 - 0.1) addRailPost(ex1, leftGap.max);
+        if (railOpenLeft && Math.abs(ex1 - z0wx) < 0.1) {
+          if (ey1 < railOpenLeft.min - 0.05) addRail(ex1, ey1, ex1, Math.min(ey2, railOpenLeft.min));
+          if (ey2 > railOpenLeft.max + 0.05) addRail(ex1, Math.max(ey1, railOpenLeft.max), ex1, ey2);
+          if (railOpenLeft.min > ey1 + 0.1) addRailPost(ex1, railOpenLeft.min);
+          if (railOpenLeft.max < ey2 - 0.1) addRailPost(ex1, railOpenLeft.max);
           return;
         }
-        if (rightAtEdge && Math.abs(ex1 - (z0wx + W)) < 0.1) {
-          if (ey1 < rightGap.min - 0.05) addRail(ex1, ey1, ex1, Math.min(ey2, rightGap.min));
-          if (ey2 > rightGap.max + 0.05) addRail(ex1, Math.max(ey1, rightGap.max), ex1, ey2);
-          if (rightGap.min > ey1 + 0.1) addRailPost(ex1, rightGap.min);
-          if (rightGap.max < ey2 - 0.1) addRailPost(ex1, rightGap.max);
+        if (railOpenRight && Math.abs(ex1 - (z0wx + W)) < 0.1) {
+          if (ey1 < railOpenRight.min - 0.05) addRail(ex1, ey1, ex1, Math.min(ey2, railOpenRight.min));
+          if (ey2 > railOpenRight.max + 0.05) addRail(ex1, Math.max(ey1, railOpenRight.max), ex1, ey2);
+          if (railOpenRight.min > ey1 + 0.1) addRailPost(ex1, railOpenRight.min);
+          if (railOpenRight.max < ey2 - 0.1) addRailPost(ex1, railOpenRight.max);
           return;
         }
       }
@@ -1035,30 +1090,32 @@ window.buildDeckScene = function(scene, p, c, THREE) {
     });
 
   } else {
-// Single-zone: original hardcoded railing (unchanged)
-    if (frontGap && frontGap.zMax >= z0wz + D - 0.1) {
-      if (frontGap.min - z0wx > 0.1) addRail(z0wx, z0wz + D, frontGap.min, z0wz + D);
-      if ((z0wx + W) - frontGap.max > 0.1) addRail(frontGap.max, z0wz + D, z0wx + W, z0wz + D);
-      addRailPost(frontGap.min, z0wz + D);
-      addRailPost(frontGap.max, z0wz + D);
+// Single-zone: original hardcoded railing (S102: gap source is railOpenFront/
+// Left/Right, which fall back to the stair's run0 span when the deck-cut gap
+// does not reach the edge -- see the S102 block where they are computed)
+    if (railOpenFront) {
+      if (railOpenFront.min - z0wx > 0.1) addRail(z0wx, z0wz + D, railOpenFront.min, z0wz + D);
+      if ((z0wx + W) - railOpenFront.max > 0.1) addRail(railOpenFront.max, z0wz + D, z0wx + W, z0wz + D);
+      addRailPost(railOpenFront.min, z0wz + D);
+      addRailPost(railOpenFront.max, z0wz + D);
     } else {
       addRail(z0wx, z0wz + D, z0wx + W, z0wz + D);
     }
 
-    if (leftAtEdge) {
-      if (leftGap.min - (isLedger ? z0wz + 0.3 : z0wz) > 0.1) addRail(z0wx, isLedger ? z0wz + 0.3 : z0wz, z0wx, leftGap.min);
-      if ((z0wz + D) - leftGap.max > 0.1) addRail(z0wx, leftGap.max, z0wx, z0wz + D);
-      addRailPost(z0wx, leftGap.min);
-      addRailPost(z0wx, leftGap.max);
+    if (railOpenLeft) {
+      if (railOpenLeft.min - (isLedger ? z0wz + 0.3 : z0wz) > 0.1) addRail(z0wx, isLedger ? z0wz + 0.3 : z0wz, z0wx, railOpenLeft.min);
+      if ((z0wz + D) - railOpenLeft.max > 0.1) addRail(z0wx, railOpenLeft.max, z0wx, z0wz + D);
+      addRailPost(z0wx, railOpenLeft.min);
+      addRailPost(z0wx, railOpenLeft.max);
     } else {
       addRail(z0wx, isLedger ? z0wz + 0.3 : z0wz, z0wx, z0wz + D);
     }
 
-    if (rightAtEdge) {
-      if (rightGap.min - (isLedger ? z0wz + 0.3 : z0wz) > 0.1) addRail(z0wx + W, isLedger ? z0wz + 0.3 : z0wz, z0wx + W, rightGap.min);
-      if ((z0wz + D) - rightGap.max > 0.1) addRail(z0wx + W, rightGap.max, z0wx + W, z0wz + D);
-      addRailPost(z0wx + W, rightGap.min);
-      addRailPost(z0wx + W, rightGap.max);
+    if (railOpenRight) {
+      if (railOpenRight.min - (isLedger ? z0wz + 0.3 : z0wz) > 0.1) addRail(z0wx + W, isLedger ? z0wz + 0.3 : z0wz, z0wx + W, railOpenRight.min);
+      if ((z0wz + D) - railOpenRight.max > 0.1) addRail(z0wx + W, railOpenRight.max, z0wx + W, z0wz + D);
+      addRailPost(z0wx + W, railOpenRight.min);
+      addRailPost(z0wx + W, railOpenRight.max);
     } else {
       addRail(z0wx + W, isLedger ? z0wz + 0.3 : z0wz, z0wx + W, z0wz + D);
     }
