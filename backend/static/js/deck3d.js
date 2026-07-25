@@ -294,35 +294,6 @@ window.buildDeckScene = function(scene, p, c, THREE) {
     mats.concrete = new THREE.MeshStandardMaterial({ map: _concTex, roughness: 0.92 });
   }
 
-  // S102: steel framing must not render as wood. Fortress Evolution members are
-  // galvanized gray, not brown PT lumber, and the 3D view had NO concept of
-  // framing type at all (grep for framingType in this file returned 0 before
-  // this). Applied AFTER the photo-theme block on purpose: that block maps a
-  // wood texture onto post/beam/joist, which is exactly wrong for a steel deck,
-  // so steel has to win under either theme.
-  //
-  // Color 0x9aa3ab is the same value as BRAND["steel"] in draw_plan.py. Keep
-  // the two in sync so the PDF details and the 3D agree.
-  //
-  // Deliberately NOT changed: decking, stair treads, risers and stringers. On a
-  // steel-framed deck the STAIRS are still wood -- that is what the Welborn
-  // reference set shows, and why draw_details.py keeps Simpson stair connectors
-  // ("still Simpson, stairs are wood"). Railing is driven by railType, not
-  // framingType, so it is left alone too.
-  //
-  // Post DIMENSIONS were already correct and are not touched: pD is sized as
-  // postSize === "6x6" ? 5.5/12 : 3.5/12 (line ~460, and lpSz at ~1309 for
-  // landing posts), and the steel calc reports postSize "3.5x3.5 Steel", so it
-  // already falls through to 3.5". Only the color was ever wrong.
-  if ((p.framingType || c.framingType) === "steel") {
-    var _steelMat = function (rough) {
-      return new THREE.MeshStandardMaterial({ color: 0x9aa3ab, roughness: rough, metalness: 0.55 });
-    };
-    mats.post = _steelMat(0.35);
-    mats.beam = _steelMat(0.40);
-    mats.joist = _steelMat(0.42);
-  }
-
   // Helper: create mesh, position it, add to scene (fixes scene.add().position.set() bug)
   function addM(geo, mat, x, y, z, shadow) {
     var m = new THREE.Mesh(geo, mat);
@@ -1542,7 +1513,7 @@ function Deck3D({ c, p }) {
 
     // Cleanup
     return () => { cancelAnimationFrame(frameRef.current); cv.removeEventListener("mousedown", onD); cv.removeEventListener("mousemove", onM); cv.removeEventListener("mouseup", onU); cv.removeEventListener("mouseleave", onU); cv.removeEventListener("wheel", onW); cv.removeEventListener("touchstart", onD); cv.removeEventListener("touchmove", onM); cv.removeEventListener("touchend", onU); window._deckOrbit = { theta: orbit.current.theta, phi: orbit.current.phi, dist: orbit.current.dist, drag: false, lx: 0, ly: 0 }; ren.dispose(); };
-  }, [W, D, H, c.nP, c.pp, c.postSize, c.beamSize, c.sp, c.fDiam, p.deckingType, p.deckStairs, p.height, p.deckOffset, p.houseWidth, p.zones, p.slopePercent, p.slopeDirection, p.framingType]);
+  }, [W, D, H, c.nP, c.pp, c.postSize, c.beamSize, c.sp, c.fDiam, p.deckingType, p.deckStairs, p.height, p.deckOffset, p.houseWidth, p.zones, p.slopePercent, p.slopeDirection]);
 
   return <div ref={ref} style={{ width: "100%", height: 380, borderRadius: 6, overflow: "hidden" }} />;
 }

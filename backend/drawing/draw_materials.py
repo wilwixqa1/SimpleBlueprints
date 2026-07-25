@@ -323,37 +323,6 @@ def estimate_materials(params, calc):
             items.append({"cat": "Stairs", "item": f"2x12 Stair Stringers {stringer_ft}'{label}", "qty": total_stringers, "cost": s_cost})
             items.append({"cat": "Stairs", "item": f"5/4x12 PT Treads{label}", "qty": n_t * math.ceil(sw / 1), "cost": 18})
             items.append({"cat": "Stairs", "item": f"Stair Stringer Brackets{label}", "qty": total_stringers, "cost": 8})
-            # S102: stair guard + handrail. Before this, NEITHER engine counted
-            # any stair railing at all -- stringers, treads and brackets only.
-            # The permit set already instructs the builder to install one
-            # (draw_plan.py:1110 'HANDRAIL ON BOTH SIDES, 34" ABOVE NOSING',
-            # draw_details.py:548 dimensions handrail height per R311.7.8.1,
-            # draw_notes.py:374 cites the requirement), so the PDF was calling
-            # for a handrail it did not bill. That is a self-contradicting
-            # document and a real shortfall at the store.
-            #   Guard    (IRC R312.1.1): open sides where the drop exceeds 30".
-            #                            A straight run off a deck is open on
-            #                            BOTH sides.
-            #   Handrail (IRC R311.7.8): required at 4 or more risers.
-            # Will (S102) chose both sides. The one-side case he identified is a
-            # stair running against a deck edge or landing on an L-shaped deck,
-            # which is roughly our is_transitional case -- revisit then, do not
-            # special-case it now.
-            # Length uses the RAW sloped run, not stringer_ft (which carries a
-            # +1 ft waste allowance that should not inflate rail footage).
-            # MUST stay mirrored with engine.js estMaterials.
-            _needs_guard = stair_h * 12 > 30
-            _needs_handrail = n_r >= 4
-            if _needs_guard or _needs_handrail:
-                _rail_sides = 2 if _needs_guard else 1
-                _sloped_ft = math.sqrt((stair_h * 12) ** 2 + total_run ** 2) / 12
-                _stair_rail_ft = _sloped_ft * _rail_sides
-                if params.get("railType") == "fortress":
-                    items.append({"cat": "Railing", "item": f"Fortress Stair Panels{label}", "qty": math.ceil(_stair_rail_ft / 7), "cost": 95})
-                    items.append({"cat": "Railing", "item": f"Fortress Stair Posts{label}", "qty": math.ceil(_stair_rail_ft / 6) + _rail_sides, "cost": 45})
-                    items.append({"cat": "Railing", "item": f"Stair Top Rail + Brackets{label}", "qty": math.ceil(_stair_rail_ft / 7), "cost": 62})
-                else:
-                    items.append({"cat": "Railing", "item": f"Wood Stair Rail Kit (8'){label}", "qty": math.ceil(_stair_rail_ft / 8), "cost": 95})
             # Transitional stairs land on a deck surface, not grade -> no landing
             # footings/posts/bases (treads/stringers/brackets still required).
             if num_landings > 0 and not is_transitional:

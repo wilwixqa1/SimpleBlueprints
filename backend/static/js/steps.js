@@ -4873,10 +4873,7 @@ function StepContent(props) {
       var jcl = p.jurisdictionChecklist || {};
       var hIn = (p.height || 4) * 12;
       var fDep = c.footing_depth || 36;
-      // S102: was reading p.attachmentType, which nothing ever writes. The
-      // wizard writes p.attachment (chip at line ~2983). attachmentType kept
-      // as a fallback for older stored configs. Mirrors jurisdiction_sheet.py.
-      var isDet = (p.attachment || p.attachmentType) === "freestanding";
+      var isDet = p.attachmentType === "freestanding";
       var autos = { under18: hIn <= 18, over8ft: hIn >= 96, freestanding: isDet, excavation: fDep > 36 };
       var uKeys = [];
       ["cover", "electrical", "hottub", "cantilever", "under18", "over8ft", "freestanding", "excavation"].forEach(function(k) {
@@ -5037,9 +5034,7 @@ function StepContent(props) {
 
           var heightIn = (p.height || 4) * 12;
           var footingDepth = c.footing_depth || 36;
-          // S102: see note at the other isDet site -- p.attachmentType is
-          // never written; p.attachment is the real field.
-          var isDetached = (p.attachment || p.attachmentType) === "freestanding";
+          var isDetached = p.attachmentType === "freestanding";
           var jcl = p.jurisdictionChecklist || {};
 
           var items = [

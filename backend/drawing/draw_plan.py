@@ -46,10 +46,6 @@ BRAND = {
     "ledger_green": "#2e7d32",
     "wood": "#d4b87a",
     "light": "#cccccc",
-    # S102: galvanized steel. Distinct from "concrete" (#c8c8c8) and "light"
-    # (#cccccc) so a steel member never reads as a pier or a hairline.
-    # Used by draw_details footing/post details and deck3d.js (keep in sync).
-    "steel": "#9aa3ab",
 }
 
 # S22: Per-zone fill colors for visual differentiation
