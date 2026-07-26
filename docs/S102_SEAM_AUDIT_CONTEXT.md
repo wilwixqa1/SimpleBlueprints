@@ -1,3 +1,23 @@
+> # ⚠ RETRACTED — SECTION 0 OF THIS FILE IS WRONG
+>
+> **Superseded by `S102_SESSION_CONTEXT.md`. Read that instead.**
+>
+> Section 0 below declares S100's "post inside the stair opening" finding a false
+> positive, with a 66-config table under it. **That conclusion is wrong. The
+> finding was real.**
+>
+> The sweep built stairs only from `location` + `offset` — the sidebar fields —
+> which always pin a stair to the deck edge, where nothing collides. It never
+> exercised the **drag**. `planView.js:119` writes `anchorX`/`anchorY`, and a
+> stair released more than 1.5 ft from an edge stays inside the deck. Measured on
+> a 40×12: stair box x[18,22] y[6.0,11.2], post at (20.0, 10.5) — inside it in
+> both axes. Fixed in push 15 (`9618cd9`).
+>
+> The rest of this file (root cause, the audit design, §5 open items) is still
+> accurate. Section 0 is kept rather than deleted because the mistake is itself
+> the lesson: a confident, well-evidenced correction built on the wrong input
+> surface is more dangerous than no analysis at all.
+
 # S102 SEAM AUDIT — CONTEXT
 
 Repo: github.com/wilwixqa1/SimpleBlueprints — main @ 95f2120 — gate green (15 suites).
