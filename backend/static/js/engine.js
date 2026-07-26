@@ -1,3 +1,31 @@
+// =============================================================================
+// S102: FREESTANDING DECK GEOMETRY (IRC R507.6) -- mirror of calc_engine.py's
+// freestanding_geometry / freestanding_max_depth. Keep in lockstep.
+//
+// A freestanding deck has no ledger, so BOTH ends of every joist land on a
+// beam:  D = 2c + s, with a cantilever c each end and span s between.
+// IRC R507.6 caps c at s/4, so the SHORTEST span a depth-D deck can have is
+// 2D/3 (at c = D/6).
+//
+// The old model used D/2 - 0.75, which is below 2D/3 at EVERY depth -- a
+// geometry that cannot be built. It undersized joists (2x6 where 2x10 is
+// required at 16ft) and reported a 33ft max buildable depth on 2x6 joists.
+// =============================================================================
+var FREESTANDING_SETBACK_FT = 1.5;
+
+function freestandingGeometry(depth) {
+  var d = +depth || 0;
+  if (d <= 0) return { c: 0, span: 0 };
+  var c = Math.min(FREESTANDING_SETBACK_FT, d / 6);
+  return { c: +c.toFixed(3), span: +(d - 2 * c).toFixed(3) };
+}
+
+function freestandingMaxDepth(maxJoistSpan) {
+  var sp = +maxJoistSpan || 0;
+  if (sp <= 0) return 0;
+  return +(sp + 2 * FREESTANDING_SETBACK_FT).toFixed(1);
+}
+
 // ============================================================
 // ENGINE   Structural Calculations + Materials Estimator
 // IRC 2021 Table R507.6 joist spans verified from source (S59).
@@ -151,7 +179,7 @@ function calcSteelStructure(p) {
   var joistSize = "2x6-" + gauge + "ga";
 
   // Joist span
-  var jSpan = attachment === "ledger" ? D - 1.5 : D / 2 - 0.75;
+  var jSpan = attachment === "ledger" ? D - 1.5 : freestandingGeometry(D).span;  // S102
 
   // Look up max joist span from CCRR-0313 Table 2
   var joistEntry = window.steelJoistMaxSpan ? window.steelJoistMaxSpan(loadCase, gauge, String(sp)) : null;
@@ -324,7 +352,7 @@ function calcSteelStructure(p) {
   var engineeringRequired = false;
   var maxDepthForJoists = 0;
   if (maxJoistSpanFt > 0) {
-    maxDepthForJoists = attachment === "ledger" ? +(maxJoistSpanFt + 1.5).toFixed(1) : +((maxJoistSpanFt + 0.75) * 2).toFixed(1);
+    maxDepthForJoists = attachment === "ledger" ? +(maxJoistSpanFt + 1.5).toFixed(1) : freestandingMaxDepth(maxJoistSpanFt);
   }
   if (jSpan > maxJoistSpanFt && maxJoistSpanFt > 0) {
     engineeringRequired = true;
@@ -416,7 +444,7 @@ function calcStructure(p) {
   const LL = Math.max(40, SNOW[snowLoad] || 0);
   const DL = deckingType === "composite" ? 15 : 12;
   const TL = LL + DL;
-  const jSpan = attachment === "ledger" ? D - 1.5 : D / 2 - 0.75;
+  const jSpan = attachment === "ledger" ? D - 1.5 : freestandingGeometry(D).span;  // S102
   // IRC table keyed by design load (LL), not total load (TL)
   const table = getSpanTable(LL);
 
@@ -480,8 +508,25 @@ function calcStructure(p) {
     var _cutRects = window.getOpeningRects
       ? window.getOpeningRects(_pz) : window.getCutoutRects(_pz);
     var _cantMax = +(jSpan / 4.0).toFixed(2);
-    beamLayout = window.computeBeamLayout(W, D, _cutRects, nP, _cantMax, 1.5, 8.0);
+    // S102: freestanding sets both beams in by the IRC-capped cantilever.
+    var _setback = (attachment === "ledger") ? 1.5 : freestandingGeometry(D).c;
+    beamLayout = window.computeBeamLayout(W, D, _cutRects, nP, _cantMax, _setback, 8.0);
     pp = beamLayout.postXY.map(function(xy) { return xy[0]; });
+
+    // S102: THE SECOND BEAM. A freestanding deck has no ledger, so the
+    // house-side end of every joist lands on a beam too. Counts were always
+    // doubled; the geometry was not. Mirrors calc_engine.
+    if (attachment !== "ledger") {
+      var _backY = +_setback.toFixed(2);
+      beamLayout.postXY = beamLayout.postXY.concat(
+        pp.map(function(px) { return [px, _backY]; }));
+      beamLayout.segments = beamLayout.segments.concat([{
+        x0: 0, x1: W, beamY: _backY, maxCant: _setback, posts: pp.slice()
+      }]);
+      beamLayout.beamLines = 2;
+    } else {
+      beamLayout.beamLines = 1;
+    }
   } else {
     pp = [];
     for (let i = 0; i < nP; i++) pp.push(+(2 + i * (W - 4) / (nP - 1)).toFixed(2));
@@ -582,7 +627,7 @@ function calcStructure(p) {
   // S61: Engineering required flag for joist over-span
   var maxDepthForJoists = 0;
   if (maxSpan > 0) {
-    maxDepthForJoists = attachment === "ledger" ? +(maxSpan + 1.5).toFixed(1) : +((maxSpan + 0.75) * 2).toFixed(1);
+    maxDepthForJoists = attachment === "ledger" ? +(maxSpan + 1.5).toFixed(1) : freestandingMaxDepth(maxSpan);
   }
   var joistOverSpan = maxSpan > 0 && jSpan > maxSpan;
   var engineeringRequired = joistOverSpan;

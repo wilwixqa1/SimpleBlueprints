@@ -683,6 +683,24 @@ def draw_plan_and_framing(fig, params, calc, spec=None, panels=None):
                     _cn, = ax.plot([_xb, _xb], [min(_ya, _yb), max(_ya, _yb)],
                                    color=BRAND["beam"], lw=4)
                     _cn.set_clip_path(_z0_clip)
+            # S102: THE SECOND BEAM on a freestanding deck. Drawn explicitly and
+            # NOT through the stepped path: these are two independent beams, so
+            # the stepped branch's vertical connector between segments would be
+            # wrong (it joins a beam to itself across a notch). A freestanding
+            # deck has no ledger, so the house-side end of every joist lands
+            # here. Counts were doubled long before the geometry existed.
+            if (_bseg.get("beam_lines") or 1) >= 2:
+                _fs_y = None
+                for _sg in (_bseg.get("segments") or []):
+                    if abs(_sg.get("beam_y", -1) - beam_y) > 1e-6:
+                        _fs_y = _sg["beam_y"]
+                        break
+                if _fs_y is not None:
+                    for _dy, _lw in ((0.0, 4), (-0.12, 0.5), (0.12, 0.5)):
+                        _fb, = ax.plot([1, W - 1], [_fs_y + _dy, _fs_y + _dy],
+                                       color=BRAND["beam"], lw=_lw)
+                        _fb.set_clip_path(_z0_clip)
+
             # S86: beam label -> left margin on a leader (was on the beam)
             _margin_callout(ax, 1.5, beam_y, _mLx, _cy_beam,
                             _wrap(spec["labels"]["beam"]),
@@ -696,6 +714,15 @@ def draw_plan_and_framing(fig, params, calc, spec=None, panels=None):
             else:
                 _post_iter = [(px, _sg["beam_y"])
                               for _sg in _bseg["segments"] for px in _sg["posts"]]
+            # S102: freestanding -- posts under the second (house-side) beam.
+            # calc["post_positions"] is deliberately ONE line's worth, with
+            # total_posts doubled, so the extra line has to be added here.
+            if (_bseg.get("beam_lines") or 1) >= 2 and not _bseg.get("stepped"):
+                for _sg in (_bseg.get("segments") or []):
+                    if abs(_sg.get("beam_y", -1) - beam_y) > 1e-6:
+                        _post_iter = _post_iter + [(px, _sg["beam_y"])
+                                                   for px in _sg["posts"]]
+                        break
             for _px, _py in _post_iter:
                 _pp, = ax.plot(_px, _py, 'o', ms=5, color=BRAND["post"],
                         mec=BRAND["dark"], mew=0.8)

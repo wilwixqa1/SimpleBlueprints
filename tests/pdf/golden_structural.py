@@ -125,6 +125,15 @@ CONFIGS = {
     "side_stair_left": _base(
         deckStairs=[_side_stair("left", 4, sid=0)],
         hasStairs=True, stairLocation="left", stairWidth=4, stairOffset=0),
+    # S102: FREESTANDING COVERAGE. Golden had ZERO freestanding configs -- all 20
+    # fingerprinted sheets were ledger decks. That is exactly how the freestanding
+    # joist span could stay wrong for many sessions without anything failing: the
+    # formula described a geometry IRC R507.6 makes impossible (D/2 - 0.75 is
+    # below the 2D/3 minimum at every depth), which undersized joists on the
+    # permit set and reported a 33ft max buildable depth on 2x6 joists.
+    # These two lock the corrected two-beam layout.
+    "freestanding_shallow": _base(width=20, depth=10, attachment="freestanding"),
+    "freestanding_deep": _base(width=24, depth=16, attachment="freestanding"),
 }
 
 

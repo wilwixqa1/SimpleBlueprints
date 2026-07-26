@@ -512,7 +512,9 @@ def calculate_steel_structure(params):
         load_case = "200"
 
     joist_size = f"2x6-{gauge}ga"
-    joist_span = depth - 1.5 if attachment == "ledger" else depth / 2 - 0.75
+    # S102: freestanding uses the IRC-realizable span (see freestanding_geometry)
+    joist_span = (depth - 1.5 if attachment == "ledger"
+                  else freestanding_geometry(depth)[1])
 
     # Max joist span from CCRR-0313
     gauge_data = _STEEL_JOIST_SPANS.get(load_case, {}).get(gauge, {})
@@ -556,10 +558,33 @@ def calculate_steel_structure(params):
     from .zone_utils import get_opening_rects  # local: avoid import cycle
     _cut_rects = get_opening_rects(params)
     _cantilever_max = round(joist_span / 4.0, 2)
+    # S102: a freestanding deck sets both beams in by the IRC-capped cantilever,
+    # not the 1.5ft ledger setback (they coincide once depth >= 9).
+    _setback = (1.5 if attachment == "ledger"
+                else freestanding_geometry(depth)[0])
     beam_layout = compute_beam_layout(
         width, depth, _cut_rects, num_posts,
-        cantilever_max=_cantilever_max, setback=1.5, max_beam_span=beam_max_span)
+        cantilever_max=_cantilever_max, setback=_setback,
+        max_beam_span=beam_max_span)
     post_positions = [px for (px, _py) in beam_layout["post_xy"]]
+
+    # S102: THE SECOND BEAM. A freestanding deck has no ledger, so the house-side
+    # end of every joist lands on a beam too. The engine has always DOUBLED the
+    # post and hanger counts for this, but the beam existed only as a number --
+    # beam_layout carried one line and every drawing showed one beam. Mirror the
+    # front line to the house side so the geometry matches the counts.
+    # post_positions / total_posts stay per-line; only the geometry gains a line.
+    if attachment != "ledger":
+        _back_y = round(_setback, 2)
+        beam_layout["post_xy"] = (list(beam_layout["post_xy"])
+                                  + [(px, _back_y) for px in post_positions])
+        beam_layout["segments"] = list(beam_layout["segments"]) + [{
+            "x0": 0.0, "x1": float(width), "beam_y": _back_y,
+            "max_cant": _setback, "posts": list(post_positions),
+        }]
+        beam_layout["beam_lines"] = 2
+    else:
+        beam_layout["beam_lines"] = 1
 
     total_posts = len(post_positions) if attachment == "ledger" else len(post_positions) * 2
 
@@ -661,7 +686,7 @@ def calculate_steel_structure(params):
         if attachment == "ledger":
             max_depth_for_joists = round(max_joist_span + 1.5, 1)
         else:
-            max_depth_for_joists = round((max_joist_span + 0.75) * 2, 1)
+            max_depth_for_joists = freestanding_max_depth(max_joist_span)
     engineering_required = joist_span > max_joist_span and max_joist_span > 0
     if engineering_required:
         warnings.append(
@@ -711,6 +736,59 @@ def calculate_steel_structure(params):
     }
 
 
+
+# =============================================================================
+# S102: FREESTANDING DECK GEOMETRY (IRC R507.6)
+# =============================================================================
+# A freestanding deck is NOT a ledger deck with an extra beam. It has no ledger,
+# so BOTH ends of every joist land on a beam:
+#
+#       |<-- c -->|<---------- s ---------->|<-- c -->|      D = 2c + s
+#                 ^beam                     ^beam
+#
+# IRC R507.6 limits a joist cantilever to 1/4 of the adjacent span, so c <= s/4.
+# Substituting: D = 2c + s <= 1.5s, i.e. the SHORTEST span any freestanding deck
+# of depth D can have is 2D/3, reached when c = D/6.
+#
+# The old model used joist_span = D/2 - 0.75, which is BELOW 2D/3 at every
+# depth -- a geometry that cannot be built. On a 16ft deck it assumed a 7.2ft
+# span, which needs 4.40ft cantilevers; IRC allows 1.80ft. The consequence was
+# undersized joists on the permit set (2x6 where 2x10 is required at 16ft) and
+# a reported max buildable depth of 33ft on 2x6 joists.
+#
+# We take c = min(1.5, D/6): 1.5ft matches the ledger setback convention, and
+# D/6 is the IRC cap that binds on shallow decks. Both beams sit at that inset,
+# so the layout is symmetric and the joists are continuous over two supports.
+# =============================================================================
+
+FREESTANDING_SETBACK_FT = 1.5      # preferred inset, matches the ledger convention
+
+
+def freestanding_geometry(depth):
+    """Return (cantilever_ft, joist_span_ft) for a freestanding deck.
+
+    cantilever is capped at depth/6 so the IRC R507.6 quarter-span rule holds.
+    """
+    d = float(depth or 0)
+    if d <= 0:
+        return 0.0, 0.0
+    c = min(FREESTANDING_SETBACK_FT, d / 6.0)
+    return round(c, 3), round(d - 2 * c, 3)
+
+
+def freestanding_max_depth(max_joist_span):
+    """Deepest freestanding deck a given max joist span supports.
+
+    D = s + 2c. For any deck where the 1.5ft inset applies (D >= 9) that is
+    s + 3. The old formula was (max_joist_span + 0.75) * 2, which roughly
+    DOUBLED the real limit.
+    """
+    s = float(max_joist_span or 0)
+    if s <= 0:
+        return 0.0
+    return round(s + 2 * FREESTANDING_SETBACK_FT, 1)
+
+
 def calculate_structure(params):
     # S75: Steel framing path
     if params.get("framingType") == "steel":
@@ -758,7 +836,9 @@ def calculate_structure(params):
     # Wood species for IRC table lookup (S59)
     species = params.get("species", "dfl_hf_spf")
 
-    joist_span = depth - 1.5 if attachment == "ledger" else depth / 2 - 0.75
+    # S102: freestanding uses the IRC-realizable span (see freestanding_geometry)
+    joist_span = (depth - 1.5 if attachment == "ledger"
+                  else freestanding_geometry(depth)[1])
     # IRC table is keyed by design load (LL), not total load (TL).
     # The IRC assumes DL=10. Our higher DL is slightly conservative.
     joist_spans = get_joist_spans_for_load(LL, species)
@@ -818,13 +898,31 @@ def calculate_structure(params):
     from .zone_utils import get_opening_rects  # local: avoid import cycle
     _cut_rects = get_opening_rects(params)
     _cantilever_max = round(joist_span / 4.0, 2)
+    # S102: freestanding sets both beams in by the IRC-capped cantilever.
+    _setback = (1.5 if attachment == "ledger"
+                else freestanding_geometry(depth)[0])
     beam_layout = compute_beam_layout(
         width, depth, _cut_rects, num_posts,
-        cantilever_max=_cantilever_max, setback=1.5, max_beam_span=8.0)
+        cantilever_max=_cantilever_max, setback=_setback, max_beam_span=8.0)
     # Derive post x-positions from the layout (identical to the legacy list on a
     # plain deck). Keeps every downstream reader working; the (x,y) lives in
     # beam_layout for the drawing + the post-in-notch oracle.
     post_positions = [px for (px, _py) in beam_layout["post_xy"]]
+
+    # S102: THE SECOND BEAM -- see the note at the wood site. Counts were always
+    # doubled for freestanding; the geometry was not. Mirror the front line to
+    # the house side so the drawing can render what the numbers already claim.
+    if attachment != "ledger":
+        _back_y = round(_setback, 2)
+        beam_layout["post_xy"] = (list(beam_layout["post_xy"])
+                                  + [(px, _back_y) for px in post_positions])
+        beam_layout["segments"] = list(beam_layout["segments"]) + [{
+            "x0": 0.0, "x1": float(width), "beam_y": _back_y,
+            "max_cant": _setback, "posts": list(post_positions),
+        }]
+        beam_layout["beam_lines"] = 2
+    else:
+        beam_layout["beam_lines"] = 1
 
     total_posts = len(post_positions) if attachment == "ledger" else len(post_positions) * 2
 
@@ -949,7 +1047,8 @@ def calculate_structure(params):
     if attachment == "ledger":
         max_depth_for_joists = round(max_span_available + 1.5, 1) if max_span_available > 0 else 0
     else:
-        max_depth_for_joists = round((max_span_available + 0.75) * 2, 1) if max_span_available > 0 else 0
+        max_depth_for_joists = (freestanding_max_depth(max_span_available)
+                                if max_span_available > 0 else 0)
     joist_over_span = joist_span > max_span_available and max_span_available > 0
     engineering_required = joist_over_span
 

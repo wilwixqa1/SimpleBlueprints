@@ -147,7 +147,15 @@ check("config_c_beam_within_irc", r["beam_span"] <= r["beam_max_span"], True)
 
 # Config D: Freestanding 20x12
 r = calc({'attachment': 'freestanding'})
-check("config_d_joist_span", r["joist_span"], 5.2)  # depth/2 - 0.75, rounded to 1dp
+# S102: WAS 5.2 (depth/2 - 0.75). That formula described a deck that CANNOT BE
+# BUILT. A freestanding deck has no ledger, so both joist ends land on a beam:
+# D = 2c + s with a cantilever c each end. IRC R507.6 caps c at s/4, which makes
+# the SHORTEST possible span 2D/3 -- 8.0 ft on this 12 ft deck. The old 5.2 would
+# have required 3.4 ft cantilevers where IRC allows 1.3 ft. The consequence was
+# undersized joists on the permit set (2x6 where 2x8+ is required from 12 ft) and
+# a reported max buildable depth of 33 ft on 2x6 joists.
+# Now c = min(1.5, D/6) = 1.5 and s = D - 2c = 9.0.
+check("config_d_joist_span", r["joist_span"], 9.0)
 check("config_d_total_posts", r["total_posts"], 6)  # 3 per beam line x 2
 check("config_d_beam_within_irc", r["beam_span"] <= r["beam_max_span"], True)
 
