@@ -55,3 +55,49 @@ S100 ADDITIONS TO THE CONVENTIONS ABOVE
 - LOADS: L.L. 60 psf (with snow), D.L. 15 psf, T.L. 75 psf, ledger 66 psf.
   All three sets. Note our calc engine uses uniform load ONLY; stair stringer
   load has never entered beam/footing sizing (S100_HANDOFF section 8).
+
+================================================================================
+S102 ADDITION -- Meadowview_reference_set.pdf (4th set)
+================================================================================
+4307 Meadowview Ct, Colorado Springs CO. Rick Rutstein / All Things Architecture,
+11/12/24. 8 sheets, text layer present. Deck framing is sheet A-8.
+
+THE HEADLINE, and the reason this was pulled:
+
+    NONE OF THE FOUR REFERENCE SETS CONTAINS A FREESTANDING DECK.
+
+  Ilaria, Loucks, Welborn and Meadowview are ALL ledger-attached. Meadowview
+  states it plainly: 2x8 P.T. LEDGER W/ (2) LEDGER LAGS @ 16" O.C.
+
+  So we have ZERO ground truth for freestanding detailing. The S102 freestanding
+  rebuild (two beams, cantilever c = min(1.5, D/6), span s = D - 2c) is derived
+  purely from IRC R507.6 arithmetic -- the quarter-span cantilever rule -- and is
+  NOT corroborated by any set. Billy said "two beams", which is consistent with
+  what we built, but the INSET is our inference. Ask him specifically:
+    - is min(1.5, D/6) the right inset, or does he use a fixed number (2ft?)
+    - symmetric, or beams biased toward one end
+    - at 20ft deep our engine needs >2x12 -- does he refuse those or engineer them
+
+WHAT MEADOWVIEW ADDS (all ledger-deck detail):
+
+- BEAM: 6X12 P.T. SOLID TIMBER, posts @ 12'-0" O.C. Our engine produces MULTI-PLY
+  (3-ply 2x12) at a similar span. Both are legitimate; Rick uses solid timber
+  here and multi-ply elsewhere. Worth knowing before "correcting" a plan that
+  shows a solid beam. "SPLICE BEAM OVER CENTER OF PIER, TYP."
+- SECONDARY BEAMS: (2) P.T. 2X8 BEAM W/ 'LU228' @ EACH END -- flush beams hung
+  between the main beams, three of them. We do not model this.
+- HARDWARE DIFFERS FROM THE OTHER SETS: 6X6 P.T. POST WITH SIMPSON 'PC66' AT TOP
+  AND 'PBS66' AT BASE. Ilaria/Loucks use ABU66Z base + BCS2-3/6 cap. So Rick's
+  hardware is job-specific, not a fixed standard -- our materials estimate hard
+  codes ABU66Z/BCS2-3/6 and should be understood as ONE valid choice, not THE
+  answer.
+- PIERS: 22" dia x 30" deep round concrete (Ilaria 21"x30", Loucks 20"x30").
+- JOISTS: 2X8 PT @ 16" O.C., 'LU28' hangers each joist BOTH ENDS, H2.5A each
+  joist to beam. (2) P.T. 2X8 @ RIM -- doubled rim, which we do not model.
+- DECKING: 1x6 Trex composite.
+- STAIR: 2x14 stringer @ 16", NOTCH STRINGER FOR PLATE, 2x6 PT w/ 1/2" dia
+  expansion bolts @ 16" OC, MIN 4" THICK LANDING, 12" min. CORROBORATES the
+  Ilaria/Loucks stair-to-grade detail exactly -- no posts under a run to grade,
+  pad plus notched stringer. Third independent confirmation.
+- LOADS: L.L. 60 psf (with snow), D.L. 15, T.L. 75, ledger 66. Same as the other
+  three sets.
