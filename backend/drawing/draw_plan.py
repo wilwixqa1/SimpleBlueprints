@@ -19,7 +19,7 @@ import math
 from .calc_engine import calculate_structure
 from .stair_utils import (get_stair_placement, get_stair_exit_side, resolve_all_stairs,
                           transform_stair_point, transform_stair_rect)
-from .zone_utils import get_additive_rects, get_cutout_rects, get_exposed_edges, get_bounding_box, _chamfered_vertices
+from .zone_utils import get_additive_rects, get_cutout_rects, get_opening_rects, get_exposed_edges, get_bounding_box, _chamfered_vertices
 from .beam_layout import notched_deck_polygon, notch_headers  # S89: notch-aware outline
 
 # ============================================================
@@ -361,7 +361,9 @@ def draw_plan_and_framing(fig, params, calc, spec=None, panels=None):
 
     # S21: Zone-aware plan view data
     add_rects = get_additive_rects(params)
-    cut_rects = get_cutout_rects(params)
+    # S102: includes stair-derived notches, not just user cutouts, so the
+    # framing sheet opens for a stair dragged into the deck.
+    cut_rects = get_opening_rects(params)
     bbox = get_bounding_box(params)
 
     # S22: Adaptive margins - wider multi-zone decks need proportionally more room

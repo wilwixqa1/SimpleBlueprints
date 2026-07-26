@@ -549,8 +549,12 @@ def calculate_steel_structure(params):
     # (_legacy_posts == the old formula) BYTE-FOR-BYTE, so plain steel decks are
     # unchanged. cantilever_max follows the code's R507.5 span/4 convention
     # (see note ~L148); refine if CCRR-0313 specifies a steel-specific allowance.
-    from .zone_utils import get_cutout_rects  # local: avoid import cycle
-    _cut_rects = get_cutout_rects(params)
+    # S102: get_opening_rects = user cutouts + stairs dragged into the deck.
+    # A stair inside the deck is a real opening and the beam must step around
+    # it; before this the beam ran straight through the stairwell. Edge-anchored
+    # stairs contribute nothing, so flat/edge sheets are unchanged.
+    from .zone_utils import get_opening_rects  # local: avoid import cycle
+    _cut_rects = get_opening_rects(params)
     _cantilever_max = round(joist_span / 4.0, 2)
     beam_layout = compute_beam_layout(
         width, depth, _cut_rects, num_posts,
@@ -807,8 +811,12 @@ def calculate_structure(params):
     # the no-zone permit set is unchanged; on a notched deck the beam follows
     # the real edge and no post is left over empty space. cantilever_max = the
     # IRC 2021 R507.6 one-quarter-back-span allowance.
-    from .zone_utils import get_cutout_rects  # local: avoid import cycle
-    _cut_rects = get_cutout_rects(params)
+    # S102: get_opening_rects = user cutouts + stairs dragged into the deck.
+    # A stair inside the deck is a real opening and the beam must step around
+    # it; before this the beam ran straight through the stairwell. Edge-anchored
+    # stairs contribute nothing, so flat/edge sheets are unchanged.
+    from .zone_utils import get_opening_rects  # local: avoid import cycle
+    _cut_rects = get_opening_rects(params)
     _cantilever_max = round(joist_span / 4.0, 2)
     beam_layout = compute_beam_layout(
         width, depth, _cut_rects, num_posts,

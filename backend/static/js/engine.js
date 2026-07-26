@@ -475,7 +475,10 @@ function calcStructure(p) {
     // the same shim deck3d.js and elevationView.js already apply at their call
     // sites. Python's get_cutout_rects reads params["width"]/["depth"] directly.
     var _pz = Object.assign({}, p, { deckWidth: W, deckDepth: D });
-    var _cutRects = window.getCutoutRects(_pz);
+    // S102: openings = user cutouts + stairs dragged into the deck. Mirrors
+    // calc_engine's get_opening_rects so the screen and the PDF agree.
+    var _cutRects = window.getOpeningRects
+      ? window.getOpeningRects(_pz) : window.getCutoutRects(_pz);
     var _cantMax = +(jSpan / 4.0).toFixed(2);
     beamLayout = window.computeBeamLayout(W, D, _cutRects, nP, _cantMax, 1.5, 8.0);
     pp = beamLayout.postXY.map(function(xy) { return xy[0]; });

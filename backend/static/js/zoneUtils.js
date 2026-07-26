@@ -1064,6 +1064,111 @@ window.atZoneCap = function(p) { return ((p && p.zones) || []).filter(function(z
   window.STAIR_HEADROOM_FT = STAIR_HEADROOM_FT;
   window.clipRectsTo = clipRectsTo;
   window.unionSpan = unionSpan;
+  // ==========================================================================
+  // S102: STAIR-DERIVED OPENINGS (the "notch" case) -- JS mirror of
+  // zone_utils.get_stair_opening_rects / get_opening_rects. Keep the two in
+  // lockstep; test_frontend_parity cross-checks them.
+  //
+  // A CUTOUT (button in the plan view, user-placed, edge-limited) lands in
+  // p.zones and always reached the framing. A NOTCH (stair DRAGGED into the
+  // deck -- planView onStairDrag writes anchorX/anchorY and only snaps back to
+  // an edge within 1.5ft) landed in p.deckStairs and reached NOTHING, so the
+  // beam ran straight through the stairwell.
+  //
+  //   stair footprint overlaps the deck plane -> opening, framing must open
+  //   stair footprint clears it               -> nothing (edge stairs unchanged)
+  //
+  // REFUSED, deliberately: fully-interior stairs (never touch a rim) need a
+  // second header on the yard side with no reference detail; and off-axis
+  // rotations, where an axis-aligned rect would over-cut (the S81e mistake).
+  //
+  // DO NOT fold this into getCutoutRects(). resolveAllStairs() calls that to
+  // find the notch edge a stair snaps to -- routing openings back in recurses.
+  // ==========================================================================
+  var STAIR_OPEN_EPS = 0.02;
+  var STAIR_MIN_OPEN_DEPTH = 0.25;
+
+  function getStairOpeningRects(p) {
+    var ds = p.deckStairs;
+    if (!ds || !ds.length) return [];
+    var W = +(p.deckWidth || p.width || 0);
+    var D = +(p.deckDepth || p.depth || 0);
+    if (!(W > 0) || !(D > 0)) return [];
+    if (!window.resolveAllStairs || !window.computeStairGeometry) return [];
+
+    var resolved;
+    try { resolved = window.resolveAllStairs(p); } catch (e) { return []; }
+    if (!resolved || !resolved.length) return [];
+
+    // A stair snapped INTO an existing cutout is the same hole, not a second
+    // one. Emitting both double-draws the header (golden caught this).
+    var existing = getCutoutRects(p).map(function (c) { return c.rect; });
+    function alreadyCut(r) {
+      var ra = r.w * r.d;
+      if (!(ra > 0)) return true;
+      for (var i = 0; i < existing.length; i++) {
+        var e = existing[i];
+        var ox = Math.max(0, Math.min(r.x + r.w, e.x + e.w) - Math.max(r.x, e.x));
+        var oy = Math.max(0, Math.min(r.y + r.d, e.y + e.d) - Math.max(r.y, e.y));
+        if ((ox * oy) / ra >= 0.80) return true;
+      }
+      return false;
+    }
+
+    var out = [];
+    resolved.forEach(function (rs) {
+      var st = rs.stair || {};
+      var zid = (st.zoneId != null) ? st.zoneId : 0;
+      if (zid !== 0) return;                       // framing pipeline is zone-0 only
+      var ang = Math.round(rs.angle || 0);
+      if (((ang % 90) + 90) % 90 !== 0) return;    // off-axis: refused
+
+      var elev = rs.elevationInfo || {};
+      var sg = window.computeStairGeometry({
+        template: st.template || "straight",
+        height: elev.totalRise != null ? elev.totalRise : (+p.height || 0),
+        stairWidth: st.width || 4,
+        numStringers: st.numStringers || 3,
+        runSplit: st.runSplit ? st.runSplit / 100 : null,
+        landingDepth: st.landingDepth || null,
+        stairGap: st.stairGap != null ? st.stairGap : 0.5
+      });
+      if (!sg) return;
+
+      var boxes = stairFootprintRects(sg, rs.worldAnchorX, rs.worldAnchorY, ang);
+      if (!boxes.length) return;
+      var x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+      boxes.forEach(function (b) {
+        x0 = Math.min(x0, b.xMin); x1 = Math.max(x1, b.xMax);
+        y0 = Math.min(y0, b.zMin); y1 = Math.max(y1, b.zMax);
+      });
+
+      var cx0 = Math.max(0, x0), cx1 = Math.min(W, x1);
+      var cy0 = Math.max(0, y0), cy1 = Math.min(D, y1);
+      if ((cx1 - cx0) <= STAIR_OPEN_EPS) return;
+      if ((cy1 - cy0) <= STAIR_MIN_OPEN_DEPTH) return;   // edge-anchored -> nothing
+
+      var reachesRim = (y1 >= D - STAIR_OPEN_EPS) || (y0 <= STAIR_OPEN_EPS)
+                    || (x1 >= W - STAIR_OPEN_EPS) || (x0 <= STAIR_OPEN_EPS);
+      if (!reachesRim) return;                     // fully interior: refused
+
+      var r = { x: +cx0.toFixed(4), y: +cy0.toFixed(4),
+                w: +(cx1 - cx0).toFixed(4), d: +(cy1 - cy0).toFixed(4) };
+      if (alreadyCut(r)) return;
+      out.push({ id: "stair-" + st.id, source: "stair", stairId: st.id,
+                 zone: null, rect: r });
+    });
+    return out;
+  }
+
+  // EVERY opening in the deck plane: user cutouts + stair-derived notches.
+  // This is what the FRAMING pipeline consumes.
+  function getOpeningRects(p) {
+    return getCutoutRects(p).concat(getStairOpeningRects(p));
+  }
+
+  window.getStairOpeningRects = getStairOpeningRects;
+  window.getOpeningRects = getOpeningRects;
   window.getAddableEdges = getAddableEdges;
   window.validateZone = validateZone;
   window.addZoneDefaults = addZoneDefaults;

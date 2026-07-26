@@ -154,6 +154,56 @@ for width in [24, 32, 40]:
 print("   %d edge-anchored, %d inboard configs checked" % (n_edge, n_inboard))
 
 # ============================================================
+# INVARIANT 1b -- STAIR DRAGGED INTO THE DECK ("notch") must open the framing.
+#
+# THIS IS THE CASE THE FIRST VERSION OF THIS FILE MISSED, and the miss was
+# expensive: it tested stair placement ONLY through location+offset (the
+# sidebar), which always pins a stair to the deck edge where nothing collides.
+# From that it "proved" S100's post-in-stairway finding was a false positive.
+#
+# But planView.js onStairDrag writes anchorX/anchorY directly and only snaps
+# back to an edge if released within 1.5ft of one. Drag a stair into the deck
+# and it STAYS there. Measured on a 40x12 before the fix: the stair box was
+# x[18,22] y[6.0,11.2] and a post sat at (20.0, 10.5) -- inside it in BOTH
+# axes. A 6x6 post standing in the stairway, with the beam running through it.
+#
+# So S100 was RIGHT and the "false positive" conclusion was wrong. It was drawn
+# from a test that never exercised the interaction the bug lives in.
+#
+# LESSON, and the reason this block exists: a config built from the sidebar
+# fields is not the same as a config built from the canvas. Test the
+# INTERACTION, not just the form.
+# ============================================================
+print("1b. Stair dragged into the deck vs framing response")
+
+n_drag = 0
+for width, depth in [(40, 12), (28, 14), (20, 12)]:
+    for inset in [2.0, 3.0]:
+        ay = depth - inset          # dragged `inset` ft in from the front edge
+        p = _base(width=width, depth=depth, height=4, attachment="ledger",
+                  deckStairs=[{"id": 0, "zoneId": 0, "width": 4,
+                               "numStringers": 3, "template": "straight",
+                               "anchorX": width / 2.0, "anchorY": ay,
+                               "angle": 0}])
+        c = calculate_structure(p)
+        bl = c.get("beam_layout") or {}
+        n_drag += 1
+
+        check(bool(bl.get("stepped")),
+              "DRAGGED STAIR %dx%d inset %.1fft: stair is inside the deck but "
+              "the beam did not open (would run through the stairwell)"
+              % (width, depth, inset))
+
+        lo, hi = width / 2.0 - 2.0, width / 2.0 + 2.0
+        hits = [(round(px, 2), round(py, 2)) for px, py in (bl.get("post_xy") or [])
+                if lo - 1e-6 < px < hi + 1e-6 and ay - 1e-6 < py < depth + 1e-6]
+        check(not hits,
+              "DRAGGED STAIR %dx%d inset %.1fft: post(s) %s stand inside the "
+              "stair opening x[%.1f,%.1f] y[%.1f,%.1f]"
+              % (width, depth, inset, hits, lo, hi, ay, depth))
+print("   %d dragged-in configs checked" % n_drag)
+
+# ============================================================
 # INVARIANT 2 -- FREESTANDING BEAM COUNT (engine) vs BEAM GEOMETRY (layout)
 # The engine doubles posts for freestanding because it models two beams. The
 # beam_layout must then express two distinct beam lines. Today it expresses

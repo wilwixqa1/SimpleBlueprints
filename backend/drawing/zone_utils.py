@@ -377,3 +377,202 @@ def get_exposed_edges(params, stair_openings=None):
         exposed = result
 
     return exposed
+
+# =============================================================================
+# S102: STAIR-DERIVED OPENINGS  (the "notch" case)
+# =============================================================================
+# A CUTOUT and a NOTCH are different things from the user's point of view, and
+# only one of them used to reach the framing engine:
+#
+#   CUTOUT -- created by a button in the plan view, placed by the user, limited
+#       to a deck edge. Lands in params["zones"] as type "cutout", so
+#       get_cutout_rects() returns it and the framing opens. This always worked.
+#
+#   NOTCH -- created by DRAGGING a stair into the deck (planView.js onStairDrag,
+#       which writes anchorX/anchorY and only snaps back to an edge if released
+#       within 1.5 ft of one). It lands in params["deckStairs"] and populates
+#       NOTHING that the framing engine reads. get_cutout_rects() returned [],
+#       so the beam ran straight through the stairwell and a post could stand
+#       inside it. Measured on a 40x12: post at (20.0, 10.5) inside the stair
+#       box x[18,22] y[6.0,11.2] -- in BOTH axes. That cannot be built.
+#
+# This module closes that gap. The trigger is purely geometric and matches the
+# product rule exactly:
+#
+#     stair footprint overlaps the deck plane  -> opening, framing must open
+#     stair footprint clears the deck plane    -> no opening, framing continuous
+#
+# An edge-anchored stair starts AT the deck edge and runs outward, so its
+# overlap is zero and it produces nothing here. Those sheets stay byte-identical.
+#
+# SCOPE (S102, deliberate -- Billy: the excluded case is very rare):
+#   Handled  : stairs that start inside the deck and still exit past the rim.
+#              These are a notch in the edge; the existing notch pipeline
+#              (front_edge_profile / notch_headers / compute_beam_layout) already
+#              draws them correctly.
+#   REFUSED  : stairs whose footprint is fully interior (never touches the rim).
+#              A true interior opening needs a second header on the yard side and
+#              there is no reference example in docs/reference_sets. Flagged, not
+#              guessed -- see get_stair_opening_warnings().
+#   REFUSED  : stairs rotated off-axis (angle not a multiple of 90). The framing
+#              pipeline takes axis-aligned rects; a bbox would over-cut, which is
+#              the S81e mistake.
+#
+# DO NOT call this from stair_utils.resolve_all_stairs() or anything it calls.
+# That function already calls get_cutout_rects() to find the notch edge a stair
+# should sit on; routing stair openings back into it would recurse forever.
+# =============================================================================
+
+_STAIR_OPEN_EPS = 0.02          # ft; below this an overlap is a touching edge
+_STAIR_MIN_OPEN_DEPTH = 0.25    # ft; ignore slivers
+
+
+def _stair_world_footprint(rs):
+    """Axis-aligned world bbox of a resolved stair's runs + landings.
+
+    Returns (x0, x1, y0, y1) or None. Only valid for angles that are multiples
+    of 90, where the bbox is exact rather than an over-approximation.
+    """
+    from .stair_utils import transform_stair_rect
+
+    sg = rs.get("geometry")
+    if not sg:
+        return None
+    ang = float(rs.get("angle") or 0)
+    if abs((ang % 90.0)) > 1e-6:
+        return None  # off-axis: refused, see module note
+
+    parts = list(sg.get("runs") or []) + list(sg.get("landings") or [])
+    xs, ys = [], []
+    for part in parts:
+        r = part.get("rect")
+        if not r:
+            continue
+        for cx, cy in transform_stair_rect(r, rs["world_anchor_x"],
+                                           rs["world_anchor_y"], ang):
+            xs.append(cx)
+            ys.append(cy)
+    if not xs:
+        return None
+    return min(xs), max(xs), min(ys), max(ys)
+
+
+def _analyse_stair_openings(params):
+    """Shared worker: returns (rects, warnings).
+
+    Split out so get_stair_opening_rects() and get_stair_opening_warnings()
+    cannot drift from one another.
+    """
+    deck_stairs = params.get("deckStairs")
+    if not deck_stairs:
+        return [], []
+
+    W = float(params.get("width") or 0)
+    D = float(params.get("depth") or 0)
+    if W <= 0 or D <= 0:
+        return [], []
+
+    from .stair_utils import resolve_all_stairs
+
+    # Param-only stub. resolve_all_stairs() uses calc solely for width/depth on
+    # the deckStairs path, and those come from params anyway -- so this avoids
+    # depending on calculate_structure(), which is what needs these rects.
+    stub = {"width": W, "depth": D, "stairs": None}
+    try:
+        resolved = resolve_all_stairs(params, stub)
+    except Exception:
+        return [], []
+
+    # A stair that snaps INTO an existing user cutout is the same hole, not a
+    # second one. Emitting both double-draws the header and moves golden on
+    # configs that were already correct (caught by golden on notch_front_stair).
+    existing = [c["rect"] for c in get_cutout_rects(params)]
+
+    def _already_cut(r):
+        ra = r["w"] * r["d"]
+        if ra <= 0:
+            return True
+        for e in existing:
+            ox = max(0.0, min(r["x"] + r["w"], e["x"] + e["w"]) - max(r["x"], e["x"]))
+            oy = max(0.0, min(r["y"] + r["d"], e["y"] + e["d"]) - max(r["y"], e["y"]))
+            if (ox * oy) / ra >= 0.80:
+                return True
+        return False
+
+    rects, warnings = [], []
+    for rs in resolved:
+        sid = (rs.get("stair") or {}).get("id")
+
+        # Zone-0 only for now: the framing pipeline is zone-0 only.
+        if (rs.get("stair") or {}).get("zoneId") not in (0, None):
+            continue
+
+        fp = _stair_world_footprint(rs)
+        if fp is None:
+            if rs.get("geometry"):
+                warnings.append({
+                    "stair_id": sid, "kind": "off_axis",
+                    "message": "Stair %s is rotated off-axis; its opening is not "
+                               "drawn. Rotate to 0/90/180/270 or use a cutout."
+                               % sid,
+                })
+            continue
+
+        x0, x1, y0, y1 = fp
+        # Clip to the deck plane.
+        cx0, cx1 = max(0.0, x0), min(W, x1)
+        cy0, cy1 = max(0.0, y0), min(D, y1)
+        if (cx1 - cx0) <= _STAIR_OPEN_EPS or (cy1 - cy0) <= _STAIR_MIN_OPEN_DEPTH:
+            continue  # edge-anchored / clears the deck -> no opening
+
+        reaches_rim = (
+            y1 >= D - _STAIR_OPEN_EPS or y0 <= _STAIR_OPEN_EPS
+            or x1 >= W - _STAIR_OPEN_EPS or x0 <= _STAIR_OPEN_EPS
+        )
+        if not reaches_rim:
+            warnings.append({
+                "stair_id": sid, "kind": "interior_opening",
+                "message": "Stair %s sits fully inside the deck (opening "
+                           "x[%.2f,%.2f] y[%.2f,%.2f] never reaches an edge). A "
+                           "true interior opening needs a second header on the "
+                           "yard side; no reference detail exists, so the "
+                           "framing is NOT cut. Move the stair to an edge or "
+                           "add a cutout." % (sid, cx0, cx1, cy0, cy1),
+            })
+            continue
+
+        _r = {"x": round(cx0, 4), "y": round(cy0, 4),
+              "w": round(cx1 - cx0, 4), "d": round(cy1 - cy0, 4)}
+        if _already_cut(_r):
+            continue  # the user's cutout already opened this hole
+
+        rects.append({
+            "id": "stair-%s" % sid,
+            "source": "stair",
+            "stair_id": sid,
+            "zone": None,
+            "rect": _r,
+        })
+
+    return rects, warnings
+
+
+def get_stair_opening_rects(params):
+    """Opening rects produced by stairs dragged into the deck. See module note."""
+    return _analyse_stair_openings(params)[0]
+
+
+def get_stair_opening_warnings(params):
+    """Stair openings we deliberately refuse to draw, with the reason."""
+    return _analyse_stair_openings(params)[1]
+
+
+def get_opening_rects(params):
+    """EVERY opening in the deck plane: user cutouts + stair-derived notches.
+
+    This is what the FRAMING pipeline should consume -- beam layout, headers,
+    joists, rim, decking. get_cutout_rects() remains cutouts-only because stair
+    PLACEMENT depends on it (a stair snaps to a notch edge), and feeding stair
+    openings back into placement would recurse.
+    """
+    return list(get_cutout_rects(params)) + list(get_stair_opening_rects(params))
