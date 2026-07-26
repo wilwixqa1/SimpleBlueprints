@@ -573,3 +573,46 @@ def resolve_all_stairs(params: dict, calc: dict) -> list:
         })
 
     return resolved
+
+
+def build_front_stair_openings(params, calc):
+    """S103: the rail gap where a front stair descends through a notched edge.
+
+    SINGLE SOURCE OF TRUTH for this rule. It used to live inline in
+    draw_plan.py only, which is why the framing sheet drew the guard rail open
+    at the stair while the material list on the SAME permit set billed rail
+    straight across the gap (measured: 56.0 LF billed vs 54.0 LF drawn on a
+    20x14 with a centered 4 ft notch and a 4 ft front stair; 312 of 450 swept
+    configs changed a line item).
+
+    Will's rule, S103: what is DRAWN on the permit set and in the 3D view is the
+    source of truth. The material list follows it, never the other way round.
+
+    Returns a list of (edge_y, x0, x1) spans for get_exposed_edges(
+    stair_openings=...), or None when the deck has no front cutout -- None keeps
+    flat decks byte-identical, which is why it is None and not [].
+    """
+    from .beam_layout import front_edge_profile
+    from .zone_utils import get_cutout_rects
+
+    cut_rects = get_cutout_rects(params)
+    if not cut_rects:
+        return None
+
+    W = float(calc["width"])
+    D = float(calc["depth"])
+    prof = front_edge_profile(W, D, cut_rects)
+    has_front_cut = len(prof) > 1 or (prof and abs(prof[0][2] - D) > 1e-6)
+    if not has_front_cut:
+        return None
+
+    openings = []
+    for rs in resolve_all_stairs(params, calc):
+        # Front stairs only. An off-axis stair would need a rotated span; a
+        # bbox would over-cut (the S81e mistake).
+        if int(round(rs.get("angle", 0))) % 360 != 0:
+            continue
+        sw = float(rs["stair"].get("width", 4))
+        ax_c = rs["world_anchor_x"]
+        openings.append((rs["world_anchor_y"], ax_c - sw / 2.0, ax_c + sw / 2.0))
+    return openings

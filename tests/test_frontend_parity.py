@@ -279,21 +279,25 @@ def _check_materials_parity():
          dict(base, zones=[_cutout("front", 4, 4, off=8)],
               deckStairs=[dict(stair)])),
     ]
-    # S101: cutout configs expose a SEPARATE, pre-existing divergence in the
-    # RAILING path -- Python counts the notch's added perimeter, JS's railLen
-    # does not (verified on stock main at df60ddd, before the S101 port: 7 kits
-    # PY vs 6 JS). That is a different subsystem from the beam/post layout this
-    # port covers, and fixing it changes materials output, so it is filed as a
-    # backlog item rather than bundled in here. Until it is fixed, the cutout
-    # cases below assert parity on every line EXCEPT Railing; the flat cases
-    # continue to assert full parity including Railing.
+    # S101 excluded SIX cutout cases here because Python counted the notch's
+    # added perimeter and JS's railLen did not (7 kits PY vs 6 JS at df60ddd).
+    # S103 closed that: both material paths now read the exposed-edge geometry
+    # the drawings already use, so five of the six assert full parity including
+    # Railing.
+    #
+    # The sixth is NOT a seam and must NOT be "fixed" into parity. A freestanding
+    # zoned deck legitimately disagrees: Python keeps the house-side edge
+    # (zone_utils.py:283-284 gates the skip on attachment == "ledger"), JS has no
+    # attachment awareness at all. Which one is right depends on an unanswered
+    # product question -- the wizard says freestanding means detached, the
+    # geometry puts the deck tight against the wall at y=0, and there is no
+    # parameter to move it. See docs/PARKED_freestanding_rail_and_deck_position.md,
+    # section 3: making either side match the other silently decides that
+    # question and either over-bills every freestanding customer or under-guards
+    # a genuinely detached elevated deck. Remove this entry only when the product
+    # decision lands, not to turn a build green.
     RAIL_GAP_CASES = {
-        "materials: centered 4ft notch",
-        "materials: off-center notch",
-        "materials: 6ft notch (was JS 3 / PY 6 posts)",
-        "materials: front-left notch",
         "materials: freestanding + notch",
-        "materials: notch + front stair",
     }
 
     failures = 0

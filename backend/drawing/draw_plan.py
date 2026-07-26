@@ -18,7 +18,8 @@ import math
 # Import our calculation engine
 from .calc_engine import calculate_structure
 from .stair_utils import (get_stair_placement, get_stair_exit_side, resolve_all_stairs,
-                          transform_stair_point, transform_stair_rect)
+                          transform_stair_point, transform_stair_rect,
+                          build_front_stair_openings)
 from .zone_utils import get_additive_rects, get_cutout_rects, get_opening_rects, get_exposed_edges, get_bounding_box, _chamfered_vertices
 from .beam_layout import notched_deck_polygon, notch_headers  # S89: notch-aware outline
 
@@ -375,20 +376,10 @@ def draw_plan_and_framing(fig, params, calc, spec=None, panels=None):
     # the rail across that opening. Gated to notched decks so flat decks are
     # byte-identical. front_edge_profile gives the real (pulled-in) edge y that
     # a front stair anchors to; the opening is the stair's x-footprint there.
-    _stair_openings = None
-    if cut_rects:
-        from .beam_layout import front_edge_profile
-        _prof = front_edge_profile(float(calc["width"]), float(calc["depth"]), cut_rects)
-        _has_front_cut = len(_prof) > 1 or (_prof and abs(_prof[0][2] - float(calc["depth"])) > 1e-6)
-        if _has_front_cut:
-            _stair_openings = []
-            for rs in all_stairs_pre:
-                if int(round(rs.get("angle", 0))) % 360 != 0:
-                    continue  # front stairs only
-                sw = float(rs["stair"].get("width", 4))
-                ax_c = rs["world_anchor_x"]
-                ey = rs["world_anchor_y"]
-                _stair_openings.append((ey, ax_c - sw / 2.0, ax_c + sw / 2.0))
+    # S103: this rule now lives in ONE place. It used to be inline here and
+    # nowhere else, so the material list could not see it -- the sheet drew the
+    # rail open at the stair and the material table billed straight across it.
+    _stair_openings = build_front_stair_openings(params, calc)
     exp_edges = get_exposed_edges(params, stair_openings=_stair_openings)
     stair_x_min, stair_x_max = bbox["x"], bbox["x"] + bbox["w"]
     stair_y_min, stair_y_max = bbox["y"], bbox["y"] + bbox["d"]

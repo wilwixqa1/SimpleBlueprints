@@ -12,7 +12,7 @@ import matplotlib.patches as patches
 
 from .zone_utils import get_exposed_edges
 from .calc_engine import get_joist_spans_for_load, auto_select_beam
-from .stair_utils import compute_stair_geometry
+from .stair_utils import compute_stair_geometry, build_front_stair_openings
 
 BRAND = {
     "dark": "#1a1f16", "green": "#3d5a2e", "cream": "#faf8f3",
@@ -34,7 +34,9 @@ def estimate_steel_materials(params, calc):
     D = c["depth"]
     nJ = c["num_joists"]
     sp = c["joist_spacing"]
-    railLen = c["rail_length"]
+    # S103: was calc["rail_length"] (W + 2D) with NO zone branch, so a steel
+    # notched deck UNDER-billed the rail by 8-10 LF. Same helper as the wood path.
+    railLen = _rail_length(params, c)
     attachment = c["attachment"]
     gauge = c.get("steelGauge", params.get("steelGauge", "16"))
     isDouble = "Double" in c.get("beam_size", "")
@@ -124,6 +126,37 @@ def estimate_steel_materials(params, calc):
     return {"items": items, "subtotal": round(sub, 2), "tax": round(sub * 0.08, 2), "cont": round(sub * 0.05, 2), "total": round(sub * 1.13, 2)}
 
 
+def _rail_length(params, calc):
+    """S103: billed rail length == DRAWN rail length. One function, both engines.
+
+    Will's rule: what the permit sheet and the 3D view draw is the source of
+    truth; the material list follows it. Both drawings already call
+    get_exposed_edges WITH the stair openings (draw_plan.py, deck3d.js). Neither
+    material path did, and estimate_steel_materials had no zone branch at all.
+
+    Measured before this fix, 20x14 ledger, centered 4 ft notch, 4 ft front stair:
+        drawn (draw_plan)             54.0 LF
+        billed (estimate_materials)   56.0 LF   <- over-bills the stair gap
+        billed (steel path)           44   LF   <- misses the notch wrap entirely
+    Sweep of 450 notch+stair configs: 312 changed a line item, always over-billing
+    on the wood path. Steel under-billed by 8-10 LF on every notched deck.
+
+    Flat decks (no zones) keep calc["rail_length"] untouched, so they stay
+    byte-identical. Both stair paths -- deckStairs and legacy hasStairs -- resolve
+    through build_front_stair_openings, so there is NO manual stair subtraction
+    here; adding one back would double-count the gap.
+    """
+    if not params.get("zones"):
+        return calc["rail_length"]
+    edges = get_exposed_edges(
+        params, stair_openings=build_front_stair_openings(params, calc)
+    )
+    return round(sum(
+        abs(e["x2"] - e["x1"]) if e["dir"] == "h" else abs(e["y2"] - e["y1"])
+        for e in edges
+    ), 1)
+
+
 def _stock_len(ft):
     """S99: round an order length up to a real stock length (mirrors engine.js stockLen)."""
     for L in (8, 10, 12, 14, 16, 20):
@@ -151,21 +184,12 @@ def estimate_materials(params, calc):
     D = c["depth"]
     nJ = c["num_joists"]
     joistSize = c["joist_size"]
-    railLen = c["rail_length"]
     attachment = c["attachment"]
     ledgerSize = c["ledger_size"]
 
-    # Zone-aware railing: use exposed edges total length
     zones = params.get("zones", [])
-    if zones:
-        edges = get_exposed_edges(params)
-        total_len = sum(
-            abs(e["x2"] - e["x1"]) if e["dir"] == "h" else abs(e["y2"] - e["y1"])
-            for e in edges
-        )
-        if params.get("hasStairs"):
-            total_len -= params.get("stairWidth", 4)
-        railLen = round(total_len, 1)
+    # S103: bill the rail the sheet actually draws. See _rail_length.
+    railLen = _rail_length(params, c)
 
     # Foundation
     bags = math.ceil((math.pi * (fDiam / 24) ** 2 * (fDepth / 12)) / 0.6) * nF

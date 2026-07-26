@@ -237,7 +237,82 @@ print("   %d freestanding configs checked" % n_fs)
 # This guards the audit itself: if this ever fails, the test is broken, not the
 # product.
 # ============================================================
-print("3. Control: plain ledger deck is already consistent")
+# INVARIANT 3 -- BILLED rail length == DRAWN rail length.
+#
+# The seam this closes (S103): the framing sheet drew the guard rail open where
+# a front stair descends (draw_plan.py passed stair_openings into
+# get_exposed_edges) while the material list on the SAME permit set billed rail
+# straight across that gap (draw_materials.py did not pass them), and the steel
+# material path had no zone branch at all so it missed the notch wrap entirely.
+# Measured pre-fix: 54.0 LF drawn vs 56.0 LF billed wood, 44 LF billed steel;
+# 312 of 450 swept notch+stair configs changed a line item.
+#
+# This needs its own invariant because NOTHING ELSE COVERS IT. golden_structural
+# fingerprints site/plan/framing/details -- the material sheet is not in SHEETS,
+# so a material-list regression is invisible to golden by construction.
+# test_frontend_parity only proves JS and Python agree with EACH OTHER, which
+# would stay green if both drifted the same way.
+#
+# Both sides must read the same rule: draw_plan and draw_materials go through
+# stair_utils.build_front_stair_openings. If someone re-inlines it in one place,
+# this fails.
+#
+# Asserted against the ESTIMATOR OUTPUT, not against _rail_length. Testing the
+# helper directly passes even if a call site is reverted -- found by mutation
+# test: dropping the steel path back to calc["rail_length"] left a
+# helper-level check completely green.
+print("3. Billed rail length vs drawn rail length")
+import math  # noqa: E402
+from drawing.draw_materials import (  # noqa: E402
+    estimate_materials, estimate_steel_materials,
+)
+from drawing.zone_utils import get_exposed_edges  # noqa: E402
+from drawing.stair_utils import build_front_stair_openings  # noqa: E402
+
+
+def _edge_total(edges):
+    return round(sum(abs(e["x2"] - e["x1"]) if e["dir"] == "h"
+                     else abs(e["y2"] - e["y1"]) for e in edges), 1)
+
+
+n_rail = 0
+for _w, _d in [(16, 12), (20, 14), (24, 12), (30, 16), (40, 12)]:
+    for _cw, _cd, _coff in [(4, 4, 8), (4, 5, 4), (6, 5, 7)]:
+        if _coff + _cw > _w:
+            continue
+        for _sw in [3, 4, 5]:
+            for _framing in ["wood", "steel"]:
+                _p = _base(width=_w, depth=_d, height=4, attachment="ledger",
+                           framingType=_framing,
+                           zones=[{"id": 1, "type": "cutout",
+                                   "attachEdge": "front", "attachOffset": _coff,
+                                   "w": _cw, "d": _cd, "attachTo": 0}],
+                           deckStairs=[{"id": 0, "zoneId": 0,
+                                        "location": "front", "offset": 0,
+                                        "width": _sw, "numStringers": 3,
+                                        "template": "straight"}])
+                _p["railType"] = "wood"
+                _c = calculate_structure(_p)
+                _drawn = _edge_total(get_exposed_edges(
+                    _p, stair_openings=build_front_stair_openings(_p, _c)))
+                _est = (estimate_steel_materials if _framing == "steel"
+                        else estimate_materials)(_p, _c)
+                # The deck guard rail line only. Stair rail is a separate item
+                # ("Wood Stair Rail Kit (8')") computed from stair geometry.
+                _kits = [i["qty"] for i in _est["items"]
+                         if i["item"] == "Wood Rail Kit (8')"]
+                _want = math.ceil(_drawn / 8)
+                check(len(_kits) == 1 and _kits[0] == _want,
+                      "RAIL %s %dx%d notch %dx%d@%d stair %dft: sheet DRAWS "
+                      "%s LF (= %d kits), material list BILLS %s kits"
+                      % (_framing, _w, _d, _cw, _cd, _coff, _sw,
+                         _drawn, _want, _kits))
+                n_rail += 1
+print("   %d notch+stair configs checked (wood and steel)" % n_rail)
+
+
+# ============================================================
+print("4. Control: plain ledger deck is already consistent")
 p = _base(width=20, depth=12, height=4, attachment="ledger")
 c = calculate_structure(p)
 bl = c.get("beam_layout") or {}

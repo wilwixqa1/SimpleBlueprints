@@ -121,6 +121,24 @@ function getBeamMaxSpan(beamSize, joistSpan, designLoad) {
 // Parallel to wood calcStructure but uses CCRR-0313 tables
 // instead of IRC R507. All span data from steelDeckData.js.
 // ============================================================
+// S103: MIRROR of backend draw_materials._rail_length. The rail the material
+// list bills must be the rail the drawings show. Both drawings (draw_plan.py
+// for the sheet, deck3d.js for the 3D view) already call getExposedEdges WITH
+// the stair openings; the rail arithmetic below never did, so a notched deck
+// with a front stair billed a rail across a gap it drew as open.
+// Flat decks (no zones) keep the arithmetic result untouched. Falls back to the
+// arithmetic if zoneUtils is not loaded, which is how engine.js already guards
+// its other zoneUtils reads.
+function railLengthFromDrawing(p, fallback) {
+  if (!p.zones || !p.zones.length || !window.getExposedEdges) return fallback;
+  var pz = Object.assign({}, p, { deckWidth: p.width, deckDepth: p.depth, deckHeight: p.height });
+  var ops = window.computeStairOpenings ? window.computeStairOpenings(pz) : null;
+  var edges = window.getExposedEdges(pz, ops);
+  return +edges.reduce(function (s, e) {
+    return s + (e.dir === "h" ? Math.abs(e.x2 - e.x1) : Math.abs(e.y2 - e.y1));
+  }, 0).toFixed(1);
+}
+
 function calcSteelStructure(p) {
   var W = p.width || 20, D = p.depth || 12, H = p.height || 4;
   var attachment = p.attachment || "ledger";
@@ -305,6 +323,9 @@ function calcSteelStructure(p) {
       }
     });
   }
+  // S103: on a zoned deck the exposed-edge geometry supersedes all of the above
+  // (it already accounts for the notch wrap, the stair gap and the chamfers).
+  railLen = railLengthFromDrawing(p, railLen);
 
   // Guard rail
   var guardRequired = H * 12 > 30;
@@ -584,6 +605,8 @@ function calcStructure(p) {
       }
     });
   }
+  // S103: on a zoned deck the exposed-edge geometry supersedes all of the above.
+  railLen = railLengthFromDrawing(p, railLen);
 
   // Guard rail system (IRC R312.1.1, R312.1.3)
   const guardRequired = H * 12 > 30;
