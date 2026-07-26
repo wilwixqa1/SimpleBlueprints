@@ -468,27 +468,49 @@ window.buildDeckScene = function(scene, p, c, THREE) {
   // ------------------------------------------------------------------
   // S102: GUARD-RAIL openings, computed separately from the gaps above.
   //
-  // frontGap / leftGap / rightGap answer "where must the DECKING and JOISTS be
-  // cut", which correctly runs through clipRectsTo + stairPartsNeedingOpening
-  // (the headroom rule). But they are also the only thing that opens the guard
-  // rail, and for that they are wrong: getStairPlacementForZone anchors a front
-  // stair at anchorY == deck depth, so run0 starts EXACTLY at the front edge and
-  // extends outward. clipRectsTo needs >0.02ft of real overlap, gets 0, drops
-  // the rect, _sp comes back null, the forEach hits `return`, and frontGap stays
-  // null. The rail then falls to the `else` branch and is drawn straight across
-  // the stair -- a guard across the way out.
+  // CORRECTION (S102, after review): an earlier version of this comment and of
+  // the S102 push-10 commit message said frontGap is "wrong" for the rail and
+  // that folding the rail into it would "corrupt the framing plan on the permit
+  // set". BOTH claims were overstated. The corrected, measured position:
   //
-  // The rail question is much simpler: where does the stair cross the guard
-  // line? That is the span of the FIRST run on that edge, regardless of whether
-  // any decking needs cutting.
+  // 1. frontGap / leftGap / rightGap decide where the DECKING, JOISTS, RIM and
+  //    BEAM get split. They are read at lines ~570 (beam), ~602 (joists), ~642
+  //    (rim) and ~913 (deck boards). They are framing variables.
   //
-  // These are deliberately SEPARATE variables. Folding this into frontGap would
-  // start cutting joists, rim and boards at an edge-anchored stair where nothing
-  // should be cut, which would corrupt the framing plan on the permit set.
+  // 2. frontGap is CORRECT, and necessary, whenever a stair is anchored to an
+  //    INBOARD zone -- which is what a notch/cutout creates. Measured on a
+  //    20x14 deck (plane z[-7,7]):
+  //      zone front edge at y=9  -> run0 z[2.00, 7.30]  -> OVERLAPS, gap fires
+  //      zone front edge at y=6  -> run0 z[-1.00, 4.30] -> OVERLAPS, gap fires
+  //    In those cases the stair really does cross the deck plane and the boards
+  //    and joists really do need cutting. DO NOT "fix" that.
+  //
+  // 3. frontGap fails in ONE specific case: a stair anchored on the zone's OUTER
+  //    edge, where the zone front edge == the deck front edge. Measured, same
+  //    deck: anchorY == 14 -> run0 z[7.00, 12.30], i.e. it starts exactly at the
+  //    plane boundary and runs outward. clipRectsTo needs >0.02ft of real
+  //    overlap, gets 0, drops the rect, _sp is null, the forEach hits `return`,
+  //    and frontGap stays null. The rail then falls to the `else` branch and is
+  //    drawn straight across the way out. That is the bug this block fixes.
+  //
+  // 4. The rail needs an opening in BOTH cases (2 and 3). The framing only needs
+  //    cutting in case 2. That asymmetry is the whole reason these are separate
+  //    variables -- not because frontGap is broken.
+  //
+  // 5. SCOPE: this file is the 3D PREVIEW ONLY. The permit framing plan is drawn
+  //    by backend/drawing/draw_plan.py, which has its own logic and is NOT
+  //    affected by anything in this block. Nothing here can reach the permit set.
+  //
+  // The rail question itself is simple: where does the stair cross the guard
+  // line? That is the span of the FIRST run on that edge.
   //
   // run0 specifically, not the stair bbox: on a switchback or wraparound the
   // bbox spans the dead air between folded runs and would open far more rail
   // than the stair actually occupies.
+  //
+  // NOT MEASURED, do not assume: switchback second runs (which fold back toward
+  // the house and may genuinely pass under the deck), side-anchored stairs, and
+  // stairs whose def.zoneId !== 0 -- the loop below skips those entirely.
   // ------------------------------------------------------------------
   var railGapFront = null, railGapLeft = null, railGapRight = null;
   resolvedStairs.forEach(function(rs) {
