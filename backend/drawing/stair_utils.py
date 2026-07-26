@@ -599,17 +599,28 @@ def build_front_stair_openings(params, calc):
     reading "no rail across the stair opening" made it look done. If you are
     tempted to re-gate this for byte-identity, that is exactly how it hid.
 
-    Returns a list of (edge_y, x0, x1) spans for
-    get_exposed_edges(stair_openings=...). Empty list when there are no front
-    stairs, which leaves a stairless deck's railing untouched.
+    Returns a list of openings for get_exposed_edges(stair_openings=...):
+        ("h", edge_y, x0, x1)   front stairs   (angle 0)
+        ("v", edge_x, y0, y1)   side stairs    (angle 90 / 270)
+    Empty list when there are no axis-aligned stairs, which leaves a stairless
+    deck's railing untouched.
+
+    S103 push 5 added the side-stair case. Before it, this returned openings for
+    front stairs only and every other stair got a railing drawn across it.
+    Off-axis (rotated) stairs are still skipped: a bounding box would over-cut,
+    which is the S81e mistake.
     """
     openings = []
     for rs in resolve_all_stairs(params, calc):
-        # Front stairs only. An off-axis stair would need a rotated span; a
-        # bbox would over-cut (the S81e mistake).
-        if int(round(rs.get("angle", 0))) % 360 != 0:
-            continue
+        ang = int(round(rs.get("angle", 0))) % 360
         sw = float(rs["stair"].get("width", 4))
-        ax_c = rs["world_anchor_x"]
-        openings.append((rs["world_anchor_y"], ax_c - sw / 2.0, ax_c + sw / 2.0))
+        ax = rs["world_anchor_x"]
+        ay = rs["world_anchor_y"]
+        if ang == 0 or ang == 180:
+            # Front/back stairs sit on a horizontal edge, centred on x.
+            openings.append(("h", ay, ax - sw / 2.0, ax + sw / 2.0))
+        elif ang == 90 or ang == 270:
+            # Side stairs sit on a vertical edge, centred on y.
+            openings.append(("v", ax, ay - sw / 2.0, ay + sw / 2.0))
+        # anything else: off-axis, skipped deliberately
     return openings

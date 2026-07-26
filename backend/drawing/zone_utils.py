@@ -352,28 +352,49 @@ def get_exposed_edges(params, stair_openings=None):
                     if s_end - s_start > 0.05:
                         exposed.append({"x1": e["x1"], "y1": s_start, "x2": e["x2"], "y2": s_end, "dir": "v"})
 
-    # Phase 3 (P1.4a): remove rail across stair openings. Each opening is a
-    # horizontal span (edge_y, x0, x1) where a stair descends through an exposed
-    # edge (the notch-back edge for a notch-hosted stair). No opening -> no-op,
-    # so flat / stair-less decks are unchanged.
+    # Phase 3 (P1.4a, generalised S103 push 5): remove railing across stair
+    # openings. WILL'S RULE: if there are stairs, there is never a railing
+    # across them -- any edge, any deck shape.
+    #
+    # An opening is either:
+    #   (coord, a, b)         legacy 3-tuple, HORIZONTAL edge at y=coord
+    #   ("h"|"v", coord, a, b) explicit
+    # Vertical support was added in S103 push 5 because side stairs (angle
+    # 90/270) land on a vertical edge, and this phase used to skip every
+    # non-horizontal edge -- so a left or right stair had a railing drawn
+    # straight across it on the permit set.
     if stair_openings:
+        norm = []
+        for o in stair_openings:
+            if len(o) == 4:
+                norm.append((o[0], float(o[1]), float(o[2]), float(o[3])))
+            else:
+                norm.append(("h", float(o[0]), float(o[1]), float(o[2])))
         result = []
         for e in exposed:
-            if e["dir"] != "h":
-                result.append(e)
+            d = e["dir"]
+            if d not in ("h", "v"):
+                result.append(e)          # diagonal chamfers are never opened
                 continue
-            ey = e["y1"]
-            ex0 = min(e["x1"], e["x2"])
-            ex1 = max(e["x1"], e["x2"])
-            blockers = [(o[1], o[2]) for o in stair_openings
-                        if abs(o[0] - ey) < 0.01]
+            if d == "h":
+                coord = e["y1"]
+                a, b = min(e["x1"], e["x2"]), max(e["x1"], e["x2"])
+            else:
+                coord = e["x1"]
+                a, b = min(e["y1"], e["y2"]), max(e["y1"], e["y2"])
+            blockers = [(o[2], o[3]) for o in norm
+                        if o[0] == d and abs(o[1] - coord) < 0.01]
             if not blockers:
                 result.append(e)
                 continue
-            for s_start, s_end in _subtract_segments(ex0, ex1, blockers):
+            for s_start, s_end in _subtract_segments(a, b, blockers):
                 if s_end - s_start > 0.05:
-                    result.append({"x1": s_start, "y1": ey,
-                                   "x2": s_end, "y2": ey, "dir": "h"})
+                    if d == "h":
+                        result.append({"x1": s_start, "y1": coord,
+                                       "x2": s_end, "y2": coord, "dir": "h"})
+                    else:
+                        result.append({"x1": coord, "y1": s_start,
+                                       "x2": coord, "y2": s_end, "dir": "v"})
         exposed = result
 
     return exposed

@@ -333,42 +333,55 @@ print("   %d notch+stair configs checked (wood and steel)" % n_rail)
 # THE PLAIN-DECK CASES BELOW ARE THE POINT. If someone re-gates the opening on
 # cutouts for byte-identity, they fail. Do not delete them to keep golden still;
 # golden moving is the correct outcome of a real fix.
-print("5. No railing across a stairway, on any deck shape")
+print("5. No railing across a stairway, on any deck shape, on any edge")
 from drawing.zone_utils import get_exposed_edges as _gee  # noqa: E402
 from drawing.stair_utils import build_front_stair_openings as _bfso  # noqa: E402
 
 n_gap = 0
-for _label, _zones in [("PLAIN rectangle (the case that was never fixed)", None),
-                       ("NOTCHED", "cut")]:
-    for _w, _d in [(16, 12), (20, 14), (30, 16)]:
-        for _sw in [3, 4, 5]:
-            _kw = dict(width=_w, depth=_d, height=4, attachment="ledger",
-                       deckStairs=[{"id": 0, "zoneId": 0, "location": "front",
-                                    "offset": 0, "width": _sw,
-                                    "numStringers": 3, "template": "straight"}])
-            if _zones:
-                _kw["zones"] = [{"id": 1, "type": "cutout", "attachEdge": "front",
-                                 "attachOffset": _w / 2.0 - _sw / 2.0,
-                                 "w": _sw, "d": 4, "attachTo": 0}]
-            _p = _base(**_kw)
-            _c = calculate_structure(_p)
-            _edges = _gee(_p, stair_openings=_bfso(_p, _c))
-            _front = [e for e in _edges if e["dir"] == "h"
-                      and abs(e["y1"] - float(_c["depth"])) < 0.01]
-            # The stair is centred, so the deck front must come back as two
-            # runs with a gap. One run means a railing across the stairway.
-            check(len(_front) >= 2,
-                  "STAIR RAILING %s %dx%d, %d ft stairs: front railing came "
-                  "back as %d run(s) -- a single run is a railing drawn across "
-                  "the stairway" % (_label, _w, _d, _sw, len(_front)))
-            if len(_front) >= 2:
-                _spans = sorted(sorted([e["x1"], e["x2"]]) for e in _front)
-                _gap = _spans[1][0] - _spans[0][1]
-                check(abs(_gap - _sw) < 0.01,
-                      "STAIR RAILING %s %dx%d: gap is %.1f ft but the stairs "
-                      "are %d ft wide" % (_label, _w, _d, _gap, _sw))
-            n_gap += 1
-print("   %d configs checked (plain and notched)" % n_gap)
+for _shape, _notched in [("PLAIN rectangle (never fixed until S103 p4)", False),
+                         ("NOTCHED", True)]:
+    for _loc in ["front", "left", "right"]:
+        for _w, _d in [(16, 12), (20, 14), (30, 16)]:
+            for _sw in [3, 4, 5]:
+                _kw = dict(width=_w, depth=_d, height=4, attachment="ledger",
+                           deckStairs=[{"id": 0, "zoneId": 0, "location": _loc,
+                                        "offset": 0, "width": _sw,
+                                        "numStringers": 3,
+                                        "template": "straight"}])
+                if _notched:
+                    # S91: the product pairs a notch with a stair of the SAME
+                    # width. A mismatched fixture makes the front-edge gap the
+                    # NOTCH width rather than the stair width and the assertion
+                    # below measures the wrong thing.
+                    _kw["zones"] = [{"id": 1, "type": "cutout",
+                                     "attachEdge": "front",
+                                     "attachOffset": (_w - _sw) / 2.0,
+                                     "w": _sw, "d": 4, "attachTo": 0}]
+                _p = _base(**_kw)
+                _c = calculate_structure(_p)
+                _W, _D = float(_c["width"]), float(_c["depth"])
+                _edges = _gee(_p, stair_openings=_bfso(_p, _c))
+                # Which edge do these stairs land on, and is it split there?
+                _dir, _coord = {"front": ("h", _D),
+                                "left": ("v", 0.0),
+                                "right": ("v", _W)}[_loc]
+                _on = [e for e in _edges if e["dir"] == _dir
+                       and abs((e["y1"] if _dir == "h" else e["x1"]) - _coord) < 0.01]
+                _lbl = "%s %s stairs %dx%d, %d ft" % (_shape, _loc, _w, _d, _sw)
+                check(len(_on) >= 2,
+                      "STAIR RAILING %s: railing on that edge came back as %d "
+                      "run(s) -- a single run is a railing across the stairway"
+                      % (_lbl, len(_on)))
+                if len(_on) >= 2:
+                    _sp = sorted(sorted([e["x1"], e["x2"]] if _dir == "h"
+                                        else [e["y1"], e["y2"]]) for e in _on)
+                    _gap = _sp[1][0] - _sp[0][1]
+                    check(abs(_gap - _sw) < 0.01,
+                          "STAIR RAILING %s: gap is %.1f ft, stairs are %d ft"
+                          % (_lbl, _gap, _sw))
+                n_gap += 1
+print("   %d configs checked (plain and notched; front, left and right stairs)"
+      % n_gap)
 
 
 # ============================================================

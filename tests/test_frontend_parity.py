@@ -82,9 +82,26 @@ def _canon_prof(prof):
 
 
 def _canon_openings(ops):
+    """Canonicalise a stair-opening list for comparison.
+
+    S103 push 5: openings gained a direction tag so side stairs (which land on
+    a VERTICAL edge) can be expressed. Both shapes are accepted:
+        (coord, a, b)            legacy, implicitly horizontal
+        ("h"|"v", coord, a, b)   explicit
+    A legacy 3-tuple normalises to ("h", ...) so an old fixture and a new one
+    compare equal.
+    """
     if not ops:
         return []
-    return sorted((round(o[0], 2), round(o[1], 2), round(o[2], 2)) for o in ops)
+    out = []
+    for o in ops:
+        if len(o) == 4:
+            out.append((o[0], round(float(o[1]), 2), round(float(o[2]), 2),
+                        round(float(o[3]), 2)))
+        else:
+            out.append(("h", round(float(o[0]), 2), round(float(o[1]), 2),
+                        round(float(o[2]), 2)))
+    return sorted(out)
 
 
 def _py_openings(W, D, zones, deck_stairs):

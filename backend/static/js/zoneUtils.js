@@ -290,23 +290,41 @@ window.atZoneCap = function(p) { return ((p && p.zones) || []).filter(function(z
       return true;
     });
 
-    // Phase 3 (P1.4a parity): remove rail across stair openings. Mirrors the
-    // stair_openings phase of backend get_exposed_edges. Horizontal edges only;
-    // no opening -> no-op, so flat / stair-less decks are unchanged.
+    // Phase 3 (P1.4a parity, generalised S103 push 5): remove railing across
+    // stair openings. Mirrors the stair_openings phase of backend
+    // get_exposed_edges, INCLUDING vertical edges.
+    //
+    // WILL'S RULE: if there are stairs, there is never a railing across them.
+    // This used to skip every non-horizontal edge, so a left or right stair
+    // (angle 90/270, which lands on a vertical edge) had a railing drawn
+    // straight across it.
+    //
+    // Opening shapes accepted, matching the backend:
+    //   [coord, a, b]            legacy 3-element, HORIZONTAL edge at y=coord
+    //   ["h"|"v", coord, a, b]   explicit
     if (stairOpenings && stairOpenings.length) {
+      var norm = stairOpenings.map(function(o) {
+        return (o.length === 4) ? [o[0], o[1], o[2], o[3]] : ["h", o[0], o[1], o[2]];
+      });
       var out = [];
       merged.forEach(function(e) {
-        if (e.dir !== "h") { out.push(e); return; }
-        var ey = e.y1;
-        var ex0 = Math.min(e.x1, e.x2), ex1 = Math.max(e.x1, e.x2);
+        if (e.dir !== "h" && e.dir !== "v") { out.push(e); return; }
+        var coord = (e.dir === "h") ? e.y1 : e.x1;
+        var a = (e.dir === "h") ? Math.min(e.x1, e.x2) : Math.min(e.y1, e.y2);
+        var b = (e.dir === "h") ? Math.max(e.x1, e.x2) : Math.max(e.y1, e.y2);
         var blockers = [];
-        stairOpenings.forEach(function(o) {
-          if (Math.abs(o[0] - ey) < 0.01) blockers.push([o[1], o[2]]);
+        norm.forEach(function(o) {
+          if (o[0] === e.dir && Math.abs(o[1] - coord) < 0.01) blockers.push([o[2], o[3]]);
         });
         if (!blockers.length) { out.push(e); return; }
-        _subtractSegments(ex0, ex1, blockers).forEach(function(seg) {
+        var dir = e.dir;
+        _subtractSegments(a, b, blockers).forEach(function(seg) {
           if (seg[1] - seg[0] > 0.05) {
-            out.push({ x1: seg[0], y1: ey, x2: seg[1], y2: ey, dir: "h", pos: ey });
+            if (dir === "h") {
+              out.push({ x1: seg[0], y1: coord, x2: seg[1], y2: coord, dir: "h", pos: coord });
+            } else {
+              out.push({ x1: coord, y1: seg[0], x2: coord, y2: seg[1], dir: "v", pos: coord });
+            }
           }
         });
       });
@@ -337,13 +355,22 @@ window.atZoneCap = function(p) { return ((p && p.zones) || []).filter(function(z
   // deck, or null when there's no front cutout (flat decks unaffected). The
   // main-deck front profile is supplied for zone 0 only, matching resolve_all_stairs.
   function computeStairOpenings(p) {
-    var cuts = getCutoutRects(p);
-    if (!cuts.length) return null;
-    if (!window.frontEdgeProfile || !window.getStairPlacementForZone) return null;
+    // Mirror of backend stair_utils.build_front_stair_openings.
+    //
+    // S103 push 5 removed two gates that between them meant most stairs got a
+    // railing drawn across them:
+    //   1. `if (!cuts.length) return null` -- only NOTCHED decks got openings,
+    //      so a plain rectangular deck with stairs was fenced off. That gate
+    //      dates to S91 and survived seven sessions.
+    //   2. `angle % 360 !== 0` -- front stairs only, so left/right stairs were
+    //      fenced off on every deck shape.
+    // Off-axis (rotated) stairs are still skipped: a bounding box would
+    // over-cut, which is the S81e mistake.
+    if (!window.getStairPlacementForZone) return null;
     var W = p.deckWidth || p.width || 16, D = p.deckDepth || p.depth || 12;
-    var prof = window.frontEdgeProfile(W, D, cuts);
-    var hasFrontCut = prof.length > 1 || (prof.length && Math.abs(prof[0][2] - D) > 1e-6);
-    if (!hasFrontCut) return null;
+    var cuts = getCutoutRects(p);
+    var prof = (cuts.length && window.frontEdgeProfile)
+      ? window.frontEdgeProfile(W, D, cuts) : null;
     var openings = [];
     (p.deckStairs || []).forEach(function(st) {
       var zoneId = st.zoneId || 0;
@@ -351,10 +378,14 @@ window.atZoneCap = function(p) { return ((p && p.zones) || []).filter(function(z
       if (!zr) return;
       var fp = (zoneId === 0) ? prof : null;
       var pl = window.getStairPlacementForZone(st, zr, fp);
-      if (Math.round(pl.angle || 0) % 360 !== 0) return;  // front stairs only
+      var ang = ((Math.round(pl.angle || 0) % 360) + 360) % 360;
       var sw = st.width || 4;
       var wax = zr.x + pl.anchorX, way = zr.y + pl.anchorY;
-      openings.push([way, wax - sw / 2, wax + sw / 2]);
+      if (ang === 0 || ang === 180) {
+        openings.push(["h", way, wax - sw / 2, wax + sw / 2]);
+      } else if (ang === 90 || ang === 270) {
+        openings.push(["v", wax, way - sw / 2, way + sw / 2]);
+      }
     });
     return openings.length ? openings : null;
   }

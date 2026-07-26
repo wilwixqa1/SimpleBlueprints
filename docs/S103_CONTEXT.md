@@ -291,3 +291,31 @@ independent of the railing question and needs no decision.
 7. **Add LU228** to the hardware schedule for doubled members. Carried from S102.
 8. `stair_support.py` still has **zero importers** outside its own tests. Carried
    from S102, now with three independent reference confirmations.
+
+---
+
+## 8. WILL'S BACKLOG — site content
+
+Not engineering-derived. Will asked for these directly at the end of S103 and
+explicitly deferred them to a future session.
+
+**Add the support email addresses to the website UI and the homepage:**
+
+```
+contact@simpleblueprints.xyz
+customerservice@simpleblueprints.xyz
+```
+
+**Nothing here is decided yet — do not infer any of it:**
+- Which address goes where. Two addresses implies a split (general enquiries vs
+  existing customers), but Will did not say that and it should not be assumed.
+- Placement. Homepage footer, a contact section, the wizard, the generated PDF
+  sheets, or several of these. "Website UI and Homepage" is the only scope given.
+- Whether either mailbox exists and receives mail yet. Publishing an address
+  that bounces is worse than publishing none, so confirm delivery before shipping.
+- Whether the generated permit sets should carry a support contact at all. That
+  is a separate question and was not asked.
+
+Touches `backend/static/index.html` and the home page assets, so it needs a
+cache-buster bump verified by grep, not from a table.
+
