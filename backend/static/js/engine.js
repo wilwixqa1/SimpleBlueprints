@@ -866,7 +866,10 @@ function estMaterials(p, c) {
   items.push({ cat: "Posts", item: `${c.postSize} PT Posts`, qty: c.totalPosts, cost: c.postSize === "6x6" ? 48 : 24 });
   items.push({ cat: "Posts", item: "Post Cap Hardware", qty: c.totalPosts, cost: c.postSize === "6x6" ? 38 : 22 });
   const plies = parseInt(c.beamSize[0]); const isLVL = c.beamSize.includes("LVL");
-  items.push({ cat: "Beam", item: isLVL ? "LVL 20'" : "PT Beam 20'", qty: Math.ceil(c.W / 20) * plies, cost: isLVL ? 95 : 55 });
+  // S102: freestanding = TWO beams (no ledger), so the beam material doubles.
+  // Mirrors draw_materials.py.
+  var _beamLines = (c.attachment === "ledger") ? 1 : 2;
+  items.push({ cat: "Beam", item: isLVL ? "LVL 20'" : "PT Beam 20'", qty: Math.ceil(c.W / 20) * plies * _beamLines, cost: isLVL ? 95 : 55 });
   if (c.attachment === "ledger") {
     items.push({ cat: "Ledger", item: `${c.ledgerSize} PT Ledger`, qty: Math.ceil(c.W / 12), cost: 32 });
     items.push({ cat: "Ledger", item: "LedgerLok Screws (box)", qty: Math.ceil(c.W / (16 / 12) * 2 / 50), cost: 85 });
@@ -886,7 +889,9 @@ function estMaterials(p, c) {
     var _lus = String(c.joistSize || "").indexOf("2x6") >= 0 ? "LUS26" : "LUS210";
     items.push({ cat: "Hardware", item: "Joist Hangers (Simpson " + _lus + ")", qty: c.nJ, cost: 6 });
   }
-  items.push({ cat: "Hardware", item: "Hurricane Ties (Simpson H2.5)", qty: c.nJ, cost: 2.75 });
+  // S102: one tie per joist-to-beam bearing point; freestanding joists bear on
+  // two beams. Mirrors draw_materials.py.
+  items.push({ cat: "Hardware", item: "Hurricane Ties (Simpson H2.5)", qty: c.nJ * ((c.attachment === "ledger") ? 1 : 2), cost: 2.75 });
   items.push({ cat: "Hardware", item: "Joist Hanger Nails (10d, 5 lb box)", qty: 1, cost: 50 });
   // S99: cutout zones reduce the decking order proportionally
   var _cutA = 0;

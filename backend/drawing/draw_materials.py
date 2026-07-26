@@ -188,8 +188,14 @@ def estimate_materials(params, calc):
     # Beam
     plies = int(beamSize[0])
     is_lvl = "LVL" in beamSize
+    # S102: a freestanding deck has TWO beams (no ledger, so both joist ends land
+    # on one). The engine has always doubled posts/footings/hangers for that, but
+    # the BEAM MATERIAL itself was never doubled -- a 24x12 freestanding deck
+    # quoted the same 4 lengths as the ledger version while needing 8.
+    _beam_lines = 1 if attachment == "ledger" else 2
     items.append({"cat": "Beam", "item": "LVL 20'" if is_lvl else "PT Beam 20'",
-                  "qty": math.ceil(W / 20) * plies, "cost": 95 if is_lvl else 55})
+                  "qty": math.ceil(W / 20) * plies * _beam_lines,
+                  "cost": 95 if is_lvl else 55})
 
     # Ledger
     if attachment == "ledger":
@@ -242,7 +248,11 @@ def estimate_materials(params, calc):
     # dollar lump. Simpson H2.5 is what the approved reference sets specify
     # ("'H2.5' EA. JOIST TO BEAM BELOW" -- Ilaria and Loucks both), one per
     # joist-to-beam bearing point. Nails are a separate consumable line.
-    items.append({"cat": "Hardware", "item": "Hurricane Ties (Simpson H2.5)", "qty": nJ, "cost": 2.75})
+    # S102: one tie per joist-to-beam BEARING POINT. A ledger deck's joists bear
+    # on one beam; a freestanding deck's bear on two, so the count doubles --
+    # matching calc_engine's joist_hangers_for_beam, which already did this.
+    items.append({"cat": "Hardware", "item": "Hurricane Ties (Simpson H2.5)",
+                  "qty": nJ * (1 if attachment == "ledger" else 2), "cost": 2.75})
     items.append({"cat": "Hardware", "item": "Joist Hanger Nails (10d, 5 lb box)", "qty": 1, "cost": 50})
 
     # Decking
