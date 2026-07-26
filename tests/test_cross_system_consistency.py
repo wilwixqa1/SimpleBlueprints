@@ -312,7 +312,67 @@ print("   %d notch+stair configs checked (wood and steel)" % n_rail)
 
 
 # ============================================================
-print("4. Control: plain ledger deck is already consistent")
+# INVARIANT 4 -- IF THERE ARE STAIRS, THERE IS NEVER A RAILING ACROSS THEM.
+#
+# Will's rule, stated S103, non-negotiable and product-level, not a code detail:
+# a railing drawn across a stairway fences the customer off from their own
+# steps. It must hold on the permit PDF, in the 3D, and on the material list,
+# for EVERY deck shape.
+#
+# What this catches, and why it is here rather than trusted to review: S91 push
+# 2 fixed exactly this bug and scoped the fix to NOTCHED decks so plain-deck
+# output would stay byte-identical. A plain rectangular deck with stairs off the
+# front therefore kept a railing drawn straight across the stairway for seven
+# sessions, on the permit set, while commit messages reading "no rail across the
+# stair opening" made it look handled. Nothing regressed; it was never fixed.
+#
+# Measured before S103 push 4, 20x14 with 4 ft stairs at x 8-12:
+#     plain   front railing runs: x 0 -> 20            fences off the stairs
+#     notched front railing runs: x 0 -> 8, 12 -> 20   correct
+#
+# THE PLAIN-DECK CASES BELOW ARE THE POINT. If someone re-gates the opening on
+# cutouts for byte-identity, they fail. Do not delete them to keep golden still;
+# golden moving is the correct outcome of a real fix.
+print("5. No railing across a stairway, on any deck shape")
+from drawing.zone_utils import get_exposed_edges as _gee  # noqa: E402
+from drawing.stair_utils import build_front_stair_openings as _bfso  # noqa: E402
+
+n_gap = 0
+for _label, _zones in [("PLAIN rectangle (the case that was never fixed)", None),
+                       ("NOTCHED", "cut")]:
+    for _w, _d in [(16, 12), (20, 14), (30, 16)]:
+        for _sw in [3, 4, 5]:
+            _kw = dict(width=_w, depth=_d, height=4, attachment="ledger",
+                       deckStairs=[{"id": 0, "zoneId": 0, "location": "front",
+                                    "offset": 0, "width": _sw,
+                                    "numStringers": 3, "template": "straight"}])
+            if _zones:
+                _kw["zones"] = [{"id": 1, "type": "cutout", "attachEdge": "front",
+                                 "attachOffset": _w / 2.0 - _sw / 2.0,
+                                 "w": _sw, "d": 4, "attachTo": 0}]
+            _p = _base(**_kw)
+            _c = calculate_structure(_p)
+            _edges = _gee(_p, stair_openings=_bfso(_p, _c))
+            _front = [e for e in _edges if e["dir"] == "h"
+                      and abs(e["y1"] - float(_c["depth"])) < 0.01]
+            # The stair is centred, so the deck front must come back as two
+            # runs with a gap. One run means a railing across the stairway.
+            check(len(_front) >= 2,
+                  "STAIR RAILING %s %dx%d, %d ft stairs: front railing came "
+                  "back as %d run(s) -- a single run is a railing drawn across "
+                  "the stairway" % (_label, _w, _d, _sw, len(_front)))
+            if len(_front) >= 2:
+                _spans = sorted(sorted([e["x1"], e["x2"]]) for e in _front)
+                _gap = _spans[1][0] - _spans[0][1]
+                check(abs(_gap - _sw) < 0.01,
+                      "STAIR RAILING %s %dx%d: gap is %.1f ft but the stairs "
+                      "are %d ft wide" % (_label, _w, _d, _gap, _sw))
+            n_gap += 1
+print("   %d configs checked (plain and notched)" % n_gap)
+
+
+# ============================================================
+print("6. Control: plain ledger deck is already consistent")
 p = _base(width=20, depth=12, height=4, attachment="ledger")
 c = calculate_structure(p)
 bl = c.get("beam_layout") or {}

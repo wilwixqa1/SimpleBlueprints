@@ -576,36 +576,33 @@ def resolve_all_stairs(params: dict, calc: dict) -> list:
 
 
 def build_front_stair_openings(params, calc):
-    """S103: the rail gap where a front stair descends through a notched edge.
+    """The railing gap where front stairs come down. SINGLE SOURCE OF TRUTH.
 
-    SINGLE SOURCE OF TRUTH for this rule. It used to live inline in
-    draw_plan.py only, which is why the framing sheet drew the guard rail open
-    at the stair while the material list on the SAME permit set billed rail
-    straight across the gap (measured: 56.0 LF billed vs 54.0 LF drawn on a
-    20x14 with a centered 4 ft notch and a 4 ft front stair; 312 of 450 swept
-    configs changed a line item).
+    WILL'S RULE, stated S103 and non-negotiable: if there are stairs, there is
+    never a railing across them. Not on the permit PDF, not in the 3D, not on
+    the material list. Every surface, every deck shape, always. A railing drawn
+    across a stairway fences the customer off from their own steps.
 
-    Will's rule, S103: what is DRAWN on the permit set and in the 3D view is the
-    source of truth. The material list follows it, never the other way round.
+    S103 push 4 removed a `if not cut_rects: return None` gate that had been
+    here since S91. That gate meant the gap was only ever computed for NOTCHED
+    decks, so a plain rectangular deck with stairs off the front got a railing
+    drawn straight across the stairway on the permit set. Measured before the
+    removal, 20x14 with 4 ft stairs at x 8-12:
 
-    Returns a list of (edge_y, x0, x1) spans for get_exposed_edges(
-    stair_openings=...), or None when the deck has no front cutout -- None keeps
-    flat decks byte-identical, which is why it is None and not [].
+        plain deck   front railing segments: x 0 -> 20        one unbroken run
+        notched deck front railing segments: x 0 -> 8, 12 -> 20   correct gap
+
+    This was NOT a regression that kept creeping back in. Exactly one commit
+    ever touched this logic (S91 push 2, f6a3b67) and it scoped itself to
+    notched decks deliberately, to keep plain-deck output byte-identical. The
+    plain-deck case was never fixed, for seven sessions, while commit messages
+    reading "no rail across the stair opening" made it look done. If you are
+    tempted to re-gate this for byte-identity, that is exactly how it hid.
+
+    Returns a list of (edge_y, x0, x1) spans for
+    get_exposed_edges(stair_openings=...). Empty list when there are no front
+    stairs, which leaves a stairless deck's railing untouched.
     """
-    from .beam_layout import front_edge_profile
-    from .zone_utils import get_cutout_rects
-
-    cut_rects = get_cutout_rects(params)
-    if not cut_rects:
-        return None
-
-    W = float(calc["width"])
-    D = float(calc["depth"])
-    prof = front_edge_profile(W, D, cut_rects)
-    has_front_cut = len(prof) > 1 or (prof and abs(prof[0][2] - D) > 1e-6)
-    if not has_front_cut:
-        return None
-
     openings = []
     for rs in resolve_all_stairs(params, calc):
         # Front stairs only. An off-axis stair would need a rotated span; a
