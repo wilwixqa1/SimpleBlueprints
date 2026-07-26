@@ -101,3 +101,53 @@ WHAT MEADOWVIEW ADDS (all ledger-deck detail):
   pad plus notched stringer. Third independent confirmation.
 - LOADS: L.L. 60 psf (with snow), D.L. 15, T.L. 75, ledger 66. Same as the other
   three sets.
+
+--------------------------------------------------------------------------------
+MEADOWVIEW: FRAMING AROUND AN OBSTRUCTION (chimney / fireplace)
+--------------------------------------------------------------------------------
+THIS IS THE REFERENCE EXAMPLE S100 SAID DID NOT EXIST.
+
+S100_HANDOFF section 10 item 9 and the S102 stair-opening work both refuse the
+same case: "true interior stair openings (not reaching the rim) need a second
+header on the yard side. No reference example; detect and refuse rather than
+guess." zone_utils.get_stair_opening_rects() still refuses it today and emits an
+`interior_opening` warning.
+
+Meadowview sheet A-8 contains exactly that condition. The deck wraps a masonry
+FIREPLACE / chimney that sits INSIDE the deck footprint, and Rick frames it as:
+
+    (2) P.T. 2X8 BEAM W/ 'LU228' @ EACH END      -- appears THREE times
+    (2) P.T. 2X8 @ RIM                           -- doubled rim throughout
+    2X8 PT JOISTS @ 16" O.C., 'LU28' EA. JOIST (BOTH ENDS)
+
+So the detail is: DOUBLED 2x8 members, FACE-HUNG with Simpson LU228 hangers at
+each end, boxing the obstruction. Doubled members on the sides carry the cut
+joists; doubled members across the ends close the opening. Same trimmer/header
+vocabulary as a notch, but the opening is INTERIOR -- it does not reach the rim,
+which is precisely the case we have been refusing.
+
+Hardware note: LU228 is the DOUBLE-2x8 face-mount hanger. Our estimate carries
+LUS28Z/LUS210 for single joists and nothing for doubled members hung off other
+framing. A "frame around an obstruction" feature would need LU228 (or the
+equivalent for the joist size) added to the hardware schedule.
+
+WHAT THIS UNBLOCKS
+- The interior-opening refusal in get_stair_opening_rects() now has a detail to
+  implement against instead of a guess.
+- A future "deck around a chimney / tree / bay window / hot tub" feature. The
+  obstruction is just an interior cutout that never touches an edge -- the same
+  geometry, so the same headers.
+
+WHAT IS NOT YET VERIFIED, do not build on these without checking the sheet
+- Which of the three doubled members are trimmers (parallel to joists) versus
+  headers (perpendicular). Read from the text layer only; the arrangement was
+  NOT confirmed visually.
+- Whether the opening is fully interior on all four sides or shares an edge with
+  the ledger wall (the fireplace is against the house, so the house side may be
+  closed by the ledger rather than a header).
+- Whether the doubled rim is specific to this job or Rick's standard. Ilaria and
+  Loucks were not re-checked for it.
+
+Also worth noting for beam sizing: Meadowview's main beams are 6X12 P.T. SOLID
+timber with posts @ 12'-0" O.C. and "SPLICE BEAM OVER CENTER OF PIER, TYP." Our
+engine produces multi-ply at those spans and models no splice rule.
