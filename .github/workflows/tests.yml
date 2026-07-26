@@ -1,8 +1,26 @@
-# SimpleBlueprints CI -- S84
-# Runs on every push and PR to main. Railway autodeploys from main with no
-# gate, so this is the tripwire: a red X here means the deploy that just
-# went out is suspect. (Gating the deploy itself on green is a later step:
-# deploy from a release branch that only advances when this passes.)
+# SimpleBlueprints CI
+#
+# Runs on every push and PR to main. Railway autodeploys from main with no gate,
+# so this is the tripwire: a red X here means the deploy that just went out is
+# suspect. (Gating the deploy itself on green is a later step: deploy from a
+# release branch that only advances when this passes.)
+#
+# S103: this file had drifted badly. It ran 11 invocations and omitted NINE
+# suites from the documented gate, including golden_structural,
+# test_frontend_parity and test_cross_system_consistency -- the three that
+# caught S102's real bugs. It also omitted legibility_gate.py, which appeared in
+# no gate list anywhere. Last touched 2026-07-23; the gate grew for three
+# sessions without it.
+#
+# DO NOT hand-maintain the list below against a handoff document. That is how it
+# drifted: each handoff copied the previous one. tests/test_gate_completeness.py
+# now fails the build if any suite in tests/ is missing from this file, so add
+# the step and the guard will confirm it. It runs FIRST so a wiring mistake is
+# the first thing you see, not the last.
+#
+# The full local gate is this same list. Golden MUST run with SBP_SHEET=arch_d;
+# bare it fails with everything scaled by 2.571 (36/14), which is a sheet-size
+# signature, not a regression.
 name: tests
 
 on:
@@ -14,7 +32,7 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -28,14 +46,35 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Install Python deps (calc engine imports matplotlib via drawing pkg)
-        run: pip install matplotlib==3.10.8 numpy==2.4.4  # pinned: linework baseline is version-sensitive (S87)
+      # matplotlib/numpy are pinned: the linework baseline is version-sensitive
+      # (S87). The rest are app imports -- app.main pulls stripe/fastapi/psycopg2
+      # transitively, so the PDF suites need them even though they never touch a
+      # payment or a database.
+      - name: Install Python deps
+        run: |
+          pip install matplotlib==3.10.8 numpy==2.4.4
+          pip install reportlab pypdf pillow httpx python-multipart itsdangerous \
+                      anthropic fastapi stripe psycopg2-binary
 
+      # ---- wiring guard -------------------------------------------------
+      - name: Gate completeness (every suite in tests/ is wired into this file)
+        run: python3 tests/test_gate_completeness.py
+
+      # ---- fast suites first: fail early, cheaply -----------------------
       - name: Geometry invariants (site plan math, 2700+ checks)
         run: node tests/geometry/lotGeometry.test.js
 
       - name: Stair deck-plane footprint (S100 P0-3D, straight-stair invariant)
         run: node tests/test_stair_footprint.js
+
+      - name: Beam/post layout, JS port (S101, notch-aware)
+        run: node tests/test_beam_layout.js
+
+      - name: Beam/post layout, Python (S90 coincident-post regression)
+        run: python3 tests/test_beam_layout.py
+
+      - name: Notch post placement
+        run: python3 tests/test_notch_posts.py
 
       - name: Stair support assembly (S100, dedicated stair posts/header)
         run: python3 tests/test_stair_support.py
@@ -52,10 +91,28 @@ jobs:
       - name: Future products logic tests
         run: python3 tests/test_future_products.py
 
+      - name: IRC deck table drift guard (S101, R507.5/R507.6 snapshot)
+        run: python3 tests/test_irc_table_drift.py
+
+      - name: Jurisdiction checklist
+        run: python3 tests/test_jurisdiction_checklist.py
+
+      - name: Steel framing labels
+        run: python3 tests/test_steel_labels.py
+
+      # ---- cross-system seams: the ones that catch real bugs ------------
+      - name: Frontend/backend parity (JS vs Python, geometry + materials)
+        run: python3 tests/test_frontend_parity.py
+
+      - name: Cross-system consistency audit (S102/S103 seams)
+        run: python3 tests/test_cross_system_consistency.py
+
+      # ---- PDF suites: slowest, run last --------------------------------
+      - name: Golden structural (28 sheet fingerprints, site/plan/framing/details)
+        run: SBP_SHEET=arch_d python3 tests/pdf/golden_structural.py
+
       - name: Text-over-linework differential (S87 oracle, 2 canonical fixtures)
-        run: |
-          pip install httpx python-multipart itsdangerous anthropic fastapi stripe psycopg2-binary reportlab pypdf pillow
-          SBP_SHEET=arch_d python3 tests/pdf/linework_check.py basic_rect_ledger zones_stairs_lcr
+        run: SBP_SHEET=arch_d python3 tests/pdf/linework_check.py basic_rect_ledger zones_stairs_lcr
 
       - name: Panel-overflow differential G5/G6/G7 (S88 oracle, selftest + 2 fixtures)
         run: |
@@ -64,6 +121,9 @@ jobs:
 
       - name: Config matrix + post-in-landing B3/G11 (S88, interior-anchored stair path)
         run: SBP_SHEET=arch_d python3 tests/pdf/config_matrix.py
+
+      - name: Legibility gate (S93, zero text overlaps; site plans clean)
+        run: SBP_SHEET=arch_d python3 tests/pdf/legibility_gate.py
 
       - name: Fuzz smoke (S87, 8 seeded configs, crash judge)
         run: SBP_SHEET=arch_d python3 tests/pdf/fuzz_configs.py 8
