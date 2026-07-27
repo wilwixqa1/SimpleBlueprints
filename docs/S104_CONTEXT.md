@@ -144,6 +144,141 @@ Billy's and your dad's and what remains is strangers.
 so a query over `events WHERE event_type LIKE 'parcel_lookup%'` gives every
 attempt with session, timestamp and outcome. No migration.
 
+### Push 3 — the copy button stopped wrapping (`a680414`)
+
+Will's screenshots of the deployed footer showed the defect: `contact@`
+(28 chars) kept its Copy button inline, `customerservice@` (36 chars) wrapped
+its button to the next line, so the footer rendered ragged. The 290px nav panel
+wrapped too.
+
+Fixed structurally, not by tuning widths: the address now sits on its own line
+with Copy underneath, always, everywhere. A layout that depends on how long an
+address happens to be breaks again the next time one changes.
+
+**The reason this is worth remembering** is the first attempt. I modelled the
+wrap point arithmetically; the model correctly predicted the panel and said the
+footer would FIT, which the screenshot had already disproved. Tuning against a
+wrong model is guesswork wearing a lab coat. So chromium went in (see §6.8) and
+the component was rendered in a harness reproducing the real footer grid and the
+real 290px panel including the 760px media query, measured at 1440px and 390px,
+then looked at.
+
+### Push 4 — projects stay on the project you are editing (`9571f53`)
+
+Will: *"my projects are not actually saving"* and *"products that are the same in
+every single possible way should not present as more than one file, especially
+if they have the same address."*
+
+One bug. The active project id lived only in a React ref (`app.js:901`) and was
+written nowhere else. Four things dropped it, three of them ordinary: a page
+refresh, the sign-in round trip (all three sign-in buttons snapshot the design to
+localStorage and `restoreAuthState` restored params/info/step/mode/survey but
+never the id), and `goHome()` nulling it outright. The fourth,
+`startNewProject()`, is correct.
+
+Once the id was gone the next autosave hit `ensureProject`, saw no id, and POSTed
+a whole new row. The name is auto-derived from `info.address`, so every copy
+carried the same address.
+
+Fixes: the URL is now the source of truth (`setProjectId` owns the ref, the query
+param and `window._sbProjectId` together); a refresh re-adopts `?project=<id>`;
+all three sign-in snapshots carry the id and `restoreAuthState` puts it back;
+`creatingRef` closes the race where a 3s autosave fired inside a slower create
+round trip; and `find_identical_project` is the server backstop.
+
+**The backstop is narrow in two ways and most of its test asserts it does NOT
+fire.** Byte-identical on name AND params AND info, so the row it declines to
+create contains no unique work by definition. Plus a 6-hour window, so a
+deliberate fresh start from identical defaults next week still gets its own row.
+Will's own data later proved this right: four *different* designs at 368 Croaton
+St (20x12, 22x12, 30x7.5, 50x12). Matching on address alone would have destroyed
+three of them.
+
+### Push 5 — My Projects can actually load (`2d22415`)
+
+Will's screenshot: signed in, stuck on "Loading projects..." forever.
+
+`DraftsPage` guarded its load effect with `if (!user || !API) return;`. `API` is
+the same-origin prefix and has been the **empty string** since S96.5 push 1
+(`fc91b47`, `app.js:833`). `""` is falsy, so `!API` was always true, the effect
+returned before the fetch every single time, and `loading` (which initialises to
+`true`) was never cleared.
+
+The page never asked. Nothing was wrong with the fetch, endpoint, query or data.
+My Projects was dead for every user for several sessions, and the only symptom
+was a spinner that looks exactly like a slow network. Only occurrence of the
+pattern; grepped.
+
+Verified in chromium by mounting the real `DraftsPage` with a stubbed fetch, then
+mutated back to the old guard to confirm zero fetch calls and a permanent
+spinner, reproducing the screenshot exactly.
+
+**My miss, recorded because the shape of it will recur.** Will said "not
+saving." I traced the save path, found a real bug, fixed it. I never checked
+whether the list could *render*, and it could not, which was most of what he was
+looking at. Trace the whole path the user describes, not the half named in the
+report.
+
+### Push 6 — HTML shells revalidate + this doc
+
+Every versioned asset is cache-busted by query string, so a bumped version is a
+new URL. That scheme has exactly one weak link: the HTML file that *names* the
+versions cannot bust itself. `index.html` shipped with only an etag and
+last-modified and no `Cache-Control`, so browsers used heuristic freshness
+(roughly a tenth of the time since last change, growing the longer between
+deploys) and could reuse a stale shell, request the OLD bundle versions named
+inside it, and never receive a deploy.
+
+Not theoretical: push 5 was confirmed live and serving `home.js?v=s104d` while
+Will's browser still ran the previous bundle. Every "is it actually deployed?"
+moment in this session traces here.
+
+Extended the existing `cache_control` middleware rather than adding a second
+mechanism. Covers `/`, `/admin`, `/mock`, `/mock/app`. `no-cache` means
+"revalidate before use", not "never cache": the browser still sends its etag and
+still gets a bodyless 304.
+
+---
+
+## 3b. DECIDED THIS SESSION — analytics phase
+
+`SB_PHASE` (`database.py:17`, env var, default `testing`) stamps six insert
+sites: events, sessions, generations, AI conversations, AI insights. The admin
+dashboard already has All / Testing / Beta / Production pills.
+
+Will is switching it to `beta` in Railway. It is a **label only** — nothing
+behaves differently — and it is **forward-only**, so existing rows stay
+`testing`. That is the point: it draws a hard line between Will and Billy
+testing, and real strangers, at the exact moment marketing started.
+
+Note the dashboard defaults to All, so the Beta pill has to be clicked.
+
+---
+
+## 3c. GTM — the first tweet
+
+Four-panel collage of real pipeline output, built in `/tmp/mkt/build.py`
+(not committed; regenerate from `render_review.py` param sets).
+
+**Two traps worth not rediscovering.** The built-in demo configs print
+`TEST FIXTURE` in the project description on every sheet, which would have gone
+out publicly. And no street address is used on purpose: any plausible-looking
+one is somebody's actual house. City and state only still reads correctly in a
+title block.
+
+Also mislabelled A-4 as "footing details" on a first pass by grepping for the
+word "footing", which appears as a section heading inside the **general notes**
+sheet. Will caught it. Same error as picking a page by index rather than by its
+rendered title, in different clothes. A-5 is the real details sheet and is a far
+better panel.
+
+The 3D perspective **cannot be produced server-side**: it is Three.js drawing to
+a WebGL canvas in the browser, and `draw_cover.py` only receives the resulting
+image. Server-side renders always show the placeholder box on A-0. This is NOT a
+bug and does not affect customers, whose covers are populated from their own
+browser. Confirmed with Will.
+
+
 ---
 
 ## 4. THE EMAIL INGESTION PLAN (not built, phase 2)
@@ -228,6 +363,27 @@ fired within 30 seconds of a failed address lookup" beats any dropdown.
 6. **A frustrated user should not be asked to route their own ticket.** The
    in-product surfaces show one address; only the footer shows both, because a
    footer is a directory and a broken PDF is not.
+
+7. **Trace the whole path the user describes, not the half named in the
+   report.** "Projects aren't saving" sent me into the save path, where I found
+   and fixed a real bug. The thing he was actually looking at was a list that
+   could not render at all. Both were real; only one was the symptom.
+
+8. **For anything visual, render it.** Estimating a text-wrap point in my head
+   produced a confident wrong answer in seconds. `pip install playwright` plus
+   `playwright install chromium` works in this container with no sudo and took
+   about four minutes. That capability now exists for the project: real
+   components can be mounted, measured and screenshotted before shipping. It
+   does not replace Will as ground truth on whether something looks *right*, but
+   layout defects should not reach him again.
+
+9. **A falsy empty string is a real outage.** `!API` where `API === ""` killed
+   My Projects for every user for several sessions, and presented as a spinner.
+   Guard on `== null` when the empty string is a legitimate value.
+
+10. **Benchmark before believing a volume theory.** Will reasonably guessed 237
+    projects was too many. Measured against real Postgres: 6.3ms. A thousand is
+    49ms. The real cause was a stale bundle.
 
 ---
 

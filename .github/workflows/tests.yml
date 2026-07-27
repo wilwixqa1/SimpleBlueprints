@@ -78,6 +78,12 @@ jobs:
       - name: Project duplicate backstop (real Postgres)
         run: python3 tests/test_project_dedupe.py
 
+      # S104: the HTML shells name the cache-busted bundle versions and cannot
+      # bust themselves. Without no-cache a browser reuses a stale shell and
+      # never receives a deploy. This happened for real in S104 push 5.
+      - name: Cache headers on HTML shells (real app via TestClient)
+        run: python3 tests/test_cache_headers.py
+
       # ---- wiring guard -------------------------------------------------
       - name: Gate completeness (every suite in tests/ is wired into this file)
         run: python3 tests/test_gate_completeness.py

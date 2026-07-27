@@ -143,7 +143,28 @@ app.add_middleware(
 async def cache_control(request: Request, call_next):
     response = await call_next(request)
     path = request.url.path
-    if path.startswith("/static/js/"):
+    # S104: HTML shells must revalidate.
+    #
+    # Every versioned asset is cache-busted by a query string (?v=s104d), so a
+    # bumped version is a different URL and is always fetched fresh. That scheme
+    # has exactly one weak link: the HTML file that NAMES those versions cannot
+    # bust itself. Its URL never changes.
+    #
+    # index.html was going out with only an etag and last-modified and no
+    # Cache-Control at all, so browsers fell back to heuristic freshness
+    # (roughly a tenth of the time since the file last changed, growing the
+    # longer between deploys). A returning visitor could serve a stale shell,
+    # request the OLD bundle versions named inside it, and never receive a
+    # deploy no matter how carefully the busters were bumped.
+    #
+    # Observed, not theorised: S104 push 5 fixed the drafts page, the server was
+    # confirmed serving home.js?v=s104d, and Will's browser was still running
+    # the previous bundle.
+    #
+    # no-cache does NOT mean "do not cache". It means "revalidate before use",
+    # so the browser still sends its etag and still gets a bodyless 304 when
+    # nothing changed. The cost is one conditional request per page load.
+    if path in ("/", "/admin", "/mock", "/mock/app") or path.startswith("/static/js/"):
         response.headers["Cache-Control"] = "no-cache, must-revalidate"
     elif path.startswith("/api/download/"):
         response.headers["Cache-Control"] = "no-store"
