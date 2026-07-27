@@ -2720,8 +2720,8 @@ function StepContent(props) {
     <Group id="size" n="1" title="Size" summary={`${fmtFtIn(zoneW)} \u00D7 ${fmtFtIn(zoneD)}`}
            open={openGroup === "size"} onToggle={_toggleGroup}>
     <div data-section="deckSize">
-    <Slider label={isZone0 ? "Width (along house)" : `Width (along ${_parentName})`} value={zoneW} min={isCutout ? 2 : 4} max={50} step={0.5} fmt={fmtFtIn} field="width" u={u} p={p} />
-    <Slider label={isZone0 ? "Depth (from house)" : `Depth (out from ${_parentName})`} value={zoneD} min={isCutout ? 2 : 4} max={24} step={0.5} fmt={fmtFtIn} field="depth" u={u} p={p} />
+    <Slider label={isZone0 ? "Width (along house)" : `Width (along ${_parentName})`} value={zoneW} min={isCutout ? window.SIZE_BOUNDS.cutout.min : window.SIZE_BOUNDS.width.min} max={window.SIZE_BOUNDS.width.max} step={window.SIZE_BOUNDS.step} fmt={fmtFtIn} field="width" u={u} p={p} />
+    <Slider label={isZone0 ? "Depth (from house)" : `Depth (out from ${_parentName})`} value={zoneD} min={isCutout ? window.SIZE_BOUNDS.cutout.min : window.SIZE_BOUNDS.depth.min} max={window.SIZE_BOUNDS.depth.max} step={window.SIZE_BOUNDS.step} fmt={fmtFtIn} field="depth" u={u} p={p} />
     {isZone0 && c.engineeringRequired && <div style={{ padding: "8px 10px", background: "#fef2f2", borderRadius: 6, border: "1px solid #fca5a5", marginBottom: 8, marginTop: -4 }}>
       <div style={{ fontSize: 9, fontWeight: 700, color: "#dc2626", fontFamily: _mono, marginBottom: 3 }}>{"\u26A0\uFE0F"} EXCEEDS IRC PRESCRIPTIVE LIMITS</div>
       <div style={{ fontSize: 8, color: "#991b1b", fontFamily: _mono, lineHeight: 1.5 }}>

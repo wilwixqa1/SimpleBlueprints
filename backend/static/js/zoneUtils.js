@@ -1247,6 +1247,27 @@ window.atZoneCap = function(p) { return ((p && p.zones) || []).filter(function(z
     return getCutoutRects(p).concat(getStairOpeningRects(p));
   }
 
+  // ---- S105 B: legal deck dimensions, in ONE place. ----
+  // These lived only in the Slider's JSX props, so anything that set a size by
+  // another route (a drag) could produce a value the slider could never
+  // produce. Same drift shape as the naming rule. Slider and drag both read
+  // this now.
+  var SIZE_BOUNDS = {
+    width:  { min: 4, max: 50 },
+    depth:  { min: 4, max: 24 },
+    cutout: { min: 2 },
+    step: 0.5
+  };
+  function clampSize(field, v, isCutout) {
+    var b = SIZE_BOUNDS[field];
+    if (!b) return v;
+    var min = isCutout ? SIZE_BOUNDS.cutout.min : b.min;
+    var st = SIZE_BOUNDS.step;
+    v = Math.round(v / st) * st;                 // snap, same step as the slider
+    return Math.max(min, Math.min(b.max, v));    // clamp, same bounds
+  }
+  window.SIZE_BOUNDS = SIZE_BOUNDS;
+  window.clampSize = clampSize;
   window.sectionName = sectionName;
   window.isAutoLabel = isAutoLabel;
   window.sectionLetter = sectionLetter;

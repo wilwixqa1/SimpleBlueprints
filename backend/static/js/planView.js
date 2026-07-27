@@ -69,6 +69,45 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, remo
     return { x: (svgPt.x - dx) / sc, y: (svgPt.y - pad) / sc };
   }
 
+  // S105 B: resize the deck by dragging an edge.
+  //
+  // This deliberately computes almost nothing. It turns the drag into feet,
+  // runs it through window.clampSize() (the SAME snap and bounds the slider
+  // uses, shared from zoneUtils.js), and calls the SAME u(). So the calc
+  // engine, the 3D view, the material list and the PDF all see a size that is
+  // indistinguishable from one typed into the slider.
+  //
+  // Guarded to the main deck: u() routes width/depth to the ACTIVE section when
+  // activeZone > 0, so dragging the main deck's edge while a section is
+  // selected would silently resize the section instead.
+  const onResizeDown = (e, edge) => {
+    e.preventDefault(); e.stopPropagation();
+    var startFt = clientToFt(e.clientX, e.clientY);
+    if (!startFt || !u) return;
+    var startW = p.width, startD = p.depth, startOff = p.deckOffset || 0;
+    const onMove = (ev) => {
+      var now = clientToFt(ev.clientX, ev.clientY);
+      if (!now) return;
+      if (edge === "front") {
+        // back edge is the house, so only the front edge changes depth
+        u("depth", window.clampSize("depth", startD + (now.y - startFt.y), false));
+      } else {
+        var dW = (edge === "right") ? (now.x - startFt.x) : (startFt.x - now.x);
+        var newW = window.clampSize("width", startW + dW, false);
+        u("width", newW);
+        // hold the edge you did NOT grab still
+        var shift = ((newW - startW) / 2) * (edge === "right" ? 1 : -1);
+        u("deckOffset", Math.round((startOff + shift) * 2) / 2);
+      }
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
+
   const onPointerDown = (e, type) => {
     e.preventDefault(); e.stopPropagation();
     var startFt = clientToFt(e.clientX, e.clientY);
@@ -315,7 +354,8 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, remo
       })}
 
       {/* Deck drag handle */}
-      {u && mode === "plan" && zoneMode === "select" && <g style={{ cursor: "ew-resize" }} onPointerDown={e => onPointerDown(e, "deck")}>
+      {/* S105 B: this said cursor "ew-resize" and resized nothing. It slides. */}
+      {u && mode === "plan" && zoneMode === "select" && <g style={{ cursor: "grab" }} onPointerDown={e => onPointerDown(e, "deck")}>
         <rect x={dx + sw / 2 - 15} y={pad - 3} width={30} height={6} rx={3} fill="#3d5a2e" opacity="0.7" />
         <text x={dx + sw / 2} y={pad + 1} textAnchor="middle" style={{ fontSize: 5.5, fill: "#fff", fontFamily: "monospace", fontWeight: 700, pointerEvents: "none" }}>{"\u25C4"} DRAG {"\u25BA"}</text>
       </g>}
@@ -512,6 +552,24 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, remo
             fontSize={7} fontWeight="800" fill={b.hasChamfer ? "white" : "#7c3aed"} style={{ userSelect: "none" }}>{b.hasChamfer ? "\u2713" : "\u25E3"}</text>
         </g>;
       })}
+
+      {/* S105 B: these live at the END of the svg on purpose. SVG paints in
+          document order, so when they sat above the decking lines a <line>
+          was on top of them and swallowed every pointerdown. */}
+      {u && mode === "plan" && zoneMode === "select" && (p.activeZone || 0) === 0 &&
+        [{ id: "left",  x: dx - 3,       y: pad + 10,     w: 6,        h: Math.max(sd - 20, 8), cur: "ew-resize" },
+         { id: "right", x: dx + sw - 3,  y: pad + 10,     w: 6,        h: Math.max(sd - 20, 8), cur: "ew-resize" },
+         { id: "front", x: dx + 10,      y: pad + sd - 3, w: Math.max(sw - 20, 8), h: 6,        cur: "ns-resize" }
+        ].map(function(hh) {
+          var hot = hoverBtn === ("rz" + hh.id);
+          return <rect key={"rz" + hh.id} x={hh.x} y={hh.y} width={hh.w} height={hh.h} rx={3}
+            fill="#3d5a2e" opacity={hot ? 0.9 : 0.35}
+            onMouseEnter={function() { setHoverBtn("rz" + hh.id); }}
+            onMouseLeave={function() { setHoverBtn(null); }}
+            onPointerDown={function(ev) { onResizeDown(ev, hh.id); }}
+            style={{ cursor: hh.cur, transition: "opacity 0.12s" }} />;
+        })}
+
 
       {/* Compass */}
       <g transform={`translate(${svgW - 28}, 25) rotate(${p.northAngle || 0}, 0, 7)`}><line x1="0" y1="14" x2="0" y2="0" stroke="#444" strokeWidth="1.5" /><polygon points="-3.5,4 0,0 3.5,4" fill="#444" /><text x="0" y="-4" textAnchor="middle" style={{ fontSize: 9, fontWeight: 800, fill: "#444" }}>N</text></g>
