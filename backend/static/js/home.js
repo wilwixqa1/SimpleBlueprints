@@ -84,8 +84,17 @@ window.SBSupportRow = function SBSupportRow(props) {
     S.track("copy", placement, { address: address });
   }
 
+  // S104b: address on its own line, Copy underneath, ALWAYS.
+  //
+  // The first version was an inline row with flex-wrap. Will's screenshots showed
+  // the result: contact@ (28 chars) stayed inline and customerservice@ (36 chars)
+  // wrapped its button to the next line, so the footer rendered ragged, and the
+  // 290px nav panel wrapped too. A layout that depends on how long the address
+  // happens to be is a layout that will break again the next time one changes.
+  // Stacking costs one line of height and cannot wrap unpredictably at any
+  // viewport, which also settles the mobile case without a media query.
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+    <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 4 }}>
       <a href={S.mailto(address)}
          onClick={function () { S.track("email", placement, { address: address }); }}
          style={{ display: "inline-block", padding: 0, fontFamily: mono, fontSize: size, color: br.gn, textDecoration: "underline", wordBreak: "break-all" }}>
