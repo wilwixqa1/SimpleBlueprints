@@ -156,6 +156,65 @@ def _check_imports(workflow):
     return sorted(set(problems)), installed
 
 
+# External binaries a suite shells out to, mapped to the apt package that
+# provides them. `node` is supplied by actions/setup-node, not apt.
+_BINARY_PACKAGE = {
+    "pdftoppm": "poppler-utils",
+    "pdftotext": "poppler-utils",
+    "pdfinfo": "poppler-utils",
+}
+_BINARY_PROVIDED_BY_ACTION = {"node", "npm", "npx", "python3", "pip", "git"}
+
+
+def _check_binaries(workflow):
+    """Every external binary a suite shells out to must be installed by CI.
+
+    WHY (S103 push 6): after pdfminer was added, the very next CI run died on
+    `FileNotFoundError: pdftoppm`. Same suite, same shape of mistake, one layer
+    down -- a SYSTEM dependency rather than a pip one. Two consecutive red runs
+    from guessing at one requirement at a time instead of enumerating them.
+
+    Scans literal argv lists in subprocess calls and shutil.which() across
+    tests/ and backend/, since a suite inherits whatever the product shells out
+    to.
+    """
+    roots = [os.path.join(ROOT, "tests"), os.path.join(ROOT, "backend")]
+    found = {}
+    pat_sub = re.compile(
+        r'subprocess\.(?:run|call|check_output|Popen|check_call)\s*\(\s*\[\s*["\']([\w.-]+)["\']')
+    pat_which = re.compile(r'shutil\.which\(\s*["\']([\w.-]+)["\']')
+    for root in roots:
+        for dirpath, dirnames, files in os.walk(root):
+            dirnames[:] = [d for d in dirnames
+                           if d not in ("__pycache__", "fuzz_fixtures",
+                                        "node_modules", "static")]
+            for fn in files:
+                if not fn.endswith(".py"):
+                    continue
+                rel = _rel(os.path.join(dirpath, fn))
+                try:
+                    src = open(os.path.join(dirpath, fn)).read()
+                except OSError:
+                    continue
+                for pat in (pat_sub, pat_which):
+                    for m in pat.finditer(src):
+                        found.setdefault(m.group(1), set()).add(rel)
+
+    problems = []
+    for binary, users in sorted(found.items()):
+        if binary in _BINARY_PROVIDED_BY_ACTION:
+            continue
+        pkg = _BINARY_PACKAGE.get(binary)
+        if pkg is None:
+            problems.append((binary, sorted(users)[0],
+                             "unknown binary -- add it to _BINARY_PACKAGE with "
+                             "the apt package that provides it"))
+        elif pkg not in workflow:
+            problems.append((binary, sorted(users)[0],
+                             "apt-get install %s" % pkg))
+    return problems
+
+
 def main():
     if not os.path.exists(WORKFLOW):
         print("GATE COMPLETENESS: FAILED -- %s does not exist" % _rel(WORKFLOW))
@@ -177,6 +236,7 @@ def main():
             unexplained.append(rel)
 
     dep_problems, installed = _check_imports(workflow)
+    bin_problems = _check_binaries(workflow)
 
     print("GATE COMPLETENESS")
     print("  workflow          : %s" % _rel(WORKFLOW))
@@ -205,19 +265,28 @@ def main():
         print("  runner even though it passes locally. That is what happened to")
         print("  legibility_gate.py and pdfminer in S103.")
 
+    if bin_problems:
+        print()
+        print("  %d external binary/binaries CI does not install:" % len(bin_problems))
+        for b, user, fix in bin_problems:
+            print("    [NO BIN] %r (used by %s) -> %s" % (b, user, fix))
+        print()
+        print("  A system dependency is not a pip dependency. pdftoppm being")
+        print("  absent is what failed the second CI run of S103.")
+
     if unexplained:
         print()
         print("  %d exemption(s) name a file that no longer exists:" % len(unexplained))
         for u in unexplained:
             print("    [STALE] " + u)
 
-    if missing or unexplained or dep_problems:
+    if missing or unexplained or dep_problems or bin_problems:
         print()
         print("GATE COMPLETENESS: FAILED")
         return 1
 
     print()
-    print("GATE COMPLETENESS: every suite is wired into CI and its deps are installed")
+    print("GATE COMPLETENESS: every suite is wired into CI; pip and system deps installed")
     return 0
 
 

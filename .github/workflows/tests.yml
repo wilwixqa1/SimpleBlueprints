@@ -46,6 +46,14 @@ jobs:
         with:
           node-version: "22"
 
+      # legibility_check.py and render_review.py shell out to pdftoppm. It is a
+      # SYSTEM package, not a pip one, and its absence is what failed the second
+      # CI run of S103 after the pdfminer fix. test_gate_completeness now checks
+      # for external binaries too, so this list is verified rather than
+      # remembered.
+      - name: Install system deps (pdftoppm, used to rasterize sheets)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq poppler-utils
+
       # matplotlib/numpy are pinned: the linework baseline is version-sensitive
       # (S87). The rest are app imports -- app.main pulls stripe/fastapi/psycopg2
       # transitively, so the PDF suites need them even though they never touch a
