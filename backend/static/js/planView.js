@@ -303,7 +303,10 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, remo
       })}
 
       {/* Zone labels for zones 1+ */}
-      {hasZones && addRects.filter(function(a) { return a.id > 0; }).map(function(a) {
+      {/* S105: was `a.id > 0`, so the screen never labelled the main deck while
+          the PDF now does. Mirror draw_plan.py exactly: label every section
+          once there is more than one, otherwise label nothing. */}
+      {hasZones && addRects.length > 1 && addRects.map(function(a) {
         var r = a.rect, isActive = a.id === p.activeZone;
         return <text key={"zlbl" + a.id} x={zx(r.x) + 4} y={zy(r.y) + 10}
           style={{ fontSize: 7, fill: isActive ? "#2563eb" : "#888", fontFamily: "monospace", fontWeight: 700 }}>
