@@ -46,8 +46,9 @@ STATE = {
 }
 
 
-def run(active_zone, tag, width, height):
+def run(active_zone, tag, width, height, zones=None):
     STATE["p"]["activeZone"] = active_zone
+    if zones is not None: STATE["p"]["zones"] = zones
     with sync_playwright() as pw:
         b = pw.chromium.launch(args=["--no-sandbox", "--ignore-certificate-errors"])
         pg = b.new_page(viewport={"width": width, "height": height}, ignore_https_errors=True)
@@ -82,6 +83,9 @@ def run(active_zone, tag, width, height):
               hasSizeShape: t.includes("Size & Shape"),
               hasSections: t.includes("SECTIONS") || t.includes("Sections"),
               hasDeckA: t.includes("Deck A"),
+              hasAddSection: t.includes("Add a section"),
+              hasCutNotch: t.includes("Cut a notch"),
+              descCount: (t.match(/A section is a separate part/g) || []).length,
               stillSaysZone: (t.match(/\\bZone\\b/g) || []).length,
               sectionHeights: {
                 deckSize: q('[data-section="deckSize"]'),

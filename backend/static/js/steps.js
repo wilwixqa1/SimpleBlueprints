@@ -2742,13 +2742,50 @@ function StepContent(props) {
 
     <Group id="shape" n="2" title="Shape" summary={`${p.zones.length} section${p.zones.length === 1 ? "" : "s"}`}
            open={openGroup === "shape"} onToggle={_toggleGroup}>
+
+    {/* S105: the sections panel (and the description of what a section IS) was
+        gated on p.zones.length > 0, so it only appeared AFTER you had made one.
+        Meanwhile the only way to make one was four unlabelled icon buttons in
+        the preview toolbar. This block always renders and says what the two
+        actions are in words. */}
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ fontSize: 10, color: _br.mu, fontFamily: _sans, lineHeight: 1.45, marginBottom: 8 }}>
+        A section is a separate part of the deck. Each one can sit at its own height and carry its own stairs, and it is framed and sized on its own. Your drawings label them Deck A, Deck B and so on. A notch cuts a piece out, to fit around a corner of the house or a tree.
+      </div>
+      <div style={{ display: "flex", gap: 6 }}>
+        <button onClick={() => setZoneMode(zoneMode === "add" ? "select" : "add")}
+          disabled={window.atZoneCap && window.atZoneCap(p)}
+          style={{ flex: 1, padding: "8px 10px", fontSize: 10, fontWeight: 700, fontFamily: _mono,
+            borderRadius: 6, cursor: (window.atZoneCap && window.atZoneCap(p)) ? "not-allowed" : "pointer",
+            border: `1px solid ${zoneMode === "add" ? "#16a34a" : _br.bd}`,
+            background: zoneMode === "add" ? "#f0fdf4" : "#fff",
+            color: (window.atZoneCap && window.atZoneCap(p)) ? _br.bd : (zoneMode === "add" ? "#16a34a" : _br.tx) }}>
+          + Add a section
+        </button>
+        <button onClick={() => setZoneMode(zoneMode === "cut" ? "select" : "cut")}
+          style={{ flex: 1, padding: "8px 10px", fontSize: 10, fontWeight: 700, fontFamily: _mono,
+            borderRadius: 6, cursor: "pointer",
+            border: `1px solid ${zoneMode === "cut" ? "#dc2626" : _br.bd}`,
+            background: zoneMode === "cut" ? "#fef2f2" : "#fff",
+            color: zoneMode === "cut" ? "#dc2626" : _br.tx }}>
+          {"\u2702"} Cut a notch
+        </button>
+      </div>
+      {zoneMode === "add" && !(window.atZoneCap && window.atZoneCap(p)) &&
+        <div style={{ fontSize: 10, color: "#16a34a", fontFamily: _mono, marginTop: 6 }}>
+          Now click a + on any edge of the deck in the preview.
+        </div>}
+      {zoneMode === "add" && window.atZoneCap && window.atZoneCap(p) &&
+        <div style={{ fontSize: 10, color: _br.mu, fontFamily: _mono, marginTop: 6 }}>
+          Maximum {window.MAX_ADD_ZONES} sections. Remove one to add another.
+        </div>}
+      {zoneMode === "cut" && <div style={{ fontSize: 10, color: "#dc2626", fontFamily: _mono, marginTop: 6 }}>
+          Now click a {"\u2702"} on a corner of the deck in the preview.
+        </div>}
+    </div>
     {p.zones.length > 0 && <div style={{ marginBottom: 16, padding: 10, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}` }}>
       <div style={{ fontSize: 9, fontWeight: 700, color: _br.mu, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 4 }}>Sections</div>
-      {/* S105 A2: the word "section" meant nothing on its own. Say what one is,
-          once, where the sections actually appear. */}
-      <div style={{ fontSize: 10, color: _br.mu, fontFamily: _sans, lineHeight: 1.45, marginBottom: 8 }}>
-        A section is a separate part of the deck. Each one can sit at its own height and carry its own stairs, and it is framed and sized on its own. Your drawings label them Deck A, Deck B and so on.
-      </div>
+      {/* S105: description moved above, out of this conditional. */}
       <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
         <button onClick={() => u("activeZone", 0)} style={{
           padding: "5px 10px", fontSize: 10, fontWeight: 700, borderRadius: 5, fontFamily: _mono, cursor: "pointer",
