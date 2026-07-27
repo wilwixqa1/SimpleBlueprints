@@ -319,3 +319,162 @@ customerservice@simpleblueprints.xyz
 Touches `backend/static/index.html` and the home page assets, so it needs a
 cache-buster bump verified by grep, not from a table.
 
+
+---
+
+## 9. PUSHES 4-6 — the railing fix, and an evening of self-inflicted CI
+
+Written after the fact. Pushes 1-3 are sections 2-3 above; this covers what
+happened once Will read section 5.2 and pushed back on it.
+
+### 9.1 Will's rule, and the correction to §5.2
+
+Will, on being told the flat-deck railing was "worth a decision later":
+
+> "What I need to know is if there are stairs, is there a railing preventing
+> people from getting to the stairs? There should never be that as a case, and
+> that should be carried everywhere. That should be on the PDF. That should be
+> on the 3D. That should be on the materials list."
+
+**§5.2 above framed this as a judgement call. It was not, and that framing was
+wrong.** The 3D already opened the railing on a plain deck
+(`deck3d.js:1118-1122`, single-zone path) and the material list already billed
+the gap. Only the permit PDF drew the fence. Two surfaces agreed and one was the
+outlier — a bug in one file, not a decision. That framing was written before
+checking what the 3D did on plain decks.
+
+### 9.2 It was never a regression
+
+Will's read was that this bug keeps getting fixed and keeps coming back, at a
+cost of tens of hours. The history says otherwise, and the difference matters
+for where to look next time.
+
+`git log -S "stair_openings" -- backend/drawing/draw_plan.py` returns **exactly
+one commit**: S91 push 2 (`f6a3b67`, 2026-07-19). Its own message:
+
+> "only decks with a front cutout change. Plain decks are byte-identical...
+> the flat front rail is unchanged (regression-tested)."
+
+It was scoped to notched decks deliberately, to protect byte-identity. Nothing
+ever removed it. **The plain-deck case was never fixed at all**, for seven
+sessions, while commit messages reading "no rail across the stair opening" made
+it look handled — true of the deck that session was looking at, silently false
+everywhere else.
+
+The failure mode to remember: *a fix narrowed for test convenience, described in
+language that sounds complete.*
+
+### 9.3 What shipped
+
+| SHA | What |
+|-----|------|
+| `cf9be28` | 4: plain deck with front stairs no longer has a railing across them. |
+| `4d9cac6` | **MISLABELLED.** Message says email-address backlog, docs only. Actually contains the whole side-stair fix. See §9.5. |
+| `0497913` | 5: CI red fix (pdfminer) + parity fix + correction of the record. |
+| `d7a2d8d` | 6: CI needs poppler-utils; guard now checks system deps. **First green CI run.** |
+
+Measured, 20x14 with 4 ft stairs, heavy railing lines along the relevant edge:
+
+```
+                      before            after
+plain,   front     x 0 -> 20        x 0 -> 8, x 12 -> 20
+plain,   left      x 0 -> 14        x 0 -> 5, x  9 -> 14
+plain,   right     x 0 -> 14        x 0 -> 5, x  9 -> 14
+notched, front     already correct  unchanged
+```
+
+All three surfaces now agree on railing feet: plain + front stairs 44.0 / 44.0 /
+44.0; plain no stairs 48 / 48 / 48; notched + stairs 52.0 / 52.0 / 52.0.
+
+Golden moved on exactly the three configs that have stairs on an opened edge
+(`edge_stair_front`, `side_stair_left`, `multi_stair`), plan and framing sheets,
+each gaining one line because one railing run became two. Reviewed before
+`--update`.
+
+**Guard: invariant 4** in `test_cross_system_consistency` — 54 configs, plain and
+notched, front/left/right, asserting the railing on the stair's edge comes back
+as two runs and the gap equals the stair width. Mutation-tested by reinstating
+S91's gate (9 failures) and the front-stairs-only gate (36 failures). **The
+plain-deck cases are the point of the invariant. Do not delete them to keep
+golden still.**
+
+### 9.4 Still not covered, say it plainly
+
+- **Rear stairs** on a freestanding deck. Front/back share `angle 0/180` so the
+  code path exists, but no config was swept.
+- **Off-axis (rotated) stairs** are skipped entirely, unchanged since S91. A
+  bounding box would over-cut — the S81e mistake.
+- `_check_binaries` and `_check_imports` are **static scans**. A deferred import
+  inside a function, or a binary invoked through a variable or shell string,
+  will not be seen.
+
+### 9.5 `4d9cac6` IS MISLABELLED — cause and process change
+
+Its message says "backlog the support email addresses for the site (docs only)"
+and "No code touched." Both false. It contains `stair_utils.py`,
+`zone_utils.py`, `zoneUtils.js`, `index.html`, updated golden fingerprints and
+two test files — the entire side-stair fix.
+
+**Cause: `git add -A` on a dirty tree.** Will's email-backlog request was real
+and the note was correct; the staging swept in unrelated in-flight work and the
+message described only the note. History was NOT rewritten (standing rule);
+`0497913` is the correction, per the S102 push 12 pattern.
+
+**PROCESS CHANGE, in force: stage files by name. Never `git add -A`.** A commit
+message that does not match its contents is the exact failure that hid the
+railing bug for seven sessions (§9.2), and it was reproduced here in one evening.
+
+### 9.6 CI went red twice before it went green
+
+Push 2 claimed the CI rewrite was unverified on GitHub's runners and said to
+watch it. It was not watched. Will found out by email.
+
+- Run 1 (`49cee3e`): `ModuleNotFoundError: No module named 'pdfminer'`.
+  `legibility_gate.py` was wired into CI without its pip dependency.
+- Run 2 (`0497913`): `FileNotFoundError: 'pdftoppm'`. Same suite, one layer
+  down — a **system** package, which the new pip-only guard could not catch.
+- Run 3 (`d7a2d8d`): green, 26 steps, nothing skipped.
+
+Two red runs from fixing one requirement at a time. The third fix started by
+**enumerating** every external binary any wired suite touches (exactly two:
+`node`, already provided by setup-node, and `pdftoppm`) rather than guessing
+again.
+
+`test_gate_completeness` now covers all three ways a suite can be under-wired:
+`[MISSING]` not run at all, `[NO DEP]` run without its pip dependency,
+`[NO BIN]` run without its system binary. Both real failures are mutation tests.
+
+---
+
+## 10. LEARNINGS, pushes 4-6
+
+9. **"Worth a decision later" is often an unchecked assumption.** §5.2 called
+   the flat-deck railing a judgement call between the drawing and the material
+   list. Thirty seconds in `deck3d.js` showed two of three surfaces already
+   agreed and the third was simply wrong. Check what the other surfaces do
+   before declaring a tie.
+
+10. **"It keeps regressing" and "it was never fixed" need different responses.**
+    One says add a guard; the other says look at what the original fix actually
+    scoped itself to. `git log -S` on the relevant symbol answered it in one
+    command and the answer was the opposite of the felt experience.
+
+11. **`git add -A` will eventually lie for you.** It turned an honest one-line
+    docs note into a commit that hid a product change. Stage by name.
+
+12. **Fixing one missing requirement at a time burns a runner cycle per layer.**
+    pip dependency, then system binary. Enumerate the whole class first; the
+    enumeration took one command and would have caught both.
+
+13. **A guard is only as wide as the failure class it models.** The pip-import
+    guard was correct, mutation-tested, and blind to `pdftoppm` because binaries
+    are a different class. Ask what OTHER shape this failure comes in.
+
+14. **Saying "watch the first CI run" is not watching it.** Push 2's message
+    named the risk precisely and then nobody acted on it. Naming a risk in a
+    commit is documentation, not mitigation.
+
+15. **Use the user's words for the user's things.** Renders were handed over
+    named `FLAT_front_edge_at_stair` when Will has never once said "flat." He
+    says plain deck, notched deck, stairs, railing, gap. Deliverable names are
+    part of the deliverable.
