@@ -1493,7 +1493,7 @@ const App = function SimpleBlueprints() {
                   getCorners={getCorners} setCorner={setCorner} updateStair={updateStair} updateStairFields={updateStairFields} />
                 {planMode === "plan" && <div style={{ textAlign: "center", fontSize: 9, color: br.mu, fontFamily: mono, marginTop: 4, opacity: 0.7 }}>
 // {zoneMode === "select" && <>Drag the <span style={{ color: "#3d5a2e", fontWeight: 700 }}>green</span> handle to slide the deck   Click <span style={{ color: "#c62828", fontWeight: 700 }}>stairs</span> to select, drag to move, grab <span style={{ color: "#3d5a2e", fontWeight: 700 }}>{"\u21BB"}</span> to rotate</>}
-                  {zoneMode === "add" && (window.atZoneCap && window.atZoneCap(p) ? <>Maximum {window.MAX_ADD_ZONES} sections reached {"\u00B7"} remove one to add another</> : <>Click <span style={{ color: "#16a34a", fontWeight: 700 }}>+</span> on any edge to add a deck zone</>)}
+                  {zoneMode === "add" && (window.atZoneCap && window.atZoneCap(p) ? <>Maximum {window.MAX_ADD_ZONES} sections reached {"\u00B7"} remove one to add another</> : <>Click <span style={{ color: "#16a34a", fontWeight: 700 }}>+</span> on any edge to add a deck section</>)}
                   {zoneMode === "cut" && <>Click <span style={{ color: "#dc2626", fontWeight: 700 }}>{"\u2702"}</span> on corners for house wraps, center for openings</>}
                   {zoneMode === "chamfer" && <>Click <span style={{ color: "#7c3aed", fontWeight: 700 }}>{"\u25E3"}</span> on corners to toggle 45{"\u00B0"} chamfers</>}
                 </div>}

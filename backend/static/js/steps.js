@@ -2675,14 +2675,19 @@ function StepContent(props) {
     })()}
 // {/*   Zone selector bar   */}
     {p.zones.length > 0 && <div style={{ marginBottom: 16, padding: 10, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}` }}>
-      <div style={{ fontSize: 9, fontWeight: 700, color: _br.mu, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 6 }}>Sections</div>
+      <div style={{ fontSize: 9, fontWeight: 700, color: _br.mu, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 4 }}>Sections</div>
+      {/* S105 A2: the word "section" meant nothing on its own. Say what one is,
+          once, where the sections actually appear. */}
+      <div style={{ fontSize: 10, color: _br.mu, fontFamily: _sans, lineHeight: 1.45, marginBottom: 8 }}>
+        A section is a separate part of the deck. Each one can sit at its own height and carry its own stairs, and it is framed and sized on its own. Your drawings label them Deck A, Deck B and so on.
+      </div>
       <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
         <button onClick={() => u("activeZone", 0)} style={{
           padding: "5px 10px", fontSize: 10, fontWeight: 700, borderRadius: 5, fontFamily: _mono, cursor: "pointer",
           border: isZone0 ? `2px solid ${_br.gn}` : `1px solid ${_br.bd}`,
           background: isZone0 ? "#edf5e8" : "#fff",
           color: isZone0 ? _br.gn : _br.mu
-        }}>Main Deck</button>
+        }}>{window.sectionName(0, p)}</button>
         {p.zones.map(function(z) {
           var isActive = p.activeZone === z.id;
           var isCut = z.type === "cutout";
@@ -2693,7 +2698,7 @@ function StepContent(props) {
             background: isActive ? (isCut ? "#fef2f2" : "#eff6ff") : "#fff",
             color: isActive ? col : _br.mu, display: "inline-flex", alignItems: "center", gap: 4
           }}>{isCut ? "\u2702 " : ""}{window.sectionName(z.id, p)}
-            <span onClick={function(e) { e.stopPropagation(); if (confirm("Delete " + (z.label || "Zone " + z.id) + "?")) removeZone(z.id); }} style={{
+            <span onClick={function(e) { e.stopPropagation(); if (confirm("Delete " + window.sectionName(z.id, p) + "?")) removeZone(z.id); }} style={{
               marginLeft: 2, fontSize: 11, lineHeight: "1", color: isCut ? "#fca5a5" : "#93c5fd", cursor: "pointer", fontWeight: 400
             }} onMouseEnter={function(e) { e.target.style.color = "#ef4444"; }} onMouseLeave={function(e) { e.target.style.color = isCut ? "#fca5a5" : "#93c5fd"; }}>{"\u00D7"}</span></button>;
         })}
@@ -2712,7 +2717,7 @@ function StepContent(props) {
           border: "1px solid #fca5a5", background: "#fef2f2", color: "#dc2626", flexShrink: 0, marginLeft: 8
         }}>Delete</button>
       </div>
-      <div style={{ fontSize: 9, color: isCutout ? "#ef4444" : "#60a5fa", fontFamily: _mono }}>{isCutout ? "Cutout (subtracts from parent)" : `Add zone (${zoneW}' x ${zoneD}')`}</div>
+      <div style={{ fontSize: 9, color: isCutout ? "#ef4444" : "#60a5fa", fontFamily: _mono }}>{isCutout ? "Cutout \u00B7 subtracts from the section it sits in" : `Deck section \u00B7 ${zoneW}' x ${zoneD}', its own height, stairs and framing`}</div>
     </div>}
 
 // {/* Width / Depth / Height sliders   zone-aware */}
