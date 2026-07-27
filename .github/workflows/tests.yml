@@ -62,7 +62,15 @@ jobs:
         run: |
           pip install matplotlib==3.10.8 numpy==2.4.4
           pip install reportlab pypdf pillow httpx python-multipart itsdangerous \
-                      anthropic fastapi stripe psycopg2-binary pdfminer.six
+                      anthropic fastapi stripe psycopg2-binary pdfminer.six \
+                      pgserver
+
+      # S104: real Postgres (pgserver ships its own binary, ~2s to boot). The
+      # analytics queries cannot be verified any other way -- they use FILTER,
+      # JSONB ->> and BOOL_OR, none of which sqlite understands, and wrong
+      # analytics never throw. Two real bugs were caught writing this.
+      - name: Address-lookup analytics (real Postgres, shipped get_analytics_v2)
+        run: python3 tests/test_lookup_analytics.py
 
       # ---- wiring guard -------------------------------------------------
       - name: Gate completeness (every suite in tests/ is wired into this file)

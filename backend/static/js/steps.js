@@ -997,6 +997,15 @@ function StepContent(props) {
     if (!parcelAddress || !parcelState || parcelLoading) return;
     setParcelLoading(true);
     setParcelError(null);
+    // S104: fire on ATTEMPT, not just on success. Until now the only parcel
+    // event was on the success path, so there was no denominator -- a lookup
+    // that failed and a person who never typed an address were indistinguishable
+    // in the data. Every branch below now reports, so attempts = start count and
+    // start - success - failed = 0.
+    //
+    // No login involvement anywhere in this: /api/parcel-lookup has no auth
+    // check and /api/track logs the event whatever get_current_user_id returns.
+    if (window._trackEvent) window._trackEvent('parcel_lookup_start', { address: parcelAddress, state: parcelState, city: parcelCity, zip: parcelZip });
     // S96.5: guideAdvance (not setGuidePhase) so the phase we came FROM lands in
     // guideHistory -- the Back button only renders when history is non-empty, so
     // the whole lookup path previously left the user with no way back.
@@ -1011,6 +1020,11 @@ function StepContent(props) {
       setParcelLoading(false);
       if (data.error) {
         setParcelError(data.error);
+        // S104: this branch used to be completely silent. No cache row is written
+        // on failure (main.py:2123 only caches successes) and no event fired, so
+        // an address we could not resolve vanished. Those are the most useful
+        // ones to see: they are demand we are failing to serve.
+        if (window._trackEvent) window._trackEvent('parcel_lookup_failed', { address: parcelAddress, state: parcelState, city: parcelCity, zip: parcelZip, kind: 'no_parcel', reason: String(data.error).slice(0, 200) });
         // S96.5: rollback on error -- sync the async-safe mirror too.
         if (guideActive) { guidePhaseRef.current = 'address_lookup'; setGuidePhase('address_lookup'); }
         return;
@@ -1768,11 +1782,20 @@ function StepContent(props) {
       // S96.5: guideAdvance so this lands in guideHistory (see _doParcelLookup).
       if (guideActive) guideAdvance(data.location.lat && data.location.lng ? 'footprint_loading' : 'verify_extracted');
       // Track event
-      if (window._trackEvent) window._trackEvent('parcel_lookup', { address: parcelAddress, state: parcelState, lot_width: data.lot.width, lot_depth: data.lot.depth, building_sqft: data.building.sqft });
+      // S104: `cached` added. main.py:2112 serves from parcel_cache before
+      // calling Realie, so this flag is what tells you your actual API spend
+      // versus your cache hit rate. Nothing recorded it before.
+      if (window._trackEvent) window._trackEvent('parcel_lookup', { address: parcelAddress, state: parcelState, lot_width: data.lot.width, lot_depth: data.lot.depth, building_sqft: data.building.sqft, cached: !!data._cached });
     })
     .catch(function(err) {
       setParcelLoading(false);
       setParcelError("Network error: " + err.message);
+      // S104: second silent branch. Kept SEPARATE from 'no_parcel' via `kind`
+      // because they mean different things -- no_parcel is a data gap we could
+      // fill, network is our own flakiness. Will, S104: Realie sometimes fails
+      // for no reason and a retry works, which is exactly why failures are not
+      // cached and why these two are not collapsed into one bucket.
+      if (window._trackEvent) window._trackEvent('parcel_lookup_failed', { address: parcelAddress, state: parcelState, city: parcelCity, zip: parcelZip, kind: 'network', reason: String(err && err.message || err).slice(0, 200) });
       // S96.5: rollback on error -- sync the async-safe mirror too.
       if (guideActive) { guidePhaseRef.current = 'address_lookup'; setGuidePhase('address_lookup'); }
     });

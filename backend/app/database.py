@@ -1456,6 +1456,82 @@ def get_analytics_v2(days: int = 30, phase: str = "all") -> dict:
             {"key": "purchase",  "label": "Purchased",          "sessions": f["s_purchase"], "future": True},
         ]
 
+        # --- ADDRESS LOOKUPS (S104) ---------------------------------------
+        # Will's question this session: "do we have actual users that are not me
+        # and Billy and my dad?" The address lookup is the earliest real signal
+        # of that, because it needs NO login -- /api/parcel-lookup has no auth
+        # check, so a stranger who never signs up still shows up here.
+        #
+        # Before S104 only the SUCCESS path fired an event, so this block would
+        # have been unable to show a failure rate at all. parcel_lookup_start and
+        # parcel_lookup_failed are new in the same push as this query.
+        #
+        # NOTE on the funnel above: 'parcel_lookup' is folded into the "Property
+        # entered" stage together with survey_upload / shape_confirmed /
+        # guide_choice, so lookups have never been visible on their own.
+        cur.execute(f"""
+            SELECT
+                COUNT(*) FILTER (WHERE e.event_type = 'parcel_lookup_start')          AS attempts,
+                COUNT(*) FILTER (WHERE e.event_type = 'parcel_lookup')                AS succeeded,
+                COUNT(*) FILTER (WHERE e.event_type = 'parcel_lookup_failed')         AS failed,
+                COUNT(*) FILTER (WHERE e.event_type = 'parcel_lookup_failed'
+                                   AND e.event_data->>'kind' = 'no_parcel')           AS failed_no_parcel,
+                COUNT(*) FILTER (WHERE e.event_type = 'parcel_lookup_failed'
+                                   AND e.event_data->>'kind' = 'network')             AS failed_network,
+                COUNT(*) FILTER (WHERE e.event_type = 'parcel_lookup'
+                                   AND e.event_data->>'cached' = 'true')              AS cache_hits,
+                COUNT(DISTINCT e.session_id)   FILTER (WHERE e.event_type LIKE 'parcel_lookup%%')  AS sessions,
+                COUNT(DISTINCT e.anonymous_id) FILTER (WHERE e.event_type LIKE 'parcel_lookup%%')  AS visitors,
+                COUNT(DISTINCT s.ip_hash)      FILTER (WHERE e.event_type LIKE 'parcel_lookup%%')  AS ips,
+                COUNT(DISTINCT e.session_id)   FILTER (WHERE e.event_type LIKE 'parcel_lookup%%'
+                                   AND e.user_id IS NULL)                             AS sessions_anon,
+                COUNT(DISTINCT e.session_id)   FILTER (WHERE e.event_type LIKE 'parcel_lookup%%'
+                                   AND e.user_id IS NOT NULL)                         AS sessions_auth
+            {base_join}
+            WHERE e.created_at >= NOW() - INTERVAL '{days} days'
+                AND {human}{pf}
+        """, pargs)
+        lk = dict(cur.fetchone())
+
+        # Every address anyone typed, resolved or not. Deliberately includes the
+        # failures: an address we could not serve is the most actionable row here.
+        cur.execute(f"""
+            SELECT
+                UPPER(TRIM(COALESCE(e.event_data->>'address',''))) AS address,
+                UPPER(TRIM(COALESCE(e.event_data->>'state','')))   AS state,
+                COUNT(*) FILTER (WHERE e.event_type = 'parcel_lookup_start')  AS attempts,
+                COUNT(*) FILTER (WHERE e.event_type = 'parcel_lookup')        AS resolved,
+                COUNT(*) FILTER (WHERE e.event_type = 'parcel_lookup_failed') AS failed,
+                COUNT(DISTINCT e.session_id)                        AS sessions,
+                BOOL_OR(e.event_type = 'parcel_lookup')             AS ever_resolved,
+                BOOL_OR(e.user_id IS NOT NULL)                      AS ever_signed_in,
+                TO_CHAR(MAX(e.created_at), 'YYYY-MM-DD HH24:MI')    AS last_seen
+            {base_join}
+            WHERE e.created_at >= NOW() - INTERVAL '{days} days'
+                AND e.event_type LIKE 'parcel_lookup%%'
+                AND COALESCE(e.event_data->>'address','') <> ''
+                AND {human}{pf}
+            GROUP BY 1, 2
+            ORDER BY MAX(e.created_at) DESC
+            LIMIT 100
+        """, pargs)
+        lookup_addresses = [dict(r) for r in cur.fetchall()]
+
+        lookups = {
+            "attempts": lk["attempts"],
+            "succeeded": lk["succeeded"],
+            "failed": lk["failed"],
+            "failed_no_parcel": lk["failed_no_parcel"],
+            "failed_network": lk["failed_network"],
+            "cache_hits": lk["cache_hits"],
+            "sessions": lk["sessions"],
+            "visitors": lk["visitors"],
+            "ips": lk["ips"],
+            "sessions_anon": lk["sessions_anon"],
+            "sessions_auth": lk["sessions_auth"],
+            "addresses": lookup_addresses,
+        }
+
         # --- ACQUISITION (sessions table; accumulates from S100 deploy) ---
         cur.execute(f"SELECT TO_CHAR(MIN(first_seen), 'YYYY-MM-DD') AS since FROM sessions WHERE TRUE{spf}", spargs)
         row = cur.fetchone()
@@ -1541,6 +1617,7 @@ def get_analytics_v2(days: int = 30, phase: str = "all") -> dict:
             "overview": {"current": overview_now, "previous": overview_prev},
             "daily": daily,
             "funnel": funnel,
+            "lookups": lookups,
             "acquisition": {
                 "tracked_since": tracked_since,
                 "by_channel": by_channel,

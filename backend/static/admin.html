@@ -177,6 +177,22 @@
       <div id="funnel"></div>
     </div>
 
+    <div class="section-label">Address Lookups</div>
+    <div class="card">
+      <div class="note" id="lookups-note"></div>
+      <div id="lookups-stats"></div>
+    </div>
+    <div class="card">
+      <div class="section-title" style="margin-bottom:4px">Addresses looked up</div>
+      <div class="note">Every address anyone typed, whether or not it resolved. Failed ones are the useful rows: they are demand we could not serve.</div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>Address</th><th>State</th><th class="num">Attempts</th><th class="num">Resolved</th><th class="num">Failed</th><th class="num">Sessions</th><th>Who</th><th>Last seen</th></tr></thead>
+          <tbody id="lookups-tbody"><tr><td colspan="8" class="empty-msg">Loading&hellip;</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
     <div class="section-label">Acquisition</div>
     <div class="card">
       <div class="section-title" style="margin-bottom:4px">Channels</div>
@@ -237,7 +253,7 @@
       <div style="overflow-x:auto">
         <table>
           <thead><tr><th>Time</th><th>User</th><th>Size</th><th>Height</th><th>Attach</th><th>Decking</th><th>Stairs</th></tr></thead>
-          <tbody id="recent-tbody"><tr><td colspan="7" class="empty-msg">Loading&hellip;</td></tr></tbody>
+          <tbody id="recent-tbody"><tr><td colspan="8" class="empty-msg">Loading&hellip;</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -334,6 +350,7 @@ function renderAnalytics(A){
 
   // Funnel
   renderFunnel(A.funnel);
+  renderLookups(A.lookups);
 
   // Acquisition
   var since = A.acquisition.tracked_since;
@@ -369,6 +386,43 @@ function renderAnalytics(A){
   $('q-pdf-sub').textContent = done+' delivered, '+errs+' errors, '+starts+' attempts';
   $('q-ai').textContent = '$'+((A.ai.cost_cents||0)/100).toFixed(2);
   $('q-ai-sub').textContent = n(A.ai.messages)+' messages in '+n(A.ai.sessions)+' sessions';
+}
+
+function renderLookups(L){
+  if(!L){ return; }
+  // S104: attempts is the denominator that did not exist before this session --
+  // only the success path fired an event, so a failed lookup and a person who
+  // never typed an address looked identical in the data.
+  var rows = [
+    ['Attempts',        n(L.attempts),  ''],
+    ['Resolved',        n(L.succeeded), L.attempts>0 ? pct(L.succeeded, L.attempts)+'% of attempts' : ''],
+    ['Failed',          n(L.failed),    n(L.failed_no_parcel)+' no parcel &middot; '+n(L.failed_network)+' network'],
+    ['Served from cache', n(L.cache_hits), L.succeeded>0 ? pct(L.cache_hits, L.succeeded)+'% of resolved, no API call' : ''],
+    ['Sessions',        n(L.sessions),  n(L.sessions_anon)+' not signed in &middot; '+n(L.sessions_auth)+' signed in'],
+    ['Distinct visitors', n(L.visitors), n(L.ips)+' distinct IPs']
+  ];
+  var html = '';
+  for(var i=0;i<rows.length;i++){
+    html += '<div class="funnel-row"><div class="funnel-label">'+rows[i][0]+'</div>'+
+            '<div style="flex:1;font-size:.86rem;color:var(--navy)"><b>'+rows[i][1]+'</b></div>'+
+            '<div class="funnel-nums">'+rows[i][2]+'</div></div>';
+  }
+  $('lookups-stats').innerHTML = html;
+  $('lookups-note').textContent = 'Address lookup needs no login, so this is the earliest signal of a real stranger using the product. Bot sessions are excluded.';
+
+  var t = '';
+  var addrs = L.addresses || [];
+  for(var j=0;j<addrs.length;j++){
+    var a = addrs[j];
+    t += '<tr><td>'+esc(a.address)+'</td><td>'+esc(a.state)+'</td>'+
+         '<td class="num">'+n(a.attempts)+'</td>'+
+         '<td class="num">'+n(a.resolved)+'</td>'+
+         '<td class="num">'+(a.failed>0 ? '<span class="funnel-drop">'+n(a.failed)+'</span>' : '0')+'</td>'+
+         '<td class="num">'+n(a.sessions)+'</td>'+
+         '<td>'+(a.ever_signed_in ? 'Signed in' : 'Anonymous')+'</td>'+
+         '<td>'+esc(a.last_seen)+'</td></tr>';
+  }
+  $('lookups-tbody').innerHTML = t || '<tr><td colspan="8" class="empty-msg">No address lookups in this range.</td></tr>';
 }
 
 function renderFunnel(steps){
