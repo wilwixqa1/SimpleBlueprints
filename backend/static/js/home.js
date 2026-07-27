@@ -415,7 +415,18 @@ function DraftsPage({ setPage, user, API, loadProject, startNewProject }) {
   var selectMode = selectedCount > 0;
 
   React.useEffect(function() {
-    if (!user || !API) return;
+    // S104: this used to read `if (!user || !API) return;`.
+    //
+    // API is the same-origin prefix and has been the EMPTY STRING since S96.5
+    // push 1 (app.js:833). "" is falsy, so !API was always true, the effect
+    // returned before the fetch every single time, and `loading` -- which
+    // initialises to true -- was never cleared. My Projects has been stuck on
+    // "Loading projects..." for every user since that commit.
+    //
+    // Nothing was wrong with the fetch, the endpoint, or the data. The page
+    // simply never asked. Do NOT reintroduce a truthiness test on API: an empty
+    // string is its correct, intended value.
+    if (!user) { setLoading(false); return; }   // signed out: show the empty state, never hang
     fetch(API + "/api/projects", { credentials: "include" })
       .then(function(r) { return r.json(); })
       .then(function(d) { setProjects(d.projects || []); setLoading(false); })
