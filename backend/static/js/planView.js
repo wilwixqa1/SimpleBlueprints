@@ -307,7 +307,7 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, remo
         var r = a.rect, isActive = a.id === p.activeZone;
         return <text key={"zlbl" + a.id} x={zx(r.x) + 4} y={zy(r.y) + 10}
           style={{ fontSize: 7, fill: isActive ? "#2563eb" : "#888", fontFamily: "monospace", fontWeight: 700 }}>
-          {a.zone.label || "Zone " + a.id}
+          {window.sectionName(a.id, pForZones)}
         </text>;
       })}
 
@@ -463,7 +463,7 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, remo
         var r = a.rect, h = hoverBtn === "del-" + a.id;
         var bx = zx(r.x) + r.w * sc - 1, by = zy(r.y) + 1;
         return <g key={"zdel" + a.id} onMouseEnter={function() { setHoverBtn("del-" + a.id); }} onMouseLeave={function() { setHoverBtn(null); }}
-          onClick={function(e) { e.stopPropagation(); if (confirm("Delete " + (a.zone.label || "Zone " + a.id) + "?")) removeZone(a.id); }} style={{ cursor: "pointer" }}>
+          onClick={function(e) { e.stopPropagation(); if (confirm("Delete " + window.sectionName(a.id, pForZones) + "?")) removeZone(a.id); }} style={{ cursor: "pointer" }}>
           <circle cx={bx} cy={by} r={h ? 8 : 6} fill={h ? "#dc2626" : "white"} stroke="#dc2626" strokeWidth="1.2" style={{ transition: "all 0.12s" }} />
           <text x={bx} y={by + 1} textAnchor="middle" dominantBaseline="central"
             fontSize={h ? 10 : 7} fontWeight="800" fill={h ? "white" : "#dc2626"} style={{ userSelect: "none" }}>{"\u00D7"}</text>

@@ -72,8 +72,59 @@ window.atZoneCap = function(p) { return ((p && p.zones) || []).filter(function(z
         anchorY: p.stairAnchorY,
         angle: p.stairAngle
       },
-      label: "Main Deck"
+      label: "Deck A"
     };
+  }
+
+  // ---- S105: ONE naming rule. Mirrored by section_name() in zone_utils.py. ----
+  //
+  // WHY THIS EXISTS. "Zone" already means ZONING DISTRICT on a permit site plan.
+  // Measured across all four approved PPRBD reference sets: the word appears
+  // exactly once, as "ZONE: R1-6" on Meadowview's site plan. It is never used
+  // for a part of a deck. The sets label deck parts DECK A / DECK B (9 hits),
+  // so we do too. We were printing "ZONE 1" onto a sheet next to zoning
+  // setbacks, which is not a preference problem, it is a wrong word.
+  //
+  // The rule was previously written inline in eight places across five files.
+  // Every notch bug so far has been that same shape (S104 doc section 4.4), so
+  // it lives here and everything calls it.
+  //
+  // LETTERS FOLLOW POSITION, NOT ID. Ids are never reused, so lettering by id
+  // leaves "Deck A, Deck C" after a delete. A gap like that on a submitted
+  // sheet reads as a missing section.
+  //
+  // CUTOUTS ARE NOT DECK PARTS. They are holes, they never consume a letter,
+  // and "cutout" collides with nothing, so it stays.
+  var AUTO_LABEL = /^(zone|cutout|main deck)(\s+\d+)?$/i;
+
+  function isAutoLabel(s) {
+    return !s || AUTO_LABEL.test(String(s).trim());
+  }
+
+  function sectionLetter(i) {
+    // 0->A, 25->Z, 26->AA. MAX_ADD_ZONES=3 means we never pass D in practice.
+    var s = "";
+    i = i | 0;
+    do { s = String.fromCharCode(65 + (i % 26)) + s; i = Math.floor(i / 26) - 1; } while (i >= 0);
+    return s;
+  }
+
+  // Display name for a zone id. Zone 0 is virtual and its label is synthesised
+  // by getZone0(), never typed by a user, so it is always "Deck A".
+  function sectionName(zoneId, p) {
+    if (zoneId === 0 || zoneId === "0") return "Deck A";
+    var zones = (p && p.zones) || [];
+    var addIdx = 0, cutIdx = 0;
+    for (var i = 0; i < zones.length; i++) {
+      var z = zones[i];
+      var isCut = z.type === "cutout";
+      if (isCut) { cutIdx++; } else { addIdx++; }
+      if (z.id === zoneId) {
+        if (!isAutoLabel(z.label)) return z.label;
+        return isCut ? ("Cutout " + cutIdx) : ("Deck " + sectionLetter(addIdx));
+      }
+    }
+    return "Deck " + sectionLetter(zoneId);
   }
 
   function getAllZones(p) {
@@ -575,7 +626,7 @@ window.atZoneCap = function(p) { return ((p && p.zones) || []).filter(function(z
       var s = siblings[i];
       if (zone.attachOffset < s.attachOffset + s.w - 0.01 &&
           zone.attachOffset + zone.w > s.attachOffset + 0.01) {
-        return { valid: false, msg: "Overlaps with " + (s.label || "Zone " + s.id) };
+        return { valid: false, msg: "Overlaps with " + sectionName(s.id, p) };
       }
     }
     return { valid: true };
@@ -912,7 +963,7 @@ window.atZoneCap = function(p) { return ((p && p.zones) || []).filter(function(z
      _landsOnZoneId AND the right location pre-set to the shared edge.
 
      Each entry: { label, landsOnZoneId, location }
-       label: human string for the button (e.g. "Main Deck", "Ground")
+       label: human string for the button (e.g. "Deck A", "Ground")
        landsOnZoneId: null for ground, number for a zone landing
        location: "front" | "left" | "right" | "back" — pre-set to the
                  edge of the FROM zone that touches the destination
@@ -955,11 +1006,9 @@ window.atZoneCap = function(p) { return ((p && p.zones) || []).filter(function(z
         else if (Math.abs(e.x1 - (fromRect.x + fromRect.w)) < TOL) loc = "right";
         else continue;
       }
-      var label = (otherId === 0) ? "Main Deck" : "Zone " + otherId;
-      // Use custom label if the other zone has one
-      var otherZone = getZoneById(p, otherId);
-      if (otherZone && otherZone.label) label = otherZone.label;
-      out.push({ label: label, landsOnZoneId: otherId, location: loc });
+      // S105: was three inline lines duplicating the naming rule. sectionName()
+      // already prefers a user-typed label over the derived one.
+      out.push({ label: sectionName(otherId, p), landsOnZoneId: otherId, location: loc });
     }
     return out;
   }
@@ -1198,6 +1247,9 @@ window.atZoneCap = function(p) { return ((p && p.zones) || []).filter(function(z
     return getCutoutRects(p).concat(getStairOpeningRects(p));
   }
 
+  window.sectionName = sectionName;
+  window.isAutoLabel = isAutoLabel;
+  window.sectionLetter = sectionLetter;
   window.getStairOpeningRects = getStairOpeningRects;
   window.getOpeningRects = getOpeningRects;
   window.getAddableEdges = getAddableEdges;

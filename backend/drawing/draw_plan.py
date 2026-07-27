@@ -20,7 +20,7 @@ from .calc_engine import calculate_structure
 from .stair_utils import (get_stair_placement, get_stair_exit_side, resolve_all_stairs,
                           transform_stair_point, transform_stair_rect,
                           build_front_stair_openings)
-from .zone_utils import get_additive_rects, get_cutout_rects, get_opening_rects, get_exposed_edges, get_bounding_box, _chamfered_vertices
+from .zone_utils import get_additive_rects, get_cutout_rects, get_opening_rects, get_exposed_edges, get_bounding_box, _chamfered_vertices, section_name, is_auto_label
 from .beam_layout import notched_deck_polygon, notch_headers  # S89: notch-aware outline
 
 # ============================================================
@@ -161,21 +161,12 @@ def format_feet_inches(feet):
 def _zone_display_label(zone_id, params):
     """Return a human-readable label for a zone id.
 
-    S81e helper. Mirrors getStairDestinations()'s label logic in zoneUtils.js:
-    use the zone's custom label if set, otherwise 'Main Deck' for zone 0
-    or 'Zone N' for others. This is called when rendering transitional
-    stair destination callouts on the PDF plan view.
+    S81e helper, gutted in S105. It used to re-implement the naming rule, which
+    is how the sheet and the screen were free to disagree. It now forwards to
+    the single rule in zone_utils.section_name(), mirrored by sectionName() in
+    zoneUtils.js. Kept as a name so the existing call sites read the same.
     """
-    if zone_id == 0:
-        return "Main Deck"
-    zones = params.get("zones") or []
-    for z in zones:
-        if z.get("id") == zone_id:
-            custom = z.get("label")
-            if custom:
-                return custom
-            return f"Zone {zone_id}"
-    return f"Zone {zone_id}"
+    return section_name(zone_id, params)
 
 
 # ============================================================
@@ -252,7 +243,7 @@ def compute_zone_framing(zone, rect, joist_spacing_in=16):
     return None
 
 
-def draw_zone_framing(ax, zone, rect, calc, zone_sizing=None, margin_cols=None):
+def draw_zone_framing(ax, zone, rect, calc, zone_sizing=None, margin_cols=None, params=None):
     """Draw framing elements (outline, joists, beam, posts, piers) for an add zone.
     S80: Flush beam zones only draw outline + joists + label (no beam/posts/piers).
     S86: when margin_cols=(left_x, right_x, main_cx) is given (complex full-width
@@ -296,7 +287,9 @@ def draw_zone_framing(ax, zone, rect, calc, zone_sizing=None, margin_cols=None):
 
     # S61/S86: Zone label = short tag on the wing + member spec (leadered to
     # margin on the complex full-width sheet, else printed compactly on the zone)
-    label = zone.get("label", f"Zone {zone.get('id', '?')}")
+    # S105: was f"Zone {id}" inline. params is threaded in purely so the one
+    # naming rule can see the zones list and derive the same letter the screen shows.
+    label = section_name(zone.get("id"), params or {"zones": [zone]})
     _sp = calc.get("joist_spacing", 16)
     if zone_sizing:
         zj = zone_sizing["joist_size"]
@@ -503,7 +496,7 @@ def draw_plan_and_framing(fig, params, calc, spec=None, panels=None):
                             _zs = _zone_calcs[_zli]
                             break
                     draw_zone_framing(ax, ar["zone"], ar["rect"], calc, zone_sizing=_zs,
-                                      margin_cols=(_zL, _zR, W / 2))
+                                      margin_cols=(_zL, _zR, W / 2), params=params)
         else:
             # S22: Zone-aware plan view with color differentiation
             for idx, ar in enumerate(add_rects):
@@ -528,8 +521,15 @@ def draw_plan_and_framing(fig, params, calc, spec=None, panels=None):
                         ln.set_clip_path(_zone_clip)
 
                 # S22: Zone labels + per-zone dimensions for add zones
-                if ar["id"] != 0 and has_zones:
-                    label = ar["zone"].get("label", f"Zone {ar['id']}")
+                # S105: zone 0 used to be skipped, so a two-section deck printed
+                # DECK B and DECK C with no DECK A and the examiner sees a
+                # missing section. Label every section once any section exists.
+                # A cutout-only deck is still ONE section, so gate on the number
+                # of additive sections, not on has_zones (a cutout lives in
+                # zones[] too). Single-section decks stay unlabelled and
+                # byte-identical, which keeps the golden honest.
+                if len(add_rects) > 1:
+                    label = section_name(ar["id"], params)
                     ax.text(r["x"] + r["w"] / 2, r["y"] + r["d"] / 2,
                             label.upper(),
                             ha='center', va='center', fontsize=5,

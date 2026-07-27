@@ -736,11 +736,11 @@ function GuidePanel({ phase, onAction, onBack, history, onToggleOff, message, ti
               else if (act.siteElementUpdate) chipText = "Updated " + (act.siteElementUpdate.type || "element");
               else if (act.siteElementAdd) chipText = "Added " + (act.siteElementAdd.type || "element");
               else if (act.siteElementRemove) chipText = "Removed element";
-              else if (act.zoneAdd) chipText = "Added zone (" + (act.zoneAdd.edge || "left") + ")";
+              else if (act.zoneAdd) chipText = "Added section (" + (act.zoneAdd.edge || "left") + ")";
               else if (act.cutoutAdd) chipText = "Added cutout (" + (act.cutoutAdd.edge || "front") + ")";
               else if (act.chamferSet) chipText = (act.chamferSet.enabled ? "Chamfer " : "Removed chamfer ") + (act.chamferSet.corner || "");
-              else if (act.zoneRemove) chipText = "Removed zone";
-              else if (act.zoneUpdate) chipText = "Updated zone " + (act.zoneUpdate.zoneId || "");
+              else if (act.zoneRemove) chipText = "Removed section";
+              else if (act.zoneUpdate) chipText = "Updated " + window.sectionName(act.zoneUpdate.zoneId, p);
               else return null;
               return <span key={ai} style={{
                 fontSize: 9, fontFamily: _mono, color: _br.gn, fontWeight: 700,
@@ -2644,7 +2644,7 @@ function StepContent(props) {
   var zoneW = activeZoneObj ? activeZoneObj.w : p.width;
   var zoneD = activeZoneObj ? activeZoneObj.d : p.depth;
   var zoneH = activeZoneObj ? (activeZoneObj.h != null ? activeZoneObj.h : p.height) : p.height;
-  var activeLabel = activeZoneObj ? (activeZoneObj.label || "Zone " + activeZoneObj.id) : "Main Deck";
+  var activeLabel = window.sectionName(p.activeZone, p);
   var isCutout = activeZoneObj && activeZoneObj.type === "cutout";
 
   if (step === 1) return <>
@@ -2675,7 +2675,7 @@ function StepContent(props) {
     })()}
 // {/*   Zone selector bar   */}
     {p.zones.length > 0 && <div style={{ marginBottom: 16, padding: 10, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}` }}>
-      <div style={{ fontSize: 9, fontWeight: 700, color: _br.mu, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 6 }}>Zones</div>
+      <div style={{ fontSize: 9, fontWeight: 700, color: _br.mu, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 6 }}>Sections</div>
       <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
         <button onClick={() => u("activeZone", 0)} style={{
           padding: "5px 10px", fontSize: 10, fontWeight: 700, borderRadius: 5, fontFamily: _mono, cursor: "pointer",
@@ -2692,7 +2692,7 @@ function StepContent(props) {
             border: isActive ? `2px solid ${col}` : `1px solid ${_br.bd}`,
             background: isActive ? (isCut ? "#fef2f2" : "#eff6ff") : "#fff",
             color: isActive ? col : _br.mu, display: "inline-flex", alignItems: "center", gap: 4
-          }}>{isCut ? "\u2702 " : ""}{z.label || "Zone " + z.id}
+          }}>{isCut ? "\u2702 " : ""}{window.sectionName(z.id, p)}
             <span onClick={function(e) { e.stopPropagation(); if (confirm("Delete " + (z.label || "Zone " + z.id) + "?")) removeZone(z.id); }} style={{
               marginLeft: 2, fontSize: 11, lineHeight: "1", color: isCut ? "#fca5a5" : "#93c5fd", cursor: "pointer", fontWeight: 400
             }} onMouseEnter={function(e) { e.target.style.color = "#ef4444"; }} onMouseLeave={function(e) { e.target.style.color = isCut ? "#fca5a5" : "#93c5fd"; }}>{"\u00D7"}</span></button>;
@@ -2729,7 +2729,7 @@ function StepContent(props) {
     </div>}
     {isZone0 && <Slider label="Height above grade" value={p.height} min={1} max={14} step={0.5} fmt={fmtFtIn} field="height" u={u} p={p} />}
     {!isZone0 && activeZoneObj && activeZoneObj.type === "add" && <>
-      <Slider label="Zone height" value={zoneH} min={1} max={14} step={0.5} fmt={fmtFtIn} field="height" u={u} p={p} />
+      <Slider label="Section height" value={zoneH} min={1} max={14} step={0.5} fmt={fmtFtIn} field="height" u={u} p={p} />
       {zoneH !== p.height && <div style={{ fontSize: 9, color: "#d97706", fontFamily: _mono, marginTop: -4, marginBottom: 8, fontStyle: "italic" }}>
         Different from main deck ({fmtFtIn(p.height)}). PDF elevation views will reflect this in a future update.
       </div>}
@@ -2836,7 +2836,7 @@ function StepContent(props) {
           {_mine.map(function(e, idx) {
             var cls = window.classifyHeightDelta(e.deltaIn);
             var otherId = e.aId === p.activeZone ? e.bId : e.aId;
-            var otherLabel = otherId === 0 ? "Main Deck" : ("Zone " + otherId);
+            var otherLabel = window.sectionName(otherId, p);
 
             // Delta formatting (unchanged from S81b)
             var _whole = Math.floor(e.deltaIn);
@@ -3018,7 +3018,7 @@ function StepContent(props) {
 
       return <div data-section="stairs" style={{ marginBottom: 16 }}>
         <Label>Stairs</Label>
-        {zoneStairs.length === 0 && <div style={{ fontSize: 11, color: _br.mu, fontFamily: _mono, marginBottom: 8 }}>No stairs on this zone</div>}
+        {zoneStairs.length === 0 && <div style={{ fontSize: 11, color: _br.mu, fontFamily: _mono, marginBottom: 8 }}>No stairs on this section</div>}
         {zoneStairs.map(function(st) {
           var stU = function(f, v) { updateStair(st.id, f, v); };
           var maxW = st.location === "front" ? zW : zD;

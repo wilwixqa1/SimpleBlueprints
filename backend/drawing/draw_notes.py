@@ -284,10 +284,10 @@ def draw_notes_sheet(fig, params, calc, spec=None):
         )
     if has_zones:
         framing_notes.append(
-            ("Additional zones have independent framing as shown on Sheet A-2. "
-             "Zones may use dropped beams with posts and footings, or flush beams "
-             "where joists bear into the main deck rim board with joist hangers. "
-             "Verify zone-specific member sizes on the framing plan.",
+            ("Deck sections B and beyond have independent framing as shown on Sheet A-2. "
+             "A section may use dropped beams with posts and footings, or flush beams "
+             "where joists bear into the Deck A rim board with joist hangers. "
+             "Verify member sizes for each section on the framing plan.",
              "IRC R507")
         )
     y = draw_section(left_col_x, y, "FRAMING", framing_notes)

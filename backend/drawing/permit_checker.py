@@ -1338,11 +1338,11 @@ def check_zone_calcs(params, calc, spec):
         id="CAP_ZONE_CALCS",
         category="capability", sheet="A-1", severity="warning",
         status="pass",
-        message="Zone extensions have independent structural sizing.",
+        message="Deck sections have independent structural sizing.",
         detail=(
-            "S60: Zone joist, beam, and footing sizes are computed independently "
-            "based on each zone's dimensions and the design load. "
-            "Plan view labels on A-1 still show main deck member sizes."
+            "S60: joist, beam, and footing sizes are computed independently for each "
+            "deck section, from that section's dimensions and the design load. "
+            "Plan view labels on A-1 still show Deck A member sizes."
         ),
     )
 

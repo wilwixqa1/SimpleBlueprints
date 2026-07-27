@@ -5,6 +5,7 @@ S21: Plan view only. Framing/elevations remain zone-0 only.
 S61: Chamfer-aware edge computation.
 """
 
+import re
 import math
 
 
@@ -597,3 +598,60 @@ def get_opening_rects(params):
     openings back into placement would recurse.
     """
     return list(get_cutout_rects(params)) + list(get_stair_opening_rects(params))
+
+
+# ---- S105: ONE naming rule. Mirror of sectionName() in zoneUtils.js. ----
+#
+# WHY THIS EXISTS. "Zone" already means ZONING DISTRICT on a permit site plan.
+# Measured across all four approved PPRBD reference sets, the word appears
+# exactly once: "ZONE: R1-6" on Meadowview's site plan. It is never used for a
+# part of a deck. The sets label deck parts DECK A / DECK B (9 hits). We were
+# printing "ZONE 1" on a sheet beside zoning setbacks, which is a wrong word,
+# not a style preference.
+#
+# Letters follow POSITION, not id, because ids are never reused and lettering
+# by id leaves "Deck A, Deck C" after a delete. A gap like that on a submitted
+# sheet reads as a missing section.
+#
+# Cutouts are holes, not deck parts. They never consume a letter.
+#
+# THIS MUST STAY IDENTICAL TO zoneUtils.js sectionName(). Guarded by
+# tests/test_section_naming_parity.py.
+_AUTO_LABEL = re.compile(r"^(zone|cutout|main deck)(\s+\d+)?$", re.IGNORECASE)
+
+
+def is_auto_label(s):
+    return not s or bool(_AUTO_LABEL.match(str(s).strip()))
+
+
+def section_letter(i):
+    """0->A, 25->Z, 26->AA. MAX_ADD_ZONES=3 means we never pass D in practice."""
+    s = ""
+    i = int(i)
+    while True:
+        s = chr(65 + (i % 26)) + s
+        i = i // 26 - 1
+        if i < 0:
+            return s
+
+
+def section_name(zone_id, params):
+    """Display name for a zone id. Zone 0 is virtual, its label is synthesised,
+    never user-typed, so it is always 'Deck A'."""
+    if zone_id == 0:
+        return "Deck A"
+    zones = (params or {}).get("zones") or []
+    add_idx = 0
+    cut_idx = 0
+    for z in zones:
+        is_cut = z.get("type") == "cutout"
+        if is_cut:
+            cut_idx += 1
+        else:
+            add_idx += 1
+        if z.get("id") == zone_id:
+            label = z.get("label")
+            if not is_auto_label(label):
+                return label
+            return "Cutout %d" % cut_idx if is_cut else "Deck " + section_letter(add_idx)
+    return "Deck " + section_letter(zone_id)

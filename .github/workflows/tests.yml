@@ -97,6 +97,13 @@ jobs:
         run: python3 tests/test_short_links.py
 
       # ---- wiring guard -------------------------------------------------
+      # S105: "zone" is printed on the permit sheets and it already means
+      # ZONING DISTRICT there. Renamed to Deck A/B/C, and the naming rule that
+      # was inline in eight places now lives in one function per language.
+      # This guards the two against drifting apart again.
+      - name: Section naming parity (zoneUtils.js vs zone_utils.py)
+        run: python3 tests/test_section_naming_parity.py
+
       - name: Gate completeness (every suite in tests/ is wired into this file)
         run: python3 tests/test_gate_completeness.py
 

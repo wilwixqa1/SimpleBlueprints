@@ -10,7 +10,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
-from .zone_utils import get_exposed_edges
+from .zone_utils import get_exposed_edges, section_name
 from .calc_engine import get_joist_spans_for_load, auto_select_beam
 from .stair_utils import compute_stair_geometry, build_front_stair_openings
 
@@ -485,7 +485,9 @@ def estimate_zone_materials(params, calc):
         extra_posts += n_posts
         extra_footings += n_posts
 
-        label = z.get("label", f'Zone {z.get("id", "?")}')
+        # S105: the ninth copy of the naming rule, and the one the golden
+        # cannot see because the material sheet is not in SHEETS.
+        label = section_name(z.get("id"), params)
         jL = math.ceil(j_span)
 
         # Foundation
