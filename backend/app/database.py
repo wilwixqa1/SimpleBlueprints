@@ -445,6 +445,77 @@ def create_project(user_id: int, name: str = "Untitled Deck", params_json: str =
         return dict(row)
 
 
+def find_identical_project(user_id: int, name: str, params_json: str,
+                           info_json: str, within_hours: int = 6) -> dict | None:
+    """S104: return an existing project that is byte-identical to what is about
+    to be created, or None.
+
+    WHY: the project id lived only in a React ref (app.js:901). A page refresh,
+    a sign-in round trip, or clicking the logo dropped it, and the next autosave
+    called POST /api/projects and got a WHOLE NEW ROW carrying the same address.
+    Will saw this as "my projects aren't saving" and "the same project shows up
+    as more than one file" -- one bug, two symptoms.
+
+    The client fix (persist the id in the URL) is the real repair. This is the
+    backstop, because a rule that only lives in the client is one refactor away
+    from being gone -- S103's lesson that an instruction is not a mechanism.
+
+    NARROW ON PURPOSE, two ways:
+      * Byte-identical on name AND params AND info. If the rows are identical
+        there is by definition no unique work in the second one, so returning
+        the first cannot lose anything.
+      * Within a time window. Someone deliberately starting a fresh design from
+        identical defaults next week should still get their own row; the
+        duplicates this targets are minutes apart, inside one sitting.
+    """
+    try:
+        with get_db() as conn:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute("""
+                SELECT * FROM projects
+                WHERE user_id = %s
+                  AND name IS NOT DISTINCT FROM %s
+                  AND params_json IS NOT DISTINCT FROM %s
+                  AND info_json IS NOT DISTINCT FROM %s
+                  AND updated_at > NOW() - make_interval(hours => %s)
+                ORDER BY updated_at DESC
+                LIMIT 1
+            """, (user_id, name, params_json, info_json, within_hours))
+            row = cur.fetchone()
+            return dict(row) if row else None
+    except Exception as e:
+        # Never let the dedupe check block a save. Falling through to a normal
+        # create is the safe failure: a duplicate row beats a lost project.
+        print(f"find_identical_project error: {e}")
+        return None
+
+
+def list_duplicate_projects(user_id: int = None) -> list:
+    """S104: report groups of byte-identical projects. READ ONLY -- deletes
+    nothing. Exists so the cleanup of the rows Will already has can be reviewed
+    before anything is removed.
+    """
+    with get_db() as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        where, args = "", []
+        if user_id is not None:
+            where, args = "WHERE user_id = %s", [user_id]
+        cur.execute(f"""
+            SELECT user_id, name, params_json, info_json,
+                   COUNT(*) AS copies,
+                   MIN(id) AS oldest_id,
+                   MAX(id) AS newest_id,
+                   ARRAY_AGG(id ORDER BY updated_at DESC, id DESC) AS ids,
+                   TO_CHAR(MAX(updated_at), 'YYYY-MM-DD HH24:MI') AS last_touched
+            FROM projects
+            {where}
+            GROUP BY user_id, name, params_json, info_json
+            HAVING COUNT(*) > 1
+            ORDER BY COUNT(*) DESC, MAX(updated_at) DESC
+        """, args)
+        return [dict(r) for r in cur.fetchall()]
+
+
 def list_projects(user_id: int) -> list:
     """List all projects for a user (summary only, no survey blob)."""
     with get_db() as conn:

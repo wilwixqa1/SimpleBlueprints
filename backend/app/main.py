@@ -55,6 +55,7 @@ from app.database import (
     should_generate_insight, get_conversations_for_insight,
     get_event_summary_for_insight, save_insight,
     create_project, list_projects, get_project, update_project, delete_project,
+    find_identical_project, list_duplicate_projects,
     get_project_locations,
     get_cached_parcel, set_cached_parcel
 )
@@ -1698,6 +1699,18 @@ async def api_create_project(request: Request):
         raise HTTPException(status_code=401, detail="Login required")
     body = await request.json()
     name = body.get("name", "Untitled Deck")
+    # S104: the client used to lose its project id on refresh / sign-in / going
+    # home, then post here again and get a brand new row with the same address.
+    # If an identical project already exists, hand that one back instead of
+    # minting a duplicate. See find_identical_project for why this is narrow.
+    existing = find_identical_project(
+        user_id=user_id, name=name,
+        params_json=body.get("params_json"), info_json=body.get("info_json"))
+    if existing:
+        return {"project": {"id": existing["id"], "name": existing["name"],
+                            "status": existing["status"],
+                            "created_at": str(existing["created_at"])},
+                "deduped": True}
     proj = create_project(
         user_id=user_id,
         name=name,

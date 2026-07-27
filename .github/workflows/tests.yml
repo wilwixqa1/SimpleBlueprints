@@ -72,6 +72,12 @@ jobs:
       - name: Address-lookup analytics (real Postgres, shipped get_analytics_v2)
         run: python3 tests/test_lookup_analytics.py
 
+      # S104: the project id lived only in a React ref, so refresh / sign-in /
+      # going home dropped it and the next autosave created a duplicate row.
+      # The client now keeps it in the URL; this guards the server backstop.
+      - name: Project duplicate backstop (real Postgres)
+        run: python3 tests/test_project_dedupe.py
+
       # ---- wiring guard -------------------------------------------------
       - name: Gate completeness (every suite in tests/ is wired into this file)
         run: python3 tests/test_gate_completeness.py

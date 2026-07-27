@@ -849,6 +849,10 @@ const App = function SimpleBlueprints() {
       if (s.step != null) setStep(s.step);
       if (s.sitePlanMode) setSitePlanMode(s.sitePlanMode);
       if (s.sitePlanB64) { setSitePlanB64(s.sitePlanB64); surveyDirtyRef.current = true; }
+      // S104: the id was NOT restored here, which is why signing in mid-design
+      // produced a second row with the same address. The design came back and
+      // the app thought it was brand new.
+      if (s.projectId) setProjectId(s.projectId);
       if (s.page === "wizard") {
         // S62: Need to load wizard deps before entering wizard
         setPage("loading");
@@ -902,6 +906,49 @@ const App = function SimpleBlueprints() {
   const saveTimerRef = useRef(null);
   const lastSavedRef = useRef(null); // JSON string of last saved state
   const surveyDirtyRef = useRef(false);
+  // S104: guards the create round trip. ensureProject checked projectIdRef,
+  // which is only set in the POST's .then(), so if the 3s autosave fired again
+  // before the request came back a SECOND project was created. See below.
+  const creatingRef = useRef(false);
+
+  // S104: ONE place that owns the active project id.
+  //
+  // The bug this fixes: the id lived only in this ref, so a page refresh, the
+  // sign-in round trip, or clicking the logo all dropped it. The next autosave
+  // then had no id, called POST /api/projects, and got a brand new row carrying
+  // the same address. That is both halves of what Will reported -- "my projects
+  // aren't saving" and "the same project shows up as more than one file."
+  //
+  // The URL is the source of truth now, so a refresh keeps you on the same
+  // project. replaceState rather than pushState: adopting an id is not a
+  // navigation and should not add a back-button entry.
+  const setProjectId = React.useCallback(function (id) {
+    projectIdRef.current = id || null;
+    window._sbProjectId = projectIdRef.current;   // steps.js reads this for sign-in
+    try {
+      var url = new URL(window.location.href);
+      if (id) url.searchParams.set("project", String(id));
+      else url.searchParams.delete("project");
+      window.history.replaceState({}, "", url.toString());
+    } catch (e) { /* URL unsupported: the ref still works, just not across refresh */ }
+  }, []);
+
+  // Adopt ?project=<id> on load. This is what makes a refresh keep its project.
+  // Ownership is enforced server-side (get_project takes user_id), so a guessed
+  // id in the URL cannot reach anyone else's data.
+  useEffect(function () {
+    if (!user || projectIdRef.current) return;
+    var fromUrl = null;
+    try { fromUrl = new URL(window.location.href).searchParams.get("project"); } catch (e) {}
+    if (!fromUrl || !/^\d+$/.test(fromUrl)) return;
+    fetch(API + "/api/projects/" + fromUrl, { credentials: "include" })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (d && d.project) { loadProject(d.project); }
+        else { setProjectId(null); }   // stale or not ours: drop it, do not 404 forever
+      })
+      .catch(function () {});
+  }, [user]);
 
   // Build saveable snapshot (excludes large survey unless changed)
   const buildSavePayload = (opts) => {
@@ -946,7 +993,11 @@ const App = function SimpleBlueprints() {
   window._markProjectEdited = markEdited;
 
   const ensureProject = () => {
-    if (!user || projectIdRef.current || !userEditedRef.current) return;
+    // S104: creatingRef added. The old guard only checked projectIdRef, which is
+    // not set until the POST resolves, so a 3s autosave firing inside a slower
+    // round trip created a second identical project.
+    if (!user || projectIdRef.current || creatingRef.current || !userEditedRef.current) return;
+    creatingRef.current = true;
     var payload = buildSavePayload();
     if (surveyDirtyRef.current && sitePlanB64) {
       payload.survey_b64 = sitePlanB64;
@@ -961,11 +1012,14 @@ const App = function SimpleBlueprints() {
       .then(function(r) { return r.json(); })
       .then(function(d) {
         if (d.project && d.project.id) {
-          projectIdRef.current = d.project.id;
-          console.log("Project created:", d.project.id);
+          setProjectId(d.project.id);
+          // deduped=true means the server handed back an existing identical
+          // project rather than making another one (see find_identical_project).
+          console.log(d.deduped ? "Project adopted (deduped):" : "Project created:", d.project.id);
         }
       })
-      .catch(function(e) { console.warn("Create project error:", e); });
+      .catch(function(e) { console.warn("Create project error:", e); })
+      .finally(function() { creatingRef.current = false; });
   };
 
   // Schedule debounced save (3s after last change)
@@ -1026,7 +1080,7 @@ const App = function SimpleBlueprints() {
     if (proj.step != null) setStep(proj.step);
     if (proj.site_plan_mode) setSitePlanMode(proj.site_plan_mode);
     if (proj.survey_b64) { setSitePlanB64(proj.survey_b64); surveyDirtyRef.current = false; }
-    projectIdRef.current = proj.id;
+    setProjectId(proj.id);
     lastSavedRef.current = proj.params_json + "|" + proj.info_json + "|" + proj.step + "|" + proj.site_plan_mode;
     enterWizard();
   };
@@ -1037,7 +1091,7 @@ const App = function SimpleBlueprints() {
     if (projectIdRef.current && user) {
       saveProject({ includeSurvey: surveyDirtyRef.current });
     }
-    projectIdRef.current = null;
+    setProjectId(null);
     lastSavedRef.current = null;
     surveyDirtyRef.current = false;
     setPage("home");
@@ -1045,7 +1099,8 @@ const App = function SimpleBlueprints() {
 
   // Start a fresh new project (reset all wizard state)
   const startNewProject = () => {
-    projectIdRef.current = null;
+    setProjectId(null);
+    creatingRef.current = false;
     lastSavedRef.current = null;
     surveyDirtyRef.current = false;
     setP({ width: 20, depth: 12, height: 4, houseWidth: 40, houseDepth: 30, attachment: "ledger", hasStairs: true, stairLocation: "front", stairWidth: 4, numStringers: 3, hasLanding: false, joistSpacing: 16, deckingType: "composite", railType: "fortress", snowLoad: "moderate", frostZone: "cold", lotWidth: 80, lotDepth: 120, setbackFront: 25, setbackSide: 5, setbackRear: 20, houseOffsetSide: 20, deckOffset: 0, stairOffset: 0, beamType: "dropped", stairTemplate: "straight", stairRunSplit: null, stairLandingDepth: null, stairLandingWidth: null, stairGap: 0.5, stairRotation: 0, stairAnchorX: null, stairAnchorY: null, stairAngle: null,
@@ -1250,7 +1305,7 @@ const App = function SimpleBlueprints() {
             <span style={{ fontSize: 10, fontFamily: mono, color: br.mu }}>{user.name || user.email}</span>
             {user.picture && <img src={user.picture} style={{ width: 26, height: 26, borderRadius: "50%", border: `1px solid ${br.bd}` }} referrerPolicy="no-referrer" />}
             <button onClick={() => fetch(`${API}/auth/logout`, { method: "POST", credentials: "include" }).then(() => setUser(null))} style={{ fontSize: 9, fontFamily: mono, color: br.mu, background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>logout</button>
-          </div> : <button onClick={() => { try { var _state = { p: p, info: info, step: step, sitePlanMode: sitePlanMode, page: page }; if (sitePlanB64) _state.sitePlanB64 = sitePlanB64; try { localStorage.setItem("sb_auth_state", JSON.stringify(_state)); } catch(qe) { delete _state.sitePlanB64; localStorage.setItem("sb_auth_state", JSON.stringify(_state)); } } catch(e) { console.warn("Could not save auth state:", e); } window.location.href = `${API}/auth/login`; }} style={{ padding: "5px 14px", background: br.gn, color: "#fff", border: "none", borderRadius: 5, fontSize: 10, fontFamily: mono, cursor: "pointer", fontWeight: 700 }}>Sign in</button>}
+          </div> : <button onClick={() => { try { var _state = { p: p, info: info, step: step, sitePlanMode: sitePlanMode, page: page, projectId: projectIdRef.current }; if (sitePlanB64) _state.sitePlanB64 = sitePlanB64; try { localStorage.setItem("sb_auth_state", JSON.stringify(_state)); } catch(qe) { delete _state.sitePlanB64; localStorage.setItem("sb_auth_state", JSON.stringify(_state)); } } catch(e) { console.warn("Could not save auth state:", e); } window.location.href = `${API}/auth/login`; }} style={{ padding: "5px 14px", background: br.gn, color: "#fff", border: "none", borderRadius: 5, fontSize: 10, fontFamily: mono, cursor: "pointer", fontWeight: 700 }}>Sign in</button>}
         </div>
       </nav>
       <div style={{ height: 3, background: br.wr }}><div style={{ height: "100%", background: br.gn, width: `${((step + 1) / steps.length) * 100}%`, transition: "width 0.3s" }} /></div>
