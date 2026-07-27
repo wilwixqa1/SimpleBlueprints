@@ -84,6 +84,12 @@ jobs:
       - name: Cache headers on HTML shells (real app via TestClient)
         run: python3 tests/test_cache_headers.py
 
+      # S104: Twitter wraps every posted link in a per-link t.co code, so one
+      # account fragments into many referrer rows. Also asserts our own OAuth
+      # round trip is not counted as organic search.
+      - name: Referrer source grouping (real Postgres)
+        run: python3 tests/test_referrer_grouping.py
+
       # ---- wiring guard -------------------------------------------------
       - name: Gate completeness (every suite in tests/ is wired into this file)
         run: python3 tests/test_gate_completeness.py

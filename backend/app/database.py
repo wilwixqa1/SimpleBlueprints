@@ -1622,10 +1622,42 @@ def get_analytics_v2(days: int = 30, phase: str = "all") -> dict:
         """, spargs)
         by_channel = [dict(r) for r in cur.fetchall()]
 
+        # S104: group referrers by SOURCE, not raw URL.
+        #
+        # Every link posted on Twitter is wrapped in a per-link t.co code, so a
+        # single account produced https://t.co/EYStut9CLA and
+        # https://t.co/yAhQIp8Qvw as separate rows -- the tweet and the bio link.
+        # Raw URLs fragment one source across many rows and get worse the more
+        # you post. Grouping by source is what the table is actually for.
+        #
+        # accounts.google.com is LABELLED, not dropped. It is our own OAuth round
+        # trip: the user leaves for Google to sign in and comes back, and the
+        # browser reports Google as the referrer. It is not acquisition and it
+        # was quietly inflating this table. Hiding rows is how you lose track of
+        # what your data contains, so it stays visible and says what it is.
+        # To exclude it instead, add it to the WHERE clause below.
+        #
+        # Order matters: accounts.google.com must be tested BEFORE the general
+        # google match or it falls into "Google search".
+        #
+        # Unknown referrers fall back to their HOST, never the full URL, so a
+        # blog linking from five different pages counts as one source.
         cur.execute(f"""
-            SELECT referrer, COUNT(*) AS sessions
+            SELECT
+                CASE
+                    WHEN referrer ~* '://(t\\.co|twitter\\.com|x\\.com)'      THEN 'Twitter / X'
+                    WHEN referrer ~* '://accounts\\.google\\.'                THEN 'Google sign-in (our own auth, not traffic)'
+                    WHEN referrer ~* '://([a-z0-9-]+\\.)*google\\.'           THEN 'Google search'
+                    WHEN referrer ~* '://([a-z0-9-]+\\.)*(bing\\.com|duckduckgo\\.com)' THEN 'Other search'
+                    WHEN referrer ~* '://([a-z0-9-]+\\.)*(linkedin\\.com|lnkd\\.in)'    THEN 'LinkedIn'
+                    WHEN referrer ~* '://([a-z0-9-]+\\.)*(facebook\\.com|fb\\.me|instagram\\.com)' THEN 'Meta'
+                    WHEN referrer ~* '://([a-z0-9-]+\\.)*reddit\\.com'        THEN 'Reddit'
+                    WHEN referrer ~* '://([a-z0-9-]+\\.)*simpleblueprints\\.xyz' THEN 'Our own site (internal)'
+                    ELSE COALESCE(SUBSTRING(referrer FROM '^[a-z]+://([^/:]+)'), referrer)
+                END AS referrer,
+                COUNT(*) AS sessions
             FROM sessions WHERE {acq_where} AND referrer IS NOT NULL AND referrer <> ''
-            GROUP BY referrer ORDER BY sessions DESC LIMIT 10
+            GROUP BY 1 ORDER BY sessions DESC LIMIT 10
         """, spargs)
         referrers = [dict(r) for r in cur.fetchall()]
 
