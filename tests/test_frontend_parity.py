@@ -30,7 +30,9 @@ PROBE = Path(__file__).resolve().parents[1] / "tests" / "geometry" / "parity_pro
 sys.path.insert(0, str(BACKEND))
 
 from drawing.beam_layout import front_edge_profile  # noqa: E402
-from drawing.stair_utils import get_stair_placement_for_zone  # noqa: E402
+from drawing.stair_utils import (  # noqa: E402
+    get_stair_placement_for_zone, build_front_stair_openings,
+)
 from drawing.zone_utils import (  # noqa: E402
     get_cutout_rects, get_exposed_edges,
 )
@@ -105,29 +107,21 @@ def _canon_openings(ops):
 
 
 def _py_openings(W, D, zones, deck_stairs):
-    """Mirror draw_plan.py: front stairs on a notched deck, world anchors."""
-    params = {"width": W, "depth": D, "zones": zones}
-    cuts = get_cutout_rects(params)
-    if not cuts:
-        return None
-    prof = front_edge_profile(float(W), float(D), cuts)
-    has_front = len(prof) > 1 or (prof and abs(prof[0][2] - float(D)) > 1e-6)
-    if not has_front:
-        return None
-    ops = []
-    for st in deck_stairs:
-        zone_id = st.get("zoneId", 0)
-        # Only zone 0 exists as a cutout host in these configs; zone rect = origin.
-        zr = {"x": 0.0, "y": 0.0, "w": float(W), "d": float(D)}
-        fp = prof if zone_id == 0 else None
-        pl = get_stair_placement_for_zone(st, zr, fp)
-        if int(round(pl["angle"])) % 360 != 0:
-            continue
-        sw = float(st.get("width", 4))
-        wax = zr["x"] + pl["anchor_x"]
-        way = zr["y"] + pl["anchor_y"]
-        ops.append((way, wax - sw / 2.0, wax + sw / 2.0))
-    return ops or None
+    """The REAL rule, not a copy of it.
+
+    S103: this function used to re-derive the opening rule here, complete with
+    S91's `if not cuts: return None` notched-only gate. When push 4 removed that
+    gate from stair_utils.build_front_stair_openings, the product started opening
+    the rail on plain decks and this private copy did not, so parity went red
+    reporting a divergence that did not exist in the product.
+
+    That made this the SEVENTH place the rule was written down. Re-deriving a
+    rule in a test does not test the rule, it tests the copy. Call the thing the
+    product calls.
+    """
+    params = {"width": W, "depth": D, "zones": zones, "deckStairs": deck_stairs}
+    calc = {"width": float(W), "depth": float(D)}
+    return build_front_stair_openings(params, calc)
 
 
 def _canon_resolved_py(rs_list):

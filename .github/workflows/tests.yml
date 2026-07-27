@@ -54,7 +54,7 @@ jobs:
         run: |
           pip install matplotlib==3.10.8 numpy==2.4.4
           pip install reportlab pypdf pillow httpx python-multipart itsdangerous \
-                      anthropic fastapi stripe psycopg2-binary
+                      anthropic fastapi stripe psycopg2-binary pdfminer.six
 
       # ---- wiring guard -------------------------------------------------
       - name: Gate completeness (every suite in tests/ is wired into this file)
