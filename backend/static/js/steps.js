@@ -2679,6 +2679,30 @@ function StepContent(props) {
       />;
     })()}
 // {/*   Zone selector bar   */}
+
+// {/* Width / Depth / Height sliders   zone-aware */}
+    {/* S105: "parent edge" is developer language. The parent has a name now,
+        so use it: "along Deck A" instead of "along parent edge". */}
+    <div data-section="deckSize">
+    <Slider label={isZone0 ? "Width (along house)" : `Width (along ${_parentName})`} value={zoneW} min={isCutout ? 2 : 4} max={50} step={0.5} fmt={fmtFtIn} field="width" u={u} p={p} />
+    <Slider label={isZone0 ? "Depth (from house)" : `Depth (out from ${_parentName})`} value={zoneD} min={isCutout ? 2 : 4} max={24} step={0.5} fmt={fmtFtIn} field="depth" u={u} p={p} />
+    {isZone0 && c.engineeringRequired && <div style={{ padding: "8px 10px", background: "#fef2f2", borderRadius: 6, border: "1px solid #fca5a5", marginBottom: 8, marginTop: -4 }}>
+      <div style={{ fontSize: 9, fontWeight: 700, color: "#dc2626", fontFamily: _mono, marginBottom: 3 }}>{"\u26A0\uFE0F"} EXCEEDS IRC PRESCRIPTIVE LIMITS</div>
+      <div style={{ fontSize: 8, color: "#991b1b", fontFamily: _mono, lineHeight: 1.5 }}>
+        Deck depth ({p.depth}') exceeds the IRC prescriptive limit of {c.maxDepthForJoists}' for 2x12 joists @ {c.sp}" O.C. at {c.LL} PSF.
+        A licensed engineer or architect is required for this design.
+        Reduce depth to {c.maxDepthForJoists}' or less for permit-ready plans.
+      </div>
+    </div>}
+    {isZone0 && <Slider label="Height above grade" value={p.height} min={1} max={14} step={0.5} fmt={fmtFtIn} field="height" u={u} p={p} />}
+    {!isZone0 && activeZoneObj && activeZoneObj.type === "add" && <>
+      <Slider label="Section height" value={zoneH} min={1} max={14} step={0.5} fmt={fmtFtIn} field="height" u={u} p={p} />
+      {zoneH !== p.height && <div style={{ fontSize: 9, color: "#d97706", fontFamily: _mono, marginTop: -4, marginBottom: 8, fontStyle: "italic" }}>
+        Different from main deck ({fmtFtIn(p.height)}). PDF elevation views will reflect this in a future update.
+      </div>}
+    </>}
+    </div>
+
     {p.zones.length > 0 && <div style={{ marginBottom: 16, padding: 10, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}` }}>
       <div style={{ fontSize: 9, fontWeight: 700, color: _br.mu, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 4 }}>Sections</div>
       {/* S105 A2: the word "section" meant nothing on its own. Say what one is,
@@ -2724,29 +2748,6 @@ function StepContent(props) {
       </div>
       <div style={{ fontSize: 9, color: isCutout ? "#ef4444" : "#60a5fa", fontFamily: _mono }}>{isCutout ? "Cutout \u00B7 subtracts from the section it sits in" : `Deck section \u00B7 ${zoneW}' x ${zoneD}', its own height, stairs and framing`}</div>
     </div>}
-
-// {/* Width / Depth / Height sliders   zone-aware */}
-    {/* S105: "parent edge" is developer language. The parent has a name now,
-        so use it: "along Deck A" instead of "along parent edge". */}
-    <div data-section="deckSize">
-    <Slider label={isZone0 ? "Width (along house)" : `Width (along ${_parentName})`} value={zoneW} min={isCutout ? 2 : 4} max={50} step={0.5} fmt={fmtFtIn} field="width" u={u} p={p} />
-    <Slider label={isZone0 ? "Depth (from house)" : `Depth (out from ${_parentName})`} value={zoneD} min={isCutout ? 2 : 4} max={24} step={0.5} fmt={fmtFtIn} field="depth" u={u} p={p} />
-    {isZone0 && c.engineeringRequired && <div style={{ padding: "8px 10px", background: "#fef2f2", borderRadius: 6, border: "1px solid #fca5a5", marginBottom: 8, marginTop: -4 }}>
-      <div style={{ fontSize: 9, fontWeight: 700, color: "#dc2626", fontFamily: _mono, marginBottom: 3 }}>{"\u26A0\uFE0F"} EXCEEDS IRC PRESCRIPTIVE LIMITS</div>
-      <div style={{ fontSize: 8, color: "#991b1b", fontFamily: _mono, lineHeight: 1.5 }}>
-        Deck depth ({p.depth}') exceeds the IRC prescriptive limit of {c.maxDepthForJoists}' for 2x12 joists @ {c.sp}" O.C. at {c.LL} PSF.
-        A licensed engineer or architect is required for this design.
-        Reduce depth to {c.maxDepthForJoists}' or less for permit-ready plans.
-      </div>
-    </div>}
-    {isZone0 && <Slider label="Height above grade" value={p.height} min={1} max={14} step={0.5} fmt={fmtFtIn} field="height" u={u} p={p} />}
-    {!isZone0 && activeZoneObj && activeZoneObj.type === "add" && <>
-      <Slider label="Section height" value={zoneH} min={1} max={14} step={0.5} fmt={fmtFtIn} field="height" u={u} p={p} />
-      {zoneH !== p.height && <div style={{ fontSize: 9, color: "#d97706", fontFamily: _mono, marginTop: -4, marginBottom: 8, fontStyle: "italic" }}>
-        Different from main deck ({fmtFtIn(p.height)}). PDF elevation views will reflect this in a future update.
-      </div>}
-    </>}
-    </div>
 
     {/* Zone offset slider (zones 1+ add type) */}
     {!isZone0 && activeZoneObj && activeZoneObj.type === "add" && (
