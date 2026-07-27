@@ -408,8 +408,22 @@ golden still.**
   `snap.edge !== "back"`). The configuration cannot be produced. Do not build
   coverage for it. Filed here rather than deleted because "we never swept rear
   stairs" reads like a real gap and would otherwise be rediscovered.
-- **Off-axis (rotated) stairs** are skipped entirely, unchanged since S91. A
-  bounding box would over-cut — the S81e mistake.
+- ~~**Off-axis (rotated) stairs.**~~ **NOT A GAP — withdrawn, same as rear
+  stairs.** The skip is still in the code and should STAY (a bounding box round
+  a diagonal stair over-cuts the framing — the S81e mistake), but no UI path can
+  produce one, so it guards a case that cannot occur.
+  Verified: every angle written anywhere is a literal 0 / 90 / 270
+  (`stairGeometry.js:136-138`, `stair_utils.py:45,123`). The plan-view rotation
+  handle takes a free mouse angle and immediately buckets it into a side
+  (`planView.js:155-159`), then folds "back" into left or right. The only
+  non-literal write is `planView.js:119`, which preserves a stair's existing
+  angle during a drag.
+  CAVEAT, not measured: `app.js:35` reads a stored `p.stairAngle`. Nothing in
+  the repo writes it, but a config saved by an older version could in principle
+  carry a free angle.
+
+**With rear and off-axis both withdrawn, there is no known deck configuration in
+which a railing is drawn across a stairway.**
 - `_check_binaries` and `_check_imports` are **static scans**. A deferred import
   inside a function, or a binary invoked through a variable or shell string,
   will not be seen.
