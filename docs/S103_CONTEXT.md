@@ -498,3 +498,46 @@ again.
     named `FLAT_front_edge_at_stair` when Will has never once said "flat." He
     says plain deck, notched deck, stairs, railing, gap. Deliverable names are
     part of the deliverable.
+
+---
+
+## 11. BACKLOG — support stairs at an angle
+
+Will, S103: we don't support it yet, but we should add it at some point.
+
+**What it means.** Today a stair runs off exactly one of three sides: front,
+left, right. A stair at an angle is one pointing any other direction. The
+obvious real case is a stair off a **chamfered corner** — the deck already
+supports 45-degree cut corners, and a stair coming straight off one would sit at
+45 degrees. Right now the wizard cannot make that.
+
+**Why it is not just "allow more angles."** Three things assume a stair is
+square to an edge:
+
+1. `stair_utils.get_stair_placement_for_zone` returns a literal 0 / 90 / 270 per
+   location (`stair_utils.py:45,123`, mirrored `stairGeometry.js:136-138`).
+   There is no free-angle path to feed.
+2. `planView.js:155-159` deliberately buckets the rotation handle's mouse angle
+   into a side. That is the UI surface that would have to change first.
+3. **The known trap:** `build_front_stair_openings` skips non-axis stairs on
+   purpose. A diagonal stair's opening is a diagonal span, and approximating it
+   with a bounding box **over-cuts the framing** — that is the S81e mistake,
+   which was reverted once already. Opening the railing for a diagonal stair
+   needs a real diagonal subtraction in `get_exposed_edges`, which today handles
+   `h` and `v` only (`dir == "d"` chamfer edges are passed through untouched).
+
+So the work is roughly: free-angle placement, diagonal opening support in both
+engines, and a UI affordance. Not a one-liner, and it moves golden.
+
+**NOT DECIDED — do not infer any of this:**
+- Whether "at an angle" means only 45 degrees off a chamfer, or any angle. The
+  chamfer case is a guess at the driver; Will did not say it.
+- Whether the framing under a diagonal stair needs its own detail, or whether a
+  diagonal stair should be refused on a *notched* deck where the geometry
+  compounds.
+- Whether any reference set shows a diagonal stair. **None was checked.** Given
+  S102's freestanding lesson, check Ilaria / Loucks / Welborn / Meadowview
+  before inventing the detail.
+
+**Do NOT remove the off-axis skip as a first step.** It is what stops a
+bounding-box over-cut reaching a permit set while the rest is unbuilt.
