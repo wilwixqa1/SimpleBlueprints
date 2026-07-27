@@ -63,6 +63,10 @@ NOT_A_SUITE = {
     "tests/live/zone_cap_dom.py":
         "live browser check -- needs a running server and a real DOM, cannot "
         "run in CI; see tests/live/README.txt",
+    "tests/live/step1_render.py":
+        "visual harness (S105) -- renders step 1 in Chromium and measures it for "
+        "a human to look at; needs a running server and a browser, has no "
+        "pass/fail. See tests/live/README.txt",
     "tests/test_gate_completeness.py":
         "this file -- it is in the workflow, but self-reference in the scan "
         "below would be circular",

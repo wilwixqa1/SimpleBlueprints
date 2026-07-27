@@ -242,6 +242,37 @@ function fmtFtIn(v) {
 window.fmtFtIn = fmtFtIn;
 
 // Shared UI helpers
+// S105 D: collapsible group for step 1.
+//
+// Step 1 was 1.8 screens on desktop and 2.8 on a phone, and on a phone the
+// preview sits 1833px down the page, so you could not see the deck while you
+// changed it. One group open at a time fixes both.
+//
+// Order is the dependency order, not a taste call: a section attaches to the
+// deck's edges so it needs the size first, and a stair needs the FINAL
+// perimeter (getExposedEdges reads sections and cutouts) plus the height to
+// work out risers. Headers stay clickable in any order so nothing traps you.
+function Group({ id, n, title, summary, open, onToggle, children }) {
+  return <div style={{ marginBottom: 10, border: `1px solid ${open ? _br.gn : _br.bd}`,
+                       borderRadius: 8, background: open ? "#fff" : _br.wr, overflow: "hidden" }}>
+    <button onClick={() => onToggle(id)} aria-expanded={open} style={{
+      width: "100%", display: "flex", alignItems: "center", gap: 10, textAlign: "left",
+      padding: "10px 12px", background: "none", border: "none", cursor: "pointer", fontFamily: _mono
+    }}>
+      <span style={{ fontSize: 9, fontWeight: 800, color: open ? _br.gn : _br.mu,
+                     border: `1px solid ${open ? _br.gn : _br.bd}`, borderRadius: 3,
+                     minWidth: 16, textAlign: "center", padding: "1px 0" }}>{n}</span>
+      <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "1px",
+                     textTransform: "uppercase", color: open ? _br.dk : _br.mu }}>{title}</span>
+      <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+        {!open && summary ? <span style={{ fontSize: 10, color: _br.mu, fontFamily: _mono }}>{summary}</span> : null}
+        <span style={{ fontSize: 9, color: _br.mu }}>{open ? "\u25B2" : "\u25BC"}</span>
+      </span>
+    </button>
+    {open && <div style={{ padding: "2px 12px 12px" }}>{children}</div>}
+  </div>;
+}
+
 function Label({ children }) {
   return <label style={{ display: "block", fontSize: 10, fontWeight: 700, color: _br.mu, marginBottom: 4, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase" }}>{children}</label>;
 }
@@ -964,6 +995,9 @@ function StepContent(props) {
     traceMode, setTraceMode, traceState, setTraceState, sitePlanB64,
     compareMode, setCompareMode } = props;
 
+  // S105 D: which step-1 group is open. Size first because everything depends on it.
+  const [openGroup, setOpenGroup] = _stUS("size");
+  const _toggleGroup = function(id) { setOpenGroup(function(cur) { return cur === id ? null : id; }); };
   const [showDisclaimer, setShowDisclaimer] = _stUS(false);
   const [disclaimerAcked, setDisclaimerAcked] = _stUS(false);
   const [showUpload, setShowUpload] = _stUS(false);
@@ -2683,6 +2717,8 @@ function StepContent(props) {
 // {/* Width / Depth / Height sliders   zone-aware */}
     {/* S105: "parent edge" is developer language. The parent has a name now,
         so use it: "along Deck A" instead of "along parent edge". */}
+    <Group id="size" n="1" title="Size" summary={`${fmtFtIn(zoneW)} \u00D7 ${fmtFtIn(zoneD)}`}
+           open={openGroup === "size"} onToggle={_toggleGroup}>
     <div data-section="deckSize">
     <Slider label={isZone0 ? "Width (along house)" : `Width (along ${_parentName})`} value={zoneW} min={isCutout ? 2 : 4} max={50} step={0.5} fmt={fmtFtIn} field="width" u={u} p={p} />
     <Slider label={isZone0 ? "Depth (from house)" : `Depth (out from ${_parentName})`} value={zoneD} min={isCutout ? 2 : 4} max={24} step={0.5} fmt={fmtFtIn} field="depth" u={u} p={p} />
@@ -2702,7 +2738,10 @@ function StepContent(props) {
       </div>}
     </>}
     </div>
+    </Group>
 
+    <Group id="shape" n="2" title="Shape" summary={`${p.zones.length} section${p.zones.length === 1 ? "" : "s"}`}
+           open={openGroup === "shape"} onToggle={_toggleGroup}>
     {p.zones.length > 0 && <div style={{ marginBottom: 16, padding: 10, background: _br.wr, borderRadius: 8, border: `1px solid ${_br.bd}` }}>
       <div style={{ fontSize: 9, fontWeight: 700, color: _br.mu, fontFamily: _mono, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 4 }}>Sections</div>
       {/* S105 A2: the word "section" meant nothing on its own. Say what one is,
@@ -3011,6 +3050,7 @@ function StepContent(props) {
         })}
       </div>
     </div>}
+    </Group>
 
 // {/*   Zone 0 only: house width, attachment   */}
     {isZone0 && <>
@@ -3021,6 +3061,8 @@ function StepContent(props) {
     </>}
 
 // {/*   S64: Per-zone stairs (all zones)   */}
+    <Group id="stairs" n="3" title="Stairs" summary={`${(p.deckStairs || []).length || "no"} stair${(p.deckStairs || []).length === 1 ? "" : "s"}`}
+           open={openGroup === "stairs"} onToggle={_toggleGroup}>
     {(() => {
       var azId = p.activeZone || 0;
       var zoneStairs = (p.deckStairs || []).filter(function(s) { return s.zoneId === azId; });
@@ -3077,6 +3119,7 @@ function StepContent(props) {
         })()}
       </div>;
     })()}
+    </Group>
 
       <div data-section="advanced">
       <button onClick={() => setShowAdvanced(!showAdvanced)} style={{ width: "100%", padding: "8px 14px", marginBottom: 12, background: "none", border: `1px solid ${_br.bd}`, borderRadius: 6, cursor: "pointer", fontSize: 10, fontFamily: _mono, color: _br.mu, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
