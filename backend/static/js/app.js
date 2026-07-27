@@ -812,6 +812,10 @@ const App = function SimpleBlueprints() {
     pdfPage: 1, pdfPageCount: 1
   });
   const [genError, setGenError] = useState("");
+  // S104: support panel in the wizard nav. Reachable from every step, because
+  // every place a user actually gets stuck (address lookup, footprint, generate)
+  // is inside the wizard, and the wizard has no footer.
+  const [helpOpen, setHelpOpen] = useState(false);
   const [feedbackDone, setFeedbackDone] = useState(false);
   const [feedback, setFeedback] = useState({ role: "", source: "", price: "", feedback: "", email: "" });
   const isProduction = typeof window !== 'undefined' && window.location.hostname.includes("simpleblueprints.xyz");
@@ -1218,6 +1222,30 @@ const App = function SimpleBlueprints() {
           {steps.map((s, i) => <button key={i} onClick={() => setStep(i)} style={{ padding: "7px 16px", fontSize: 10, cursor: "pointer", border: "none", fontFamily: mono, background: step === i ? br.gn : "transparent", color: step === i ? "#fff" : br.mu, borderRadius: i === 0 ? "5px 0 0 5px" : i === steps.length - 1 ? "0 5px 5px 0" : 0, fontWeight: step === i ? 700 : 400, letterSpacing: "0.5px" }}>{s.i} {s.t}</button>)}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {/* S104: not a form. A form cannot take the attachment (the wrong PDF)
+              that most real support mail about this product needs to carry, and
+              it takes away the sender's own copy. The panel gives the address
+              plainly, plus a copy button so the copy-and-send-later path is
+              instrumented too. */}
+          <div style={{ position: "relative" }}>
+            <button onClick={() => { const n = !helpOpen; setHelpOpen(n); if (n) window.SBSupport.track("open", "wizard_nav", { step: step }); }}
+              style={{ fontSize: 10, fontFamily: mono, color: helpOpen ? br.gn : br.mu, background: "none", border: "none", cursor: "pointer", textDecoration: "underline", padding: 0 }}>
+              Need help?
+            </button>
+            {helpOpen && <div style={{ position: "absolute", right: 0, top: 24, zIndex: 60, width: 290, background: "#fff", border: `1px solid ${br.bd}`, borderRadius: 7, boxShadow: "0 6px 20px rgba(26,31,22,0.13)", padding: "13px 14px", textAlign: "left" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                <span style={{ fontFamily: mono, fontSize: 11, fontWeight: 700, color: br.dk }}>Need help?</span>
+                <button onClick={() => setHelpOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 14, lineHeight: 1, color: br.mu, padding: 0 }} aria-label="Close">{"\u00D7"}</button>
+              </div>
+              <div style={{ fontSize: 11, color: br.tx, lineHeight: 1.55, marginBottom: 9 }}>
+                Email us and attach anything that looks wrong. Your design is saved, so you can close this and come back.
+              </div>
+              <window.SBSupportRow placement="wizard_nav" size={11} />
+              {window.SBSupport.ref() && <div style={{ fontFamily: mono, fontSize: 9.5, color: br.mu, marginTop: 9 }}>
+                ref {window.SBSupport.ref()} {"\u00B7"} include this and we can look up your session
+              </div>}
+            </div>}
+          </div>
           {user ? <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{ fontSize: 10, fontFamily: mono, color: br.mu }}>{user.name || user.email}</span>
             {user.picture && <img src={user.picture} style={{ width: 26, height: 26, borderRadius: "50%", border: `1px solid ${br.bd}` }} referrerPolicy="no-referrer" />}

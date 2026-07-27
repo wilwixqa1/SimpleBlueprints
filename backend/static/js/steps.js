@@ -3572,6 +3572,14 @@ function StepContent(props) {
         </button>
         {parcelError && <div style={{ fontSize: 11, color: "#dc2626", fontFamily: _mono, padding: "8px 10px", background: "#fef2f2", borderRadius: 6, marginBottom: 8 }}>
           {parcelError}
+          {/* S104: contact sits BELOW the self-serve alternatives on purpose.
+              "Other ways in" (survey upload / manual entry) renders directly
+              under this block and will unstick most people faster than an email
+              will, so the copy points there first. */}
+          <div style={{ marginTop: 8, paddingTop: 7, borderTop: "1px solid #f6cfcb", fontFamily: _sans, fontSize: 10, color: "#8a5443", lineHeight: 1.5 }}>
+            Try one of the other ways in below. If none of those work, email us and we will look the address up ourselves.
+            <div style={{ marginTop: 5 }}><window.SBSupportRow placement="address_lookup_error" size={10} /></div>
+          </div>
         </div>}
         <div style={{ fontSize: 9, color: _br.mu, fontFamily: _mono, lineHeight: 1.5 }}>
           Nothing is submitted anywhere. We only read public parcel records, and you can adjust everything after we find it.
@@ -5175,6 +5183,14 @@ function StepContent(props) {
               </div>
               {genStatus === "error" && <div style={{ fontSize: 11, color: "#c62828", fontFamily: _sans, marginTop: 8 }}>Error: {genError}
                 {genError === "Please sign in first" && <button onClick={() => { try { var _state = { p: p, info: info, step: step, sitePlanMode: sitePlanMode, page: "wizard" }; if (sitePlanB64) _state.sitePlanB64 = sitePlanB64; try { localStorage.setItem("sb_auth_state", JSON.stringify(_state)); } catch (qe) { delete _state.sitePlanB64; localStorage.setItem("sb_auth_state", JSON.stringify(_state)); } } catch (e) { console.warn("Could not save auth state:", e); } window.location.href = `${API}/auth/login`; }} style={{ marginLeft: 8, padding: "3px 10px", background: "#fff", color: "#333", border: "1px solid #ccc", borderRadius: 4, fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: _mono }}>Sign in now</button>}
+                {/* S104: deliberately NOT shown for "Please sign in first" --
+                    that one the user fixes themselves with the button above, and
+                    offering support for a self-fixable problem trains people to
+                    email us instead of reading. */}
+                {genError !== "Please sign in first" && <div style={{ marginTop: 8, fontFamily: _sans, fontSize: 10, color: "#8a5443", lineHeight: 1.5, fontWeight: 400 }}>
+                  Your design is saved, so nothing is lost. Try again, or email us and attach anything that looks wrong.
+                  <div style={{ marginTop: 5 }}><window.SBSupportRow placement="pdf_generate_error" size={10} /></div>
+                </div>}
               </div>}
               {genStatus === "done" && materialsUrl && <div style={{ marginTop: 10 }}>
                 <a href={materialsUrl} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 14px", background: _br.wr, border: "1px solid " + _br.bd, borderRadius: 6, color: _br.dk, fontSize: 11, fontFamily: _sans, fontWeight: 600, textDecoration: "none", cursor: "pointer" }}>

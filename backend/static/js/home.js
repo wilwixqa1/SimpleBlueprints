@@ -9,6 +9,98 @@ window.SB = {
   br: { dk: "#1a1f16", gn: "#3d5a2e", cr: "#faf8f3", wr: "#f2ece0", ac: "#c4960a", tx: "#2c3024", mu: "#7a8068", bd: "#ddd8cc", rd: "#c0392b", bl: "#2471a3" },
 };
 
+// ============================================================
+// S104: SUPPORT CONTACT -- single source of truth
+// ============================================================
+// The addresses are declared ONCE, here, and read by the footer (home.js), the
+// wizard nav (app.js) and both error states (steps.js). Do NOT inline a literal
+// address anywhere else. A rule written in one file and nowhere else is exactly
+// how the rail-gap divergence survived seven sessions (S103 section 9.2).
+//
+// Which address where:
+//   in-product (nav, error states) -> HELP only. Someone whose permit set just
+//     failed should not be asked to route their own ticket.
+//   footer -> both, labelled. A footer is a directory; that is its job.
+window.SBSupport = {
+  GENERAL: "contact@simpleblueprints.xyz",
+  HELP: "customerservice@simpleblueprints.xyz",
+
+  // Short session ref, carried in the mail subject so an inbound message can be
+  // joined back to the events table on session_id.
+  //
+  // NOTE: nothing ingests mail yet -- that is a later phase. This ships now
+  // anyway because it is the ONE piece that cannot be added retroactively. Any
+  // support email that arrives before the ref exists is permanently orphaned
+  // from the session that produced it.
+  ref: function () {
+    var m = /^sess_([0-9a-f]{8})/.exec(window._sbSessionId || "");
+    return m ? m[1] : "";
+  },
+
+  subject: function () {
+    var r = window.SBSupport.ref();
+    return "SimpleBlueprints support" + (r ? " [ref " + r + "]" : "");
+  },
+
+  mailto: function (addr) {
+    return "mailto:" + addr + "?subject=" + encodeURIComponent(window.SBSupport.subject());
+  },
+
+  // action: "email" | "copy" | "open". Rides the S55 pipeline, which attaches
+  // step and guide_phase automatically and does NOT require the user to be
+  // logged in (main.py:2683 logs the event whatever get_current_user_id returns).
+  track: function (action, placement, extra) {
+    if (!window._trackEvent) return;
+    var d = { action: action, placement: placement, ref: window.SBSupport.ref() };
+    if (extra) { for (var k in extra) { if (Object.prototype.hasOwnProperty.call(extra, k)) d[k] = extra[k]; } }
+    window._trackEvent("support_contact", d);
+  },
+};
+
+// Address + copy button. The copy button is not decoration: it instruments the
+// grab-the-address-and-email-us-later path, which a bare mailto link loses
+// completely. The address renders as literal selectable text (never hidden
+// behind "Contact us") so webmail users without a mailto handler can still read
+// and copy it by hand.
+window.SBSupportRow = function SBSupportRow(props) {
+  var address = props.address || window.SBSupport.HELP;
+  var placement = props.placement || "unknown";
+  var size = props.size || 11;
+  var br = window.SB.br, mono = window.SB.mono;
+  var S = window.SBSupport;
+  var _c = React.useState(false), copied = _c[0], setCopied = _c[1];
+
+  function doCopy() {
+    function done() { setCopied(true); setTimeout(function () { setCopied(false); }, 1800); }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(address).then(done, done);
+    } else {
+      var ta = document.createElement("textarea");
+      ta.value = address; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand("copy"); } catch (e) { /* nothing to do */ }
+      document.body.removeChild(ta); done();
+    }
+    S.track("copy", placement, { address: address });
+  }
+
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+      <a href={S.mailto(address)}
+         onClick={function () { S.track("email", placement, { address: address }); }}
+         style={{ display: "inline-block", padding: 0, fontFamily: mono, fontSize: size, color: br.gn, textDecoration: "underline", wordBreak: "break-all" }}>
+        {address}
+      </a>
+      <button type="button" onClick={doCopy}
+        style={{ fontFamily: mono, fontSize: size - 1, padding: "2px 8px", cursor: "pointer",
+                 border: "1px solid " + br.bd, borderRadius: 4, background: "#fff",
+                 color: copied ? br.gn : br.mu, whiteSpace: "nowrap" }}>
+        {copied ? "Copied" : "Copy"}
+      </button>
+    </span>
+  );
+};
+
 window.products = [
   { id: "deck", name: "Decks", icon: "\u2B1C", active: true, desc: "Attached & freestanding decks" },
   { id: "pergola", name: "Pergolas", icon: "\u2630", desc: "Patio covers & shade structures" },
@@ -280,6 +372,17 @@ function HomePage({ setPage, user, startNewProject, setInfo }) {
             <a href="#how" >How it works</a>
             <a href="#sheets">Sample drawing set</a>
             <a href="#pricing">Pricing</a>
+          </div>
+          {/* S104: the f-grid was already declared 1.4fr 1fr 1fr in home.css:239
+              with only two children, so this column drops into a slot that has
+              existed all along. No CSS change; the 760px query already collapses
+              the grid to a single column on mobile. */}
+          <div>
+            <h4>Support</h4>
+            <div style={{ fontSize: 11.5, color: "var(--mut)", marginBottom: 2 }}>Questions</div>
+            <div style={{ marginBottom: 10 }}><window.SBSupportRow address={window.SBSupport.GENERAL} placement="footer" size={11.5} /></div>
+            <div style={{ fontSize: 11.5, color: "var(--mut)", marginBottom: 2 }}>Trouble with your plans</div>
+            <div><window.SBSupportRow address={window.SBSupport.HELP} placement="footer" size={11.5} /></div>
           </div>
         </div>
         <div className="f-legal">{"\u00A9"} 2026 SIMPLEBLUEPRINTS · PLANS SUPPORT YOUR PERMIT APPLICATION · YOUR BUILDING DEPARTMENT HAS FINAL AUTHORITY</div>
