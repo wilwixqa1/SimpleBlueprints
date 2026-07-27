@@ -3578,5 +3578,66 @@ def preview_sheet(p: dict):
             })
 
 
+# ============================================================
+# S104: BRANDED SHORT LINKS
+# ============================================================
+# The problem: UTM parameters are the only way to tell one tweet from another
+# (t.co gives you "Twitter" and nothing more), but Will will not post
+# ?utm_source=twitter&utm_medium=social&utm_campaign=launch on the end of a
+# link, and he is not wrong to resist. Bitly's 2024 numbers put URLs over 150
+# characters at ~11% lower click-through, and a bio link shows its URL as plain
+# text where the ugliness is fully visible.
+#
+# So the tag goes on the SERVER side. Post simpleblueprints.xyz/x -- short,
+# branded, on our own domain, no third-party shortener in the path -- and the
+# redirect attaches the full attribution before the page loads. The visitor
+# sees a clean link; the Channels table sees a complete UTM set.
+#
+# TO ADD A CAMPAIGN: one line here. code -> (source, medium, campaign).
+# Use a fresh code per tweet if you want them separable; reuse one to pool them.
+SHORT_LINKS = {
+    "x":      ("twitter",   "social", "bio"),
+    "launch": ("twitter",   "social", "launch-tweet"),
+    "pin":    ("pinterest", "social", "organic"),
+}
+
+
+def _register_short_links():
+    """Register one explicit route per code.
+
+    Explicit routes, never a catch-all `/{code}`. A catch-all would sit in front
+    of every 404 on the site and quietly swallow paths that should not exist.
+    The collision guard below fails LOUDLY at import if a code would shadow a
+    real route -- adding "admin" to the dict above should break the deploy, not
+    the dashboard.
+    """
+    taken = set()
+    for r in app.routes:
+        p = getattr(r, "path", "") or ""
+        seg = p.strip("/").split("/")[0].lower()
+        if seg:
+            taken.add(seg)
+    for code, (src, medium, campaign) in SHORT_LINKS.items():
+        code = code.strip("/").lower()
+        if code in taken:
+            raise RuntimeError(
+                f"Short link '/{code}' collides with an existing route. "
+                f"Pick another code; do not shadow real paths.")
+
+        def _make(_src=src, _medium=medium, _campaign=campaign):
+            async def _redirect():
+                qs = urllib.parse.urlencode({
+                    "utm_source": _src, "utm_medium": _medium, "utm_campaign": _campaign})
+                # 302, not 301. A permanent redirect is cached by browsers more
+                # or less forever, so a mapping we later want to change would be
+                # stuck on old visitors' machines with no way to reach them.
+                return RedirectResponse(url=f"/?{qs}", status_code=302)
+            return _redirect
+
+        app.get(f"/{code}", include_in_schema=False)(_make())
+
+
+_register_short_links()
+
 # /js/ mount removed S26   all JS now served via /static/js/ (S25 mount)
 app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static-all")

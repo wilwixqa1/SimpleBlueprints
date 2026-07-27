@@ -90,6 +90,12 @@ jobs:
       - name: Referrer source grouping (real Postgres)
         run: python3 tests/test_referrer_grouping.py
 
+      # S104: /x style short links attach UTMs server-side so posted URLs stay
+      # clean. Guards the collision check (a bad code must break the deploy,
+      # not the dashboard) and 302-not-301.
+      - name: Branded short links (real app via TestClient)
+        run: python3 tests/test_short_links.py
+
       # ---- wiring guard -------------------------------------------------
       - name: Gate completeness (every suite in tests/ is wired into this file)
         run: python3 tests/test_gate_completeness.py
