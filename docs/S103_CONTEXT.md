@@ -400,8 +400,14 @@ golden still.**
 
 ### 9.4 Still not covered, say it plainly
 
-- **Rear stairs** on a freestanding deck. Front/back share `angle 0/180` so the
-  code path exists, but no config was swept.
+- ~~**Rear stairs.**~~ **NOT A GAP — withdrawn.** Will: the deck's back edge is
+  at y=0, which IS the house wall, and freestanding does not move the deck away
+  from it, so rear stairs would descend through the house. Verified: the wizard
+  offers only Front/Left/Right (`steps.js:3007`) and the canvas drag explicitly
+  refuses to snap a stair to the back edge (`planView.js:130`,
+  `snap.edge !== "back"`). The configuration cannot be produced. Do not build
+  coverage for it. Filed here rather than deleted because "we never swept rear
+  stairs" reads like a real gap and would otherwise be rediscovered.
 - **Off-axis (rotated) stairs** are skipped entirely, unchanged since S91. A
   bounding box would over-cut — the S81e mistake.
 - `_check_binaries` and `_check_imports` are **static scans**. A deferred import
