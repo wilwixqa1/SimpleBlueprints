@@ -135,6 +135,9 @@ jobs:
       - name: Stair openings vs the beam line (S106, both engines + estimate)
         run: python3 tests/test_stair_beam_interaction.py
 
+      - name: Structural invariants (S106 oracle; S107 register must not go stale)
+        run: python3 tests/test_structural_invariants.py
+
       - name: Notch post placement
         run: python3 tests/test_notch_posts.py
 

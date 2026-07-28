@@ -448,7 +448,22 @@ def draw_plan_and_framing(fig, params, calc, spec=None, panels=None):
                 fontfamily='monospace', color=BRAND["mute"])
 
         # House
-        ax.add_patch(patches.Rectangle((0, -house_depth), W, house_depth,
+        # S106: on a SECTION deck, draw the house at its true width, using the
+        # app's own convention (deck3d/planView): centred on Deck A, shifted by
+        # deckOffset. The legacy band -- a house exactly as wide as Deck A --
+        # made sections B/C appear to overhang the ends of the house on the
+        # plan, framing and elevations while the app and 3D showed them flush
+        # (Will's 22ft Deck A + 45.5ft house). GATED to section decks only so
+        # golden fingerprints (which have no section configs yet) are
+        # untouched; unifying sectionless decks joins the S107 golden
+        # regeneration.
+        _adds = [z for z in (params.get("zones") or []) if z.get("type") != "cutout"]
+        _hww = float(params.get("houseWidth") or 0)
+        if _adds and _hww > W:
+            _hx0 = (W - _hww) / 2.0 - float(params.get("deckOffset") or 0)
+        else:
+            _hx0, _hww = 0, W
+        ax.add_patch(patches.Rectangle((_hx0, -house_depth), _hww, house_depth,
                      fc=BRAND["house"], ec=BRAND["dark"], lw=1.5))
         # S87: labels anchor to the house BOTTOM; dim rows anchor to the house
         # top -- the two can no longer interleave (the old proportional -0.62
