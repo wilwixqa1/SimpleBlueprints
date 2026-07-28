@@ -84,6 +84,9 @@ jobs:
       - name: Cache headers on HTML shells (real app via TestClient)
         run: python3 tests/test_cache_headers.py
 
+      - name: Crawlability, HEAD support, canonical host (S106, real app via TestClient)
+        run: python3 tests/test_seo_endpoints.py
+
       # S104: Twitter wraps every posted link in a per-link t.co code, so one
       # account fragments into many referrer rows. Also asserts our own OAuth
       # round trip is not counted as organic search.

@@ -96,6 +96,48 @@ async def https_redirect(request: Request, call_next):
     return await call_next(request)
 
 
+# S106: answer HEAD requests.
+#
+# Every route here is registered with @app.get, and FastAPI registers exactly
+# the methods you name, so the entire site answered HEAD with 405. RFC 9110
+# says any resource that supports GET supports HEAD, and crawlers rely on
+# that: Google's fetchers use HEAD, a 405 is a 4xx, and Search Console was
+# reporting the sitemap as "Couldn't fetch" and pages as "Blocked due to
+# other 4xx issue" while GET served everything perfectly.
+#
+# The fix rewrites HEAD to GET before routing, runs the real handler, drains
+# its body, and returns the status and headers with no body. The GET
+# response's own content-length is kept, which is what HEAD semantics ask
+# for: the length the body WOULD have had.
+@app.middleware("http")
+async def head_method_support(request: Request, call_next):
+    if request.method != "HEAD":
+        return await call_next(request)
+    request.scope["method"] = "GET"
+    response = await call_next(request)
+    if hasattr(response, "body_iterator"):
+        async for _ in response.body_iterator:
+            pass
+    return Response(status_code=response.status_code,
+                    headers=dict(response.headers))
+
+
+# S106: one canonical host.
+#
+# www.simpleblueprints.xyz was serving the whole site with 200 rather than
+# redirecting, so search engines saw two complete copies of every page with
+# only a <link rel=canonical> hinting which one counts. A 301 is the signal
+# they actually obey. Scheme is forced to https so www-over-http resolves in
+# one hop instead of chaining through the https redirect above.
+@app.middleware("http")
+async def canonical_host(request: Request, call_next):
+    host = request.headers.get("host", "")
+    if host.startswith("www."):
+        url = request.url.replace(netloc=host[4:], scheme="https")
+        return RedirectResponse(url=str(url), status_code=301)
+    return await call_next(request)
+
+
 # S100: shared client identity helpers (Railway sits behind a proxy, so the
 # real client IP is the first entry of x-forwarded-for, not request.client).
 def _client_ip(request: Request) -> str:
