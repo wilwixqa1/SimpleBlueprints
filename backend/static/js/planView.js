@@ -511,6 +511,30 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, remo
         <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#444" strokeWidth="3.5" />
       ))}
 
+      {/* S106 B: click ANYWHERE in a section to select it.
+          The outline rects up top have fill "none", and in SVG that means the
+          interior is not clickable at all: only the 2px stroke responds. A
+          click inside an inactive Deck B lands on a decking line, which has
+          no handler, bubbles to the svg, and the svg's own onClick selects
+          the MAIN deck. So clicking Deck B selected Deck A. These transparent
+          catchers sit ABOVE all the interior decoration (decking, joists,
+          posts, labels) and BELOW everything interactive (stairs, the
+          add/cut/chamfer buttons, the resize handles), which is why they are
+          at this exact spot in the paint order. Cutouts come after additive
+          sections in zones[], so each cutout's catcher lands above its
+          parent's and cutout selection keeps working. */}
+      {u && zoneMode === "select" && hasZones && allRects.map(function(a) {
+        var r = a.rect;
+        return <rect key={"sel" + a.id} x={zx(r.x)} y={zy(r.y)}
+          width={r.w * sc} height={r.d * sc} fill="transparent"
+          onClick={function(e) {
+            e.stopPropagation();
+            setSelectedStairId(null);
+            u("activeZone", a.id);
+          }}
+          style={{ cursor: "pointer" }} />;
+      })}
+
 // {/*   S64: Multi-stair rendering   */}
       {(p.deckStairs || []).map(function(stairDef, stIdx) {
         if (p.height <= 0.5) return null;
@@ -615,6 +639,11 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, remo
       })}
 
 // {/*   Dimension lines   */}
+      {/* S106 B: pointerEvents none. These are decoration with no handlers,
+          but painted after the click catchers, so the horizontal c.W line
+          crossing a front section was swallowing clicks along a 1px band
+          (measured: 2 of 20 grid clicks in Deck C hit it). */}
+      <g style={{ pointerEvents: "none" }}>
       <line x1={dx} y1={pad + sd + 25} x2={dx + sw} y2={pad + sd + 25} stroke="#c62828" strokeWidth="0.6" />
       <line x1={dx} y1={pad + sd + 22} x2={dx} y2={pad + sd + 28} stroke="#c62828" strokeWidth="0.6" />
       <line x1={dx + sw} y1={pad + sd + 22} x2={dx + sw} y2={pad + sd + 28} stroke="#c62828" strokeWidth="0.6" />
@@ -623,6 +652,7 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, remo
       <line x1={dx + sw + 17} y1={pad} x2={dx + sw + 23} y2={pad} stroke="#1565c0" strokeWidth="0.6" />
       <line x1={dx + sw + 17} y1={pad + sd} x2={dx + sw + 23} y2={pad + sd} stroke="#1565c0" strokeWidth="0.6" />
       <text x={dx + sw + 32} y={pad + sd / 2 + 3} textAnchor="middle" style={{ fontSize: 12, fill: "#1565c0", fontWeight: 800, fontFamily: "'DM Mono', monospace" }} transform={`rotate(90, ${dx + sw + 32}, ${pad + sd / 2})`}>{window.fmtFtIn(c.D)}</text>
+      </g>
 
 // {/*   Zone delete buttons   */}
       {removeZone && hasZones && addRects.filter(function(a) { return a.id > 0; }).concat(cutRects).map(function(a) {
