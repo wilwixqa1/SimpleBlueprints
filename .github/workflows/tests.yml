@@ -104,6 +104,9 @@ jobs:
       - name: Section naming parity (zoneUtils.js vs zone_utils.py)
         run: python3 tests/test_section_naming_parity.py
 
+      - name: Section resize rule (S106, drag-to-resize a section's edges)
+        run: python3 tests/test_section_resize.py
+
       - name: Gate completeness (every suite in tests/ is wired into this file)
         run: python3 tests/test_gate_completeness.py
 

@@ -2830,7 +2830,7 @@ function StepContent(props) {
       <div style={{ marginBottom: 16 }}>
         <Label>Position along {_parentName}</Label>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <input type="range" min={0} max={30} step={0.5} value={activeZoneObj.attachOffset || 0}
+          <input type="range" min={window.SIZE_BOUNDS.attachOffset.min} max={window.SIZE_BOUNDS.attachOffset.max} step={window.SIZE_BOUNDS.step} value={activeZoneObj.attachOffset || 0}
             onChange={e => updateZone(p.activeZone, "attachOffset", Number(e.target.value))}
             style={{ flex: 1, accentColor: "#2563eb", height: 6 }} />
           <span style={{ fontFamily: _mono, fontSize: 14, fontWeight: 800, color: _br.tx }}>{activeZoneObj.attachOffset || 0}'</span>
@@ -3043,7 +3043,7 @@ function StepContent(props) {
       <div style={{ marginBottom: 16 }}>
         <Label>X Offset</Label>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <input type="range" min={0} max={30} step={0.5} value={activeZoneObj.attachOffset || 0}
+          <input type="range" min={window.SIZE_BOUNDS.attachOffset.min} max={window.SIZE_BOUNDS.attachOffset.max} step={window.SIZE_BOUNDS.step} value={activeZoneObj.attachOffset || 0}
             onChange={e => updateZone(p.activeZone, "attachOffset", Number(e.target.value))}
             style={{ flex: 1, accentColor: "#dc2626", height: 6 }} />
           <span style={{ fontFamily: _mono, fontSize: 14, fontWeight: 800, color: _br.tx }}>{activeZoneObj.attachOffset || 0}'</span>

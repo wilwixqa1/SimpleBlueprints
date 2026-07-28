@@ -3,7 +3,7 @@
 // ============================================================
 const { useState: _pvUS, useRef: _pvUR, useMemo: _pvUM } = React;
 
-function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, removeZone, getCorners, setCorner, updateStair, updateStairFields }) {
+function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, removeZone, updateZone, getCorners, setCorner, updateStair, updateStairFields }) {
   const pad = 45;
   const sc = Math.min(420 / Math.max(c.W, 16), 18);
   const hw = p.houseWidth * sc;
@@ -69,6 +69,32 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, remo
     return { x: (svgPt.x - dx) / sc, y: (svgPt.y - pad) / sc };
   }
 
+  // S106: a converter whose frame is FROZEN at pointerdown.
+  //
+  // clientToFt() above asks the svg for its screen CTM on every call. The svg
+  // is CSS-scaled to fit its column, so when a resize grows the bounding box,
+  // svgW grows, the CSS scale shrinks, and the LIVE CTM changes mid-drag,
+  // while dx and sc in this closure stay at their pointerdown values. Mixing
+  // one live number with two stale ones makes the drag feed back on itself:
+  // measured, a 4ft pull produced 14ft. Freezing the whole frame makes the
+  // result a pure function of the pointer's position. The visible cost is
+  // that if the canvas rescales mid-drag the edge tracks the pointer at the
+  // old ratio until the next grab, which is how the sliders behave too.
+  function makeFrozenClientToFt() {
+    var svg = svgRef.current;
+    if (!svg) return null;
+    var ctm = svg.getScreenCTM();
+    if (!ctm) return null;
+    var inv = ctm.inverse();
+    var mk = svg.createSVGPoint();
+    var dx0 = dx, sc0 = sc, pad0 = pad;
+    return function(clientX, clientY) {
+      mk.x = clientX; mk.y = clientY;
+      var q = mk.matrixTransform(inv);
+      return { x: (q.x - dx0) / sc0, y: (q.y - pad0) / sc0 };
+    };
+  }
+
   // S105 B: resize the deck by dragging an edge.
   //
   // This deliberately computes almost nothing. It turns the drag into feet,
@@ -80,13 +106,37 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, remo
   // Guarded to the main deck: u() routes width/depth to the ACTIVE section when
   // activeZone > 0, so dragging the main deck's edge while a section is
   // selected would silently resize the section instead.
+  // S106: eat the ONE click the browser dispatches after a resize drag.
+  //
+  // After pointerup the browser fires a click at wherever the mouse ended,
+  // and every deck rect's onClick selects it, so finishing a drag over the
+  // main deck silently switched the selection (measured: activeZone 1 -> 0
+  // and the sliders repointed at Deck A). setPointerCapture was tried first
+  // and Chromium still targeted the click at the rect. This intercepts at
+  // the window capture phase, ahead of React's root listener, and disarms
+  // itself immediately: clicks are dispatched synchronously after mouseup,
+  // so if none arrives by the next tick there is nothing to swallow and a
+  // real click must never be eaten.
+  function swallowNextClick() {
+    var eat = function(ce) { ce.stopPropagation(); ce.preventDefault(); };
+    window.addEventListener("click", eat, true);
+    setTimeout(function() { window.removeEventListener("click", eat, true); }, 0);
+  }
+
   const onResizeDown = (e, edge) => {
     e.preventDefault(); e.stopPropagation();
-    var startFt = clientToFt(e.clientX, e.clientY);
-    if (!startFt || !u) return;
+    // S106: frozen frame + pointer capture, same fix as the section drag
+    // below. This handler had the same feedback bug, latent: with no sections
+    // the svg fits its column unscaled and nothing shows, but once sections
+    // make svgW exceed the column, CSS scales the svg and resizing changes
+    // that scale mid-drag.
+    var toFt = makeFrozenClientToFt();
+    if (!toFt || !u) return;
+    try { e.target.setPointerCapture(e.pointerId); } catch (_) {}
+    var startFt = toFt(e.clientX, e.clientY);
     var startW = p.width, startD = p.depth, startOff = p.deckOffset || 0;
     const onMove = (ev) => {
-      var now = clientToFt(ev.clientX, ev.clientY);
+      var now = toFt(ev.clientX, ev.clientY);
       if (!now) return;
       if (edge === "front") {
         // back edge is the house, so only the front edge changes depth
@@ -101,6 +151,79 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, remo
       }
     };
     const onUp = () => {
+      swallowNextClick();
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
+
+  // S106: the same thing for a section (Deck B, C, D).
+  //
+  // Same principle as above and it is the whole point: this computes nothing
+  // itself. window.resizeSection() decides the numbers, then they go out
+  // through u() and updateZone(), which are the exact two calls the section's
+  // own sliders make (steps.js Slider field="width", and the offset range
+  // input). So a dragged section and a typed one are the same section as far
+  // as the calc engine, the 3D view, the material list and the PDF can tell.
+  //
+  // DELTA-BASED, like onResizeDown above, and it matters more here: growing a
+  // section grows the bounding box, which re-renders the svg with new dx/sc,
+  // while this closure still holds the pointerdown values. Feeding
+  // resizeSection an ABSOLUTE clientToFt position mixes the stale frame with
+  // the live screen and the drag runs away (measured: a 4ft pull produced
+  // 12.5ft). In a delta, dx cancels, so the result depends only on where the
+  // pointer is, never on how many re-renders happened on the way.
+  //
+  // The synthetic point handed to resizeSection is the grabbed edge's exact
+  // position at pointerdown, computed from the zone DATA rather than the
+  // screen, plus that delta. resizeSection reads one axis per edge, so both
+  // components carry it.
+  const onSectionResizeDown = (e, screenEdge) => {
+    e.preventDefault(); e.stopPropagation();
+    var zoneId = p.activeZone || 0;
+    if (!zoneId || !u || !updateZone) return;
+    var zone0 = window.getZoneById && window.getZoneById(pForZones, zoneId);
+    if (!zone0) return;
+    var pr = window.getZoneRect(zone0.attachTo, pForZones);
+    var r0 = window.getZoneRect(zoneId, pForZones);
+    if (!pr || !r0) return;
+    var toFt = makeFrozenClientToFt();
+    if (!toFt) return;
+    // Pointer capture: after the drag the browser dispatches a click at
+    // wherever the mouse ends up, and every deck rect's onClick selects it.
+    // Without capture, releasing over the main deck silently switched the
+    // selection to Deck A (measured: activeZone 1 -> 0 and the sliders
+    // repointed at the main deck). With capture the click targets the handle,
+    // which selects nothing.
+    try { e.target.setPointerCapture(e.pointerId); } catch (_) {}
+    var startPt = toFt(e.clientX, e.clientY);
+    var start = { w: zone0.w, d: zone0.d, attachOffset: zone0.attachOffset || 0,
+                  attachEdge: zone0.attachEdge, type: zone0.type };
+    var edge0 = { left: r0.x, right: r0.x + r0.w,
+                  top: r0.y, bottom: r0.y + r0.d }[screenEdge];
+
+    // What we last SENT, not what we started at. Comparing against the
+    // snapshot would drop the update when a drag returns to where it began,
+    // and the section would stay stuck at the previous frame's size.
+    var sent = { w: start.w, d: start.d, attachOffset: start.attachOffset };
+
+    const onMove = (ev) => {
+      var nowPt = toFt(ev.clientX, ev.clientY);
+      var pt = { x: edge0 + (nowPt.x - startPt.x),
+                 y: edge0 + (nowPt.y - startPt.y) };
+      var next = window.resizeSection(start, pr, screenEdge, pt);
+      if (!next) return;
+      if (next.d !== sent.d) { sent.d = next.d; u("depth", next.d); }
+      if (next.w !== sent.w) { sent.w = next.w; u("width", next.w); }
+      if (next.attachOffset !== sent.attachOffset) {
+        sent.attachOffset = next.attachOffset;
+        updateZone(zoneId, "attachOffset", next.attachOffset);
+      }
+    };
+    const onUp = () => {
+      swallowNextClick();
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
     };
@@ -570,6 +693,36 @@ function PlanView({ p, c, mode, u, zoneMode, pForZones, addZone, addCutout, remo
             style={{ cursor: hh.cur, transition: "opacity 0.12s" }} />;
         })}
 
+      {/* S106: the same handles for whichever section is selected. Also at the
+          END of the svg, for the same paint-order reason. Blue, because that
+          is already the selected-section colour everywhere else on this
+          canvas, and it keeps them from reading as the main deck's. */}
+      {u && updateZone && mode === "plan" && zoneMode === "select" && (p.activeZone || 0) > 0 &&
+        (function() {
+          var a = addRects.filter(function(r) { return r.id === p.activeZone; })[0];
+          if (!a) return null;
+          var map = window.sectionResizeEdges && window.sectionResizeEdges(a.zone.attachEdge);
+          if (!map) return null;   // cutouts and anything unrecognised: no handles
+          var x0 = zx(a.rect.x), y0 = zy(a.rect.y);
+          var bw = a.rect.w * sc, bh = a.rect.d * sc;
+          var boxes = {
+            left:   { x: x0 - 3,      y: y0 + 10,     w: 6,                    h: Math.max(bh - 20, 8), cur: "ew-resize" },
+            right:  { x: x0 + bw - 3, y: y0 + 10,     w: 6,                    h: Math.max(bh - 20, 8), cur: "ew-resize" },
+            top:    { x: x0 + 10,     y: y0 - 3,      w: Math.max(bw - 20, 8), h: 6,                    cur: "ns-resize" },
+            bottom: { x: x0 + 10,     y: y0 + bh - 3, w: Math.max(bw - 20, 8), h: 6,                    cur: "ns-resize" }
+          };
+          return [map.far, map.nearAlong, map.farAlong].map(function(edge) {
+            var b = boxes[edge];
+            if (!b) return null;
+            var hot = hoverBtn === ("zrz" + edge);
+            return <rect key={"zrz" + edge} x={b.x} y={b.y} width={b.w} height={b.h} rx={3}
+              fill="#2563eb" opacity={hot ? 0.9 : 0.4}
+              onMouseEnter={function() { setHoverBtn("zrz" + edge); }}
+              onMouseLeave={function() { setHoverBtn(null); }}
+              onPointerDown={function(ev) { onSectionResizeDown(ev, edge); }}
+              style={{ cursor: b.cur, transition: "opacity 0.12s" }} />;
+          });
+        })()}
 
       {/* Compass */}
       <g transform={`translate(${svgW - 28}, 25) rotate(${p.northAngle || 0}, 0, 7)`}><line x1="0" y1="14" x2="0" y2="0" stroke="#444" strokeWidth="1.5" /><polygon points="-3.5,4 0,0 3.5,4" fill="#444" /><text x="0" y="-4" textAnchor="middle" style={{ fontSize: 9, fontWeight: 800, fill: "#444" }}>N</text></g>

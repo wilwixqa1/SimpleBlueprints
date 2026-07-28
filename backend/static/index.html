@@ -70,10 +70,10 @@
 <script type="text/babel" src="/static/js/steelDeckData.js?v=s75a"></script>
 <script type="text/babel" src="/static/js/engine.js?v=s103a"></script>
 <script type="text/babel" src="/static/js/stairGeometry.js?v=s101a"></script>
-<script type="text/babel" src="/static/js/zoneUtils.js?v=s105g"></script>
+<script type="text/babel" src="/static/js/zoneUtils.js?v=s106a"></script>
 <script type="text/babel" src="/static/js/home.js?v=s104d"></script>
 <script src="/static/js/lotGeometry.js?v=s100a"></script>
-<script type="text/babel" src="/static/js/app.js?v=s105g"></script>
+<script type="text/babel" src="/static/js/app.js?v=s106a"></script>
 <!-- S62: Lazy loader for wizard dependencies -->
 <script>
 (function() {
@@ -109,7 +109,7 @@
     if (loading) return new Promise(function(resolve) { callbacks.push(resolve); });
     loading = true;
 
-    var v = "v=s105g";
+    var v = "v=s106a";
     return loadScript("https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js")
       .then(function() {
         // Views can load in parallel (stairGeometry + zoneUtils already loaded)

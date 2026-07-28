@@ -1252,22 +1252,116 @@ window.atZoneCap = function(p) { return ((p && p.zones) || []).filter(function(z
   // another route (a drag) could produce a value the slider could never
   // produce. Same drift shape as the naming rule. Slider and drag both read
   // this now.
+  // S106: attachOffset joins them. It was min={0} max={30} in two JSX
+  // props in steps.js, which is the same invisible-rule shape as above, and
+  // dragging a section's side edge has to move the offset to hold the
+  // opposite edge still.
   var SIZE_BOUNDS = {
-    width:  { min: 4, max: 50 },
-    depth:  { min: 4, max: 24 },
+    width:        { min: 4, max: 50 },
+    depth:        { min: 4, max: 24 },
+    attachOffset: { min: 0, max: 30 },
     cutout: { min: 2 },
     step: 0.5
   };
   function clampSize(field, v, isCutout) {
     var b = SIZE_BOUNDS[field];
     if (!b) return v;
-    var min = isCutout ? SIZE_BOUNDS.cutout.min : b.min;
+    // S106: the cutout floor is a floor on a cutout's SIZE. Before this it was
+    // applied to whatever field was passed, so clampSize("attachOffset", 0,
+    // true) would have returned 2 and shoved the section along its parent.
+    var isSize = (field === "width" || field === "depth");
+    var min = (isCutout && isSize) ? SIZE_BOUNDS.cutout.min : b.min;
     var st = SIZE_BOUNDS.step;
     v = Math.round(v / st) * st;                 // snap, same step as the slider
     return Math.max(min, Math.min(b.max, v));    // clamp, same bounds
   }
+
+  /* ---- S106: resizing a section by dragging one of its edges ----
+     Three of a section's four screen edges can move. The fourth is the seam
+     where it meets its parent, and moving that would detach the section, so
+     it gets no handle.
+
+     Which screen edge does what depends on attachEdge, because getZoneRect
+     swaps the axes for left/right attachments: w is always measured ALONG the
+     parent's edge and d always runs AWAY from it.
+
+       attachEdge   seam     d edge    w edges (near / far along the parent)
+       right        left     right     top / bottom
+       left         right    left      top / bottom
+       front        top      bottom    left / right
+
+     Cutouts get no map, so they get no handles. Their attachEdge values are
+     corner names and their anchoring rules are different. */
+  function sectionResizeEdges(attachEdge) {
+    switch (attachEdge) {
+      case "right": return { seam: "left",  far: "right",  nearAlong: "top",  farAlong: "bottom", axis: "y" };
+      case "left":  return { seam: "right", far: "left",   nearAlong: "top",  farAlong: "bottom", axis: "y" };
+      case "front": return { seam: "top",   far: "bottom", nearAlong: "left", farAlong: "right",  axis: "x" };
+      default: return null;
+    }
+  }
+
+  // Pure. Takes the pointer's ABSOLUTE position in deck feet rather than a
+  // delta, so a drag cannot accumulate rounding drift and the clamps fall out
+  // of the arithmetic instead of being bolted on.
+  //
+  // zone:       the section being resized, as it was at pointerdown
+  // pr:         its PARENT's rect, {x, y, w, d}, deck feet
+  // screenEdge: "left" | "right" | "top" | "bottom"
+  // pt:         pointer, {x, y}, deck feet
+  // returns     {w, d, attachOffset} or null if that edge does not move
+  function resizeSection(zone, pr, screenEdge, pt) {
+    if (!zone || !pr || !pt) return null;
+    var map = sectionResizeEdges(zone.attachEdge);
+    if (!map) return null;
+
+    var isCut = zone.type === "cutout";
+    var w0 = zone.w, d0 = zone.d, off0 = zone.attachOffset || 0;
+    var out = { w: w0, d: d0, attachOffset: off0 };
+
+    // The edge running away from the parent: pure depth, no offset change.
+    if (screenEdge === map.far) {
+      var raw;
+      if (zone.attachEdge === "right")     raw = pt.x - (pr.x + pr.w);
+      else if (zone.attachEdge === "left") raw = pr.x - pt.x;
+      else                                 raw = pt.y - (pr.y + pr.d);
+      out.d = clampSize("depth", raw, isCut);
+      return out;
+    }
+
+    // The two edges running along the parent. Distance along the parent's
+    // edge, measured from the same origin attachOffset uses.
+    var along = (map.axis === "y") ? (pt.y - pr.y) : (pt.x - pr.x);
+
+    // Far end: offset is the anchor and stays put, so only w changes.
+    if (screenEdge === map.farAlong) {
+      out.w = clampSize("width", along - off0, isCut);
+      return out;
+    }
+
+    // Near end: this edge IS the offset. Move it and grow w by the same
+    // amount so the far end does not budge. B is the far end and is the
+    // invariant of this branch.
+    if (screenEdge === map.nearAlong) {
+      var B = off0 + w0;
+      var minW = isCut ? SIZE_BOUNDS.cutout.min : SIZE_BOUNDS.width.min;
+      // Bound the offset by BOTH its own range and the width it implies, so
+      // one clamp cannot leave w and attachOffset disagreeing about B.
+      var lo = Math.max(SIZE_BOUNDS.attachOffset.min, B - SIZE_BOUNDS.width.max);
+      var hi = Math.min(SIZE_BOUNDS.attachOffset.max, B - minW);
+      var off = clampSize("attachOffset", along, false);
+      off = Math.max(lo, Math.min(hi, off));
+      out.attachOffset = off;
+      out.w = B - off;
+      return out;
+    }
+
+    return null;  // the seam
+  }
   window.SIZE_BOUNDS = SIZE_BOUNDS;
   window.clampSize = clampSize;
+  window.sectionResizeEdges = sectionResizeEdges;
+  window.resizeSection = resizeSection;
   window.sectionName = sectionName;
   window.isAutoLabel = isAutoLabel;
   window.sectionLetter = sectionLetter;
