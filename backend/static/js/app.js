@@ -636,7 +636,19 @@ const App = function SimpleBlueprints() {
   });
 
 // Zone management functions
-  const addZone = (parentId, edge) => setP(prev => {
+  // S106 D: add/cut/chamfer are SINGLE-USE tools. Completing the action
+  // returns you to select mode with the new thing active, so add -> drag its
+  // handles is one motion. Before this, the mode stayed armed after the click
+  // and there was no obvious way out (Will, with a screenshot). The exit is
+  // gated on the SAME validity checks the updater applies: a failed click
+  // (zone cap, invalid edge) keeps the mode armed so the person can try
+  // another edge, rather than silently dumping them back to select with
+  // nothing added.
+  const addZone = (parentId, edge) => {
+    if (window.atZoneCap && window.atZoneCap(p)) return;
+    var _pp = Object.assign({}, p, { deckWidth: p.width, deckDepth: p.depth });
+    if (!window.addZoneDefaults(parentId, edge, "add", _pp)) return;
+    setP(prev => {
     if (window.atZoneCap && window.atZoneCap(prev)) return prev; // S87: 3-zone cap (choke point)
     var parentP = Object.assign({}, prev, { deckWidth: prev.width, deckDepth: prev.depth });
     var defaults = window.addZoneDefaults(parentId, edge, "add", parentP);
@@ -651,8 +663,13 @@ const App = function SimpleBlueprints() {
       nextZoneId: prev.nextZoneId + 1
     };
   });
+    setZoneMode("select");
+  };
 
-  const addCutout = (parentId, edge) => setP(prev => {
+  const addCutout = (parentId, edge) => {
+    var _pp = Object.assign({}, p, { deckWidth: p.width, deckDepth: p.depth });
+    if (!window.addZoneDefaults(parentId, edge, "cutout", _pp)) return;
+    setP(prev => {
     var parentP = Object.assign({}, prev, { deckWidth: prev.width, deckDepth: prev.depth });
     var defaults = window.addZoneDefaults(parentId, edge, "cutout", parentP);
     if (!defaults) return prev;
@@ -665,6 +682,8 @@ const App = function SimpleBlueprints() {
       nextZoneId: prev.nextZoneId + 1
     };
   });
+    setZoneMode("select");
+  };
 
   const removeZone = (zoneId) => setP(prev => {
     if (zoneId === 0) return prev;
@@ -715,6 +734,10 @@ const App = function SimpleBlueprints() {
         })
       }));
     }
+    // S106 D: single-use tool, same rule as addZone/addCutout. Scoped to
+    // chamfer mode so calls from the Shape panel or the AI helper (which run
+    // in select mode) change nothing.
+    if (zoneMode === "chamfer") setZoneMode("select");
   };
 
   const getCorners = (zoneId) => {
