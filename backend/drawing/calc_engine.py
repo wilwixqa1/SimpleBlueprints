@@ -460,39 +460,73 @@ _STEEL_DOUBLE_BEAM_MAX = {
 
 
 def _beam_relevant_openings(cut_rects, depth, setback):
-    """Drop stair openings that never cross the beam line. S106.
+    """Split openings into (beam_relevant, touching_stair). S106.
 
     THE RULE (IRC R502.10, confirmed against the Meadowview A-8 framing sheet)
     A stair opening whose back edge sits AT or IN FRONT OF the beam line lives
     entirely in the cantilever: the beam is not interrupted, so it must not be
-    segmented, stepped, or re-posted around the opening. The opening is framed
-    with the beam itself as its rear support plus trimmers -- a drawing and
-    materials concern, not a beam-layout one. Both of Will's real decks
-    (straight front stair 1'-6" in; lLeft with landing, also 1'-6" in) are this
-    case, measured: opening.y == depth - setback exactly, touching, never
-    crossing.
-
-    Before this filter, a touching opening fell through front_edge_profile as
-    if it were a notch, the beam fractured into three pieces, the 4ft middle
-    piece grew its own post INSIDE the stairwell (the floating grey cap in
-    Will's 3D screenshot), and the estimate billed 7 posts against the sheet's
-    3.
+    segmented, stepped, or re-posted around the opening. Those TOUCHING rects
+    are returned separately because the POSTS still care: a legacy post that
+    falls inside the opening's span would stand in the stairwell (see
+    _posts_clear_of_touching_openings).
 
     An opening that genuinely CROSSES the beam line (rect.y < beam_y) still
-    segments, exactly as before; correct posting for that case (posts at the
-    opening's edges, LU228-hung doubled headers per the Meadowview precedent)
-    is the S106+ Case B package.
-
-    USER CUTOUTS ARE NEVER FILTERED. A notch removes deck permanently and the
-    stepped-beam behaviour for it is correct and golden-pinned.
+    segments, exactly as before; correct posting for that case is the S106+
+    Case B package. USER CUTOUTS ARE NEVER FILTERED.
     """
     beam_y = depth - setback
-    kept = []
+    kept, touching = [], []
     for r in cut_rects:
         if r.get("source") == "stair" and r["rect"]["y"] >= beam_y - 1e-6:
+            touching.append(r)
             continue
         kept.append(r)
-    return kept
+    return kept, touching
+
+
+def _posts_clear_of_touching_openings(beam_layout, touching):
+    """No post may stand inside a stair opening. S106, Will's freestanding find.
+
+    Case A keeps the beam continuous, but the legacy post spacing knows
+    nothing about openings: a 22ft deck posts at [2, 11, 20], and a stair at
+    the right corner opens x[17..21], so the post at 20 stood in the
+    stairwell -- on the framing sheet AND in the 3D, consistently. The centred
+    stair only looked solved because 10 and 18 happened to fall outside its
+    opening.
+
+    The rule is the one Billy described and Meadowview A-8 draws: support
+    belongs at the OPENING'S EDGES, the bearing points of the header/trimmer
+    framing. Any post inside a touching opening's span is removed and posts
+    are placed at both edges (skipped if one already sits within 0.3ft).
+    Spans can only shrink, so downstream beam sizing is never weakened.
+    Applied per beam line: only segments whose beam_y lies at the opening.
+    MUST stay mirrored with engine.js; guarded by
+    tests/test_stair_beam_interaction.py.
+    """
+    eps = 1e-6
+    for seg in beam_layout.get("segments", []):
+        by = seg.get("beam_y")
+        posts = list(seg.get("posts") or [])
+        changed = False
+        for tr in touching:
+            r = tr["rect"]
+            if not (r["y"] - 0.01 <= by <= r["y"] + r["d"] + 0.01):
+                continue
+            x0, x1 = r["x"], r["x"] + r["w"]
+            inside = [p for p in posts if x0 + eps < p < x1 - eps]
+            if not inside:
+                continue
+            posts = [p for p in posts if p not in inside]
+            for edge in (max(seg["x0"], x0), min(seg["x1"], x1)):
+                if not any(abs(p - edge) < 0.3 for p in posts):
+                    posts.append(round(edge, 2))
+            changed = True
+        if changed:
+            seg["posts"] = sorted(set(posts))
+    beam_layout["post_xy"] = [(p, s["beam_y"])
+                              for s in beam_layout.get("segments", [])
+                              for p in s["posts"]]
+    return beam_layout
 
 
 def calculate_steel_structure(params):
@@ -598,11 +632,12 @@ def calculate_steel_structure(params):
     # not the 1.5ft ledger setback (they coincide once depth >= 9).
     _setback = (1.5 if attachment == "ledger"
                 else freestanding_geometry(depth)[0])
-    _cut_rects = _beam_relevant_openings(_cut_rects, depth, _setback)
+    _cut_rects, _touch_rects = _beam_relevant_openings(_cut_rects, depth, _setback)
     beam_layout = compute_beam_layout(
         width, depth, _cut_rects, num_posts,
         cantilever_max=_cantilever_max, setback=_setback,
         max_beam_span=beam_max_span)
+    beam_layout = _posts_clear_of_touching_openings(beam_layout, _touch_rects)
     post_positions = [px for (px, _py) in beam_layout["post_xy"]]
 
     # S102: THE SECOND BEAM. A freestanding deck has no ledger, so the house-side
@@ -938,10 +973,11 @@ def calculate_structure(params):
     # S102: freestanding sets both beams in by the IRC-capped cantilever.
     _setback = (1.5 if attachment == "ledger"
                 else freestanding_geometry(depth)[0])
-    _cut_rects = _beam_relevant_openings(_cut_rects, depth, _setback)
+    _cut_rects, _touch_rects = _beam_relevant_openings(_cut_rects, depth, _setback)
     beam_layout = compute_beam_layout(
         width, depth, _cut_rects, num_posts,
         cantilever_max=_cantilever_max, setback=_setback, max_beam_span=8.0)
+    beam_layout = _posts_clear_of_touching_openings(beam_layout, _touch_rects)
     # Derive post x-positions from the layout (identical to the legacy list on a
     # plain deck). Keeps every downstream reader working; the (x,y) lives in
     # beam_layout for the drawing + the post-in-notch oracle.

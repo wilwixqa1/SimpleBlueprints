@@ -540,10 +540,50 @@ function calcStructure(p) {
     // calc_engine.py _beam_relevant_openings; guarded by
     // tests/test_stair_beam_interaction.py.
     var _beamY = D - _setback;
+    var _touchRects = _cutRects.filter(function(r) {
+      return r.source === "stair" && r.rect.y >= _beamY - 1e-6;
+    });
     _cutRects = _cutRects.filter(function(r) {
       return !(r.source === "stair" && r.rect.y >= _beamY - 1e-6);
     });
     beamLayout = window.computeBeamLayout(W, D, _cutRects, nP, _cantMax, _setback, 8.0);
+    // S106: no post may stand inside a touching stair opening. The beam stays
+    // continuous (Case A), but legacy spacing knows nothing about openings:
+    // 22ft posts at [2,11,20] with a right-corner stair opening x[17..21] put
+    // the post at 20 in the stairwell, on the sheet and in the 3D alike.
+    // Support belongs at the OPENING'S EDGES (Billy / Meadowview A-8): drop
+    // inside posts, add posts at both edges unless one already sits within
+    // 0.3ft. Spans only shrink. MUST stay mirrored with calc_engine.py
+    // _posts_clear_of_touching_openings; guarded by
+    // tests/test_stair_beam_interaction.py.
+    (beamLayout.segments || []).forEach(function(seg) {
+      var posts = (seg.posts || []).slice();
+      var changed = false;
+      _touchRects.forEach(function(tr) {
+        var r = tr.rect;
+        if (!(r.y - 0.01 <= seg.beamY && seg.beamY <= r.y + r.d + 0.01)) return;
+        var x0 = r.x, x1 = r.x + r.w;
+        var inside = posts.filter(function(p) { return p > x0 + 1e-6 && p < x1 - 1e-6; });
+        if (!inside.length) return;
+        posts = posts.filter(function(p) { return inside.indexOf(p) < 0; });
+        [Math.max(seg.x0, x0), Math.min(seg.x1, x1)].forEach(function(edge) {
+          if (!posts.some(function(p) { return Math.abs(p - edge) < 0.3; })) {
+            posts.push(+edge.toFixed(2));
+          }
+        });
+        changed = true;
+      });
+      if (changed) {
+        seg.posts = posts.sort(function(a, b) { return a - b; })
+          .filter(function(p, i, a) { return i === 0 || p !== a[i - 1]; });
+      }
+    });
+    if (_touchRects.length) {
+      beamLayout.postXY = [];
+      (beamLayout.segments || []).forEach(function(seg) {
+        (seg.posts || []).forEach(function(p) { beamLayout.postXY.push([p, seg.beamY]); });
+      });
+    }
     pp = beamLayout.postXY.map(function(xy) { return xy[0]; });
 
     // S102: THE SECOND BEAM. A freestanding deck has no ledger, so the

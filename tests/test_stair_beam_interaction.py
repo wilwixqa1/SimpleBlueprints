@@ -67,17 +67,23 @@ def stair(anchorY, template="straight", ax=10.75):
              "anchorX": ax, "anchorY": anchorY, "angle": 0}]
 
 
-print("1. a touching stair opening leaves the beam layout untouched")
+print("1. a touching stair opening never segments the beam")
 plain = calculate_structure(dict(BASE))
 touch = calculate_structure(dict(BASE, deckStairs=stair(7.0)))
-check("posts unchanged (3)", touch["total_posts"] == 3, touch["total_posts"])
-check("positions byte-equal to the no-stair deck",
-      touch["post_positions"] == plain["post_positions"],
-      touch["post_positions"])
 check("beam stays one segment",
       len(touch["beam_layout"]["segments"]) == 1,
       len(touch["beam_layout"]["segments"]))
-check("footings match posts", touch["num_footings"] == 3, touch["num_footings"])
+# The centred legacy post (10.75) stood inside this deck's opening
+# [8.75..12.75] -- push 4 fixed the segmentation but codified that post as
+# "byte-equal to no-stair". The relocation rule (2c) replaces it with posts
+# at both opening edges. History: 7 posts (segmented, S105-era), then 3 with
+# one in the stairwell (push 4), now 4 with none.
+check("posts flank the opening, none inside",
+      touch["post_positions"] == [2.0, 8.75, 12.75, 19.5],
+      touch["post_positions"])
+check("no post inside (8.75, 12.75)",
+      not any(8.75 < px < 12.75 for px in touch["post_positions"]))
+check("footings match posts (4)", touch["num_footings"] == 4, touch["num_footings"])
 
 print("2. same for the lLeft-with-landing shape (Will's second deck)")
 ll = calculate_structure(dict(BASE, width=22, depth=12,
@@ -124,6 +130,62 @@ jsr = json.loads(r.stdout) if r.returncode == 0 else None
 check("JS mirror emits the identical opening rect",
       jsr == {"x": op["x"], "y": op["y"], "w": op["w"], "d": op["d"]},
       "js=%s py=%s err=%s" % (jsr, op, r.stderr[:80]))
+
+print("2c. a post never stands inside a touching opening (Will's freestanding find)")
+# 22x12 freestanding, stair at the right corner: legacy posts [2,11,20] with
+# the opening at x[17..21] put the post at 20 in the stairwell -- on the
+# framing sheet AND in the 3D. Rule: drop it, posts at both opening edges.
+fsp = dict(BASE, width=22, depth=12, attachment="freestanding",
+           deckStairs=[{"id": 0, "zoneId": 0, "location": "front", "offset": 0,
+                        "width": 4, "numStringers": 3,
+                        "anchorX": 19.0, "anchorY": 10.5, "angle": 0}])
+fsc = calculate_structure(fsp)
+fs_front = sorted(x for (x, y) in fsc["beam_layout"]["post_xy"] if abs(y - 10.5) < 0.01)
+fs_back = sorted(x for (x, y) in fsc["beam_layout"]["post_xy"] if abs(y - 1.5) < 0.01)
+check("front row posts flank the opening", fs_front == [2.0, 11.0, 17.0, 21.0], fs_front)
+check("no front post inside (17, 21)",
+      not any(17 < x < 21 for x in fs_front))
+check("back row mirrors the front", fs_back == fs_front, fs_back)
+check("counts follow (8 posts, 8 footings)",
+      fsc["total_posts"] == 8 and fsc["num_footings"] == 8,
+      (fsc["total_posts"], fsc["num_footings"]))
+# left-corner ledger stair: post at 2 sits inside opening x[1..5]; the left
+# edge lands at 1 and the right at 5
+lcp = dict(BASE, width=22, depth=12,
+           deckStairs=[{"id": 0, "zoneId": 0, "location": "front",
+                        "offset": 0, "width": 4, "numStringers": 3,
+                        "anchorX": 3.0, "anchorY": 10.5, "angle": 0}])
+lcc = calculate_structure(lcp)
+check("left-corner: no post inside (1, 5)",
+      not any(1 < px < 5 for px in lcc["post_positions"]),
+      lcc["post_positions"])
+check("left-corner: posts at both opening edges",
+      1.0 in lcc["post_positions"] and 5.0 in lcc["post_positions"],
+      lcc["post_positions"])
+# centred stair whose opening misses every legacy post: rule is a NO-OP
+cen = calculate_structure(dict(BASE, width=28, depth=12,
+                               deckStairs=[{"id": 0, "zoneId": 0,
+                                            "location": "front", "offset": 0,
+                                            "width": 4, "numStringers": 3,
+                                            "anchorX": 14.0, "anchorY": 10.5,
+                                            "angle": 0}]))
+check("centred stair, posts untouched", cen["post_positions"] == [2.0, 10.0, 18.0, 26.0],
+      cen["post_positions"])
+# and the JS engine relocates identically
+node_fs = (
+    'const fs=require("fs");global.window=global;'
+    'eval(fs.readFileSync("backend/static/js/zoneUtils.js","utf8"));'
+    'eval(fs.readFileSync("backend/static/js/stairGeometry.js","utf8"));'
+    'eval(fs.readFileSync("backend/static/js/engine.js","utf8"));'
+    'const c=window.calcStructure(JSON.parse(process.argv[1]));'
+    'console.log(JSON.stringify(c.beamLayout.postXY));'
+)
+r = subprocess.run(["node", "-e", node_fs, json.dumps(fsp)],
+                   capture_output=True, text=True)
+js_xy = sorted(map(tuple, json.loads(r.stdout))) if r.returncode == 0 else None
+py_xy = sorted((float(x), float(y)) for (x, y) in fsc["beam_layout"]["post_xy"])
+check("JS relocates to the identical post_xy", js_xy == py_xy,
+      "js=%s py=%s" % (js_xy, py_xy))
 
 print("3. an opening that CROSSES the beam line still segments (Case B kept)")
 deep = calculate_structure(dict(BASE, deckStairs=stair(5.0)))
@@ -184,8 +246,8 @@ print("6. the estimate bills what the sheet draws")
 est = estimate_materials(dict(BASE, deckStairs=stair(7.0)), touch)
 posts_line = next(i for i in est["items"] if i["item"].endswith("PT Posts"))
 sono_line = next(i for i in est["items"] if i["item"].startswith("Sonotube"))
-check("materials bill 3 posts", posts_line["qty"] == 3, posts_line["qty"])
-check("materials bill 3 footings", sono_line["qty"] == 3, sono_line["qty"])
+check("materials bill 4 posts (edges of the opening)", posts_line["qty"] == 4, posts_line["qty"])
+check("materials bill 4 footings", sono_line["qty"] == 4, sono_line["qty"])
 
 print()
 if fails:
