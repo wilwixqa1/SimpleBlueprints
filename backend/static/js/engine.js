@@ -531,6 +531,18 @@ function calcStructure(p) {
     var _cantMax = +(jSpan / 4.0).toFixed(2);
     // S102: freestanding sets both beams in by the IRC-capped cantilever.
     var _setback = (attachment === "ledger") ? 1.5 : freestandingGeometry(D).c;
+    // S106: drop stair openings that never CROSS the beam line. An opening
+    // whose back edge sits at or in front of the beam lives entirely in the
+    // cantilever: the beam is not interrupted, so it must not be segmented or
+    // re-posted (that is what planted a post inside Will's stairwell and
+    // billed 7 posts against the sheet's 3). Openings that genuinely cross
+    // still segment. User cutouts are NEVER filtered. MUST stay mirrored with
+    // calc_engine.py _beam_relevant_openings; guarded by
+    // tests/test_stair_beam_interaction.py.
+    var _beamY = D - _setback;
+    _cutRects = _cutRects.filter(function(r) {
+      return !(r.source === "stair" && r.rect.y >= _beamY - 1e-6);
+    });
     beamLayout = window.computeBeamLayout(W, D, _cutRects, nP, _cantMax, _setback, 8.0);
     pp = beamLayout.postXY.map(function(xy) { return xy[0]; });
 

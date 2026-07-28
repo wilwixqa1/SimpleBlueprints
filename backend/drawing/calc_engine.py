@@ -459,6 +459,42 @@ _STEEL_DOUBLE_BEAM_MAX = {
 }
 
 
+def _beam_relevant_openings(cut_rects, depth, setback):
+    """Drop stair openings that never cross the beam line. S106.
+
+    THE RULE (IRC R502.10, confirmed against the Meadowview A-8 framing sheet)
+    A stair opening whose back edge sits AT or IN FRONT OF the beam line lives
+    entirely in the cantilever: the beam is not interrupted, so it must not be
+    segmented, stepped, or re-posted around the opening. The opening is framed
+    with the beam itself as its rear support plus trimmers -- a drawing and
+    materials concern, not a beam-layout one. Both of Will's real decks
+    (straight front stair 1'-6" in; lLeft with landing, also 1'-6" in) are this
+    case, measured: opening.y == depth - setback exactly, touching, never
+    crossing.
+
+    Before this filter, a touching opening fell through front_edge_profile as
+    if it were a notch, the beam fractured into three pieces, the 4ft middle
+    piece grew its own post INSIDE the stairwell (the floating grey cap in
+    Will's 3D screenshot), and the estimate billed 7 posts against the sheet's
+    3.
+
+    An opening that genuinely CROSSES the beam line (rect.y < beam_y) still
+    segments, exactly as before; correct posting for that case (posts at the
+    opening's edges, LU228-hung doubled headers per the Meadowview precedent)
+    is the S106+ Case B package.
+
+    USER CUTOUTS ARE NEVER FILTERED. A notch removes deck permanently and the
+    stepped-beam behaviour for it is correct and golden-pinned.
+    """
+    beam_y = depth - setback
+    kept = []
+    for r in cut_rects:
+        if r.get("source") == "stair" and r["rect"]["y"] >= beam_y - 1e-6:
+            continue
+        kept.append(r)
+    return kept
+
+
 def calculate_steel_structure(params):
     """Steel framing calculation using CCRR-0313 data.
     Returns same dict shape as wood calculate_structure()."""
@@ -562,6 +598,7 @@ def calculate_steel_structure(params):
     # not the 1.5ft ledger setback (they coincide once depth >= 9).
     _setback = (1.5 if attachment == "ledger"
                 else freestanding_geometry(depth)[0])
+    _cut_rects = _beam_relevant_openings(_cut_rects, depth, _setback)
     beam_layout = compute_beam_layout(
         width, depth, _cut_rects, num_posts,
         cantilever_max=_cantilever_max, setback=_setback,
@@ -901,6 +938,7 @@ def calculate_structure(params):
     # S102: freestanding sets both beams in by the IRC-capped cantilever.
     _setback = (1.5 if attachment == "ledger"
                 else freestanding_geometry(depth)[0])
+    _cut_rects = _beam_relevant_openings(_cut_rects, depth, _setback)
     beam_layout = compute_beam_layout(
         width, depth, _cut_rects, num_posts,
         cantilever_max=_cantilever_max, setback=_setback, max_beam_span=8.0)

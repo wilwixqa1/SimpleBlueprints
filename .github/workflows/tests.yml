@@ -126,6 +126,9 @@ jobs:
       - name: Beam/post layout, Python (S90 coincident-post regression)
         run: python3 tests/test_beam_layout.py
 
+      - name: Stair openings vs the beam line (S106, both engines + estimate)
+        run: python3 tests/test_stair_beam_interaction.py
+
       - name: Notch post placement
         run: python3 tests/test_notch_posts.py
 
