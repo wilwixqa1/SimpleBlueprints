@@ -1,0 +1,127 @@
+S106 SESSION CONTEXT -- July 28, 2026
+======================================
+9 pushes (plus one from the parallel session using our numbering). Gate grew
+29 -> 34 steps. Every push verified in-browser or live before shipping.
+
+WHAT SHIPPED
+------------
+P1 0f786bd  Section resize handles (drag any section's edges). Pure rule
+            resizeSection() in zoneUtils.js, 560+ checks, mutation-tested.
+            Found+fixed: CSS-scale coordinate feedback loop (frozen-frame
+            converter makeFrozenClientToFt -- ALSO latently affected the S105
+            main-deck drag, fixed both); post-drag click stealing selection
+            (swallowNextClick); attachOffset bounds into SIZE_BOUNDS;
+            clampSize cutout floor no longer hits offsets.
+P2 c2098a4  Click anywhere in a section to select it. Baseline measured:
+            20/20 interior clicks in Deck B selected Deck A (fill:none +
+            svg-level onClick). Transparent catcher layer above decoration,
+            below interactive; dimensions made pointer-transparent.
+P3 5188343  SEO: HEAD supported site-wide (was 405 everywhere; FastAPI
+            registers only named methods), www 301s to apex. Verified live.
+            tests/test_seo_endpoints.py. Will resubmitted sitemap; GSC takes
+            days to refetch.
+P4 06940d7  Beam-line rule: stair openings that TOUCH the beam line never
+            segment it. _beam_relevant_openings. Killed the 7-post/$1,370
+            over-bill. Cutouts untouched by construction.
+P5 5aaedab  (PARALLEL SESSION -- "add/cut/chamfer single-use tools". It used
+            our push number AND busters s106d. Coordinate numbering next
+            time.)
+P6 4a2dadd  3D consumes engine layout: engine.js now RETURNS beamLayout;
+            deck3d renders postXY verbatim (both freestanding rows, per-
+            segment z) + back beam. Stats card Posts reads totalPosts (was
+            self-contradicting). tests/test_3d_posts_parity.js: real three.js
+            in node, babel-transformed deck3d, 1:1 post position match.
+P7 035bc06  Stair openings cut from parts that ENTER the deck (per-part clip
+            union, was whole-stair bbox). Killed the 7.5ft phantom hole on a
+            4ft lLeft and the "post clipping through stairs" it exposed.
+            _stair_part_boxes py + mirrored JS.
+P8 51b93f4  Posts never stand inside a stair opening: inside posts removed,
+            posts at BOTH opening edges (Billy/Meadowview A-8 bearing
+            points). _posts_clear_of_touching_openings, mirrored JS.
+            IMPORTANT: this revealed P4's test had codified the original
+            deck's centred post (10.75 inside opening 8.75-12.75) as correct
+            via byte-equality; assertions now state the rule, not the
+            accident.
+P9 c03c47a  tests/test_structural_invariants.py -- the ORACLE (see below) --
+            plus gated true-house-width on section-deck plan/framing sheets.
+
+THE BIG S106 LESSON (Will asked it directly: why don't tests catch these?)
+--------------------------------------------------------------------------
+Every consistency test verifies AGREEMENT. Both engines agreed level flush
+sections get zero structure; the 3D faithfully drew nothing; parity stayed
+green. Consistent wrongness is invisible to parity BY CONSTRUCTION. The
+missing class is INVARIANTS against physics: test_structural_invariants.py
+(I1 every section supported, I2 posts==footings, I3 freestanding rows
+mirrored, I4 no post in a stair opening, I5 no unsupported beam segment).
+Known failures live in EXPECTED_FAILURES entries naming their S107 owner;
+stale entries (fixed but still registered) turn the suite red. Grow this
+suite whenever a new "how did nothing flag this" moment occurs.
+Second half of the answer: the golden has ZERO additive-section configs
+(cutouts only). A pipeline that never renders sections in CI cannot regress
+on them. Same class S102 fixed for freestanding.
+
+S107 CHARTER (in order)
+-----------------------
+1. LEVEL-SECTION STRUCTURE (the register's one entry; flagship feature
+   produces unbuildable plans). Flush = shared-edge only: joists hang off
+   Deck A's rim there (LUS/LU2 hangers), FAR edge always gets a dropped beam
+   on posts+footings, per-section sizing. Both engines; framing sheet A-2;
+   elevations; 3D; materials. Reproduce: beamType "flush" + h == deck height
+   in calcAllZones (engine.js ~1156) -> beamSize "rim", nPosts 0.
+   Backend has NO zone-structure concept at all -- decide whether it gains
+   one or the frontend zc becomes the payload the PDF consumes (prefer one
+   source; "consume, don't re-derive").
+   Ask Billy: dropped beam under the section's outer rim OK for narrow
+   sections, or another detail?
+2. GOLDEN EXPANSION + REGENERATION (one Will review for everything):
+   additive-section configs (flush + raised + chamfered); unify house width
+   on sectionless decks and ELEVATIONS (still Deck-A-wide there; P9 fixed
+   plan/framing only, gated); Case B items below; freestanding gap/blocking
+   note on A-3; possibly freestanding setback 1.5 -> 1.0 (Billy pending).
+3. CASE B (openings CROSSING the beam line): still old segmented treatment,
+   posts every ~2.4ft from hardcoded max_beam_span=8.0 at the wood call
+   site (steel site already passes the real allowable). Fix: posts at
+   opening edges, LU228-hung doubled headers (Meadowview A-8 vocabulary,
+   docs/reference_sets -- the precedent IS in our library; search the
+   drafter's words, not yours), real IRC spans. Also the "4'-0" OPENING"
+   label vs actual cut width mismatch, and stringer/trimmer callouts
+   ((2) 2x8 TRIMMER EA. SIDE etc.).
+4. Smaller, all diagnosed with repro steps in the S106 transcript:
+   - Stale stairs survive shape changes in UI (PDF correctly drops them).
+   - Will reported a possibly-unneeded/misplaced rail gap (ledger 22x12
+     screenshot); unverified, awaiting his re-check.
+   - 3D cosmetics: duplicated corner balusters (x2 exact dupes), rail infill
+     panel sunk 0.9ft below deck (invisible), post caps embedded in decking
+     plane deck-wide (visible only where boards are cut).
+   - The 19/20 "beam exceeds IRC capacity" on Will's first 21.5x8.5 deck:
+     engine says spans fine (8.75 < 10.8); checker disagrees. Suspect the
+     checker sees a different beam picture. Undiagnosed.
+   - Materials golden (agenda debt, 3 sessions).
+   - LU228 into the hardware schedule (answered by Meadowview A-8).
+
+BILLY QUESTIONS OUTSTANDING
+---------------------------
+- Freestanding house-side beam: our 1'-6" inset vs his "typically 1 foot" --
+  acceptable to PPRBD or change?
+- Gap/blocking note wording for A-3 (deck held clear of house).
+- Case B blessing: posts at opening edges + doubled headers on hangers.
+- S107 new: far-edge dropped beam under narrow flush sections -- standard?
+
+MECHANICS THAT SAVED US REPEATEDLY (keep doing)
+-----------------------------------------------
+- Measure before diagnosing: every bug this session was pinned by a probe
+  (scene audits, raycasts through dark pixels, grid-click tests, per-part
+  geometry dumps) before any code changed.
+- Mutation-test every new guard; two guards this session were vacuous until
+  a mutation survived and forced a better fixture (cutout/stair distinction;
+  the byte-equality assertion that codified a bug).
+- The gate runner derives steps from the workflow file (rungate pattern), so
+  new suites are counted automatically.
+- Search reference sets in the DRAFTER'S vocabulary. "header/trimmer/double"
+  found nothing; "(2) P.T. 2X8 BEAM W/ LU228" was there all along.
+- Parallel session pushes to main: pull --rebase before pushing, expect
+  buster collisions, and now push-number collisions too.
+
+STATE: all 34 gate steps green at c03c47a. Frontend busters at s106h.
+North star unchanged: one set in front of PPRBD. Billy has the framing
+knowledge; the missing thing is still a date.
