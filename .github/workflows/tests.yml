@@ -123,6 +123,12 @@ jobs:
       - name: Beam/post layout, JS port (S101, notch-aware)
         run: node tests/test_beam_layout.js
 
+      - name: Install three + babel-standalone (for the 3D parity suite)
+        run: npm install --no-save three @babel/standalone
+
+      - name: 3D post parity (S106, scene renders exactly the engine's layout)
+        run: node tests/test_3d_posts_parity.js
+
       - name: Beam/post layout, Python (S90 coincident-post regression)
         run: python3 tests/test_beam_layout.py
 

@@ -578,15 +578,36 @@ window.buildDeckScene = function(scene, p, c, THREE) {
 
     // For zone 0, use the existing calc's post positions; for other zones, generate basic posts
     if (isZ0) {
-      // S40: Render all posts at beam line (1.5' behind rim joist, no stair collision)
-      // S34: Variable post heights based on slope
-      pp.forEach(function(px, _pi) {
-        var pH = (c.postHeights && _pi >= 0) ? c.postHeights[_pi] : zH;
+      // S106: render EVERY post the engine computed, where it computed it.
+      // This block used to re-derive: one row of pp x-positions at a
+      // hardcoded z of D - 1.5. Two measured consequences: a freestanding
+      // deck drew HALF its posts (front row only; the sheet correctly showed
+      // both rows since S102), and any stepped/segmented layout drew its
+      // posts on the wrong line. beamLayout.postXY is the engine's own
+      // (x, z) list, both rows included for freestanding; the fallback keeps
+      // deck3d usable if an old calc object lacks it.
+      var _pxy = (c.beamLayout && c.beamLayout.postXY)
+        ? c.beamLayout.postXY
+        : pp.map(function(px) { return [px, D - 1.5]; });
+      _pxy.forEach(function(xy, _pi) {
+        var _hIdx = _pi % pp.length;   // back row mirrors front-row x order
+        var pH = (c.postHeights && c.postHeights[_hIdx] !== undefined) ? c.postHeights[_hIdx] : zH;
         var _gY = H - pH;
-        addM(new THREE.CylinderGeometry(_pRv, _pRv, _pHt, 16), mats.concrete, z0wx + px, _gY - 0.1, z0wz + D - 1.5);
-        var po = new THREE.Mesh(new THREE.BoxGeometry(pD, pH, pD), mats.post); po.position.set(z0wx + px, _gY + pH / 2, z0wz + D - 1.5); po.castShadow = true; scene.add(po);
-        addM(new THREE.BoxGeometry(pD + 0.2, 0.15, pD + 0.2), mats.metal, z0wx + px, zH, z0wz + D - 1.5);
+        var _pz2 = z0wz + xy[1];
+        addM(new THREE.CylinderGeometry(_pRv, _pRv, _pHt, 16), mats.concrete, z0wx + xy[0], _gY - 0.1, _pz2);
+        var po = new THREE.Mesh(new THREE.BoxGeometry(pD, pH, pD), mats.post); po.position.set(z0wx + xy[0], _gY + pH / 2, _pz2); po.castShadow = true; scene.add(po);
+        addM(new THREE.BoxGeometry(pD + 0.2, 0.15, pD + 0.2), mats.metal, z0wx + xy[0], zH, _pz2);
       });
+
+      // S106: the SECOND BEAM. Freestanding decks have carried doubled post
+      // counts since S102 and the sheet draws both beam lines; the 3D never
+      // did. Drawn plain full-width: front stairs open the FRONT line only.
+      if (c.beamLayout && c.beamLayout.beamLines === 2 && c.beamLayout.segments.length > 1) {
+        var _bseg = c.beamLayout.segments[c.beamLayout.segments.length - 1];
+        var _bz = z0wz + (_bseg.beamY !== undefined ? _bseg.beamY : _bseg.beam_y);
+        var bmB = new THREE.Mesh(new THREE.BoxGeometry(W - 2, bH2, bW2), mats.beam);
+        bmB.position.set(z0wx + W / 2, zH - bH2 / 2 - 0.1, _bz); bmB.castShadow = true; scene.add(bmB);
+      }
 
 // Zone 0: Beam (with stair gap split)
       if (frontGap && stairClipD > 1.5 && frontGap.zMax > z0wz + D - 2) {

@@ -700,6 +700,11 @@ function calcStructure(p) {
   }
 
   return { W, D, H, area, lotArea, LL, DL, TL, joistSize, sp, jSpan: +jSpan.toFixed(1), nJ, beamSize, bSpan: +bSpan.toFixed(1), beamMaxSpan: +beamMaxSpan.toFixed(1), postSize, nP, totalPosts, pp, postHeights, fDiam, fDepth, nF: totalPosts, ledgerSize: joistSize, railLen: +railLen.toFixed(1), guardRequired, guardHeight, midSpanBlocking, blockingCount, stairs, warnings, attachment,
+    // S106: the layout was computed here, used for pp, then thrown away, so
+    // deck3d could only re-derive a single post row at a hardcoded z and a
+    // freestanding deck rendered HALF its structure (7 posts on screen, 14 on
+    // the sheet). Renderers consume this; they do not re-derive.
+    beamLayout,
     engineeringRequired, maxDepthForJoists,
     auto: { joist: autoJoist, beam: autoBeam, postSize: autoPostSize, postCount: autoNP, footing: autoFDiam, guardHeight: autoGuardHeight }
   };
