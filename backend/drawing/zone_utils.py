@@ -449,11 +449,17 @@ _STAIR_OPEN_EPS = 0.02          # ft; below this an overlap is a touching edge
 _STAIR_MIN_OPEN_DEPTH = 0.25    # ft; ignore slivers
 
 
-def _stair_world_footprint(rs):
-    """Axis-aligned world bbox of a resolved stair's runs + landings.
+def _stair_part_boxes(rs):
+    """World-space box PER RUN AND LANDING of a resolved stair, or None.
 
-    Returns (x0, x1, y0, y1) or None. Only valid for angles that are multiples
-    of 90, where the bbox is exact rather than an over-approximation.
+    S106: the opening used to be cut from the bbox of the WHOLE stair, then
+    clipped to the deck. Parts that never enter the deck still widened that
+    bbox: Will's 27x12 lLeft had only its 4ft run 1 inside the deck, but run 2
+    (entirely outside, descending parallel to the front) stretched the bbox to
+    7.5ft, cutting a giant hole in the decking and exposing the beam post at
+    x=17.33 inside a stairwell it was never actually in. Openings must be
+    built from parts that individually intersect the deck, so each part gets
+    its own box. Only valid for angles that are multiples of 90.
     """
     from .stair_utils import transform_stair_rect
 
@@ -464,19 +470,35 @@ def _stair_world_footprint(rs):
     if abs((ang % 90.0)) > 1e-6:
         return None  # off-axis: refused, see module note
 
-    parts = list(sg.get("runs") or []) + list(sg.get("landings") or [])
-    xs, ys = [], []
-    for part in parts:
+    boxes = []
+    for part in list(sg.get("runs") or []) + list(sg.get("landings") or []):
         r = part.get("rect")
         if not r:
             continue
+        xs, ys = [], []
         for cx, cy in transform_stair_rect(r, rs["world_anchor_x"],
                                            rs["world_anchor_y"], ang):
             xs.append(cx)
             ys.append(cy)
-    if not xs:
+        if xs:
+            boxes.append((min(xs), max(xs), min(ys), max(ys)))
+    return boxes or None
+
+
+def _stair_world_footprint(rs):
+    """Axis-aligned world bbox of a resolved stair's runs + landings.
+
+    Returns (x0, x1, y0, y1) or None. Only valid for angles that are multiples
+    of 90, where the bbox is exact rather than an over-approximation.
+    NOTE: this is the WHOLE-STAIR bbox. Opening analysis must NOT clip this
+    directly (S106); it uses _stair_part_boxes so parts outside the deck
+    cannot inflate the opening.
+    """
+    boxes = _stair_part_boxes(rs)
+    if not boxes:
         return None
-    return min(xs), max(xs), min(ys), max(ys)
+    return (min(b[0] for b in boxes), max(b[1] for b in boxes),
+            min(b[2] for b in boxes), max(b[3] for b in boxes))
 
 
 def _analyse_stair_openings(params):
@@ -529,8 +551,8 @@ def _analyse_stair_openings(params):
         if (rs.get("stair") or {}).get("zoneId") not in (0, None):
             continue
 
-        fp = _stair_world_footprint(rs)
-        if fp is None:
+        boxes = _stair_part_boxes(rs)
+        if boxes is None:
             if rs.get("geometry"):
                 warnings.append({
                     "stair_id": sid, "kind": "off_axis",
@@ -540,12 +562,27 @@ def _analyse_stair_openings(params):
                 })
             continue
 
-        x0, x1, y0, y1 = fp
-        # Clip to the deck plane.
-        cx0, cx1 = max(0.0, x0), min(W, x1)
-        cy0, cy1 = max(0.0, y0), min(D, y1)
-        if (cx1 - cx0) <= _STAIR_OPEN_EPS or (cy1 - cy0) <= _STAIR_MIN_OPEN_DEPTH:
+        # S106: clip PER PART and union only the survivors. Clipping the
+        # whole-stair bbox let parts entirely outside the deck (an lLeft's
+        # run 2, its landing) inflate the opening: measured 7.5ft cut for a
+        # 4ft stair, with a beam post exposed inside the phantom hole.
+        surviving = []
+        for (px0, px1, py0, py1) in boxes:
+            sx0, sx1 = max(0.0, px0), min(W, px1)
+            sy0, sy1 = max(0.0, py0), min(D, py1)
+            if (sx1 - sx0) > _STAIR_OPEN_EPS and (sy1 - sy0) > _STAIR_MIN_OPEN_DEPTH:
+                surviving.append((px0, px1, py0, py1, sx0, sx1, sy0, sy1))
+        if not surviving:
             continue  # edge-anchored / clears the deck -> no opening
+
+        x0 = min(s[0] for s in surviving)
+        x1 = max(s[1] for s in surviving)
+        y0 = min(s[2] for s in surviving)
+        y1 = max(s[3] for s in surviving)
+        cx0 = min(s[4] for s in surviving)
+        cx1 = max(s[5] for s in surviving)
+        cy0 = min(s[6] for s in surviving)
+        cy1 = max(s[7] for s in surviving)
 
         reaches_rim = (
             y1 >= D - _STAIR_OPEN_EPS or y0 <= _STAIR_OPEN_EPS

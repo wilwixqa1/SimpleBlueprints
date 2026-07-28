@@ -1217,16 +1217,27 @@ window.atZoneCap = function(p) { return ((p && p.zones) || []).filter(function(z
 
       var boxes = stairFootprintRects(sg, rs.worldAnchorX, rs.worldAnchorY, ang);
       if (!boxes.length) return;
+      // S106: clip PER PART and union only the survivors. Clipping the
+      // whole-stair bbox let parts entirely outside the deck (an lLeft's
+      // run 2 and landing) inflate the opening: a 4ft stair cut a 7.5ft hole
+      // in the 3D decking with a beam post exposed inside the phantom span.
+      // MUST stay mirrored with zone_utils.py _analyse_stair_openings;
+      // guarded by tests/test_stair_beam_interaction.py.
       var x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+      var cx0 = Infinity, cx1 = -Infinity, cy0 = Infinity, cy1 = -Infinity;
+      var survived = 0;
       boxes.forEach(function (b) {
+        var sx0 = Math.max(0, b.xMin), sx1 = Math.min(W, b.xMax);
+        var sy0 = Math.max(0, b.zMin), sy1 = Math.min(D, b.zMax);
+        if ((sx1 - sx0) <= STAIR_OPEN_EPS) return;
+        if ((sy1 - sy0) <= STAIR_MIN_OPEN_DEPTH) return;
+        survived++;
         x0 = Math.min(x0, b.xMin); x1 = Math.max(x1, b.xMax);
         y0 = Math.min(y0, b.zMin); y1 = Math.max(y1, b.zMax);
+        cx0 = Math.min(cx0, sx0); cx1 = Math.max(cx1, sx1);
+        cy0 = Math.min(cy0, sy0); cy1 = Math.max(cy1, sy1);
       });
-
-      var cx0 = Math.max(0, x0), cx1 = Math.min(W, x1);
-      var cy0 = Math.max(0, y0), cy1 = Math.min(D, y1);
-      if ((cx1 - cx0) <= STAIR_OPEN_EPS) return;
-      if ((cy1 - cy0) <= STAIR_MIN_OPEN_DEPTH) return;   // edge-anchored -> nothing
+      if (!survived) return;                       // edge-anchored -> nothing
 
       var reachesRim = (y1 >= D - STAIR_OPEN_EPS) || (y0 <= STAIR_OPEN_EPS)
                     || (x1 >= W - STAIR_OPEN_EPS) || (x0 <= STAIR_OPEN_EPS);

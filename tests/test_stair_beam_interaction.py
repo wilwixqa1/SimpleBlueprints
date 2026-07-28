@@ -89,6 +89,42 @@ check("no post inside the opening x-span [13.7, 19.5]",
       not any(13.7 < px < 19.5 for px in ll["post_positions"]),
       ll["post_positions"])
 
+print("2b. an lLeft's opening is only as wide as the part that ENTERS the deck")
+# Will's 27x12: run 1 (4ft wide) enters; run 2 and the landing stay outside.
+# The whole-stair bbox used to inflate the cut to 7.5ft, cutting a phantom
+# hole that exposed the beam post at x=17.33 (his "post clipping through the
+# stairs" and "giant gap" screenshots, same root).
+from drawing.zone_utils import get_opening_rects  # noqa: E402
+llp = dict(BASE, width=27, depth=12, height=7,
+           deckStairs=[{"id": 0, "zoneId": 0, "location": "front", "offset": 0,
+                        "width": 4, "numStringers": 3, "template": "lLeft",
+                        "runSplit": 55, "landingDepth": 4,
+                        "anchorX": 21.0, "anchorY": 10.5, "angle": 0}])
+op = get_opening_rects(llp)[0]["rect"]
+check("opening is exactly stair-width (4.0 ft)", op["w"] == 4.0, op["w"])
+check("opening spans run 1 only (x 19..23)",
+      op["x"] == 19.0 and op["x"] + op["w"] == 23.0, op)
+llc = calculate_structure(llp)
+check("posts match Will's sheet", llc["post_positions"] == [2.0, 9.67, 17.33, 25.0],
+      llc["post_positions"])
+check("the x=17.33 post is OUTSIDE the opening",
+      not (op["x"] < 17.33 < op["x"] + op["w"]))
+# and the JS mirror emits the identical rect
+node_op = (
+    'const fs=require("fs");global.window=global;'
+    'eval(fs.readFileSync("backend/static/js/zoneUtils.js","utf8"));'
+    'eval(fs.readFileSync("backend/static/js/stairGeometry.js","utf8"));'
+    'const p=JSON.parse(process.argv[1]);'
+    'const r=window.getStairOpeningRects(p)[0];'
+    'console.log(JSON.stringify(r ? r.rect : null));'
+)
+r = subprocess.run(["node", "-e", node_op, json.dumps(llp)],
+                   capture_output=True, text=True)
+jsr = json.loads(r.stdout) if r.returncode == 0 else None
+check("JS mirror emits the identical opening rect",
+      jsr == {"x": op["x"], "y": op["y"], "w": op["w"], "d": op["d"]},
+      "js=%s py=%s err=%s" % (jsr, op, r.stderr[:80]))
+
 print("3. an opening that CROSSES the beam line still segments (Case B kept)")
 deep = calculate_structure(dict(BASE, deckStairs=stair(5.0)))
 check("deep stair still segments",
