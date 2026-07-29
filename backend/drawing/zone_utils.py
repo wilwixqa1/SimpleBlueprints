@@ -9,6 +9,25 @@ import re
 import math
 
 
+def effective_beam_type(zone, params):
+    """S107 mirror of zoneUtils.js getEffectiveBeamType (S81 rule).
+
+    A section may only be flush when it sits at the main deck's height;
+    any height mismatch forces a dropped beam. The backend previously read
+    z["beamType"] raw everywhere, so a RAISED flush section got flush
+    treatment on the sheets while the app engine had already forced it to
+    dropped. One rule, both languages, parity-tested.
+    """
+    if not zone or zone.get("type") == "cutout":
+        return "dropped"
+    main_h = params.get("height", 4) if params else 4
+    raw = zone.get("beamType") or "dropped"
+    zh = zone.get("h")
+    if zh is not None and abs(zh - main_h) > 0.01:
+        return "dropped"
+    return raw
+
+
 def _get_zone_corners(params, zone_id):
     """Get chamfer corner data for a zone. Returns None if no chamfers."""
     if zone_id == 0:

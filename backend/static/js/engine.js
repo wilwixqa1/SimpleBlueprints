@@ -1133,13 +1133,19 @@ function calcAllZones(p, baseCalc) {
     var zoneBeamType = (typeof getEffectiveBeamType === "function")
       ? getEffectiveBeamType(z, p)
       : (z.beamType || "dropped");
+    // S107: "flush" means the SHARED edge only -- joists hang off Deck A's
+    // rim there on hangers. The FAR edge always gets a dropped beam on posts
+    // and footings, directly under the section's outer rim (setback 0,
+    // pending Billy on narrow sections). Dropped sections keep the 1.5ft
+    // beam setback / cantilever.
+    var zSB = zoneBeamType === "flush" ? 0 : BS;
     var beamLen, jSpan, nJoists, nPosts;
     if (edge === "right" || edge === "left") {
-      beamLen = zd; jSpan = zw - BS;
+      beamLen = zd; jSpan = zw - zSB;
       nJoists = Math.ceil(zd / (sp / 12)) + 1;
       nPosts = Math.max(2, Math.ceil(zd / 8) + 1);
     } else {
-      beamLen = zw; jSpan = zd - BS;
+      beamLen = zw; jSpan = zd - zSB;
       nJoists = Math.ceil(zw / (sp / 12)) + 1;
       nPosts = Math.max(2, Math.ceil(zw / 8) + 1);
     }
@@ -1151,38 +1157,11 @@ function calcAllZones(p, baseCalc) {
       if ((zTable[_zs][sp] || 0) >= jSpan) { zJoistSize = _zs; break; }
     }
 
-    // S80: Flush beam zones use rim board as beam -- no separate beam, posts, or footings
-    if (zoneBeamType === "flush") {
-      zoneCalcs.push({ joistSize: zJoistSize, beamSize: "rim", beamSpan: 0, jSpan: +jSpan.toFixed(1), fDiam: 0, nPosts: 0, beamType: "flush" });
-
-      // Flush zones still need joists, rim joists, decking, railing, and joist hangers
-      var label = z.label || ("Zone " + z.id);
-      var jL = Math.ceil(jSpan);
-      extraItems.push({ cat: "Framing", item: zJoistSize + " Joists " + jL + "' (" + label + ")", qty: nJoists + 2, cost: jL <= 10 ? 22 : jL <= 12 ? 32 : 42 });
-      extraItems.push({ cat: "Framing", item: "Rim Joists (" + label + ")", qty: 3, cost: 32 });
-      extraItems.push({ cat: "Hardware", item: "Joist Hangers (" + label + ")", qty: nJoists * 2, cost: 6 });
-      var boardDim = Math.max(zw, zd); var boardLen = Math.ceil(Math.min(zw, zd) + 2);
-      var bds = Math.ceil(boardDim / (5.5 / 12)) * 1.1;
-      if (p.deckingType === "composite") {
-        extraItems.push({ cat: "Decking", item: "Composite " + boardLen + "' (" + label + ")", qty: Math.ceil(bds), cost: boardLen <= 10 ? 28 : 38 });
-      } else {
-        extraItems.push({ cat: "Decking", item: "5/4x6 PT " + boardLen + "' (" + label + ")", qty: Math.ceil(bds), cost: boardLen <= 10 ? 12 : 18 });
-      }
-      // S80: Flush zones still need railing on exposed sides
-      var zRailLen;
-      if (edge === "right" || edge === "left") {
-        zRailLen = 2 * zw + zd;
-      } else {
-        zRailLen = 2 * zd + zw;
-      }
-      if (p.railType === "fortress") {
-        extraItems.push({ cat: "Railing", item: "Fortress Panels (" + label + ")", qty: Math.ceil(zRailLen / 7), cost: 80 });
-        extraItems.push({ cat: "Railing", item: "Fortress Posts (" + label + ")", qty: Math.ceil(zRailLen / 6) + 1, cost: 45 });
-      } else {
-        extraItems.push({ cat: "Railing", item: "Wood Rail Kit (" + label + ")", qty: Math.ceil(zRailLen / 8), cost: 85 });
-      }
-      continue;
-    }
+    // S107: flush sections no longer short-circuit here. They flow through
+    // the same beam/post/footing sizing as dropped sections (the only
+    // difference is the beam sits under the outer rim, zSB above). The old
+    // S80 branch gave the whole section rim/0-posts/0-footings, which is an
+    // unbuildable plan -- Will's 22ft + B/C design, 2026-07-28.
 
     // S60: Independent beam sizing for this zone (dropped beam)
     var zBeamSpan = beamLen / (nPosts - 1);
@@ -1204,7 +1183,7 @@ function calcAllZones(p, baseCalc) {
     var fDp = baseCalc.fDepth;
     var bags = Math.ceil((Math.PI * Math.pow(zFDiam / 24, 2) * (fDp / 12)) / 0.6) * nPosts;
 
-    zoneCalcs.push({ joistSize: zJoistSize, beamSize: zBeamSize, beamSpan: +zBeamSpan.toFixed(1), jSpan: +jSpan.toFixed(1), fDiam: zFDiam, nPosts: nPosts, beamType: "dropped" });
+    zoneCalcs.push({ joistSize: zJoistSize, beamSize: zBeamSize, beamSpan: +zBeamSpan.toFixed(1), jSpan: +jSpan.toFixed(1), fDiam: zFDiam, nPosts: nPosts, beamType: zoneBeamType });
 
     extraItems.push({ cat: "Foundation", item: "Concrete bags (" + label + ")", qty: bags, cost: 6.5 });
     extraItems.push({ cat: "Foundation", item: "Sonotube " + zFDiam + "\" (" + label + ")", qty: nPosts, cost: zFDiam > 18 ? 28 : 18 });

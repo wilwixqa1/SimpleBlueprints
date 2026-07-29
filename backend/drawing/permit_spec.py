@@ -206,11 +206,11 @@ def build_permit_spec(params, calc):
     # Mirrors zone post math in draw_cover.py extra_posts.
     zones = params.get("zones", [])
     extra_posts = 0
+    # S107: flush sections carry posts too (far edge always gets a dropped
+    # beam; flush only means the shared edge hangs on Deck A's rim). The old
+    # S82e skip here matched the old unbuildable model.
     for z in zones:
         if z.get("type") == "cutout":
-            continue
-        # Flush-beam zones don't have posts (joists bear on rim).
-        if z.get("beamType") == "flush":
             continue
         edge = z.get("attachEdge", "front")
         dim = z.get("d", 6) if edge in ("right", "left") else z.get("w", 8)
@@ -341,19 +341,24 @@ def build_permit_spec(params, calc):
     # S76: For steel framing, zones use same steel members as main deck
     _zone_calcs = []
     if is_steel:
+        from .zone_utils import effective_beam_type as _ebt_steel
         for z in zones:
             if z.get("type") == "cutout":
                 _zone_calcs.append(None)
             else:
+                _ze_s = z.get("attachEdge", "front")
+                _dim_s = z.get("d", 6) if _ze_s in ("right", "left") else z.get("w", 8)
                 _zone_calcs.append({
                     "joist_size": joist_size,
                     "beam_size": beam_size,
                     "beam_span": spec["beam"]["span"],
                     "j_span": spec["joists"]["span"],
+                    "n_posts": max(2, math.ceil(_dim_s / 8) + 1),
+                    "beam_type": _ebt_steel(z, params),
                 })
     else:
         from .calc_engine import get_joist_spans_for_load, auto_select_beam
-        _beam_setback = 1.5
+        from .zone_utils import effective_beam_type
         for z in zones:
             if z.get("type") == "cutout":
                 _zone_calcs.append(None)
@@ -361,7 +366,14 @@ def build_permit_spec(params, calc):
             _ze = z.get("attachEdge", "front")
             _zw = z.get("w", 8)
             _zd = z.get("d", 6)
-            _z_beam_type = z.get("beamType", "dropped")
+            # S107: effective type (S81 rule) -- a raised section is never
+            # flush, matching getEffectiveBeamType in the app engine.
+            _z_beam_type = effective_beam_type(z, params)
+            # S107: flush = shared edge only. Joists hang off Deck A's rim at
+            # the shared edge; the FAR edge always gets a dropped beam on
+            # posts+footings, directly under the outer rim (setback 0).
+            # Dropped sections keep the 1.5ft setback / cantilever.
+            _beam_setback = 0.0 if _z_beam_type == "flush" else 1.5
             if _ze in ("right", "left"):
                 _zbl = _zd
                 _zjs = _zw - _beam_setback
@@ -376,25 +388,16 @@ def build_permit_spec(params, calc):
                 if _zsp.get(joist_spacing, 0) >= _zjs:
                     _zj_size = _zsz
                     break
-            # S80: Flush beam zones use rim board -- no beam sizing needed
-            if _z_beam_type == "flush":
-                _zone_calcs.append({
-                    "joist_size": _zj_size,
-                    "beam_size": "rim",
-                    "beam_span": 0,
-                    "j_span": round(_zjs, 1),
-                    "beam_type": "flush",
-                })
-            else:
-                _zbs = _zbl / max(_znp - 1, 1)
-                _zb_size = auto_select_beam(_zbs, _zjs, LL, calc.get("species", "dfl_hf_spf"))
-                _zone_calcs.append({
-                    "joist_size": _zj_size,
-                    "beam_size": _zb_size,
-                    "beam_span": round(_zbs, 1),
-                    "j_span": round(_zjs, 1),
-                    "beam_type": "dropped",
-                })
+            _zbs = _zbl / max(_znp - 1, 1)
+            _zb_size = auto_select_beam(_zbs, _zjs, LL, calc.get("species", "dfl_hf_spf"))
+            _zone_calcs.append({
+                "joist_size": _zj_size,
+                "beam_size": _zb_size,
+                "beam_span": round(_zbs, 1),
+                "j_span": round(_zjs, 1),
+                "n_posts": _znp,
+                "beam_type": _z_beam_type,
+            })
     spec["zone_calcs"] = _zone_calcs
 
     # --- Slope ---

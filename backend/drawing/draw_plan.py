@@ -20,7 +20,7 @@ from .calc_engine import calculate_structure
 from .stair_utils import (get_stair_placement, get_stair_exit_side, resolve_all_stairs,
                           transform_stair_point, transform_stair_rect,
                           build_front_stair_openings)
-from .zone_utils import get_additive_rects, get_cutout_rects, get_opening_rects, get_exposed_edges, get_bounding_box, _chamfered_vertices, section_name, is_auto_label
+from .zone_utils import effective_beam_type, get_additive_rects, get_cutout_rects, get_opening_rects, get_exposed_edges, get_bounding_box, _chamfered_vertices, section_name, is_auto_label
 from .beam_layout import notched_deck_polygon, notch_headers  # S89: notch-aware outline
 
 # ============================================================
@@ -175,34 +175,25 @@ def _zone_display_label(zone_id, params):
 BEAM_SETBACK = 1.5  # beam inset from far edge (ft)
 
 
-def compute_zone_framing(zone, rect, joist_spacing_in=16):
+def compute_zone_framing(zone, rect, joist_spacing_in=16, params=None):
     """
     Compute framing layout for an add zone.
     Returns beam position, post positions, and joist lines.
-    S80: Supports flush beam (beamType='flush') -- joists span full zone, no beam line or posts.
+    S107: flush sections get the SAME beam/post/pier geometry as dropped,
+    only with the beam directly under the outer rim (setback 0) and joists
+    hanging off Deck A's rim at the shared edge. The old S80 branch drew no
+    beam and no posts for the whole section, matching the old unbuildable
+    zero-structure model.
     """
     edge = zone.get("attachEdge", "front")
-    beam_type = zone.get("beamType", "dropped")
+    beam_type = effective_beam_type(zone, params or {})
     x, y, w, d = rect["x"], rect["y"], rect["w"], rect["d"]
     sp = joist_spacing_in / 12  # spacing in feet
+    setback = 0.0 if beam_type == "flush" else BEAM_SETBACK
 
-    if beam_type == "flush":
-        # Flush beam: joists span the full zone depth/width, bearing into rim board
-        # No separate beam line, no posts, no piers
-        joist_lines = []
-        if edge == "right" or edge == "left":
-            for jy in np.arange(y + sp, y + d, sp):
-                if jy < y + d - 0.3:
-                    joist_lines.append({"x1": x + 0.1, "y1": jy, "x2": x + w - 0.1, "y2": jy})
-        else:  # front
-            for jx in np.arange(x + sp, x + w, sp):
-                if jx < x + w - 0.3:
-                    joist_lines.append({"x1": jx, "y1": y + 0.1, "x2": jx, "y2": y + d - 0.1})
-        return {"beam": None, "posts": [], "joist_lines": joist_lines, "beam_type": "flush"}
-
-    # Dropped beam (original logic)
+    # Dropped-style geometry for both types; only the setback differs.
     if edge == "right":
-        beam_x = x + w - BEAM_SETBACK
+        beam_x = x + w - setback
         beam_y1, beam_y2 = y + 0.5, y + d - 0.5
         n_posts = max(2, math.ceil(d / 8) + 1)
         post_ys = np.linspace(y + 1, y + d - 1, n_posts)
@@ -212,10 +203,10 @@ def compute_zone_framing(zone, rect, joist_spacing_in=16):
             if jy < y + d - 0.3:
                 joist_lines.append({"x1": x + 0.1, "y1": jy, "x2": beam_x, "y2": jy})
         return {"beam": {"x1": beam_x, "y1": beam_y1, "x2": beam_x, "y2": beam_y2},
-                "posts": posts, "joist_lines": joist_lines}
+                "posts": posts, "joist_lines": joist_lines, "beam_type": beam_type}
 
     elif edge == "left":
-        beam_x = x + BEAM_SETBACK
+        beam_x = x + setback
         beam_y1, beam_y2 = y + 0.5, y + d - 0.5
         n_posts = max(2, math.ceil(d / 8) + 1)
         post_ys = np.linspace(y + 1, y + d - 1, n_posts)
@@ -225,10 +216,10 @@ def compute_zone_framing(zone, rect, joist_spacing_in=16):
             if jy < y + d - 0.3:
                 joist_lines.append({"x1": beam_x, "y1": jy, "x2": x + w - 0.1, "y2": jy})
         return {"beam": {"x1": beam_x, "y1": beam_y1, "x2": beam_x, "y2": beam_y2},
-                "posts": posts, "joist_lines": joist_lines}
+                "posts": posts, "joist_lines": joist_lines, "beam_type": beam_type}
 
     elif edge == "front":
-        beam_y = y + d - BEAM_SETBACK
+        beam_y = y + d - setback
         beam_x1, beam_x2 = x + 0.5, x + w - 0.5
         n_posts = max(2, math.ceil(w / 8) + 1)
         post_xs = np.linspace(x + 1, x + w - 1, n_posts)
@@ -238,7 +229,7 @@ def compute_zone_framing(zone, rect, joist_spacing_in=16):
             if jx < x + w - 0.3:
                 joist_lines.append({"x1": jx, "y1": y + 0.1, "x2": jx, "y2": beam_y})
         return {"beam": {"x1": beam_x1, "y1": beam_y, "x2": beam_x2, "y2": beam_y},
-                "posts": posts, "joist_lines": joist_lines}
+                "posts": posts, "joist_lines": joist_lines, "beam_type": beam_type}
 
     return None
 
@@ -251,7 +242,7 @@ def draw_zone_framing(ax, zone, rect, calc, zone_sizing=None, margin_cols=None, 
     leadered out to the nearer side margin instead of being micro-printed inside
     the small wing.
     """
-    framing = compute_zone_framing(zone, rect, calc.get("joist_spacing", 16))
+    framing = compute_zone_framing(zone, rect, calc.get("joist_spacing", 16), params=params)
     if not framing:
         return
     footing_diam = calc.get("footing_diam", 30)
@@ -270,20 +261,19 @@ def draw_zone_framing(ax, zone, rect, calc, zone_sizing=None, margin_cols=None, 
                 color=BRAND["light"], lw=0.4)
         ln.set_clip_path(_z_clip)
 
-    # Beam (dropped only)
-    if not is_flush and framing["beam"]:
+    # S107: beam + posts + piers for EVERY additive section. Flush only
+    # moves the beam under the outer rim (setback 0 in compute_zone_framing);
+    # it no longer means "no structure".
+    if framing["beam"]:
         b = framing["beam"]
         ax.plot([b["x1"], b["x2"]], [b["y1"], b["y2"]],
                 color=BRAND["beam"], lw=3)
-
-    # Posts + piers (dropped only)
-    if not is_flush:
-        for p in framing["posts"]:
-            ax.plot(p["x"], p["y"], 'o', ms=4, color=BRAND["post"],
-                    mec=BRAND["dark"], mew=0.7)
-            pier = plt.Circle((p["x"], p["y"]), footing_diam / 24,
-                              fill=False, ec=BRAND["dark"], lw=0.4, ls='--')
-            ax.add_patch(pier)
+    for p in framing["posts"]:
+        ax.plot(p["x"], p["y"], 'o', ms=4, color=BRAND["post"],
+                mec=BRAND["dark"], mew=0.7)
+        pier = plt.Circle((p["x"], p["y"]), footing_diam / 24,
+                          fill=False, ec=BRAND["dark"], lw=0.4, ls='--')
+        ax.add_patch(pier)
 
     # S61/S86: Zone label = short tag on the wing + member spec (leadered to
     # margin on the complex full-width sheet, else printed compactly on the zone)
@@ -294,10 +284,29 @@ def draw_zone_framing(ax, zone, rect, calc, zone_sizing=None, margin_cols=None, 
     if zone_sizing:
         zj = zone_sizing["joist_size"]
         zb = zone_sizing["beam_size"].upper()
-        member_spec = f'{zj} @ {_sp}" / FLUSH (RIM)' if is_flush else f'{zj} @ {_sp}" / {zb}'
+        # S107: flush sections now name their real far-edge beam; the shared
+        # edge hangs on hangers at Deck A's rim (hanger callout below).
+        member_spec = f'{zj} @ {_sp}" / {zb}'
     else:
         _zj = calc.get("joist_size", "2x12")
-        member_spec = f'{_zj} @ {_sp}" / FLUSH (RIM)' if is_flush else f'{_zj} @ {_sp}"'
+        member_spec = f'{_zj} @ {_sp}"'
+
+    # S107: flush = joists hang off Deck A's rim at the shared edge. Call the
+    # hangers out on the sheet in the drafter's vocabulary (LUS26 for 2x6
+    # joists, LUS210 otherwise -- mirrors the materials engine).
+    if is_flush:
+        _zjs_lbl = (zone_sizing or {}).get("joist_size") or calc.get("joist_size", "2x12")
+        _hgr = "LUS26" if "2x6" in str(_zjs_lbl) else "LUS210"
+        _edge = zone.get("attachEdge", "front")
+        if _edge == "right":
+            _hx, _hy, _rot = rect["x"] + 0.35, rect["y"] + rect["d"] / 2, 90
+        elif _edge == "left":
+            _hx, _hy, _rot = rect["x"] + rect["w"] - 0.35, rect["y"] + rect["d"] / 2, 90
+        else:
+            _hx, _hy, _rot = rect["x"] + rect["w"] / 2, rect["y"] + 0.35, 0
+        ax.text(_hx, _hy, f"JOISTS ON {_hgr} HANGERS @ DECK A RIM",
+                ha='center', va='center', rotation=_rot, fontsize=3.0,
+                fontfamily='monospace', color=BRAND["mute"])
 
     _zx = rect["x"] + rect["w"] / 2
     _zy = rect["y"] + rect["d"] / 2

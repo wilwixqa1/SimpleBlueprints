@@ -46,12 +46,9 @@ from drawing.zone_utils import get_opening_rects  # noqa: E402
 # entries are ALSO asserted to still fail, and a fixed entry left registered
 # turns the suite red until it is removed (no silently stale register).
 EXPECTED_FAILURES = {
-    ("I1", "level_sections_flush"):
-        "S107: a FLUSH section at deck height gets rim/0-posts/0-footings "
-        "for the WHOLE section (engine.js calcAllZones flush branch). Flush "
-        "may only remove the SHARED-edge beam; the far edge still needs a "
-        "beam on posts. Reproduced from Will's 22ft + B/C design, "
-        "2026-07-28. Backend zone framing must gain the same model.",
+    # Emptied in S107 push 1: level_sections_flush I1 resolved. Flush now
+    # means shared-edge only -- far edge gets a sized dropped beam on
+    # posts+footings in both engines and on the framing sheet.
 }
 
 BASE = dict(width=22, depth=12, height=4, houseWidth=45.5, houseDepth=30,

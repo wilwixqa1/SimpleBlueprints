@@ -688,9 +688,20 @@ window.atZoneCap = function(p) { return ((p && p.zones) || []).filter(function(z
   /* ---------- Exports ---------- */
   // S81: single source of truth for whether a zone's beam type is forced
   // to dropped because of a height mismatch with the main deck.
+  // S107: callers pass either preview params (deckHeight) or raw app params
+  // (height). Reading only deckHeight silently fell back to 4 for raw params,
+  // so a flush section on a 5ft deck was treated as raised, and a raised
+  // section on a 4ft deck could read as level. One rule, both keys.
+  function mainDeckHeight(p) {
+    if (!p) return 4;
+    if (p.deckHeight != null) return p.deckHeight;
+    if (p.height != null) return p.height;
+    return 4;
+  }
+
   function getEffectiveBeamType(zone, p) {
     if (!zone || zone.type === "cutout") return "dropped";
-    var mainH = (p && p.deckHeight) || 4;
+    var mainH = mainDeckHeight(p);
     var raw = zone.beamType || "dropped";
     if (zone.h != null && Math.abs(zone.h - mainH) > 0.01) return "dropped";
     return raw;
@@ -706,7 +717,7 @@ window.atZoneCap = function(p) { return ((p && p.zones) || []).filter(function(z
      Coordinates are deck-local (same space as getZoneRect).
   */
   function getSharedEdges(p) {
-    var mainH = (p && p.deckHeight) || 4;
+    var mainH = mainDeckHeight(p);
     var rects = getAdditiveRects(p);
     var resolved = rects.map(function(r) {
       var h;
@@ -868,7 +879,7 @@ window.atZoneCap = function(p) { return ((p && p.zones) || []).filter(function(z
      Returns { location, landsOnZoneId, riseIn } or null if no valid location.
   */
   function pickBestStairLocation(anchorZoneId, p) {
-    var mainH = (p && p.deckHeight) || 4;
+    var mainH = mainDeckHeight(p);
     var anchor = getZoneById(p, anchorZoneId);
     var fromH;
     if (anchorZoneId === 0) fromH = mainH;
@@ -923,7 +934,7 @@ window.atZoneCap = function(p) { return ((p && p.zones) || []).filter(function(z
     if (!stair || stair.zoneId == null) return null;
     var parentRect = getZoneRect(stair.zoneId, p);
     if (!parentRect) return null;
-    var mainH = (p && p.deckHeight) || 4;
+    var mainH = mainDeckHeight(p);
     var parentZone = getZoneById(p, stair.zoneId);
     var parentH = (parentZone && parentZone.h != null) ? parentZone.h
                   : (stair.zoneId === 0 ? mainH : mainH);
@@ -972,7 +983,7 @@ window.atZoneCap = function(p) { return ((p && p.zones) || []).filter(function(z
     var out = [];
     var fromRect = getZoneRect(zoneId, p);
     if (!fromRect) return [{ label: "Ground", landsOnZoneId: null, location: "front" }];
-    var mainH = (p && p.deckHeight) || 4;
+    var mainH = mainDeckHeight(p);
     var fromZone = getZoneById(p, zoneId);
     var fromH = (fromZone && fromZone.h != null) ? fromZone.h
                 : (zoneId === 0 ? mainH : mainH);

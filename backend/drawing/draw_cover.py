@@ -193,8 +193,9 @@ def draw_cover_sheet(fig, params, calc, project_info=None, cover_image_b64=None,
     extra_posts = 0
     for z in zones:
         if z.get('type') == 'cutout': continue
-        # S82e: flush-beam zones have no posts (joists bear on rim board).
-        if z.get('beamType') == 'flush': continue
+        # S107: flush sections carry posts too -- flush is shared-edge only,
+        # the far edge always has a dropped beam on posts. Old S82e skip
+        # matched the old unbuildable zero-structure model.
         edge = z.get('attachEdge', 'front')
         dim = z.get('d', 6) if edge in ('right', 'left') else z.get('w', 8)
         extra_posts += max(2, math.ceil(dim / 8) + 1)
