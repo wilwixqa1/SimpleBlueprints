@@ -175,6 +175,31 @@ PARAM_SETS = {
         "projectInfo": {"name": "Render Review - L+R Zones",
                         "address": "Test Fixture", "applicant": "S85 Harness"},
     },
+    # S107: non-square FLUSH sections (Will's B/C shape, 8 along x 11.5/12
+    # out). The linework/panel oracles previously saw sections only via
+    # zones_* dropped configs; flush + non-square is the arm both shipped
+    # section bugs lived in.
+    "sections_flush_lr": {
+        "width": 22, "depth": 12, "height": 4,
+        "attachment": "ledger", "beamType": "dropped",
+        "joistSpacing": 16, "deckingType": "composite",
+        "railType": "steel", "snowLoad": "moderate", "frostZone": "cold",
+        "houseWidth": 45.5, "houseDepth": 30,
+        "lotWidth": 80, "lotDepth": 120, "setbackFront": 25,
+        "setbackSide": 5, "setbackRear": 20, "houseOffsetSide": 20,
+        "nextZoneId": 3,
+        "zones": [
+            {"id": 1, "type": "add", "attachEdge": "left", "attachOffset": 0,
+             "w": 8, "d": 11.5, "h": 4, "attachTo": 0, "label": "Zone 1",
+             "joistDir": "perpendicular", "beamType": "flush", "stairs": None},
+            {"id": 2, "type": "add", "attachEdge": "right", "attachOffset": 0,
+             "w": 8, "d": 12, "h": 4, "attachTo": 0, "label": "Zone 2",
+             "joistDir": "perpendicular", "beamType": "flush", "stairs": None},
+        ],
+        "hasStairs": False, "deckStairs": [],
+        "projectInfo": {"name": "S107 - Flush Sections LR",
+                        "address": "Test Fixture", "applicant": "S107 Harness"},
+    },
     # 7. L+R zones with stairs off left, center, and right (mixed templates)
     "zones_stairs_lcr": {
         "width": 20, "depth": 12, "height": 5,

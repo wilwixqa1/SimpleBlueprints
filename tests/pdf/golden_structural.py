@@ -134,6 +134,38 @@ CONFIGS = {
     # These two lock the corrected two-beam layout.
     "freestanding_shallow": _base(width=20, depth=10, attachment="freestanding"),
     "freestanding_deep": _base(width=24, depth=16, attachment="freestanding"),
+    # S107: ADDITIVE-SECTION COVERAGE. The golden had ZERO section configs --
+    # the exact gap that let two shipped section bugs live invisibly: flush
+    # sections with no structure at all, and side-section w/d transposition
+    # (joists sized off the along-edge extent instead of the out extent, and
+    # the PDF drawing non-square side wings transposed against the app).
+    # Shapes are deliberately NON-SQUARE (8 along, 11.5/12 out -- Will's B/C
+    # design) so any orientation regression changes the fingerprint.
+    "sections_flush_lr": _base(
+        width=22, depth=12, height=4, nextZoneId=3,
+        zones=[
+            {"id": 1, "type": "add", "attachEdge": "left", "attachOffset": 0,
+             "w": 8, "d": 11.5, "h": 4, "attachTo": 0, "label": "Zone 1",
+             "joistDir": "perpendicular", "beamType": "flush", "stairs": None},
+            {"id": 2, "type": "add", "attachEdge": "right", "attachOffset": 0,
+             "w": 8, "d": 12, "h": 4, "attachTo": 0, "label": "Zone 2",
+             "joistDir": "perpendicular", "beamType": "flush", "stairs": None},
+        ]),
+    # Raised (forced-dropped by the S81 rule despite beamType flush) plus a
+    # chamfered dropped front section: the "raised + chamfered" arm of the
+    # S107 charter's golden expansion.
+    "sections_raised_chamfer": _base(
+        width=22, depth=12, height=4, nextZoneId=3,
+        zones=[
+            {"id": 1, "type": "add", "attachEdge": "left", "attachOffset": 0,
+             "w": 8, "d": 10, "h": 4.5, "attachTo": 0, "label": "Zone 1",
+             "joistDir": "perpendicular", "beamType": "flush", "stairs": None},
+            {"id": 2, "type": "add", "attachEdge": "front", "attachOffset": 6,
+             "w": 10, "d": 6, "h": 4, "attachTo": 0, "label": "Zone 2",
+             "joistDir": "perpendicular", "beamType": "dropped", "stairs": None,
+             "corners": {"FL": {"type": "chamfer", "size": 2},
+                         "FR": {"type": "chamfer", "size": 2}}},
+        ]),
 }
 
 

@@ -19,6 +19,15 @@
   "freestanding:p6": 3,
   "freestanding:p7": 3
  },
+ "sections_flush_lr": {
+  "sections_flush_lr:p1": 1,
+  "sections_flush_lr:p2": 2,
+  "sections_flush_lr:p3": 1,
+  "sections_flush_lr:p4": 12,
+  "sections_flush_lr:p6": 6,
+  "sections_flush_lr:p7": 2,
+  "sections_flush_lr:p8": 3
+ },
  "slope15_l2r": {
   "slope15_l2r:p1": 1,
   "slope15_l2r:p2": 6,
