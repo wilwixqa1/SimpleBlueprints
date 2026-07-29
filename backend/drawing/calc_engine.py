@@ -475,13 +475,83 @@ def _beam_relevant_openings(cut_rects, depth, setback):
     Case B package. USER CUTOUTS ARE NEVER FILTERED.
     """
     beam_y = depth - setback
-    kept, touching = [], []
+    kept, touching, crossing = [], [], []
     for r in cut_rects:
         if r.get("source") == "stair" and r["rect"]["y"] >= beam_y - 1e-6:
             touching.append(r)
             continue
+        # S107 Case B: a front-reaching stair opening that CROSSES the beam
+        # line no longer segments/steps the beam. The beam stays on its line,
+        # INTERRUPTED at the stairwell: posts at both opening edges (the
+        # header/trimmer bearing points, Meadowview A-8) and a doubled header
+        # at the opening's deep edge. Handled by
+        # _beam_interrupted_at_crossing_openings after layout.
+        if (r.get("source") == "stair"
+                and r["rect"]["y"] + r["rect"]["d"] >= depth - 1e-6):
+            crossing.append(r)
+            continue
         kept.append(r)
-    return kept, touching
+    return kept, touching, crossing
+
+
+def _posts_edge_aware(a, b, max_beam_span, edge_a, edge_b):
+    """Post x-positions for one interrupted-beam sub-segment. Ends flagged as
+    opening edges get a post AT the edge (the header/trimmer bearing point);
+    deck ends keep the legacy 2ft inset. Interior posts fill so no span
+    exceeds max_beam_span."""
+    first = a + (0.0 if edge_a else 2.0)
+    last = b - (0.0 if edge_b else 2.0)
+    if last - first < 0.3:
+        return [round((a + b) / 2.0, 2)]
+    n = max(2, math.ceil((last - first) / max_beam_span - 1e-9) + 1)
+    return [round(first + i * (last - first) / (n - 1), 2) for i in range(n)]
+
+
+def _beam_interrupted_at_crossing_openings(beam_layout, crossing, max_beam_span):
+    """S107 Case B. Split any beam segment a crossing stair opening passes
+    through, keeping beam_y unchanged. Each cut end gets a post AT the
+    opening edge. Also records the doubled-header runs (the opening's deep
+    edge) on beam_layout["stair_headers"] for the framing sheet, hardware
+    schedule, and materials.
+
+    MUST stay mirrored with engine.js; guarded by
+    tests/test_stair_beam_interaction.py.
+    """
+    if not crossing:
+        return beam_layout
+    headers = beam_layout.setdefault("stair_headers", [])
+    for cr in crossing:
+        r = cr["rect"]
+        x0, x1 = float(r["x"]), float(r["x"]) + float(r["w"])
+        headers.append({"x0": round(x0, 2), "x1": round(x1, 2),
+                        "y": round(float(r["y"]), 2),
+                        "width_ft": round(x1 - x0, 2)})
+        new_segments = []
+        for seg in beam_layout.get("segments", []):
+            by = seg["beam_y"]
+            overlaps_y = r["y"] - 0.01 <= by <= r["y"] + r["d"] + 0.01
+            overlaps_x = seg["x0"] < x1 - 1e-6 and seg["x1"] > x0 + 1e-6
+            if not (overlaps_y and overlaps_x):
+                new_segments.append(seg)
+                continue
+            left = (seg["x0"], min(seg["x1"], x0))
+            right = (max(seg["x0"], x1), seg["x1"])
+            for (a, b), edge_flags in ((left, (False, True)),
+                                       (right, (True, False))):
+                if b - a < 0.5:
+                    continue
+                new_segments.append({
+                    "x0": round(a, 2), "x1": round(b, 2), "beam_y": by,
+                    "max_cant": seg.get("max_cant"),
+                    "posts": _posts_edge_aware(a, b, max_beam_span,
+                                               edge_flags[0], edge_flags[1]),
+                })
+        beam_layout["segments"] = new_segments
+    beam_layout["post_xy"] = [(px, s["beam_y"])
+                              for s in beam_layout.get("segments", [])
+                              for px in s["posts"]]
+    beam_layout["interrupted"] = True
+    return beam_layout
 
 
 def _posts_clear_of_touching_openings(beam_layout, touching):
@@ -632,12 +702,15 @@ def calculate_steel_structure(params):
     # not the 1.5ft ledger setback (they coincide once depth >= 9).
     _setback = (1.5 if attachment == "ledger"
                 else freestanding_geometry(depth)[0])
-    _cut_rects, _touch_rects = _beam_relevant_openings(_cut_rects, depth, _setback)
+    _cut_rects, _touch_rects, _cross_rects = _beam_relevant_openings(
+        _cut_rects, depth, _setback)
     beam_layout = compute_beam_layout(
         width, depth, _cut_rects, num_posts,
         cantilever_max=_cantilever_max, setback=_setback,
         max_beam_span=beam_max_span)
     beam_layout = _posts_clear_of_touching_openings(beam_layout, _touch_rects)
+    beam_layout = _beam_interrupted_at_crossing_openings(
+        beam_layout, _cross_rects, beam_max_span)
     post_positions = [px for (px, _py) in beam_layout["post_xy"]]
 
     # S102: THE SECOND BEAM. A freestanding deck has no ledger, so the house-side
@@ -973,11 +1046,19 @@ def calculate_structure(params):
     # S102: freestanding sets both beams in by the IRC-capped cantilever.
     _setback = (1.5 if attachment == "ledger"
                 else freestanding_geometry(depth)[0])
-    _cut_rects, _touch_rects = _beam_relevant_openings(_cut_rects, depth, _setback)
+    _cut_rects, _touch_rects, _cross_rects = _beam_relevant_openings(
+        _cut_rects, depth, _setback)
+    # S107: post spacing on segmented/interrupted beams uses the REAL IRC
+    # R507.5 allowable for the selected beam (the steel path always did);
+    # the hardcoded 8.0 crowded posts onto short segments.
+    _beam_allow = get_beam_max_span(beam_size, joist_span, LL, species)
     beam_layout = compute_beam_layout(
         width, depth, _cut_rects, num_posts,
-        cantilever_max=_cantilever_max, setback=_setback, max_beam_span=8.0)
+        cantilever_max=_cantilever_max, setback=_setback,
+        max_beam_span=_beam_allow)
     beam_layout = _posts_clear_of_touching_openings(beam_layout, _touch_rects)
+    beam_layout = _beam_interrupted_at_crossing_openings(
+        beam_layout, _cross_rects, _beam_allow)
     # Derive post x-positions from the layout (identical to the legacy list on a
     # plain deck). Keeps every downstream reader working; the (x,y) lives in
     # beam_layout for the drawing + the post-in-notch oracle.

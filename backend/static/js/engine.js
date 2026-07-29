@@ -543,10 +543,23 @@ function calcStructure(p) {
     var _touchRects = _cutRects.filter(function(r) {
       return r.source === "stair" && r.rect.y >= _beamY - 1e-6;
     });
-    _cutRects = _cutRects.filter(function(r) {
-      return !(r.source === "stair" && r.rect.y >= _beamY - 1e-6);
+    // S107 Case B: a front-reaching stair opening that CROSSES the beam line
+    // no longer segments/steps the beam. It is handled AFTER layout by the
+    // interruption pass below: beam stays on its line, posts at both opening
+    // edges, doubled header at the deep edge. MUST stay mirrored with
+    // calc_engine.py _beam_relevant_openings / _beam_interrupted_at_
+    // crossing_openings; guarded by tests/test_stair_beam_interaction.py.
+    var _crossRects = _cutRects.filter(function(r) {
+      return r.source === "stair" && r.rect.y < _beamY - 1e-6
+        && r.rect.y + r.rect.d >= D - 1e-6;
     });
-    beamLayout = window.computeBeamLayout(W, D, _cutRects, nP, _cantMax, _setback, 8.0);
+    _cutRects = _cutRects.filter(function(r) {
+      return _touchRects.indexOf(r) < 0 && _crossRects.indexOf(r) < 0;
+    });
+    // S107: post spacing uses the REAL IRC R507.5 allowable for the selected
+    // beam (was hardcoded 8.0, crowding posts onto short segments).
+    var _beamAllow = getBeamMaxSpan(beamSize, jSpan, LL);
+    beamLayout = window.computeBeamLayout(W, D, _cutRects, nP, _cantMax, _setback, _beamAllow);
     // S106: no post may stand inside a touching stair opening. The beam stays
     // continuous (Case A), but legacy spacing knows nothing about openings:
     // 22ft posts at [2,11,20] with a right-corner stair opening x[17..21] put
@@ -583,6 +596,45 @@ function calcStructure(p) {
       (beamLayout.segments || []).forEach(function(seg) {
         (seg.posts || []).forEach(function(p) { beamLayout.postXY.push([p, seg.beamY]); });
       });
+    }
+    // S107 Case B interruption pass. Mirrors calc_engine.py
+    // _beam_interrupted_at_crossing_openings + _posts_edge_aware.
+    if (_crossRects.length) {
+      var _edgeAware = function(a, b, span, eA, eB) {
+        var first = a + (eA ? 0 : 2), last = b - (eB ? 0 : 2);
+        if (last - first < 0.3) return [+((a + b) / 2).toFixed(2)];
+        var n = Math.max(2, Math.ceil((last - first) / span - 1e-9) + 1);
+        var out = [];
+        for (var i = 0; i < n; i++) out.push(+(first + i * (last - first) / (n - 1)).toFixed(2));
+        return out;
+      };
+      beamLayout.stairHeaders = beamLayout.stairHeaders || [];
+      _crossRects.forEach(function(cr) {
+        var r = cr.rect;
+        var x0 = r.x, x1 = r.x + r.w;
+        beamLayout.stairHeaders.push({ x0: +x0.toFixed(2), x1: +x1.toFixed(2),
+                                       y: +r.y.toFixed(2), widthFt: +(x1 - x0).toFixed(2) });
+        var segs = [];
+        (beamLayout.segments || []).forEach(function(seg) {
+          var oy = r.y - 0.01 <= seg.beamY && seg.beamY <= r.y + r.d + 0.01;
+          var ox = seg.x0 < x1 - 1e-6 && seg.x1 > x0 + 1e-6;
+          if (!(oy && ox)) { segs.push(seg); return; }
+          [[seg.x0, Math.min(seg.x1, x0), false, true],
+           [Math.max(seg.x0, x1), seg.x1, true, false]].forEach(function(part) {
+            var a = part[0], b = part[1];
+            if (b - a < 0.5) return;
+            segs.push({ x0: +a.toFixed(2), x1: +b.toFixed(2), beamY: seg.beamY,
+                        maxCant: seg.maxCant,
+                        posts: _edgeAware(a, b, _beamAllow, part[2], part[3]) });
+          });
+        });
+        beamLayout.segments = segs;
+      });
+      beamLayout.postXY = [];
+      (beamLayout.segments || []).forEach(function(seg) {
+        (seg.posts || []).forEach(function(p) { beamLayout.postXY.push([p, seg.beamY]); });
+      });
+      beamLayout.interrupted = true;
     }
     pp = beamLayout.postXY.map(function(xy) { return xy[0]; });
 

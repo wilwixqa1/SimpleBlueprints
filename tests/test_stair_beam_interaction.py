@@ -242,6 +242,47 @@ for name, p, backend in (("straight touching", dict(BASE, deckStairs=stair(7.0))
           [round(x, 2) for x in backend["post_positions"]],
           "js=%s py=%s" % (js["pp"], backend["post_positions"]))
 
+print("5b. S107 Case B: both engines agree on the CROSSING case")
+node_b = (
+    'const fs=require("fs");global.window=global;'
+    'eval(fs.readFileSync("backend/static/js/zoneUtils.js","utf8"));'
+    'eval(fs.readFileSync("backend/static/js/stairGeometry.js","utf8"));'
+    'eval(fs.readFileSync("backend/static/js/engine.js","utf8"));'
+    'const p=JSON.parse(process.argv[1]);'
+    'const c=window.calcStructure(p);'
+    'console.log(JSON.stringify({postXY: c.beamLayout.postXY,'
+    ' segs: c.beamLayout.segments.map(s=>[s.x0,s.x1,s.beamY]),'
+    ' headers: c.beamLayout.stairHeaders||[]}));'
+)
+pB = dict(BASE, deckStairs=stair(6.0))  # beam at y=7.0; opening y[6.0..8.5] crosses it
+cB = calculate_structure(pB)
+blB = cB["beam_layout"]
+check("crossing: beam interrupted, not stepped",
+      blB.get("interrupted") and not blB.get("stepped"),
+      "%s/%s" % (blB.get("interrupted"), blB.get("stepped")))
+check("crossing: one doubled header recorded",
+      len(blB.get("stair_headers") or []) == 1, blB.get("stair_headers"))
+rB = subprocess.run(["node", "-e", node_b, json.dumps(pB)],
+                    capture_output=True, text=True)
+if rB.returncode != 0:
+    check("frontend ran (crossing)", False, rB.stderr[:120])
+else:
+    jsB = json.loads(rB.stdout)
+    check("crossing: post_xy matches frontend",
+          sorted([tuple(x) for x in jsB["postXY"]]) ==
+          sorted([(round(a, 2), round(b, 2)) for a, b in blB["post_xy"]]),
+          "js=%s py=%s" % (jsB["postXY"], blB["post_xy"]))
+    check("crossing: segments match frontend",
+          jsB["segs"] == [[s["x0"], s["x1"], s["beam_y"]]
+                          for s in blB["segments"]],
+          "js=%s py=%s" % (jsB["segs"],
+                           [[s["x0"], s["x1"], s["beam_y"]]
+                            for s in blB["segments"]]))
+    check("crossing: headers match frontend",
+          [(h["x0"], h["x1"], h["y"]) for h in jsB["headers"]] ==
+          [(h["x0"], h["x1"], h["y"]) for h in blB["stair_headers"]],
+          "js=%s py=%s" % (jsB["headers"], blB["stair_headers"]))
+
 print("6. the estimate bills what the sheet draws")
 est = estimate_materials(dict(BASE, deckStairs=stair(7.0)), touch)
 posts_line = next(i for i in est["items"] if i["item"].endswith("PT Posts"))

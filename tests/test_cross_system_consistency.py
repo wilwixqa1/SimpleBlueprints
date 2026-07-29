@@ -189,18 +189,42 @@ for width, depth in [(40, 12), (28, 14), (20, 12)]:
         bl = c.get("beam_layout") or {}
         n_drag += 1
 
-        check(bool(bl.get("stepped")),
-              "DRAGGED STAIR %dx%d inset %.1fft: stair is inside the deck but "
-              "the beam did not open (would run through the stairwell)"
-              % (width, depth, inset))
-
+        # S107 Case B: the beam no longer STEPS behind a crossing stairwell;
+        # it stays on its line and is INTERRUPTED at the opening, with posts
+        # AT both opening edges (Meadowview A-8 bearing points) and a doubled
+        # header at the deep edge. Assert the geometry, not the old flag.
         lo, hi = width / 2.0 - 2.0, width / 2.0 + 2.0
-        hits = [(round(px, 2), round(py, 2)) for px, py in (bl.get("post_xy") or [])
-                if lo - 1e-6 < px < hi + 1e-6 and ay - 1e-6 < py < depth + 1e-6]
-        check(not hits,
-              "DRAGGED STAIR %dx%d inset %.1fft: post(s) %s stand inside the "
-              "stair opening x[%.1f,%.1f] y[%.1f,%.1f]"
-              % (width, depth, inset, hits, lo, hi, ay, depth))
+        beam_y = depth - 1.5
+        runs_through = [seg for seg in bl.get("segments", [])
+                        if ay - 0.01 <= seg["beam_y"] <= depth + 0.01
+                        and seg["x0"] < hi - 1e-6 and seg["x1"] > lo + 1e-6]
+        check(not runs_through,
+              "DRAGGED STAIR %dx%d inset %.1fft: a beam segment runs through "
+              "the stairwell x[%.1f,%.1f]: %s"
+              % (width, depth, inset, lo, hi, runs_through))
+        check(all(abs(seg["beam_y"] - beam_y) < 0.01
+                  for seg in bl.get("segments", [])),
+              "DRAGGED STAIR %dx%d inset %.1fft: beam stays ON its line at "
+              "y=%.1f (no stepping)" % (width, depth, inset, beam_y))
+        hdrs = [h for h in (bl.get("stair_headers") or [])
+                if abs(h["x0"] - lo) < 0.01 and abs(h["x1"] - hi) < 0.01]
+        check(len(hdrs) == 1,
+              "DRAGGED STAIR %dx%d inset %.1fft: exactly one doubled header "
+              "across the opening (got %s)" % (width, depth, inset,
+                                               bl.get("stair_headers")))
+        posts = bl.get("post_xy") or []
+        interior = [(round(px, 2), round(py, 2)) for px, py in posts
+                    if lo + 1e-6 < px < hi - 1e-6
+                    and ay - 1e-6 < py < depth + 1e-6]
+        check(not interior,
+              "DRAGGED STAIR %dx%d inset %.1fft: post(s) %s stand INSIDE the "
+              "stair opening x[%.1f,%.1f]" % (width, depth, inset, interior,
+                                              lo, hi))
+        for edge in (lo, hi):
+            check(any(abs(px - edge) < 0.3 and abs(py - beam_y) < 0.01
+                      for px, py in posts),
+                  "DRAGGED STAIR %dx%d inset %.1fft: a post bears at the "
+                  "opening edge x=%.1f" % (width, depth, inset, edge))
 print("   %d dragged-in configs checked" % n_drag)
 
 # ============================================================
