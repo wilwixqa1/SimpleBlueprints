@@ -1,3 +1,15 @@
+function _getElevHouseSpan(p, W, spanFt) {
+  // S/N elevation house span in FEET, x relative to zone-0's left edge.
+  // Mirrors _elev_house_span in draw_elevations.py exactly; pinned by R9b.
+  var adds = (p.zones || []).filter(function(z){ return z.type !== "cutout"; });
+  var hww = +(p.houseWidth || 0);
+  if (adds.length && hww > W) {
+    return { hwFt: hww, hxFtRelZ0: (W - hww) / 2 - (+(p.deckOffset || 0)) };
+  }
+  var w = Math.min(spanFt, 30);
+  return { hwFt: w, hxFtRelZ0: (W - w) / 2 };
+}
+window._getElevHouseSpan = _getElevHouseSpan;
 // ============================================================
 // ELEVATION SVG - 4-view grid (S/N/E/W) with architectural labels,
 // key plan inset, and smart view ordering for L-templates
@@ -140,9 +152,15 @@ function ElevationView({ c, p }) {
     const z0X = showWidth ? dX + zoneSN.xOff * sX : dX;
     const z0W = showWidth ? W * sX : dSW;
 
-    const hW = showWidth ? Math.min(spanFt, 30) * sX : 10 * sX;
+    // S107b: real house when sections exist and it is wider than the main
+    // deck (A-1's convention; single source _getElevHouseSpan, mirrored by
+    // _elev_house_span in draw_elevations.py; pinned by R9b).
+    const _hSpan = window._getElevHouseSpan(p, W, spanFt);
+    const hW = showWidth ? _hSpan.hwFt * sX : 10 * sX;
     // S24: House centers on zone-0, not bounding box
-    const hX = showWidth ? z0X + (z0W - hW) / 2 : (viewDir === "east" ? dX - hW - 2 : dX + dSW + 2);
+    const hX = showWidth
+      ? z0X + _hSpan.hxFtRelZ0 * sX
+      : (viewDir === "east" ? dX - hW - 2 : dX + dSW + 2);
     const hH = (H + 1 + 7) * sY; const hTop = gnd - hH; const roofPk = 3.5 * sY;
 
     // S39: Grade segments that skip house footprint (prevents earth fill bleeding through house)

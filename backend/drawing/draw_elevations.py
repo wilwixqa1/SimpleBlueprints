@@ -42,6 +42,23 @@ def _beam_h_from_calc(calc):
 # ============================================================
 # ZONE ELEVATION HELPERS
 # ============================================================
+def _elev_house_span(params, W, z0_x):
+    """House span for S/N elevations, in drawing coords. S107b: with sections
+    present and the real house wider than the main deck, the REAL house is
+    drawn (A-1's convention: houseWidth wide, centered on zone-0 minus
+    deckOffset). Sectionless decks keep the legacy schematic house.
+    Mirrored by _getElevHouseSpan in elevationView.js; pinned by R9b."""
+    _adds = [z for z in (params.get("zones") or []) if z.get("type") != "cutout"]
+    _hww = float(params.get("houseWidth") or 0)
+    if _adds and _hww > W:
+        house_w = _hww
+        house_x = z0_x + (W - house_w) / 2 - float(params.get("deckOffset") or 0)
+    else:
+        house_x = z0_x + (W - min(W, 30)) / 2
+        house_w = min(W, 30)
+    return house_x, house_w
+
+
 def _get_zone_south_north_sections(params, calc):
     """
     Compute zone sections visible in South/North elevation views.
@@ -759,8 +776,7 @@ def draw_south_elevation(ax, params, calc, compact=False, spec=None):
     _gmid_s = ground_y + _g_s * ((_gx1s + _gx2s) / 2 - _anchor_s)
 
     # House behind (centered on zone-0)
-    house_x = z0_x + (W - min(W, 30)) / 2
-    house_w = min(W, 30)
+    house_x, house_w = _elev_house_span(params, W, z0_x)
     # S34: Foundation extends to lowest grade at house edges
     _glx1, _glx2 = _gx1s, _gx2s
     _gly1, _gly2 = _gmid_s - _grade_rise / 2, _gmid_s + _grade_rise / 2
@@ -1020,8 +1036,7 @@ def draw_north_elevation(ax, params, calc, compact=False, spec=None):
     _gmid_n = ground_y + _g_n * ((_gx1n + _gx2n) / 2 - _anchor_n)
 
     # House (centered on zone-0, mirrored)
-    house_x = z0_x + (W - min(W, 30)) / 2
-    house_w = min(W, 30)
+    house_x, house_w = _elev_house_span(params, W, z0_x)
     # S34: Foundation extends to lowest grade at house edges
     _glx1n, _glx2n = _gx1n, _gx2n
     _gly1n, _gly2n = _gmid_n - _grade_rise_n / 2, _gmid_n + _grade_rise_n / 2

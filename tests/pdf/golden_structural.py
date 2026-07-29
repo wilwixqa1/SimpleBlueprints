@@ -201,10 +201,11 @@ SHEETS = [
     # regression guard -- previously the details sheet had NO coverage
     # (golden omitted it; legibility gate can't see its rotated text).
     ("details", _details),
-    # Elevations is intentionally omitted: it emits ~1000 hatch/bracing
-    # primitives per config (huge, noisy golden) and is not in the current
-    # notch/stair work path. Add `("elevations", _elev)` here + --update if the
-    # elevation sheet becomes an active work area.
+    # S107b: elevations added -- the sheet became an active work area (wing
+    # far-edge beams P3, real-house span S107b) and the omission is exactly
+    # why the house-width bug had no golden guard. Cost accepted: the
+    # fingerprints are large but stable (coordinates rounded).
+    ("elevations", _elev),
 ]
 
 

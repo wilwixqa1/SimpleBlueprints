@@ -243,6 +243,38 @@ else:
               "wing section app (bbox x=%s w=%s) == PDF (x=%s w=%s)"
               % (_jsx, _js["w"], _py["x_draw"], _py["w"]))
 
+print("R9b: elevation house is the REAL house on both surfaces (deck fits inside)")
+from drawing.draw_elevations import _elev_house_span
+p9b = dict(p9, houseWidth=45.5, deckOffset=0)
+hx_py, hw_py = _elev_house_span(p9b, p9b["width"], 0.0)
+check(abs(hw_py - 45.5) < 0.01, "PDF house width == houseWidth (45.5), got %s" % hw_py)
+_bb9 = 38.0  # 22 + 8 + 8, pinned above
+check(hx_py <= -8.0 + 0.01 and hx_py + hw_py >= 30.0 - 0.01,
+      "PDF: deck bb x[-8..30] (z0 frame) inside house x[%.2f..%.2f]"
+      % (hx_py, hx_py + hw_py))
+JS9B = (
+    'const fs=require("fs");global.window=global;'
+    'global.React={createElement:()=>null,useState:v=>[v,()=>{}],'
+    'useRef:()=>({current:null}),useEffect:()=>{}};'
+    'const Babel=require("@babel/standalone");'
+    'const src=fs.readFileSync("backend/static/js/elevationView.js","utf8");'
+    'eval.call(global,Babel.transform(src,{presets:[["react",{runtime:"classic"}]]}).code);'
+    'const p=JSON.parse(process.argv[1]);'
+    'console.log(JSON.stringify(window._getElevHouseSpan(p, p.width, 38.0)));'
+)
+r9b = subprocess.run(["node", "-e", JS9B, json.dumps(p9b)],
+                     capture_output=True, text=True)
+if r9b.returncode != 0:
+    check(False, "app house span failed: " + r9b.stderr[:200])
+else:
+    js9b = json.loads(r9b.stdout)
+    check(abs(js9b["hwFt"] - hw_py) < 0.01 and abs(js9b["hxFtRelZ0"] - hx_py) < 0.01,
+          "app house span == PDF house span: js=(%s,%s) py=(%.2f,%.2f)"
+          % (js9b["hwFt"], js9b["hxFtRelZ0"], hw_py, hx_py))
+_leg = _elev_house_span(dict(p9b, zones=[]), 22, 0.0)
+check(_leg == (0.0 + (22 - 22) / 2, 22),
+      "sectionless deck keeps the legacy schematic house (min(W,30)), got %s" % (_leg,))
+
 print("R10: IRC R507.6 -- section beam setback clamps to d/5 on shallow sections")
 p10 = base_params(zones=[section(1, "front", 10, 4, 4.0, "dropped", "Zone 1")])
 fe10 = frontend(p10)
