@@ -151,3 +151,27 @@ WHAT IS NOT YET VERIFIED, do not build on these without checking the sheet
 Also worth noting for beam sizing: Meadowview's main beams are 6X12 P.T. SOLID
 timber with posts @ 12'-0" O.C. and "SPLICE BEAM OVER CENTER OF PIER, TYP." Our
 engine produces multi-ply at those spans and models no splice rule.
+
+================================================================================
+S107 ADDITION -- FIELD PHOTO (Will, July 2026)
+================================================================================
+field_photos/2026-07_edge_stair_posts_underrim_beam.png
+
+A real deck mid-build, provided by Will 2026-07-29. One photo, one angle, not a
+permit set -- weigh it accordingly. What it corroborates:
+
+- STAIR TO GRADE, NO POSTS UNDER THE RUN: stringers run from the deck rim to a
+  concrete pad at the bottom; nothing bears mid-flight. FOURTH independent
+  confirmation of the Ilaria/Loucks/Meadowview detail (pad + stringer, no
+  dedicated stair support).
+- VERTICALS ON THE STAIR ARE RAIL POSTS, NOT STRUCTURE: bolted to the stringer
+  faces to carry the handrail.
+- DECK BEARING POSTS FLANK THE STAIR, none within its width -- the "support at
+  the opening's edges" rule (Billy / Meadowview A-8 / S106 P8 / S107 Case B).
+- BEAM DIRECTLY UNDER THE OUTER RIM, posts under the rim band on round piers
+  (clearest at the right corner). Field corroboration for the S107 flush-
+  section decision (far beam at setback 0). NOTE: could also be a doubled rim
+  with a set-back beam out of view -- not confirmed; Rick's sets use a set-back
+  dropped beam on main decks and we match them there.
+
+Referenced by: S107 flush-section beam placement, Case B posting rule.
