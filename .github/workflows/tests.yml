@@ -145,6 +145,12 @@ jobs:
       - name: Flush-section structure (S107, both engines + framing sheet)
         run: python3 tests/test_flush_sections.py
 
+      # S107: the 3D gives every section engine-sized posts and a beam on the
+      # correct FAR edge (flush included; the old block skipped flush
+      # structure and put every zone beam on the front edge).
+      - name: 3D section structure (S107, real three.js scene audit)
+        run: node tests/test_3d_zone_structure.js
+
       - name: Notch post placement
         run: python3 tests/test_notch_posts.py
 

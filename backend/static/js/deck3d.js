@@ -714,58 +714,91 @@ window.buildDeckScene = function(scene, p, c, THREE) {
       if (_br > 0) _addChamferRim(z0wx + W - _br, z0wz, z0wx + W, z0wz + _br, _rimY, jW2, jH2, mats.joist);
 
     } else {
-// Zones 1+: Simplified structure (posts at corners, beam along far edge, joists)
-      var zonePostInset = 0.75; // Inset posts from zone edges
+// Zones 1+: S107 structure. Every section carries what the engine sizes:
+// a beam along the FAR edge on nPosts posts+footings. Flush sections put
+// the beam directly under the outer rim; dropped keep the 0.75 visual
+// inset this view has always used. The old block skipped structure
+// entirely for flush zones and drew the beam on the FRONT edge even for
+// left/right sections -- wrong edge for exactly Will's B/C design.
+      var zonePostInset = 0.75; // dropped-beam visual inset from zone edges
       var isFlushZone = ar.zone && (window.getEffectiveBeamType
         ? window.getEffectiveBeamType(ar.zone, p) === "flush"
         : ar.zone.beamType === "flush");
-
-      // Posts + beam (dropped only, skip for flush)
-      if (!isFlushZone) {
-        // Posts at 4 corners of zone
-        var zCorners = [
-          [zwx + zonePostInset, zwz + zonePostInset],
-          [zwx + zW - zonePostInset, zwz + zonePostInset],
-          [zwx + zonePostInset, zwz + zD - zonePostInset],
-          [zwx + zW - zonePostInset, zwz + zD - zonePostInset]
-        ];
-        // Add intermediate posts if zone is wide (every ~6ft)
-        var postSpacing = 6;
-        for (var px2 = zonePostInset + postSpacing; px2 < zW - zonePostInset; px2 += postSpacing) {
-          zCorners.push([zwx + px2, zwz + zD - zonePostInset]);
-        }
-        zCorners.forEach(function(pt) {
-          addM(new THREE.CylinderGeometry(_pRv, _pRv, _pHt, 16), mats.concrete, pt[0], -0.1, pt[1]);
-          var po = new THREE.Mesh(new THREE.BoxGeometry(pD, zH, pD), mats.post); po.position.set(pt[0], zH / 2, pt[1]); po.castShadow = true; scene.add(po);
-          addM(new THREE.BoxGeometry(pD + 0.2, 0.15, pD + 0.2), mats.metal, pt[0], zH, pt[1]);
-        });
-
-        // Beam along far edge (front edge of zone, furthest from house)
-        var beamLen = zW - 2 * zonePostInset;
-        if (beamLen > 0.1) {
-          var bmZ = new THREE.Mesh(new THREE.BoxGeometry(beamLen, bH2, bW2), mats.beam);
-          bmZ.position.set(zwx + zW / 2, zH - bH2 / 2 - 0.1, zwz + zD - zonePostInset);
-          bmZ.castShadow = true; scene.add(bmZ);
-        }
+      var zEdge3 = (ar.zone && ar.zone.attachEdge) || "front";
+      var zIsSide = zEdge3 === "left" || zEdge3 === "right";
+      var zBInset = isFlushZone ? 0.15 : zonePostInset;
+      // beam line endpoints in world space, per attach edge (far = outer)
+      var _zbx1, _zbz1, _zbx2, _zbz2;
+      if (zEdge3 === "left") {
+        _zbx1 = _zbx2 = zwx + zBInset;
+        _zbz1 = zwz + 0.5; _zbz2 = zwz + zD - 0.5;
+      } else if (zEdge3 === "right") {
+        _zbx1 = _zbx2 = zwx + zW - zBInset;
+        _zbz1 = zwz + 0.5; _zbz2 = zwz + zD - 0.5;
+      } else {
+        _zbz1 = _zbz2 = zwz + zD - zBInset;
+        _zbx1 = zwx + 0.5; _zbx2 = zwx + zW - 0.5;
+      }
+      // posts: same count rule as the engines (max(2, ceil(len/8)+1) along
+      // the beam), evenly spaced on the beam line, each on a footing
+      var _zBL = zIsSide ? zD : zW;
+      var _znP3 = Math.max(2, Math.ceil(_zBL / 8) + 1);
+      for (var _zpi = 0; _zpi < _znP3; _zpi++) {
+        var _zt = _znP3 === 1 ? 0.5 : _zpi / (_znP3 - 1);
+        var _zpx = _zbx1 + (_zbx2 - _zbx1) * _zt;
+        var _zpz = _zbz1 + (_zbz2 - _zbz1) * _zt;
+        addM(new THREE.CylinderGeometry(_pRv, _pRv, _pHt, 16), mats.concrete, _zpx, -0.1, _zpz);
+        var po = new THREE.Mesh(new THREE.BoxGeometry(pD, zH, pD), mats.post); po.position.set(_zpx, zH / 2, _zpz); po.castShadow = true; scene.add(po);
+        addM(new THREE.BoxGeometry(pD + 0.2, 0.15, pD + 0.2), mats.metal, _zpx, zH, _zpz);
+      }
+      // beam box along the far edge
+      var _zbLen = Math.abs(zIsSide ? (_zbz2 - _zbz1) : (_zbx2 - _zbx1));
+      if (_zbLen > 0.1) {
+        var bmZ = new THREE.Mesh(new THREE.BoxGeometry(
+          zIsSide ? bW2 : _zbLen, bH2, zIsSide ? _zbLen : bW2), mats.beam);
+        bmZ.position.set((_zbx1 + _zbx2) / 2, zH - bH2 / 2 - 0.1, (_zbz1 + _zbz2) / 2);
+        bmZ.castShadow = true; scene.add(bmZ);
       }
 
-      // Joists spanning depth of zone
-      // S95: resolve this zone's chamfers before the joists, which now clip to
-      // them (same fix as zone 0 -- a joist inside a chamfered corner must stop
-      // at the diagonal instead of poking out past the deck edge).
+      // Joists run from the SHARED edge to the far beam, so their direction
+      // follows the attach edge (S107; they ran front-to-back regardless of
+      // edge before, parallel to their own beam on side sections).
+      // S95: resolve this zone's chamfers before the joists, which clip to
+      // them -- a joist inside a chamfered corner must stop at the diagonal
+      // instead of poking out past the deck edge.
       var _zch = _chamSizes(ar.zone.corners);
-      var zJLen = isFlushZone ? zD - 0.2 : zD - 1;
+      var _zDepth = zIsSide ? zW : zD;   // joist run direction extent
+      var _zAcross = zIsSide ? zD : zW;  // spacing direction extent
+      var zJLen = isFlushZone ? _zDepth - 0.2 : _zDepth - 1;
       var _zjStart = isFlushZone ? 0.1 : 0.5;
-      for (var zx2 = sp / 12; zx2 < zW; zx2 += sp / 12) {
-        var _zb = 0, _zf = zD;
-        if (_zch.BL > 0 && zx2 < _zch.BL) _zb = Math.max(_zb, _zch.BL - zx2);
-        if (_zch.BR > 0 && zx2 > zW - _zch.BR) _zb = Math.max(_zb, zx2 - (zW - _zch.BR));
-        if (_zch.FL > 0 && zx2 < _zch.FL) _zf = Math.min(_zf, zD - (_zch.FL - zx2));
-        if (_zch.FR > 0 && zx2 > zW - _zch.FR) _zf = Math.min(_zf, zD - (zx2 - (zW - _zch.FR)));
+      for (var zx2 = sp / 12; zx2 < _zAcross; zx2 += sp / 12) {
+        // chamfer clip at both ends of the joist run. Corner keys are in
+        // zone-local terms: B/F = depth(y/z) low/high, L/R = x low/high.
+        var _zb = 0, _zf = _zDepth;
+        if (!zIsSide) {
+          if (_zch.BL > 0 && zx2 < _zch.BL) _zb = Math.max(_zb, _zch.BL - zx2);
+          if (_zch.BR > 0 && zx2 > zW - _zch.BR) _zb = Math.max(_zb, zx2 - (zW - _zch.BR));
+          if (_zch.FL > 0 && zx2 < _zch.FL) _zf = Math.min(_zf, zD - (_zch.FL - zx2));
+          if (_zch.FR > 0 && zx2 > zW - _zch.FR) _zf = Math.min(_zf, zD - (zx2 - (zW - _zch.FR)));
+        } else {
+          // transposed: joist at z-offset zx2 runs in x; L clips the x-low
+          // end, R clips the x-high end, B/F select by z proximity
+          if (_zch.BL > 0 && zx2 < _zch.BL) _zb = Math.max(_zb, _zch.BL - zx2);
+          if (_zch.FL > 0 && zx2 > zD - _zch.FL) _zb = Math.max(_zb, zx2 - (zD - _zch.FL));
+          if (_zch.BR > 0 && zx2 < _zch.BR) _zf = Math.min(_zf, zW - (_zch.BR - zx2));
+          if (_zch.FR > 0 && zx2 > zD - _zch.FR) _zf = Math.min(_zf, zW - (zx2 - (zD - _zch.FR)));
+        }
         var _za = Math.max(_zjStart, _zb);
         var _zbEnd = Math.min(_zjStart + zJLen, _zf);
         var _zlen = _zbEnd - _za;
-        if (_zlen > 0.2) addM(new THREE.BoxGeometry(jW2, jH2, _zlen), mats.joist, zwx + zx2, zH - jH2 / 2 - 0.1, zwz + _za + _zlen / 2);
+        if (_zlen <= 0.2) continue;
+        if (zIsSide) {
+          // run in x; for a LEFT section the shared edge is x-high, so the
+          // geometry is symmetric and the centered box needs no mirroring
+          addM(new THREE.BoxGeometry(_zlen, jH2, jW2), mats.joist, zwx + _za + _zlen / 2, zH - jH2 / 2 - 0.1, zwz + zx2);
+        } else {
+          addM(new THREE.BoxGeometry(jW2, jH2, _zlen), mats.joist, zwx + zx2, zH - jH2 / 2 - 0.1, zwz + _za + _zlen / 2);
+        }
       }
 
       // Rim joists on 3 exposed sides (not the attachment edge which connects to parent)

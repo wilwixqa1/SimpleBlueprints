@@ -212,9 +212,10 @@ def build_permit_spec(params, calc):
     for z in zones:
         if z.get("type") == "cutout":
             continue
-        edge = z.get("attachEdge", "front")
-        dim = z.get("d", 6) if edge in ("right", "left") else z.get("w", 8)
-        extra_posts += max(2, math.ceil(dim / 8) + 1)
+        # S107: the beam parallels the shared edge, so its length -- and the
+        # post count -- comes from w for EVERY attach edge (w runs along the
+        # edge, d runs out).
+        extra_posts += max(2, math.ceil(z.get("w", 8) / 8) + 1)
     total_posts_with_zones = total_posts + extra_posts
 
     spec["posts"] = {
@@ -346,14 +347,12 @@ def build_permit_spec(params, calc):
             if z.get("type") == "cutout":
                 _zone_calcs.append(None)
             else:
-                _ze_s = z.get("attachEdge", "front")
-                _dim_s = z.get("d", 6) if _ze_s in ("right", "left") else z.get("w", 8)
                 _zone_calcs.append({
                     "joist_size": joist_size,
                     "beam_size": beam_size,
                     "beam_span": spec["beam"]["span"],
                     "j_span": spec["joists"]["span"],
-                    "n_posts": max(2, math.ceil(_dim_s / 8) + 1),
+                    "n_posts": max(2, math.ceil(z.get("w", 8) / 8) + 1),
                     "beam_type": _ebt_steel(z, params),
                 })
     else:
@@ -374,14 +373,15 @@ def build_permit_spec(params, calc):
             # posts+footings, directly under the outer rim (setback 0).
             # Dropped sections keep the 1.5ft setback / cantilever.
             _beam_setback = 0.0 if _z_beam_type == "flush" else 1.5
-            if _ze in ("right", "left"):
-                _zbl = _zd
-                _zjs = _zw - _beam_setback
-                _znp = max(2, math.ceil(_zd / 8) + 1)
-            else:
-                _zbl = _zw
-                _zjs = _zd - _beam_setback
-                _znp = max(2, math.ceil(_zw / 8) + 1)
+            # S107: one w/d rule for every attach edge -- w runs ALONG the
+            # shared edge, d runs OUT. Joists span OUT (d); the far beam
+            # parallels the shared edge (w). The old side-zone branch had
+            # these transposed, mirroring the same bug in engine.js, so
+            # parity stayed green while both sized joists off the wrong
+            # dimension.
+            _zbl = _zw
+            _zjs = _zd - _beam_setback
+            _znp = max(2, math.ceil(_zw / 8) + 1)
             _zjt = get_joist_spans_for_load(LL, calc.get("species", "dfl_hf_spf"))
             _zj_size = "2x12"
             for _zsz, _zsp in _zjt.items():

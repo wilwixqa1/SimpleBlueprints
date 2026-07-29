@@ -88,19 +88,22 @@ def frontend(p):
 
 
 print("R1/R2: flush section gets far-edge structure, setback 0")
+# One w/d rule (S107): w runs ALONG the attached edge, d runs OUT.
+# Zone 1: left section, 8 along the deck's left edge, 11.5 ft out.
 p = base_params(zones=[section(1, "left", 8, 11.5, 4.0, "flush", "Zone 1"),
                        section(2, "front", 10, 6, 4.0, "dropped", "Zone 2")])
 fe = frontend(p)
 z1, z2 = fe["zoneCalcs"]
 check(z1["beamType"] == "flush", "left flush section stays flush at deck height")
-check(z1["nPosts"] >= 2, "flush section has posts (%s)" % z1["nPosts"])
+check(z1["nPosts"] == 2, "flush section has ceil(8/8)+1 = 2 posts along its 8ft beam (%s)" % z1["nPosts"])
 check(z1["fDiam"] > 0, "flush section has footings (%s in)" % z1["fDiam"])
 check(z1["beamSize"] not in ("rim", "", None), "flush far-edge beam is a real member (%s)" % z1["beamSize"])
 check(z1["beamSpan"] > 0, "flush beam has a span (%s ft)" % z1["beamSpan"])
-check(abs(z1["jSpan"] - 8.0) < 0.05, "flush joists span the FULL 8.0 ft (setback 0), got %s" % z1["jSpan"])
+check(abs(z1["jSpan"] - 11.5) < 0.05, "flush joists span the FULL 11.5 ft OUT (setback 0, span from d), got %s" % z1["jSpan"])
+check(abs(z1["beamSpan"] - 8.0) < 0.05, "flush beam parallels the shared edge: 8ft / 1 bay (from w), got %s" % z1["beamSpan"])
 check(abs(z2["jSpan"] - (6 - 1.5)) < 0.05, "dropped joists span depth-1.5 = 4.5 ft, got %s" % z2["jSpan"])
-check(fe["extraPosts"] == fe["extraFootings"] and fe["extraPosts"] >= 5,
-      "posts==footings and both sections counted (%s)" % fe["extraPosts"])
+check(fe["extraPosts"] == fe["extraFootings"] and fe["extraPosts"] == 5,
+      "posts==footings: 2 (flush, 8ft beam) + 3 (dropped, 10ft beam) = %s" % fe["extraPosts"])
 
 print("R3: raised 'flush' forced to dropped, both engines")
 pr = base_params(zones=[section(1, "left", 8, 11.5, 4.5, "flush", "Zone 1")])
@@ -130,13 +133,21 @@ for i, (fz, bz) in enumerate(zip(fe["zoneCalcs"], spec["zone_calcs"])):
           "zone %d type %s == %s" % (i + 1, fz["beamType"], bz["beam_type"]))
 
 print("R5: framing sheet geometry -- flush beam under the outer rim")
-z = p["zones"][0]                     # left-attached, 8 out, 11.5 along
-rect = {"x": -8.0, "y": 0.0, "w": 8.0, "d": 11.5}
+# The rect swaps for side zones (x-extent = d OUT, y-extent = w ALONG),
+# matching getZoneRect in zoneUtils.js. Taken from get_zone_rect itself so
+# this stays a geometry test, not a rect-convention test.
+from drawing.zone_utils import get_zone_rect
+z = p["zones"][0]                     # left-attached, 8 along, 11.5 out
+rect = get_zone_rect(z, p["width"], p["depth"])
+check(rect == {"x": -11.5, "y": 0, "w": 11.5, "d": 8},
+      "side-zone rect swaps extents to match the app: %s" % rect)
 fr = compute_zone_framing(z, rect, 16, params=p)
 check(fr["beam_type"] == "flush", "framing records flush")
 check(fr["beam"] is not None, "flush framing HAS a beam")
 check(abs(fr["beam"]["x1"] - rect["x"]) < 1e-6,
       "left section: beam at outer rim x=%s (setback 0)" % fr["beam"]["x1"])
+check(abs(fr["beam"]["y2"] - fr["beam"]["y1"]) <= rect["d"],
+      "beam runs ALONG the deck edge (y direction)")
 check(len(fr["posts"]) == fe["zoneCalcs"][0]["nPosts"],
       "sheet posts (%d) == engine nPosts (%d)"
       % (len(fr["posts"]), fe["zoneCalcs"][0]["nPosts"]))
@@ -147,8 +158,8 @@ check(abs(frd["beam"]["y1"] - (12.0 + 6.0 - 1.5)) < 1e-6,
       "dropped section keeps the 1.5 ft beam setback")
 
 print("R6: spec post totals count flush-section posts")
-exp_flush = max(2, math.ceil(11.5 / 8) + 1)   # left zone counts along d
-exp_drop = max(2, math.ceil(10 / 8) + 1)      # front zone counts along w
+exp_flush = max(2, math.ceil(8 / 8) + 1)      # beam length = w (along edge)
+exp_drop = max(2, math.ceil(10 / 8) + 1)
 check(spec["posts"]["total_zones"] == exp_flush + exp_drop,
       "total_zones %s == %s (flush %d + dropped %d)"
       % (spec["posts"]["total_zones"], exp_flush + exp_drop,

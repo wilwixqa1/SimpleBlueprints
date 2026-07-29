@@ -156,7 +156,8 @@ def violations(name, p):
             zcs = zc.get("zoneCalcs") or []
             for z, zi in zip(adds, [x for x in zcs if x is not None]):
                 n_posts = (zi or {}).get("nPosts") or 0
-                depth_ft = z["w"] if z["attachEdge"] in ("left", "right") else z["d"]
+                # S107: one w/d rule -- d is the OUT extent for every edge
+                depth_ft = z["d"]
                 if depth_ft > 2.0 and n_posts < 2:
                     out.append(("I1", "section '%s' (%.1fft out) has %d posts "
                                 "and beam '%s': unsupported free edge"

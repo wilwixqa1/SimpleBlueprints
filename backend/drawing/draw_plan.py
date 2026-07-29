@@ -126,10 +126,15 @@ def _margin_callout(ax, tx, ty, mx, my, text, fontsize=4.5, ha='left',
     the member it describes (tx, ty). Keeps member callouts OFF the geometry
     (S86), matching the reference sets. text at (mx, my); leader to (tx, ty)."""
     color = color or BRAND["dark"]
+    # S107: white-out bbox on the label. The leader's last segment ends AT
+    # the text anchor, so on tall multi-line labels (arch_d fonts) it stabbed
+    # through its own text. A background patch is standard drafting practice
+    # for margin callouts and is the legibility oracle's E1 exemption.
     ax.annotate(
         text, xy=(tx, ty), xytext=(mx, my),
         fontsize=fontsize, ha=ha, va='center',
         fontfamily='monospace', fontweight=weight, color=color, zorder=7,
+        bbox=dict(facecolor='white', edgecolor='none', pad=1.2),
         arrowprops=dict(arrowstyle='-', color=BRAND["mute"], lw=0.4,
                         shrinkA=1, shrinkB=2),
     )
@@ -306,26 +311,30 @@ def draw_zone_framing(ax, zone, rect, calc, zone_sizing=None, margin_cols=None, 
             _hx, _hy, _rot = rect["x"] + rect["w"] / 2, rect["y"] + 0.35, 0
         ax.text(_hx, _hy, f"JOISTS ON {_hgr} HANGERS @ DECK A RIM",
                 ha='center', va='center', rotation=_rot, fontsize=3.0,
-                fontfamily='monospace', color=BRAND["mute"])
+                fontfamily='monospace', color=BRAND["mute"],
+                bbox=dict(facecolor='#fcfaf5', edgecolor='none', pad=1.0))
 
     _zx = rect["x"] + rect["w"] / 2
     _zy = rect["y"] + rect["d"] / 2
     if margin_cols:
-        # readable zone tag on the wing
+        # readable zone tag on the wing. S107: white-out bbox so the tag reads
+        # over the wing's own joist lines (standard drafting practice; also
+        # the legibility oracle's E1 exemption for intentional labels).
         ax.text(_zx, _zy, label, ha='center', va='center', fontsize=4.5,
-                fontfamily='monospace', color=BRAND["mute"], fontweight='bold')
+                fontfamily='monospace', color=BRAND["mute"], fontweight='bold',
+                bbox=dict(facecolor='#fcfaf5', edgecolor='none', pad=1.2))
         # member spec dropped just below the wing on a short leader (local,
         # legible, symmetric on both sides -- no narrow-margin crowding)
         _margin_callout(ax, _zx, rect["y"] + 0.2, _zx, rect["y"] - 1.6,
                         _wrap_txt(member_spec, 20),
                         fontsize=4.2, ha='center', color=BRAND["mute"])
     else:
+        # S107: was printed TWICE verbatim (long-standing dup); now once,
+        # with a white-out so it reads over the joists (E1).
         ax.text(_zx, _zy, f'{label}\n{member_spec}',
                 ha='center', va='center', fontsize=3.0,
-                fontfamily='monospace', color=BRAND["mute"], fontstyle='italic')
-        ax.text(_zx, _zy, f'{label}\n{member_spec}',
-                ha='center', va='center', fontsize=3.0,
-                fontfamily='monospace', color=BRAND["mute"], fontstyle='italic')
+                fontfamily='monospace', color=BRAND["mute"], fontstyle='italic',
+                bbox=dict(facecolor='#fcfaf5', edgecolor='none', pad=1.0))
 
 
 # ============================================================
@@ -791,8 +800,12 @@ def draw_plan_and_framing(fig, params, calc, spec=None, panels=None):
             if _has_ledger:
                 _rows.append(("val", spec["labels"]["loads_ledger"]))
 
-            _hdr_h = 0.75
-            _row_h = 0.52
+            _hdr_h = 0.8
+            # S107: 0.52 left the total rule 0.234ft below the D.L. row
+            # center while the row text is 0.26ft half-height at the arch_d
+            # font scale -- a hairline overlap the wider section bbox tipped
+            # into the oracle. 0.62 gives the rule 0.28ft of clearance.
+            _row_h = 0.62
             _lb_w = 6.6
             _lb_h = _hdr_h + len(_rows) * _row_h + 0.25
             # S87: table sits in its own reserved band BELOW the house block

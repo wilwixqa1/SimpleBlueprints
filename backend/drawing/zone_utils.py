@@ -115,12 +115,19 @@ def get_zone_rect(zone, parent_w, parent_d):
         pr = {"x": 0, "y": 0, "w": parent_w, "d": parent_d}
         return _get_cutout_rect(zone, pr)
 
+    # S107: zone w always runs ALONG the attached edge and d always runs
+    # OUT (that is what the UI stores -- addZoneDefaults clamps w to the
+    # edge length). For side zones the rect therefore SWAPS: its x-extent is
+    # the zone's d, its y-extent the zone's w -- exactly what getZoneRect in
+    # zoneUtils.js has always done. This function did NOT swap, so the PDF
+    # drew any non-square side wing transposed against the app. Square 8x8
+    # defaults hid it until the S106 resize handles made non-square easy.
     if edge == "front":
         return {"x": offset, "y": parent_d, "w": w, "d": d}
     elif edge == "left":
-        return {"x": -w, "y": offset, "w": w, "d": d}
+        return {"x": -d, "y": offset, "w": d, "d": w}
     elif edge == "right":
-        return {"x": parent_w, "y": offset, "w": w, "d": d}
+        return {"x": parent_w, "y": offset, "w": d, "d": w}
 
     return {"x": 0, "y": 0, "w": w, "d": d}
 

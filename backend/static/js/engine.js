@@ -1139,16 +1139,19 @@ function calcAllZones(p, baseCalc) {
     // pending Billy on narrow sections). Dropped sections keep the 1.5ft
     // beam setback / cantilever.
     var zSB = zoneBeamType === "flush" ? 0 : BS;
-    var beamLen, jSpan, nJoists, nPosts;
-    if (edge === "right" || edge === "left") {
-      beamLen = zd; jSpan = zw - zSB;
-      nJoists = Math.ceil(zd / (sp / 12)) + 1;
-      nPosts = Math.max(2, Math.ceil(zd / 8) + 1);
-    } else {
-      beamLen = zw; jSpan = zd - zSB;
-      nJoists = Math.ceil(zw / (sp / 12)) + 1;
-      nPosts = Math.max(2, Math.ceil(zw / 8) + 1);
-    }
+    // S107: w/d semantics are the SAME for every attach edge -- w runs ALONG
+    // the attached edge (addZoneDefaults clamps it to the edge length and
+    // centers attachOffset with it), d runs OUT. Joists hang at the shared
+    // edge and span OUT to the far beam (jSpan from d); the beam parallels
+    // the shared edge (beamLen from w). The old side-zone branch had these
+    // TRANSPOSED: joists sized for w, beam sized for d. Both engines agreed,
+    // so parity stayed green -- consistent wrongness, the S106 lesson. An
+    // 8-along x 11.5-out side section (Will's B/C design) got joists sized
+    // for 8 ft that actually span 11.5.
+    var beamLen = zw;
+    var jSpan = zd - zSB;
+    var nJoists = Math.ceil(zw / (sp / 12)) + 1;
+    var nPosts = Math.max(2, Math.ceil(zw / 8) + 1);
 
     // S60: Independent joist sizing for this zone
     var zTable = getSpanTable(LL);
@@ -1173,7 +1176,7 @@ function calcAllZones(p, baseCalc) {
     }
 
     // S60: Independent footing sizing for this zone
-    var zTrib = (beamLen / Math.max(nPosts - 1, 1)) * (edge === "right" || edge === "left" ? zw : zd);
+    var zTrib = (beamLen / Math.max(nPosts - 1, 1)) * zd;  // S107: trib depth is the joist run (d, OUT) for every edge
     var zReqD = Math.sqrt(zTrib * TL / 1500 / Math.PI) * 2 * 12;
     var zFDiam = [12, 16, 18, 21, 24, 30, 36, 42].find(function(s) { return s >= zReqD; }) || 42;
 
@@ -1203,13 +1206,11 @@ function calcAllZones(p, baseCalc) {
     }
     extraItems.push({ cat: "Hardware", item: "Joist Hangers (" + label + ")", qty: nJoists * 2, cost: 6 });
 
-    // S60: Zone railing (3 exposed sides)
-    var zRailLen;
-    if (edge === "right" || edge === "left") {
-      zRailLen = 2 * zw + zd;
-    } else {
-      zRailLen = 2 * zd + zw;
-    }
+    // S60: Zone railing (3 exposed sides). S107: with the one w/d rule
+    // (w along the shared edge, d out) the exposed sides are the far edge
+    // (length w) plus the two out sides (length d each), for EVERY edge.
+    // The old side-zone branch double-counted w and single-counted d.
+    var zRailLen = 2 * zd + zw;
     if (p.railType === "fortress") {
       extraItems.push({ cat: "Railing", item: "Fortress Panels (" + label + ")", qty: Math.ceil(zRailLen / 7), cost: 80 });
       extraItems.push({ cat: "Railing", item: "Fortress Posts (" + label + ")", qty: Math.ceil(zRailLen / 6) + 1, cost: 45 });

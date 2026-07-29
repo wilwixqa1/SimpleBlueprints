@@ -196,9 +196,9 @@ def draw_cover_sheet(fig, params, calc, project_info=None, cover_image_b64=None,
         # S107: flush sections carry posts too -- flush is shared-edge only,
         # the far edge always has a dropped beam on posts. Old S82e skip
         # matched the old unbuildable zero-structure model.
-        edge = z.get('attachEdge', 'front')
-        dim = z.get('d', 6) if edge in ('right', 'left') else z.get('w', 8)
-        extra_posts += max(2, math.ceil(dim / 8) + 1)
+        # S107: beam length (and post count) comes from w for every edge --
+        # w runs along the shared edge, d runs out.
+        extra_posts += max(2, math.ceil(z.get('w', 8) / 8) + 1)
     total_posts = calc['total_posts'] + extra_posts
     total_footings = calc['num_footings'] + extra_posts
 

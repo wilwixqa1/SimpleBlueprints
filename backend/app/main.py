@@ -3285,8 +3285,12 @@ def _uxmock_map_params(p: dict) -> dict:
         e = z.get("edge", "rear")
         zw, zd = float(z.get("w", 8)), float(z.get("d", 8))
         if e in ("left", "right"):
+            # S107: production zones use one rule for every edge -- w runs
+            # ALONG the attached edge, d runs OUT. This source's side wings
+            # measure zd along the deck depth (see attachOffset), so the
+            # extents swap on the way in.
             prod_zones.append({"id": i + 1, "type": "add", "attachEdge": e,
-                               "attachOffset": max(0.0, params["depth"] - zd), "w": zw, "d": zd})
+                               "attachOffset": max(0.0, params["depth"] - zd), "w": zd, "d": zw})
         else:
             prod_zones.append({"id": i + 1, "type": "add", "attachEdge": "front",
                                "attachOffset": max(0.0, (params["width"] - zw) / 2.0), "w": zw, "d": zd})
