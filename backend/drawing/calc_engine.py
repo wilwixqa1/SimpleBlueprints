@@ -489,11 +489,13 @@ def _beam_relevant_openings(cut_rects, depth, setback):
         if (r.get("source") == "stair"
                 and r["rect"]["y"] + r["rect"]["d"] >= depth - 1e-6):
             # A stair that exactly FILLS a front cutout never reaches this
-            # classifier: zone_utils._already_cut drops its opening upstream
-            # (the notch treatment owns that geometry). A stair PARTIALLY
-            # overlapping a notch does arrive here, and the combined
-            # step-plus-interruption layout is coherent -- both are pinned
-            # in tests/test_stair_beam_interaction.py.
+            # classifier: the notch-aware anchor (S103 P1.a) resolves it to
+            # the notch's edge, so no opening is synthesized at all (and
+            # _already_cut catches interior overlaps a cutout already
+            # opened). A stair PARTIALLY overlapping a notch does arrive
+            # here, and the combined step-plus-interruption layout is
+            # coherent -- both are pinned in
+            # tests/test_stair_beam_interaction.py (5d).
             crossing.append(r)
             continue
         kept.append(r)

@@ -551,10 +551,11 @@ function calcStructure(p) {
     // crossing_openings; guarded by tests/test_stair_beam_interaction.py.
     var _crossRects = _cutRects.filter(function(r) {
       // A stair exactly filling a front cutout never reaches this filter:
-      // zoneUtils' _already_cut drops its opening upstream (the notch
-      // treatment owns that geometry). Partial overlaps arrive here and the
-      // combined step-plus-interruption layout is coherent; both cases are
-      // pinned in tests/test_stair_beam_interaction.py.
+      // the notch-aware anchor resolves it to the notch's edge, so no
+      // opening is synthesized at all (_already_cut catches interior
+      // overlaps a cutout already opened). Partial overlaps arrive here and
+      // the combined step-plus-interruption layout is coherent; both cases
+      // are pinned in tests/test_stair_beam_interaction.py (5d).
       return r.source === "stair" && r.rect.y < _beamY - 1e-6
         && r.rect.y + r.rect.d >= D - 1e-6;
     });

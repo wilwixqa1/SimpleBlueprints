@@ -291,7 +291,7 @@ pFill = dict(BASE, width=20, depth=14,
              deckStairs=[{"id": 0, "zoneId": 0, "location": "front",
                           "offset": 8, "width": 4, "numStringers": 3}])
 _fill_stair_rects = [o for o in _gor(pFill) if o.get("source") == "stair"]
-check("notch-FILLING stair emits no opening rect (zone_utils._already_cut)",
+check("notch-FILLING stair emits no opening rect (notch-aware anchor)",
       not _fill_stair_rects, _fill_stair_rects)
 cFill = calculate_structure(pFill)
 check("...and therefore no stairwell header package",
