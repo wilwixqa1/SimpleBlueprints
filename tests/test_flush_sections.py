@@ -271,6 +271,20 @@ else:
     check(abs(js9b["hwFt"] - hw_py) < 0.01 and abs(js9b["hxFtRelZ0"] - hx_py) < 0.01,
           "app house span == PDF house span: js=(%s,%s) py=(%.2f,%.2f)"
           % (js9b["hwFt"], js9b["hxFtRelZ0"], hw_py, hx_py))
+_off = dict(p9b, deckOffset=3)
+hx_o, hw_o = _elev_house_span(_off, _off["width"], 0.0)
+check(abs(hx_o - (hx_py - 3)) < 0.01,
+      "deckOffset shifts the house: hx %.2f -> %.2f (A-1 convention)"
+      % (hx_py, hx_o))
+r9o = subprocess.run(["node", "-e", JS9B, json.dumps(_off)],
+                     capture_output=True, text=True)
+if r9o.returncode == 0:
+    js9o = json.loads(r9o.stdout)
+    check(abs(js9o["hxFtRelZ0"] - hx_o) < 0.01,
+          "app applies the same deckOffset shift: js=%s py=%.2f"
+          % (js9o["hxFtRelZ0"], hx_o))
+else:
+    check(False, "app deckOffset span failed: " + r9o.stderr[:120])
 _leg = _elev_house_span(dict(p9b, zones=[]), 22, 0.0)
 check(_leg == (0.0 + (22 - 22) / 2, 22),
       "sectionless deck keeps the legacy schematic house (min(W,30)), got %s" % (_leg,))
