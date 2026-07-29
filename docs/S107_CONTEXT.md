@@ -1,7 +1,7 @@
 # SimpleBlueprints, S107 Context & Handoff
 
-Written at the end of S107. Repo state: `main @ 175b63c` plus this file, gate
-green (36 steps), production busters `s107a`. This file replaces the thin
+Written at the end of S107. Repo state: `main @ c0aa337`, gate
+green (36 steps), production busters `s107b`. This file replaces the thin
 `S107_CONTEXT.txt` committed mid-close.
 
 **How to use this.** §1-§2 are orientation. §3-§6 are reference for the
@@ -42,7 +42,7 @@ now a review queue, not a blocking queue.
 
 ## 2. WHAT S107 DID
 
-14 pushes (`90969ef..175b63c`), gate green after every one, ~20 mutations
+16 pushes (`90969ef..c0aa337`), gate green after every one, ~20 mutations
 killed. Charter items 1 (level-section structure), 2 (golden expansion), and
 3 (Case B) complete. Item 4's smaller items carry (§9.1).
 
@@ -133,6 +133,26 @@ AFTER the stair items because parity compares positionally. P8b deleted the
 containment rule as dead code after a mutation survived; P8c corrected the
 mechanism comments (see §8.3 — this sequence is the session's best worked
 example of the mutation norm).
+
+**P10/P10b — the elevation house (reopened after close on Will's screenshots).**
+Will's PDF preview showed the 38 ft deck poking past the house in S/N
+elevations. Measured at HEAD: the deck was drawn correctly at 38; the HOUSE
+was the problem — both surfaces drew a schematic house (`min(W,30)` PDF,
+`min(bbW,30)` app) and neither ever read `params.houseWidth`. The P5 claim
+"38 ft deck inside the 45'-6" house" was only ever verified for the app's
+wing widths; R9 pinned the context function, and the house math lived outside
+it — an R9 coverage gap, owned. Fix: with sections present and
+`houseWidth > W`, both surfaces draw the REAL house per A-1's convention
+(houseWidth wide, centered on zone-0 minus deckOffset), via single-source
+helpers `_elev_house_span` (draw_elevations.py) / `_getElevHouseSpan`
+(elevationView.js, on window). Sectionless decks keep the legacy schematic
+house byte-identically. R9b pins width, containment, surface parity, the
+deckOffset shift (added after mutation M3 survived), and the legacy branch.
+ELEVATIONS JOINED THE GOLDEN (the omission comment at SHEETS said "add when
+the sheet becomes an active work area" — it had, and the omission is exactly
+why this had no guard): 45 fingerprints now. Busters `s107b`.
+NOTE: E/W elevations still use the schematic house on the depth axis
+(houseDepth never consulted) — same class of issue, carried to §9.1.
 
 **P9** — Will's real-build field photo committed to
 `docs/reference_sets/field_photos/2026-07_edge_stair_posts_underrim_beam.png`
@@ -334,6 +354,8 @@ questions as audit prompts.
 - main.py wing-translation layer (~3283) has no test coverage.
 - A-3 freestanding gap note wording — needs a freestanding reference example
   (none of the four sets is one) or Billy's wording.
+- E/W elevations: house drawn schematically on the depth axis (houseDepth
+  never consulted) — same class as the P10 S/N bug, lower visibility.
 - arch_d sheet support stays dormant behind SBP_SHEET (S106 assessment
   unchanged: fix only if a jurisdiction requires 24x36; own session, inventory
   first).
