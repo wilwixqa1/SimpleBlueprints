@@ -18,13 +18,18 @@ function _getZoneSNContext(p, W, H) {
   for (const z of zones) {
     if (z.type === 'cutout') continue;
     const edge = z.attachEdge;
-    const zw = z.w || 8;
+    // S107: the wing's VISIBLE width in a front/rear elevation is its OUT
+    // extent, which is d under the one w/d rule (w runs along the attached
+    // edge). This read z.w, so an 8-out x 11.5-along wing was drawn 11.5
+    // wide -- Will's B/C deck rendered exactly house-wide (22+11.5+12 =
+    // 45.5) while the plan, PDF and 3D all showed 38.
+    const zOut = z.d || 8;
     if (edge === 'left') {
-      minX = Math.min(minX, -zw);
-      sections.push({ xDraw: -zw, w: zw, deckTop: H }); // future: z.height || H
+      minX = Math.min(minX, -zOut);
+      sections.push({ xDraw: -zOut, w: zOut, deckTop: z.h != null ? z.h : H });
     } else if (edge === 'right') {
-      maxX = Math.max(maxX, W + zw);
-      sections.push({ xDraw: W, w: zw, deckTop: H }); // future: z.height || H
+      maxX = Math.max(maxX, W + zOut);
+      sections.push({ xDraw: W, w: zOut, deckTop: z.h != null ? z.h : H });
     }
     // front zones: skip for now (only left/right affect S/N width)
   }
@@ -533,3 +538,6 @@ function ElevationView({ c, p }) {
 }
 
 window.ElevationView = ElevationView;
+// S107: exported for the elevation-width parity gate (JS app view vs the
+// backend PDF's _get_zone_south_north_sections).
+window._getZoneSNContext = _getZoneSNContext;

@@ -203,6 +203,44 @@ for _name, _fn, _extra in (("south", _draw_zone_section_south, ()),
     check(len(_dashed) == 0, "%s view: no dashed in-plane beam line on the wing" % _name)
     plt.close(_fig)
 
+print("R9: app elevation width == PDF elevation width (non-square side sections)")
+from drawing.draw_elevations import _get_zone_south_north_sections
+# Will's ACTUAL B/C shape: 8 ft OUT, 11.5/12 along the deck edge.
+p9 = base_params(zones=[section(1, "left", 11.5, 8, 4.0, "flush", "Zone 1"),
+                        section(2, "right", 12, 8, 4.0, "flush", "Zone 2")])
+calc9 = calculate_structure(p9)
+_sn = _get_zone_south_north_sections(p9, calc9)
+bb_w, secs = _sn["bb_w"], _sn["sections"]
+JSNODE = (
+    'const fs=require("fs");global.window=global;'
+    'global.React={createElement:()=>null,useState:v=>[v,()=>{}],'
+    'useRef:()=>({current:null}),useEffect:()=>{}};'
+    'const Babel=require("@babel/standalone");'
+    'const src=fs.readFileSync("backend/static/js/elevationView.js","utf8");'
+    'eval.call(global,Babel.transform(src,{presets:[["react",{runtime:"classic"}]]}).code);'
+    'const p=JSON.parse(process.argv[1]);'
+    'const r=window._getZoneSNContext(p, p.width, p.height);'
+    'console.log(JSON.stringify(r));'
+)
+r9 = subprocess.run(["node", "-e", JSNODE, json.dumps(p9)],
+                    capture_output=True, text=True)
+if r9.returncode != 0:
+    check(False, "app elevation context failed: " + r9.stderr[:200])
+else:
+    js9 = json.loads(r9.stdout)
+    check(abs(js9["bbW"] - bb_w) < 0.01,
+          "visible width: app %s == PDF %s (22 deck + 8 + 8 out = 38, NOT 45.5)"
+          % (js9["bbW"], bb_w))
+    check(abs(js9["bbW"] - 38.0) < 0.01, "and that width is the OUT-extent sum, 38.0")
+    # JS keeps deck-local xDraw plus a separate xOff applied at draw time;
+    # PY bakes x_off into x_draw. Compare in the bbox frame.
+    for _js, _py in zip(sorted(js9["sections"], key=lambda x: x["xDraw"]),
+                        sorted(secs, key=lambda x: x["x_draw"])):
+        _jsx = _js["xDraw"] + js9["xOff"]
+        check(abs(_js["w"] - _py["w"]) < 0.01 and abs(_jsx - _py["x_draw"]) < 0.01,
+              "wing section app (bbox x=%s w=%s) == PDF (x=%s w=%s)"
+              % (_jsx, _js["w"], _py["x_draw"], _py["w"]))
+
 print()
 if FAILS:
     print("FAILED: %d assertion(s)" % len(FAILS))
