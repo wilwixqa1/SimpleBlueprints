@@ -110,13 +110,13 @@ def _draw_zone_section_south(ax, deck_x, section, ground_y, beam_h, beam_type, r
         # Post
         ax.plot([spx, spx], [ground_y + 0.2, zt], color=BRAND["post"], lw=2)
 
-    # Beam
-    if beam_type == "flush":
-        ax.plot([zx + 0.5, zx + zw - 0.5], [zt - beam_h, zt - beam_h],
-                color=BRAND["beam"], lw=1.5, linestyle=(0, (8, 4)), zorder=4)
-    else:
-        ax.add_patch(patches.Rectangle((zx + 0.5, zt - beam_h - 0.1), zw - 1, beam_h,
-                     fc=BRAND["beam"], ec=BRAND["dark"], lw=0.8, alpha=0.85))
+    # Beam. S107: a section's far-edge beam is ALWAYS dropped structure on
+    # posts -- "flush" on a section only means the shared edge hangs on Deck
+    # A's rim. The dashed in-plane style here came from the MAIN deck's beam
+    # type being threaded into every wing, so a flush main deck drew flush
+    # wings (and the wing's own type was ignored entirely).
+    ax.add_patch(patches.Rectangle((zx + 0.5, zt - beam_h - 0.1), zw - 1, beam_h,
+                 fc=BRAND["beam"], ec=BRAND["dark"], lw=0.8, alpha=0.85))
 
     # Joists (visible ends)
     joist_sp = joist_spacing / 12
@@ -155,13 +155,11 @@ def _draw_zone_section_north(ax, deck_x, section, total_w, ground_y, beam_h, bea
         ax.plot([spx, spx], [ground_y, zt],
                 color=BRAND["post"], lw=1.0, ls=(0, (6, 3)), alpha=0.4)
 
-    # Beam (far side, lighter)
-    if beam_type == "flush":
-        ax.plot([zx + 0.5, zx + zw - 0.5], [zt - beam_h, zt - beam_h],
-                color=BRAND["beam"], lw=1.0, ls=(0, (6, 3)), alpha=0.5)
-    else:
-        ax.add_patch(patches.Rectangle((zx + 0.5, zt - beam_h - 0.1), zw - 1, beam_h,
-                     fc=BRAND["beam"], ec=BRAND["dark"], lw=0.5, alpha=0.3))
+    # Beam (far side, lighter). S107: same rule as the south view -- a
+    # section's far-edge beam is always dropped structure; the wing no
+    # longer inherits the MAIN deck's flush style.
+    ax.add_patch(patches.Rectangle((zx + 0.5, zt - beam_h - 0.1), zw - 1, beam_h,
+                 fc=BRAND["beam"], ec=BRAND["dark"], lw=0.5, alpha=0.3))
 
     # Deck surface
     ax.plot([zx, zx + zw], [zt, zt], color='#6B5340', lw=2.5)

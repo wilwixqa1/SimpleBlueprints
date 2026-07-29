@@ -177,6 +177,32 @@ check(fe5["ebt"][0] == "flush",
 check(effective_beam_type(p5["zones"][0], p5) == "flush",
       "PY agrees for the 5ft deck")
 
+print("R8: elevations -- a flush wing draws a SOLID dropped beam, not a dashed in-plane line")
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+from matplotlib import patches as _mp
+from drawing.draw_elevations import _draw_zone_section_south, _draw_zone_section_north
+
+for _name, _fn, _extra in (("south", _draw_zone_section_south, ()),
+                           ("north", _draw_zone_section_north, (30.0,))):
+    _fig, _ax = plt.subplots()
+    _sec = {"x_draw": 0.0, "w": 11.5, "deck_top": 4.0}
+    # threading beam_type="flush" (the old main-deck inheritance) must no
+    # longer produce a dashed beam: the wing's far beam is dropped structure
+    # signature: (ax, deck_x, section[, total_w], ground_y, beam_h, beam_type, rail_h, sp)
+    _fn(_ax, 0.0, _sec, *(_extra), 0.0, 0.9, "flush", 3.0, 16)
+    _rects = [pa for pa in _ax.patches if isinstance(pa, _mp.Rectangle)
+              and abs(pa.get_height() - 0.9) < 1e-6]
+    check(len(_rects) >= 1, "%s view: solid beam block drawn on a 'flush' wing (%d found)"
+          % (_name, len(_rects)))
+    _dashed = [ln for ln in _ax.lines
+               if ln.get_linestyle() not in ("-", "solid") and len(ln.get_xdata()) == 2
+               and abs(ln.get_ydata()[0] - (4.0 - 0.9)) < 1e-6
+               and abs(ln.get_ydata()[1] - (4.0 - 0.9)) < 1e-6]
+    check(len(_dashed) == 0, "%s view: no dashed in-plane beam line on the wing" % _name)
+    plt.close(_fig)
+
 print()
 if FAILS:
     print("FAILED: %d assertion(s)" % len(FAILS))
