@@ -550,19 +550,13 @@ function calcStructure(p) {
     // calc_engine.py _beam_relevant_openings / _beam_interrupted_at_
     // crossing_openings; guarded by tests/test_stair_beam_interaction.py.
     var _crossRects = _cutRects.filter(function(r) {
-      if (!(r.source === "stair" && r.rect.y < _beamY - 1e-6
-            && r.rect.y + r.rect.d >= D - 1e-6)) return false;
-      // ...unless the stair FILLS a front cutout: the stepped-notch
-      // treatment owns that geometry (mirrors calc_engine.py).
-      var rr = r.rect;
-      var inNotch = _cutRects.some(function(c2) {
-        return c2.source !== "stair"
-          && c2.rect.y + c2.rect.d >= D - 1e-6
-          && c2.rect.x - 0.05 <= rr.x
-          && rr.x + rr.w <= c2.rect.x + c2.rect.w + 0.05
-          && c2.rect.y - 0.05 <= rr.y;
-      });
-      return !inNotch;
+      // A stair exactly filling a front cutout never reaches this filter:
+      // zoneUtils' _already_cut drops its opening upstream (the notch
+      // treatment owns that geometry). Partial overlaps arrive here and the
+      // combined step-plus-interruption layout is coherent; both cases are
+      // pinned in tests/test_stair_beam_interaction.py.
+      return r.source === "stair" && r.rect.y < _beamY - 1e-6
+        && r.rect.y + r.rect.d >= D - 1e-6;
     });
     _cutRects = _cutRects.filter(function(r) {
       return _touchRects.indexOf(r) < 0 && _crossRects.indexOf(r) < 0;

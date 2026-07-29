@@ -283,6 +283,41 @@ else:
           [(h["x0"], h["x1"], h["y"]) for h in blB["stair_headers"]],
           "js=%s py=%s" % (jsB["headers"], blB["stair_headers"]))
 
+print("5d. notch interactions: filling stair absorbed upstream; partial overlap combines")
+from drawing.zone_utils import get_opening_rects as _gor
+pFill = dict(BASE, width=20, depth=14,
+             zones=[{"id": 1, "type": "cutout", "attachEdge": "front",
+                     "attachOffset": 8, "w": 4, "d": 4, "attachTo": 0}],
+             deckStairs=[{"id": 0, "zoneId": 0, "location": "front",
+                          "offset": 8, "width": 4, "numStringers": 3}])
+_fill_stair_rects = [o for o in _gor(pFill) if o.get("source") == "stair"]
+check("notch-FILLING stair emits no opening rect (zone_utils._already_cut)",
+      not _fill_stair_rects, _fill_stair_rects)
+cFill = calculate_structure(pFill)
+check("...and therefore no stairwell header package",
+      not (cFill["beam_layout"].get("stair_headers")),
+      cFill["beam_layout"].get("stair_headers"))
+pPart = dict(BASE, width=20, depth=14,
+             zones=[{"id": 1, "type": "cutout", "attachEdge": "front",
+                     "attachOffset": 8, "w": 4, "d": 4, "attachTo": 0}],
+             deckStairs=[{"id": 0, "zoneId": 0, "location": "front",
+                          "offset": 2, "width": 4, "numStringers": 3,
+                          "template": "straight"}])
+cPart = calculate_structure(pPart)
+blP = cPart["beam_layout"]
+check("partial overlap: beam steps (notch) AND is interrupted (stairwell)",
+      blP.get("stepped") and blP.get("interrupted") and
+      len(blP.get("stair_headers") or []) == 1,
+      "stepped=%s interrupted=%s headers=%s" % (blP.get("stepped"),
+                                                blP.get("interrupted"),
+                                                blP.get("stair_headers")))
+_hp = blP["stair_headers"][0]
+check("partial overlap: no beam segment inside the stairwell x-range",
+      not [g for g in blP["segments"]
+           if _hp["y"] - 0.01 <= g["beam_y"]
+           and g["x0"] < _hp["x1"] - 1e-6 and g["x1"] > _hp["x0"] + 1e-6],
+      blP["segments"])
+
 print("5c. S107 Case B: both estimates bill the header package identically")
 from drawing.draw_materials import estimate_materials as _est_py
 estB = _est_py(pB, cB)
