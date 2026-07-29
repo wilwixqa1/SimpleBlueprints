@@ -372,7 +372,10 @@ def build_permit_spec(params, calc):
             # the shared edge; the FAR edge always gets a dropped beam on
             # posts+footings, directly under the outer rim (setback 0).
             # Dropped sections keep the 1.5ft setback / cantilever.
-            _beam_setback = 0.0 if _z_beam_type == "flush" else 1.5
+            # IRC R507.6: cantilever <= back-span/4  =>  setback <= d/5.
+            # Fixed 1.5 violated this on dropped sections shallower than
+            # 7.5ft. Flush sections: beam under the outer rim (0).
+            _beam_setback = 0.0 if _z_beam_type == "flush" else min(1.5, _zd / 5)
             # S107: one w/d rule for every attach edge -- w runs ALONG the
             # shared edge, d runs OUT. Joists span OUT (d); the far beam
             # parallels the shared edge (w). The old side-zone branch had

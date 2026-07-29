@@ -194,7 +194,10 @@ def compute_zone_framing(zone, rect, joist_spacing_in=16, params=None):
     beam_type = effective_beam_type(zone, params or {})
     x, y, w, d = rect["x"], rect["y"], rect["w"], rect["d"]
     sp = joist_spacing_in / 12  # spacing in feet
-    setback = 0.0 if beam_type == "flush" else BEAM_SETBACK
+    # IRC R507.6 clamp mirrors both engines: setback <= depth/5 so the
+    # cantilever never exceeds a quarter of the back-span.
+    _depth_out = w if edge in ("right", "left") else d
+    setback = 0.0 if beam_type == "flush" else min(BEAM_SETBACK, _depth_out / 5)
 
     # Dropped-style geometry for both types; only the setback differs.
     if edge == "right":

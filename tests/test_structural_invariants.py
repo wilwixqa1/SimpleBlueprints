@@ -83,6 +83,12 @@ CONFIGS = {
     # dropped-beam sections must be fully supported at any height
     "level_sections_dropped": dict(BASE, zones=sections(None)),
     "raised_sections": dict(BASE, zones=sections(4.5)),
+    # I6 coverage: a 4ft dropped section -- the fixed 1.5ft setback gave it
+    # a 60% cantilever (IRC R507.6 caps it at 25%).
+    "shallow_dropped_section": dict(BASE, nextZoneId=2, zones=[
+        {"id": 1, "type": "add", "attachEdge": "front", "attachOffset": 6,
+         "w": 10, "d": 4, "h": 4, "attachTo": 0, "label": "Zone 1",
+         "joistDir": "perpendicular", "beamType": "dropped", "stairs": None}]),
     "front_cutout": dict(BASE, nextZoneId=2, zones=[
         {"id": 1, "type": "cutout", "attachEdge": "front", "attachOffset": 9,
          "w": 4, "d": 3, "h": None, "attachTo": 0, "label": "Cutout",
@@ -163,6 +169,16 @@ def violations(name, p):
                                 "and beam '%s': unsupported free edge"
                                 % (z["label"], depth_ft, n_posts,
                                    (zi or {}).get("beamSize"))))
+            # I6: IRC R507.6 -- cantilever (d - jSpan) <= jSpan/4
+            for z, zi in zip(adds, [x for x in zcs if x is not None]):
+                if not zi:
+                    continue
+                _out = z["d"]
+                _cant = _out - zi.get("jSpan", _out)
+                if _cant > zi.get("jSpan", 0) / 4 + 1e-6:
+                    out.append(("I6", "section '%s' cantilever %.2f exceeds "
+                                "quarter of back-span %.2f (IRC R507.6)"
+                                % (z["label"], _cant, zi.get("jSpan", 0))))
             # the section's support must also be REAL: reach the totals
             if zc.get("extraFootings", 0) != zc.get("extraPosts", 0):
                 out.append(("I2", "zone extraPosts %s != extraFootings %s"

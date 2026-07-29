@@ -101,7 +101,9 @@ check(z1["beamSize"] not in ("rim", "", None), "flush far-edge beam is a real me
 check(z1["beamSpan"] > 0, "flush beam has a span (%s ft)" % z1["beamSpan"])
 check(abs(z1["jSpan"] - 11.5) < 0.05, "flush joists span the FULL 11.5 ft OUT (setback 0, span from d), got %s" % z1["jSpan"])
 check(abs(z1["beamSpan"] - 8.0) < 0.05, "flush beam parallels the shared edge: 8ft / 1 bay (from w), got %s" % z1["beamSpan"])
-check(abs(z2["jSpan"] - (6 - 1.5)) < 0.05, "dropped joists span depth-1.5 = 4.5 ft, got %s" % z2["jSpan"])
+check(abs(z2["jSpan"] - (6 - 1.2)) < 0.05,
+      "dropped joists span depth minus the CLAMPED setback min(1.5, 6/5)=1.2 "
+      "-> 4.8 ft, got %s" % z2["jSpan"])
 check(fe["extraPosts"] == fe["extraFootings"] and fe["extraPosts"] == 5,
       "posts==footings: 2 (flush, 8ft beam) + 3 (dropped, 10ft beam) = %s" % fe["extraPosts"])
 
@@ -154,8 +156,8 @@ check(len(fr["posts"]) == fe["zoneCalcs"][0]["nPosts"],
 zd = p["zones"][1]                    # front-attached dropped, keeps 1.5
 rect_d = {"x": 0.0, "y": 12.0, "w": 10.0, "d": 6.0}
 frd = compute_zone_framing(zd, rect_d, 16, params=p)
-check(abs(frd["beam"]["y1"] - (12.0 + 6.0 - 1.5)) < 1e-6,
-      "dropped section keeps the 1.5 ft beam setback")
+check(abs(frd["beam"]["y1"] - (12.0 + 6.0 - 1.2)) < 1e-6,
+      "dropped section beam at the clamped min(1.5, 6/5)=1.2 ft setback")
 
 print("R6: spec post totals count flush-section posts")
 exp_flush = max(2, math.ceil(8 / 8) + 1)      # beam length = w (along edge)
@@ -240,6 +242,26 @@ else:
         check(abs(_js["w"] - _py["w"]) < 0.01 and abs(_jsx - _py["x_draw"]) < 0.01,
               "wing section app (bbox x=%s w=%s) == PDF (x=%s w=%s)"
               % (_jsx, _js["w"], _py["x_draw"], _py["w"]))
+
+print("R10: IRC R507.6 -- section beam setback clamps to d/5 on shallow sections")
+p10 = base_params(zones=[section(1, "front", 10, 4, 4.0, "dropped", "Zone 1")])
+fe10 = frontend(p10)
+z10 = fe10["zoneCalcs"][0]
+check(abs(z10["jSpan"] - 3.2) < 0.05,
+      "4ft dropped section: setback 4/5=0.8, joist span 3.2 (was 2.5 with a "
+      "60%% cantilever), got %s" % z10["jSpan"])
+_cant = 4.0 - z10["jSpan"]
+check(_cant <= z10["jSpan"] / 4 + 1e-6,
+      "cantilever %.2f <= back-span/4 = %.2f" % (_cant, z10["jSpan"] / 4))
+calc10 = calculate_structure(p10)
+spec10 = build_permit_spec(p10, calc10)
+check(abs(spec10["zone_calcs"][0]["j_span"] - z10["jSpan"]) < 0.05,
+      "backend agrees: j_span %s" % spec10["zone_calcs"][0]["j_span"])
+fr10 = compute_zone_framing(p10["zones"][0],
+                            {"x": 6.0, "y": 12.0, "w": 10.0, "d": 4.0}, 16,
+                            params=p10)
+check(abs(fr10["beam"]["y1"] - (12.0 + 4.0 - 0.8)) < 1e-6,
+      "sheet beam at the clamped 0.8ft setback, y=%s" % fr10["beam"]["y1"])
 
 print()
 if FAILS:

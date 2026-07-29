@@ -1138,7 +1138,11 @@ function calcAllZones(p, baseCalc) {
     // and footings, directly under the section's outer rim (setback 0,
     // pending Billy on narrow sections). Dropped sections keep the 1.5ft
     // beam setback / cantilever.
-    var zSB = zoneBeamType === "flush" ? 0 : BS;
+    // IRC R507.6: a joist cantilever may not exceed 1/4 of the back-span,
+    // i.e. setback c <= d/5. The fixed 1.5ft setback violated that on any
+    // dropped section shallower than 7.5ft (a 4ft section had a 60%
+    // cantilever). Flush sections put the beam under the outer rim (0).
+    var zSB = zoneBeamType === "flush" ? 0 : Math.min(BS, zd / 5);
     // S107: w/d semantics are the SAME for every attach edge -- w runs ALONG
     // the attached edge (addZoneDefaults clamps it to the edge length and
     // centers attachOffset with it), d runs OUT. Joists hang at the shared
