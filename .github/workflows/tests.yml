@@ -138,6 +138,13 @@ jobs:
       - name: Structural invariants (S106 oracle; S107 register must not go stale)
         run: python3 tests/test_structural_invariants.py
 
+      # S107: flush sections are shared-edge only. Joists hang off Deck A's
+      # rim at the shared edge; the far edge always gets a dropped beam on
+      # posts+footings. Pins the rule, cross-engine parity, sheet geometry,
+      # post totals, and the height-key fix in getEffectiveBeamType.
+      - name: Flush-section structure (S107, both engines + framing sheet)
+        run: python3 tests/test_flush_sections.py
+
       - name: Notch post placement
         run: python3 tests/test_notch_posts.py
 

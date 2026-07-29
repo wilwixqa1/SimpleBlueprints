@@ -1,0 +1,83 @@
+{
+ "seed": 8,
+ "status": "CRASH:pipeline",
+ "params": {
+  "width": 15,
+  "depth": 13,
+  "height": 8,
+  "attachment": "ledger",
+  "joistDir": "width",
+  "joistSpacing": 24,
+  "beamType": "dropped",
+  "deckingType": "composite",
+  "frostZone": "moderate",
+  "snowLoad": "light",
+  "slopePercent": 15,
+  "slopeDirection": "right-to-left",
+  "_gradeStyle": "continuous",
+  "zones": [
+   {
+    "id": 1,
+    "type": "add",
+    "w": 13,
+    "d": 13,
+    "h": 7,
+    "attachTo": 0,
+    "attachEdge": "left",
+    "attachOffset": 3,
+    "joistDir": "depth",
+    "beamType": "dropped",
+    "label": "Zone 1"
+   },
+   {
+    "id": 2,
+    "type": "add",
+    "w": 7,
+    "d": 13,
+    "h": null,
+    "attachTo": 0,
+    "attachEdge": "front",
+    "attachOffset": 0,
+    "joistDir": "depth",
+    "beamType": "flush",
+    "label": "Zone 2"
+   },
+   {
+    "id": 3,
+    "type": "add",
+    "w": 12,
+    "d": 7,
+    "h": 8,
+    "attachTo": 0,
+    "attachEdge": "right",
+    "attachOffset": 0,
+    "joistDir": "width",
+    "beamType": "flush",
+    "label": "Zone 3"
+   }
+  ],
+  "deckStairs": [
+   {
+    "id": 1,
+    "zoneId": 0,
+    "location": "right",
+    "width": 3,
+    "template": "straight",
+    "offset": 2,
+    "numStringers": 2,
+    "_landsOnZoneId": null
+   },
+   {
+    "id": 2,
+    "zoneId": 0,
+    "location": "left",
+    "width": 5,
+    "template": "straight",
+    "offset": 1,
+    "numStringers": 4,
+    "_landsOnZoneId": null
+   }
+  ],
+  "hasStairs": true
+ }
+}

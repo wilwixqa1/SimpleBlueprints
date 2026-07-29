@@ -1,0 +1,43 @@
+{
+ "seed": 6,
+ "status": "CRASH:pipeline",
+ "params": {
+  "width": 26,
+  "depth": 9,
+  "height": 9,
+  "attachment": "freestanding",
+  "joistDir": "width",
+  "joistSpacing": 12,
+  "beamType": "dropped",
+  "deckingType": "pt",
+  "frostZone": "cold",
+  "snowLoad": "moderate",
+  "slopePercent": 0,
+  "slopeDirection": "front-to-back",
+  "_gradeStyle": "continuous",
+  "zones": [],
+  "deckStairs": [
+   {
+    "id": 1,
+    "zoneId": 0,
+    "location": "front",
+    "width": 5,
+    "template": "straight",
+    "offset": 2,
+    "numStringers": 4,
+    "_landsOnZoneId": null
+   },
+   {
+    "id": 2,
+    "zoneId": 0,
+    "location": "left",
+    "width": 4,
+    "template": "straight",
+    "offset": 0,
+    "numStringers": 3,
+    "_landsOnZoneId": null
+   }
+  ],
+  "hasStairs": true
+ }
+}
