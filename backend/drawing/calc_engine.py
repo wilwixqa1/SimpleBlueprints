@@ -488,8 +488,21 @@ def _beam_relevant_openings(cut_rects, depth, setback):
         # _beam_interrupted_at_crossing_openings after layout.
         if (r.get("source") == "stair"
                 and r["rect"]["y"] + r["rect"]["d"] >= depth - 1e-6):
-            crossing.append(r)
-            continue
+            # ...unless the stair FILLS a front cutout. The stepped-notch
+            # treatment (and notch_headers) already owns that geometry;
+            # interrupting the beam there would double-frame the opening.
+            # Containment against the non-stair front-reaching rects.
+            rr = r["rect"]
+            _in_notch = any(
+                c.get("source") != "stair"
+                and c["rect"]["y"] + c["rect"]["d"] >= depth - 1e-6
+                and c["rect"]["x"] - 0.05 <= rr["x"]
+                and rr["x"] + rr["w"] <= c["rect"]["x"] + c["rect"]["w"] + 0.05
+                and c["rect"]["y"] - 0.05 <= rr["y"]
+                for c in cut_rects)
+            if not _in_notch:
+                crossing.append(r)
+                continue
         kept.append(r)
     return kept, touching, crossing
 

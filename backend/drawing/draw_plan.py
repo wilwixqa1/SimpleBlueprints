@@ -688,7 +688,16 @@ def draw_plan_and_framing(fig, params, calc, spec=None, panels=None):
             # (byte-identical); notched decks draw stepped segments that follow
             # the real edge, joined by vertical connectors at each step.
             _bseg = calc.get("beam_layout") or {}
-            if not _bseg.get("stepped"):
+            # S107 Case B: an INTERRUPTED layout (crossing stairwell) is not
+            # "stepped" but is also not one continuous line -- the flat branch
+            # would draw the beam straight through the stairwell.
+            # Freestanding two-line layouts are NOT multi-segment here: the
+            # second (house-side) line has its own dedicated block below, and
+            # the flat branch draws the front line byte-identically to the
+            # golden. Only stepping (notches) and interruption (Case B
+            # stairwells) reroute to the per-segment branch.
+            _multi_seg = _bseg.get("stepped") or _bseg.get("interrupted")
+            if not _multi_seg:
                 _bl1, = ax.plot([1, W - 1], [beam_y, beam_y], color=BRAND["beam"], lw=4)
                 _bl2, = ax.plot([1, W - 1], [beam_y - 0.12, beam_y - 0.12], color=BRAND["beam"], lw=0.5)
                 _bl3, = ax.plot([1, W - 1], [beam_y + 0.12, beam_y + 0.12], color=BRAND["beam"], lw=0.5)
@@ -707,6 +716,11 @@ def draw_plan_and_framing(fig, params, calc, spec=None, panels=None):
                 for _i in range(len(_segs) - 1):
                     _xb = _segs[_i]["x1"]
                     _ya, _yb = _segs[_i]["beam_y"], _segs[_i + 1]["beam_y"]
+                    # S107: a stairwell interruption leaves a real GAP at the
+                    # same beam_y -- no connector there (the old vertical
+                    # connector only ever joined steps at different depths).
+                    if abs(_ya - _yb) < 1e-6:
+                        continue
                     _cn, = ax.plot([_xb, _xb], [min(_ya, _yb), max(_ya, _yb)],
                                    color=BRAND["beam"], lw=4)
                     _cn.set_clip_path(_z0_clip)
@@ -728,6 +742,31 @@ def draw_plan_and_framing(fig, params, calc, spec=None, panels=None):
                                        color=BRAND["beam"], lw=_lw)
                         _fb.set_clip_path(_z0_clip)
 
+            # S107 Case B: doubled header + trimmers boxing a crossing
+            # stairwell (Meadowview A-8 vocabulary). Header spans the opening
+            # at its deep edge on double-member hangers; doubled trimmers run
+            # from the header to the front rim on each side.
+            _hdr_hangers = {"2x8": "LU228"}
+            for _hd in (_bseg.get("stair_headers") or []):
+                _hx0, _hx1, _hy = _hd["x0"], _hd["x1"], _hd["y"]
+                _jsz = calc.get("joist_size", "2x10")
+                _hgr = _hdr_hangers.get(_jsz, "HUS2%s-2" % _jsz.split("x")[-1])
+                for _dy in (-0.09, 0.09):
+                    _hl, = ax.plot([_hx0, _hx1], [_hy + _dy, _hy + _dy],
+                                   color=BRAND["dark"], lw=1.4)
+                    _hl.set_clip_path(_z0_clip)
+                for _tx in (_hx0, _hx1):
+                    for _dx in (-0.09, 0.09):
+                        _tl, = ax.plot([_tx + _dx, _tx + _dx], [_hy, D],
+                                       color=BRAND["dark"], lw=1.0)
+                        _tl.set_clip_path(_z0_clip)
+                ax.text((_hx0 + _hx1) / 2, _hy - 0.6,
+                        f"(2) {_jsz} HEADER W/ '{_hgr}' EA. END\n"
+                        f"(2) {_jsz} TRIMMER EA. SIDE",
+                        ha='center', va='top', fontsize=3.2,
+                        fontfamily='monospace', color=BRAND["dark"],
+                        bbox=dict(facecolor='#fcfaf5', edgecolor='none', pad=1.0))
+
             # S86: beam label -> left margin on a leader (was on the beam)
             _margin_callout(ax, 1.5, beam_y, _mLx, _cy_beam,
                             _wrap(spec["labels"]["beam"]),
@@ -736,7 +775,7 @@ def draw_plan_and_framing(fig, params, calc, spec=None, panels=None):
             # Posts + piers (clipped to chamfer polygon)
             # S89: each post at its true (x, beam_y) from the layout, so a
             # notched deck has none over empty space. Flat decks: unchanged.
-            if not _bseg.get("stepped"):
+            if not _multi_seg:
                 _post_iter = [(px, beam_y) for px in calc["post_positions"]]
             else:
                 _post_iter = [(px, _sg["beam_y"])
@@ -744,7 +783,7 @@ def draw_plan_and_framing(fig, params, calc, spec=None, panels=None):
             # S102: freestanding -- posts under the second (house-side) beam.
             # calc["post_positions"] is deliberately ONE line's worth, with
             # total_posts doubled, so the extra line has to be added here.
-            if (_bseg.get("beam_lines") or 1) >= 2 and not _bseg.get("stepped"):
+            if (_bseg.get("beam_lines") or 1) >= 2 and not _multi_seg:
                 for _sg in (_bseg.get("segments") or []):
                     if abs(_sg.get("beam_y", -1) - beam_y) > 1e-6:
                         _post_iter = _post_iter + [(px, _sg["beam_y"])
@@ -1144,6 +1183,20 @@ def draw_plan_and_framing(fig, params, calc, spec=None, panels=None):
                 # Opening = first run rect width at deck edge
                 r0 = sg["runs"][0]["rect"]
                 sw_ft = r0["w"] if sg["runs"][0]["treadAxis"] == "h" else r0["h"]
+                # S107: the DIMENSION should state the ACTUAL cut width. The
+                # per-part clip union (S106 P7) can cut wider than the first
+                # run (landings, angled parts), and the label printed the run
+                # width regardless. Match this stair's real opening rect by
+                # stair id; fall back to the run width when no rect exists.
+                _sid = (rs.get("stair") or {}).get("id")
+                for _op in (get_opening_rects(params) or []):
+                    if (_op.get("source") == "stair"
+                            and _op.get("stair_id") == _sid):
+                        _ow = (_op["rect"]["w"] if rs["exit_side"] == "front"
+                               else _op["rect"]["d"])
+                        if _ow > 0:
+                            sw_ft = _ow
+                        break
                 _wax = rs["world_anchor_x"]
                 _way = rs["world_anchor_y"]
                 s_loc = rs["exit_side"]

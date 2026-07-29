@@ -550,8 +550,19 @@ function calcStructure(p) {
     // calc_engine.py _beam_relevant_openings / _beam_interrupted_at_
     // crossing_openings; guarded by tests/test_stair_beam_interaction.py.
     var _crossRects = _cutRects.filter(function(r) {
-      return r.source === "stair" && r.rect.y < _beamY - 1e-6
-        && r.rect.y + r.rect.d >= D - 1e-6;
+      if (!(r.source === "stair" && r.rect.y < _beamY - 1e-6
+            && r.rect.y + r.rect.d >= D - 1e-6)) return false;
+      // ...unless the stair FILLS a front cutout: the stepped-notch
+      // treatment owns that geometry (mirrors calc_engine.py).
+      var rr = r.rect;
+      var inNotch = _cutRects.some(function(c2) {
+        return c2.source !== "stair"
+          && c2.rect.y + c2.rect.d >= D - 1e-6
+          && c2.rect.x - 0.05 <= rr.x
+          && rr.x + rr.w <= c2.rect.x + c2.rect.w + 0.05
+          && c2.rect.y - 0.05 <= rr.y;
+      });
+      return !inNotch;
     });
     _cutRects = _cutRects.filter(function(r) {
       return _touchRects.indexOf(r) < 0 && _crossRects.indexOf(r) < 0;
@@ -1151,6 +1162,18 @@ function estMaterials(p, c) {
       items.push({ cat: "Stairs", item: "Landing Decking", qty: st.numLandings * Math.ceil(st.width + 2), cost: p.deckingType === "composite" ? 28 : 12 });
     }
   }
+  // S107 Case B: crossing stairwell boxing (Meadowview A-8). Billed from the
+  // same beamLayout record the sheet draws. MIRRORS draw_materials.py.
+  var _hdrs = (c.beamLayout && c.beamLayout.stairHeaders) || [];
+  if (_hdrs.length) {
+    var _jszH = c.joistSize || "2x10";
+    var _jLH = parseInt(_jszH.split("x")[1], 10);
+    var _hgrH = _jszH === "2x8" ? "LU228" : "HUS2" + _jLH + "-2";
+    items.push({ cat: "Framing", item: _jszH + " Header Stock (stairwell, 2-ply)", qty: 2 * _hdrs.length, cost: 8 + 2 * _jLH });
+    items.push({ cat: "Framing", item: _jszH + " Trimmer Joists (stairwell, 2-ply ea. side)", qty: 4 * _hdrs.length, cost: 8 + 2 * _jLH });
+    items.push({ cat: "Hardware", item: "Double Hangers (Simpson " + _hgrH + ", header ends)", qty: 2 * _hdrs.length, cost: 9 });
+  }
+
   items.push({ cat: "Misc", item: "Joist Tape + Misc", qty: 1, cost: 120 });
   if (p.beamType === 'flush') {
     // Flush beam: joists hang into beam with hangers

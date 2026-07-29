@@ -113,6 +113,23 @@ def estimate_steel_materials(params, calc):
     else:
         items.append({"cat": "Railing", "item": "Wood Rail Kit (8')", "qty": math.ceil(railLen / 8), "cost": 85})
 
+    # S107 Case B: a crossing stairwell's boxing (Meadowview A-8) -- doubled
+    # header on double-member hangers, doubled trimmers each side. Billed
+    # from the same beam_layout record the framing sheet draws.
+    _hdrs = (calc.get("beam_layout") or {}).get("stair_headers") or []
+    if _hdrs:
+        # Steel members carry gauge suffixes ("2x6-16ga"); no Simpson wood
+        # hanger applies. Bill the steel member verbatim and a generic steel
+        # double hanger -- no reference set covers a steel stairwell header,
+        # so no part number is invented.
+        _jsz = calc.get("joist_size", "2x6-16ga")
+        items.append({"cat": "Framing", "item": f"{_jsz} Header Stock (stairwell, 2-ply)",
+                      "qty": 2 * len(_hdrs), "cost": 34})
+        items.append({"cat": "Framing", "item": f"{_jsz} Trimmer Joists (stairwell, 2-ply ea. side)",
+                      "qty": 4 * len(_hdrs), "cost": 34})
+        items.append({"cat": "Hardware", "item": "Steel Double Hangers (stairwell header ends)",
+                      "qty": 2 * len(_hdrs), "cost": 12})
+
     stair_info = calc.get("stairs")
     if stair_info:
         items.append({"cat": "Stairs", "item": f"2x12 Stair Stringers {stair_info['stringer_length_ft']}'", "qty": stair_info["num_stringers"], "cost": 35 if stair_info["stringer_length_ft"] <= 12 else 48})
@@ -401,6 +418,23 @@ def estimate_materials(params, calc):
                 items.append({"cat": "Stairs", "item": f"Landing Decking{label}", "qty": num_landings * math.ceil(sw + 2), "cost": 28 if params.get("deckingType") == "composite" else 12})
 
     # Misc
+    # S107 Case B: crossing stairwell boxing (Meadowview A-8) -- doubled
+    # header on double-member hangers, doubled trimmers each side. Billed
+    # from the same beam_layout record the framing sheet draws, AFTER the
+    # stair items to keep line order identical to engine.js estMaterials
+    # (parity compares positionally).
+    _hdrsB = (calc.get("beam_layout") or {}).get("stair_headers") or []
+    if _hdrsB:
+        _jszB = calc.get("joist_size", "2x10")
+        _jLB = int(_jszB.split("x")[-1])
+        _hgrB = "LU228" if _jszB == "2x8" else "HUS2%d-2" % _jLB
+        items.append({"cat": "Framing", "item": f"{_jszB} Header Stock (stairwell, 2-ply)",
+                      "qty": 2 * len(_hdrsB), "cost": 8 + 2 * _jLB})
+        items.append({"cat": "Framing", "item": f"{_jszB} Trimmer Joists (stairwell, 2-ply ea. side)",
+                      "qty": 4 * len(_hdrsB), "cost": 8 + 2 * _jLB})
+        items.append({"cat": "Hardware", "item": f"Double Hangers (Simpson {_hgrB}, header ends)",
+                      "qty": 2 * len(_hdrsB), "cost": 9})
+
     items.append({"cat": "Misc", "item": "Joist Tape + Misc", "qty": 1, "cost": 120})
 
     sub = sum(i["qty"] * i["cost"] for i in items)

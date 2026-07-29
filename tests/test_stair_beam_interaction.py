@@ -283,6 +283,33 @@ else:
           [(h["x0"], h["x1"], h["y"]) for h in blB["stair_headers"]],
           "js=%s py=%s" % (jsB["headers"], blB["stair_headers"]))
 
+print("5c. S107 Case B: both estimates bill the header package identically")
+from drawing.draw_materials import estimate_materials as _est_py
+estB = _est_py(pB, cB)
+py_hdr = sorted((i["item"], i["qty"]) for i in estB["items"]
+                if "Header" in i["item"] or "Trimmer" in i["item"]
+                or "Double Hanger" in i["item"])
+check("PY bills header + trimmers + double hangers", len(py_hdr) == 3, py_hdr)
+node_m = (
+    'const fs=require("fs");global.window=global;'
+    'eval(fs.readFileSync("backend/static/js/zoneUtils.js","utf8"));'
+    'eval(fs.readFileSync("backend/static/js/stairGeometry.js","utf8"));'
+    'eval(fs.readFileSync("backend/static/js/engine.js","utf8"));'
+    'const p=JSON.parse(process.argv[1]);'
+    'const c=window.calcStructure(p);'
+    'const m=window.estMaterials(p,c);'
+    'console.log(JSON.stringify(m.items.filter(i=>/Header|Trimmer|Double Hanger/.test(i.item))'
+    '.map(i=>[i.item,i.qty]).sort()));'
+)
+rM = subprocess.run(["node", "-e", node_m, json.dumps(pB)],
+                    capture_output=True, text=True)
+if rM.returncode != 0:
+    check("frontend materials ran", False, rM.stderr[:120])
+else:
+    js_hdr = sorted((a, b) for a, b in json.loads(rM.stdout))
+    check("header package matches frontend item-for-item",
+          js_hdr == py_hdr, "js=%s py=%s" % (js_hdr, py_hdr))
+
 print("6. the estimate bills what the sheet draws")
 est = estimate_materials(dict(BASE, deckStairs=stair(7.0)), touch)
 posts_line = next(i for i in est["items"] if i["item"].endswith("PT Posts"))
