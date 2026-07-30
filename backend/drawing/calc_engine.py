@@ -364,6 +364,30 @@ def auto_select_beam(beam_span, joist_span, design_load, species="dfl_hf_spf"):
     return "3-ply LVL 1.75x12"
 
 
+def max_layout_span(beam_layout):
+    """Largest actual post-to-post beam span across the computed layout. S108.
+
+    This is the span the DRAWN set carries: posts sit 2 ft in from segment
+    ends (or at Case A/B opening edges), so the actual span is shorter than
+    the nominal width/(num_posts-1) used to SELECT the beam. The nominal
+    figure is conservative for selection but wrong for compliance checking:
+    on Will's 21.5x8.5 deck the nominal 10.75' rounded to 10.8' and was then
+    compared against the unrounded 10.79' allowable, failing a compliant deck
+    (the S106 "19/20" report). Every IRC beam-span comparison should use this
+    measured quantity, unrounded, and round only for display.
+
+    Returns None when the layout has no segment with 2+ posts (caller falls
+    back to the nominal span).
+    """
+    if not beam_layout:
+        return None
+    spans = []
+    for seg in beam_layout.get("segments") or []:
+        posts = sorted(seg.get("posts") or [])
+        spans.extend(b - a for a, b in zip(posts, posts[1:]))
+    return max(spans) if spans else None
+
+
 FROST_DEPTHS = {"warm": 12, "moderate": 24, "cold": 36, "severe": 48}
 SNOW_LOADS = {"none": 0, "light": 20, "moderate": 40, "heavy": 60}
 
@@ -1223,9 +1247,15 @@ def calculate_structure(params):
         )
 
     # Beam span check against IRC R507.5 (S60)
+    # S108: check the ACTUAL max post-to-post span from the computed layout
+    # (what the sheet draws), not the nominal width/(num_posts-1) selection
+    # figure, and compare unrounded. See max_layout_span docstring.
     beam_max_span = get_beam_max_span(beam_size, joist_span, LL, species)
-    if beam_size != "3-ply LVL 1.75x12" and beam_span > beam_max_span:
-        warnings.append(f"Beam span ({beam_span:.1f}') exceeds IRC max ({beam_max_span:.1f}') for {beam_size} at {joist_span:.0f}' joist span. Add posts or upgrade beam.")
+    beam_span_actual = max_layout_span(beam_layout)
+    if beam_span_actual is None:
+        beam_span_actual = beam_span
+    if beam_size != "3-ply LVL 1.75x12" and beam_span_actual > beam_max_span:
+        warnings.append(f"Beam span ({beam_span_actual:.1f}') exceeds IRC max ({beam_max_span:.1f}') for {beam_size} at {joist_span:.0f}' joist span. Add posts or upgrade beam.")
 
     if height > 10:
         warnings.append("Height >10'. Lateral bracing by engineer recommended.")
@@ -1240,6 +1270,7 @@ def calculate_structure(params):
         "joist_size": joist_size, "joist_spacing": joist_spacing,
         "joist_span": round(joist_span, 1), "num_joists": num_joists,
         "beam_size": beam_size, "beam_span": round(beam_span, 1),
+        "beam_span_actual": round(beam_span_actual, 2),  # S108: measured layout span
         "beam_max_span": round(beam_max_span, 1),
         "post_size": post_size, "num_posts": num_posts,
         "total_posts": total_posts, "post_positions": post_positions,

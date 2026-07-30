@@ -138,6 +138,12 @@ jobs:
       - name: Structural invariants (S106 oracle; S107 register must not go stale)
         run: python3 tests/test_structural_invariants.py
 
+      # S108: the permit checker and the engine must judge the same beam span
+      # (the measured layout span, unrounded). The "19/20" report on the
+      # 21.5x8.5 deck was a rounding asymmetry between the two.
+      - name: Permit checker beam-span agreement (S108, engine == checker)
+        run: python3 tests/test_permit_checker_beam.py
+
       # S107: flush sections are shared-edge only. Joists hang off Deck A's
       # rim at the shared edge; the far edge always gets a dropped beam on
       # posts+footings. Pins the rule, cross-engine parity, sheet geometry,

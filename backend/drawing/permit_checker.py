@@ -384,12 +384,28 @@ def check_joist_span(params, calc, spec):
 )
 def check_beam_span(params, calc, spec):
     beam_size = calc.get("beam_size", "3-ply 2x10")
-    beam_span = calc.get("beam_span", 0)
     joist_span = calc.get("joist_span", 10)
     LL = calc.get("LL", 40)
     species = calc.get("species", "dfl_hf_spf")
 
-    from .calc_engine import get_beam_max_span, BEAM_SIZE_ORDER
+    from .calc_engine import get_beam_max_span, BEAM_SIZE_ORDER, max_layout_span
+
+    # S108: judge the span the drawn set actually carries (max post-to-post
+    # distance in the layout), compared UNROUNDED. Before this the checker
+    # read calc["beam_span"] -- the nominal width/(num_posts-1) selection
+    # figure, ROUNDED to 1 decimal -- against the unrounded allowable. On the
+    # 21.5x8.5 deck: nominal 10.75 -> stored 10.8 > allowable 10.79 -> the
+    # "19/20" fail, while the engine (comparing unrounded) passed and the
+    # sheet's real spans were 8.75'. Fallbacks: unrounded nominal recomputed
+    # from width/num_posts, then the stored rounded value as a last resort.
+    beam_span = max_layout_span(calc.get("beam_layout"))
+    if beam_span is None:
+        width = calc.get("width", 0)
+        num_posts = calc.get("num_posts", 0)
+        if width and num_posts and num_posts >= 2:
+            beam_span = width / (num_posts - 1)
+        else:
+            beam_span = calc.get("beam_span", 0)
 
     # LVL beams are outside the prescriptive tables
     if "LVL" in beam_size.upper():
@@ -424,8 +440,9 @@ def check_beam_span(params, calc, spec):
             status="fail",
             message=f"Beam {beam_size} exceeds IRC capacity.",
             detail=(
-                f"{beam_size}: span {beam_span:.1f}' exceeds max {max_span:.1f}' "
-                f"at {joist_span:.0f}' joist span, {LL} PSF design load."
+                f"{beam_size}: max post-to-post span {beam_span:.2f}' exceeds "
+                f"allowable {max_span:.2f}' at {joist_span:.0f}' joist span, "
+                f"{LL} PSF design load."
             ),
             fix="Add more posts to reduce beam span, or upgrade beam size.",
             fix_step=2,
@@ -437,8 +454,8 @@ def check_beam_span(params, calc, spec):
         status="pass",
         message="Beam span within IRC R507.5 limits.",
         detail=(
-            f"{beam_size}: span {beam_span:.1f}' "
-            f"(max {max_span:.1f}' at {joist_span:.0f}' joist span, {LL} PSF)"
+            f"{beam_size}: max post-to-post span {beam_span:.2f}' "
+            f"(allowable {max_span:.2f}' at {joist_span:.0f}' joist span, {LL} PSF)"
         ),
     )
 

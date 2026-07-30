@@ -770,9 +770,24 @@ function calcStructure(p) {
   }
 
   // Beam span check against IRC R507.5 (S60)
+  // S108: check the ACTUAL max post-to-post span from the layout (what the
+  // sheet draws), not the nominal W/(nP-1) selection figure. Mirrors
+  // calc_engine.py max_layout_span; falls back to nominal when the layout
+  // module has not loaded. The nominal figure rounded up crossed the
+  // allowable on Will's 21.5x8.5 deck (the "19/20" report) while the drawn
+  // spans were 8.75'.
+  var bSpanActual = bSpan;
+  if (beamLayout && beamLayout.segments) {
+    var _spansAct = [];
+    beamLayout.segments.forEach(function(seg) {
+      var _ps = (seg.posts || []).slice().sort(function(a, b) { return a - b; });
+      for (var _pi = 1; _pi < _ps.length; _pi++) _spansAct.push(_ps[_pi] - _ps[_pi - 1]);
+    });
+    if (_spansAct.length) bSpanActual = Math.max.apply(null, _spansAct);
+  }
   const beamMaxSpan = beamSize.includes("LVL") ? 999 : getBeamMaxSpan(beamSize, jSpan, LL);
-  if (!beamSize.includes("LVL") && bSpan > beamMaxSpan) {
-    warnings.push(`Beam span (${bSpan.toFixed(1)}') exceeds IRC max (${beamMaxSpan.toFixed(1)}') for ${beamSize}. Add posts or upgrade beam.`);
+  if (!beamSize.includes("LVL") && bSpanActual > beamMaxSpan) {
+    warnings.push(`Beam span (${bSpanActual.toFixed(1)}') exceeds IRC max (${beamMaxSpan.toFixed(1)}') for ${beamSize}. Add posts or upgrade beam.`);
   }
 
   if (H > 10) warnings.push("Height >10'. Lateral bracing by engineer recommended.");
