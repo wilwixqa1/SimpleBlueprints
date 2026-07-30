@@ -26,7 +26,9 @@ Pins:
       == checker IRC_BEAM_SPAN failure, always
 """
 
+import json
 import os
+import subprocess
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -130,6 +132,11 @@ sweep = [
     dict(BASE, width=28, depth=10, overPostCount=2),       # forced wide span
     dict(BASE, width=16, depth=10, attachment="freestanding"),     # freestanding
     dict(BASE, width=24, depth=9, overBeam="2-ply 2x10"),  # undersized override
+    # nominal 13' overspans the forced 2-ply 2x12 (10.79') but the DRAWN spans
+    # are 9' (posts inset 2' each end) -- compliant. Pins the engine warning to
+    # the measured span: under the nominal rule the engine warns here while the
+    # checker passes (the mutation-3 survivor at S108 push 1).
+    dict(BASE, width=13, overPostCount=2, overBeam="2-ply 2x12"),
 ]
 for i, cfg in enumerate(sweep):
     calc_i, res_i = beam_check_result(cfg)
@@ -146,6 +153,34 @@ for i, cfg in enumerate(sweep):
           % (i, cfg["width"], eng, chk), eng == chk,
           (calc_i.get("warnings"), res_i.detail if res_i else None))
 
+
+print()
+print("B6. JS mirror: engine.js beam-warning verdict matches Python per config")
+# engine.js needs zoneUtils + stairGeometry loaded first (S107 quick ref), and
+# preview-style params need deckWidth/deckDepth alongside width/depth.
+node_calc = (
+    'const fs=require("fs");global.window=global;'
+    'eval(fs.readFileSync("backend/static/js/zoneUtils.js","utf8"));'
+    'eval(fs.readFileSync("backend/static/js/stairGeometry.js","utf8"));'
+    'eval(fs.readFileSync("backend/static/js/engine.js","utf8"));'
+    'const p=JSON.parse(process.argv[1]);'
+    'p.deckWidth=p.width;p.deckDepth=p.depth;'
+    'const c=window.calcStructure(p);'
+    'console.log(JSON.stringify({warn:(c.warnings||[]).some('
+    'w=>w.indexOf("exceeds IRC max")>=0&&w.indexOf("Beam span")>=0)}));'
+)
+for i, cfg in enumerate(sweep):
+    calc_i, _ = beam_check_result(cfg)
+    if calc_i["beam_size"] == "3-ply LVL 1.75x12":
+        continue
+    py_warn = has_beam_warning(calc_i)
+    r = subprocess.run(["node", "-e", node_calc, json.dumps(cfg)],
+                       capture_output=True, text=True)
+    js = json.loads(r.stdout) if r.returncode == 0 else None
+    check("B6.%d w=%-4s js_warn == py_warn (%s)"
+          % (i, cfg["width"], py_warn),
+          js is not None and js["warn"] == py_warn,
+          "js=%s py=%s err=%s" % (js, py_warn, r.stderr[:120]))
 
 print()
 if fails:
