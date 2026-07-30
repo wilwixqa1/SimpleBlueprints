@@ -86,18 +86,30 @@ check("Z1c symmetric: right-edge stair flags Deck C",
 
 
 print("Z2. exclusions")
+# A REAL connecting stair: Deck B sits 3.5 ft lower, so the resolved run has
+# an actual footprint over Deck B. With zero rise the geometry is empty and
+# the exclusion never fires (a landing-exclusion mutation survived that
+# fixture at S108 push 3 -- this one kills it).
 conn = copy.deepcopy(repro)
+conn["zones"][0]["h"] = 2
 conn["deckStairs"][0]["_landsOnZoneId"] = 1
-check("Z2a connecting stair to Deck B is excluded",
+check("Z2a fixture is live: without the exclusion this run overlaps B",
+      True)  # asserted structurally by Z2b vs Z2c below
+check("Z2b connecting stair to Deck B is excluded",
       get_stair_zone_collisions(conn) == [], get_stair_zone_collisions(conn))
+grade = copy.deepcopy(conn)
+del grade["deckStairs"][0]["_landsOnZoneId"]
+cols_g = get_stair_zone_collisions(grade)
+check("Z2c same stair WITHOUT the destination flags Deck B (exclusion live)",
+      len(cols_g) == 1 and cols_g[0]["zone_id"] == 1, cols_g)
 front = copy.deepcopy(repro)
 front["deckStairs"] = [dict(id=1, zoneId=0, location="front", offset=0,
                             width=4, numStringers=3, template="straight")]
-check("Z2b open-edge (front) stair is clean",
+check("Z2d open-edge (front) stair is clean",
       get_stair_zone_collisions(front) == [])
 nozones = copy.deepcopy(repro)
 nozones["zones"] = []
-check("Z2c no sections: nothing to cross",
+check("Z2e no sections: nothing to cross",
       get_stair_zone_collisions(nozones) == [])
 
 
