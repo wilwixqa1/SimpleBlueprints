@@ -1380,10 +1380,84 @@ window.atZoneCap = function(p) { return ((p && p.zones) || []).filter(function(z
 
     return null;  // the seam
   }
+
+  // S108: stairs must survive shape changes. Stairs persist in two forms --
+  // edge-relative (location + offset, from a snapped drop or the controls)
+  // and absolute (anchorX/anchorY/angle in zone-local feet, from a manual
+  // drop). Neither was revalidated when a deck or section changed size: the
+  // zone-routing branch of u() skipped even the legacy flat offset clamp,
+  // and absolute anchors were never touched anywhere, so growing the deck
+  // left a "front edge" stair floating mid-deck, anchored to nothing.
+  //
+  // The rule, per stair, in the zone-local frame (= its zone's world rect
+  // extents, exactly the frame the planView drag clamps to):
+  //   * absolute + pinned to an edge under the OLD frame (coordinate at the
+  //     boundary): it FOLLOWS that edge into the new frame, with the
+  //     along-edge coordinate clamped so the stair's width stays on the deck
+  //     (same bound the snap applies to offsets);
+  //   * absolute + interior (a deliberate manual drop): clamped into the new
+  //     rect, otherwise untouched;
+  //   * location/offset: offset re-clamped to the new edge length, the same
+  //     formula the drop snap and the legacy flat clamp use.
+  // Anchors stay on the drag's 0.5 ft grid. Returns the SAME array when
+  // nothing changed so callers can cheaply avoid state churn.
+  //
+  // prevP supplies the OLD frame for edge detection; pass null (falls back
+  // to nextP) to just sanitize, e.g. when loading a saved project that
+  // predates this rule.
+  function revalidateStairs(nextP, prevP) {
+    var stairs = nextP.deckStairs || [];
+    if (!stairs.length) return stairs;
+    var EPS = 0.05;
+    function frame(p, zoneId) {
+      if (!p) return null;
+      var q = (p.deckWidth != null && p.deckDepth != null) ? p
+            : Object.assign({}, p, { deckWidth: p.width, deckDepth: p.depth });
+      return getZoneRect(zoneId, q);
+    }
+    function alongClamp(v, len, sw) {
+      if (len <= sw) return len / 2;
+      return Math.max(sw / 2, Math.min(len - sw / 2, v));
+    }
+    var changed = false;
+    var out = stairs.map(function(s) {
+      var nr = frame(nextP, s.zoneId || 0);
+      if (!nr) return s;  // zone gone: removeZone owns stair removal
+      var W = nr.w, D = nr.d, sw = s.width || 4;
+
+      if (s.anchorX != null && s.anchorY != null) {
+        var pr = frame(prevP, s.zoneId || 0) || nr;
+        var ax = s.anchorX, ay = s.anchorY;
+        var edge = null;
+        if (ay >= pr.d - EPS) edge = "front";
+        else if (ay <= EPS) edge = "back";
+        else if (ax >= pr.w - EPS) edge = "right";
+        else if (ax <= EPS) edge = "left";
+        if (edge === "front") { ay = D; ax = alongClamp(ax, W, sw); }
+        else if (edge === "back") { ay = 0; ax = alongClamp(ax, W, sw); }
+        else if (edge === "right") { ax = W; ay = alongClamp(ay, D, sw); }
+        else if (edge === "left") { ax = 0; ay = alongClamp(ay, D, sw); }
+        ax = Math.max(0, Math.min(W, Math.round(ax * 2) / 2));
+        ay = Math.max(0, Math.min(D, Math.round(ay * 2) / 2));
+        if (ax === s.anchorX && ay === s.anchorY) return s;
+        changed = true;
+        return Object.assign({}, s, { anchorX: ax, anchorY: ay });
+      }
+
+      var edgeLen = (s.location === "left" || s.location === "right") ? D : W;
+      var maxOff = Math.max(0, Math.floor((edgeLen - sw) / 2));
+      var off = Math.max(-maxOff, Math.min(maxOff, s.offset || 0));
+      if (off === (s.offset || 0)) return s;
+      changed = true;
+      return Object.assign({}, s, { offset: off });
+    });
+    return changed ? out : stairs;
+  }
   window.SIZE_BOUNDS = SIZE_BOUNDS;
   window.clampSize = clampSize;
   window.sectionResizeEdges = sectionResizeEdges;
   window.resizeSection = resizeSection;
+  window.revalidateStairs = revalidateStairs;
   window.sectionName = sectionName;
   window.isAutoLabel = isAutoLabel;
   window.sectionLetter = sectionLetter;

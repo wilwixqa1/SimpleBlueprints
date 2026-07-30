@@ -110,6 +110,11 @@ jobs:
       - name: Section resize rule (S106, drag-to-resize a section's edges)
         run: python3 tests/test_section_resize.py
 
+      # S108: stairs must survive shape changes. Edge-pinned anchors follow
+      # their edge, offsets re-clamp, interior drops clamp into the new rect.
+      - name: Stair revalidation on resize (S108, the stale-stairs bug)
+        run: node tests/test_stair_revalidation.js
+
       - name: Gate completeness (every suite in tests/ is wired into this file)
         run: python3 tests/test_gate_completeness.py
 

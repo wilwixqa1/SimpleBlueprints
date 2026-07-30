@@ -563,6 +563,13 @@ const App = function SimpleBlueprints() {
           if (z.id !== prev.activeZone) return z;
           return Object.assign({}, z, { [zoneKeyMap[k]]: v });
         });
+        // S108: a section resize can strand its stairs (and, since sections
+        // hang off Deck A's rect, stairs on child sections). This branch
+        // returns early, so it never reached even the legacy offset clamp.
+        if ((k === "width" || k === "depth") && window.revalidateStairs) {
+          var _rv = window.revalidateStairs(next, prev);
+          if (_rv !== next.deckStairs) { next.deckStairs = _rv; _syncFlatStairParams(next); }
+        }
         return next;
       }
     }
@@ -594,6 +601,14 @@ const App = function SimpleBlueprints() {
       const edge = next.stairLocation === "front" ? next.width : next.depth;
       const maxSO = Math.floor((edge - (next.stairWidth || 4)) / 2);
       next.stairOffset = Math.max(-maxSO, Math.min(maxSO, next.stairOffset || 0));
+      // S108: the clamp above only maintains the LEGACY flat mirror. The
+      // deckStairs array (what the engine and the sheets actually read) gets
+      // the full revalidation: offsets re-clamped on every stair and zone,
+      // absolute anchors follow their edge or clamp into the new rect.
+      if (window.revalidateStairs) {
+        var _rvf = window.revalidateStairs(next, prev);
+        if (_rvf !== next.deckStairs) { next.deckStairs = _rvf; _syncFlatStairParams(next); }
+      }
     }
     if (k === "lotWidth" || k === "houseWidth") {
       const maxHO = Math.max(5, next.lotWidth - next.houseWidth - 5);
@@ -712,13 +727,22 @@ const App = function SimpleBlueprints() {
       if (key === "corners") return { ...prev, mainCorners: val };
       return prev; // zone 0 uses flat params via u()
     }
-    return {
-      ...prev,
-      zones: prev.zones.map(function(z) {
-        if (z.id !== zoneId) return z;
-        return Object.assign({}, z, { [key]: val });
-      })
-    };
+    return (function() {
+      var next = {
+        ...prev,
+        zones: prev.zones.map(function(z) {
+          if (z.id !== zoneId) return z;
+          return Object.assign({}, z, { [key]: val });
+        })
+      };
+      // S108: the AI helper resizes sections through this path (steps.js
+      // updateZone(id, "w"/"d")), bypassing u()'s revalidation.
+      if ((key === "w" || key === "d") && window.revalidateStairs) {
+        var _rv = window.revalidateStairs(next, prev);
+        if (_rv !== next.deckStairs) { next.deckStairs = _rv; _syncFlatStairParams(next); }
+      }
+      return next;
+    })();
   });
 
   const setCorner = (zoneId, corner, type, size) => {
@@ -1094,6 +1118,13 @@ const App = function SimpleBlueprints() {
       try {
         var loaded = JSON.parse(proj.params_json);
         _migrateStairs(loaded); // S64: migrate flat stair params to deckStairs array
+        // S108: projects saved before the revalidation rule can carry stale
+        // stairs (anchors outside the deck, offsets past the edge). Sanitize
+        // against the loaded frame itself (null prev = clamp only).
+        if (window.revalidateStairs && loaded.deckStairs) {
+          var _rvl = window.revalidateStairs(loaded, null);
+          if (_rvl !== loaded.deckStairs) { loaded.deckStairs = _rvl; _syncFlatStairParams(loaded); }
+        }
         setP(function(prev) { return Object.assign({}, prev, loaded); });
       } catch(e) { console.warn("Bad params_json:", e); }
     }
