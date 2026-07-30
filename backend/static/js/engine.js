@@ -397,6 +397,16 @@ function calcSteelStructure(p) {
   if (H > 10) warnings.push("Height >10'. Lateral bracing by engineer recommended.");
   if (area > 500) warnings.push("Area >500 SF. Check local permit requirements.");
 
+  // S108: a stair whose run crosses another section is unframeable (sections
+  // have no stairwell machinery). Mirrors calc_engine._stair_collision_warnings.
+  if (window.getStairZoneCollisions) {
+    try {
+      window.getStairZoneCollisions(p).forEach(function(c) {
+        warnings.push("Stair passes through " + c.zoneName + ". Stairs cannot run through another deck section: move the stair to an open edge, or make it a connecting stair down to " + c.zoneName + ".");
+      });
+    } catch (e) {}
+  }
+
   return {
     W: W, D: D, H: H, area: Math.round(area), lotArea: lotArea,
     LL: LL, DL: DL, TL: TL,
@@ -792,6 +802,16 @@ function calcStructure(p) {
 
   if (H > 10) warnings.push("Height >10'. Lateral bracing by engineer recommended.");
   if (area > 500) warnings.push("Area >500 SF. Check local permit requirements.");
+
+  // S108: a stair whose run crosses another section is unframeable (sections
+  // have no stairwell machinery). Mirrors calc_engine._stair_collision_warnings.
+  if (window.getStairZoneCollisions) {
+    try {
+      window.getStairZoneCollisions(p).forEach(function(c) {
+        warnings.push("Stair passes through " + c.zoneName + ". Stairs cannot run through another deck section: move the stair to an open edge, or make it a connecting stair down to " + c.zoneName + ".");
+      });
+    } catch (e) {}
+  }
 
   // Override warnings
   const joistRank = { "2x6": 0, "2x8": 1, "2x10": 2, "2x12": 3 };

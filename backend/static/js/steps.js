@@ -2874,7 +2874,12 @@ function StepContent(props) {
         return fromH <= toH;
       });
 
-      if (_mine.length === 0 && !_hasOrphan) return null;
+      // S108: stairs whose run crosses another section (unframeable; the
+      // engines warn, the permit checker errors, this panel says it early).
+      var _collisions = (window.getStairZoneCollisions
+        ? window.getStairZoneCollisions(p) : []);
+
+      if (_mine.length === 0 && !_hasOrphan && !_collisions.length) return null;
 
       var _plan = window.suggestRiserPlan;
 
@@ -3004,6 +3009,17 @@ function StepContent(props) {
               One or more stairs may no longer match your deck's current heights. Check the Stairs section above.
             </div>
           )}
+
+          {/* S108: Stair-through-section advisory. Same information-only
+              pattern as the orphan advisory; the engine warning and the
+              permit pre-check carry the same message. */}
+          {_collisions.map(function(c, ci) {
+            return (
+              <div key={"col" + ci} style={{ fontSize: 10, color: "#991b1b", marginTop: 8, paddingTop: 6, borderTop: "1px solid #fecaca", lineHeight: 1.45 }}>
+                <span style={{ fontWeight: 700 }}>Stair runs through {c.zoneName}.</span> Stairs can't pass through another deck section. Move the stair to an open edge, or make it a connecting stair down to {c.zoneName}.
+              </div>
+            );
+          })}
         </div>
       );
     })()}

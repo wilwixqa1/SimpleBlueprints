@@ -1343,6 +1343,53 @@ def check_freestanding_bracing(params, calc, spec):
 
 
 @check(
+    id="STAIR_SECTION_COLLISION",
+    products=["deck", "porch"],
+    category="structural",
+    sheet="A-2",
+    severity="error",
+    code_ref="IRC R502.10 (framing of openings)",
+    conditions=["has_zones"],
+)
+def check_stair_section_collision(params, calc, spec):
+    """S108: a stair whose run passes over another deck section.
+
+    Sections have no stairwell framing machinery (no beam layout, no opening
+    rects -- calcAllZones/zone_calcs is the simple far-edge-beam model), and
+    opening synthesis clips to the stair's own zone frame, so the crossed
+    section's framing sheet would ship with the run drawn through an intact
+    joist field and no header treatment. Interior-opening precedent: refuse
+    with guidance, never half-frame."""
+    from .zone_utils import get_stair_zone_collisions
+    cols = get_stair_zone_collisions(params)
+    if not cols:
+        return CheckResult(
+            id="STAIR_SECTION_COLLISION",
+            category="structural", sheet="A-2", severity="error",
+            status="pass",
+            message="No stair runs through another deck section.",
+        )
+    parts = "; ".join(
+        f"stair {c['stair_id']} overlaps {c['zone_name']} by {c['area']:.1f} sq ft"
+        for c in cols
+    )
+    return CheckResult(
+        id="STAIR_SECTION_COLLISION",
+        category="structural", sheet="A-2", severity="error",
+        status="fail",
+        message="A stair runs through another deck section.",
+        detail=(
+            f"{parts}. The crossed section's framing has no stairwell "
+            f"opening, headers, or beam treatment, so the drawn set is not "
+            f"buildable as shown."
+        ),
+        fix=("Move the stair to an open edge, or make it a connecting stair "
+             "down to the section it crosses."),
+        fix_step=2,
+    )
+
+
+@check(
     id="CAP_ZONE_CALCS",
     products=["deck"],
     category="capability",

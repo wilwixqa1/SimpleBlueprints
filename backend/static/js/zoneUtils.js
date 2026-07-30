@@ -1269,6 +1269,84 @@ window.atZoneCap = function(p) { return ((p && p.zones) || []).filter(function(z
     return getCutoutRects(p).concat(getStairOpeningRects(p));
   }
 
+  // S108: a stair whose RUN passes over another additive section is a
+  // configuration nothing downstream can frame -- opening synthesis clips to
+  // the stair's own zone frame, so the crossed section never learns about it
+  // (Will's 3rd bug: the 3D drew the run straight through Deck B's slab, the
+  // plan overlapped silently, and the framing sheet would have shipped Deck B
+  // with no stairwell). Sections have no beam-layout/opening machinery
+  // (calcAllZones is the simple far-edge-beam model), so the honest treatment
+  // is the interior-opening precedent: DETECT and REFUSE with guidance, never
+  // half-frame. Detection lives here; consumers: engine.js warnings, the
+  // steps.js advisory, calc_engine warnings and the permit checker via the
+  // Python mirror (zone_utils.get_stair_zone_collisions -- keep in lockstep).
+  //
+  // The rule, per resolved stair: intersect its deck-plane part boxes (runs +
+  // landings) with every OTHER additive zone's rect, excluding the stair's
+  // own zone and its _landsOnZoneId destination (a connecting stair sits over
+  // its landing zone BY DESIGN). Off-axis stairs are skipped, same as opening
+  // synthesis (the bbox is only exact at multiples of 90). Seam grazes are
+  // not collisions: each axis must overlap by more than 0.05 ft and the area
+  // by more than 0.25 sq ft.
+  function getStairZoneCollisions(p) {
+    var ds = p.deckStairs;
+    if (!ds || !ds.length) return [];
+    if (!window.resolveAllStairs || !window.computeStairGeometry) return [];
+    // App state uses width/depth; getZoneRect reads deckWidth/deckDepth (and
+    // falls back to a hardcoded 16x12 when absent). Same shim as the other
+    // call sites (deck3d, elevationView, getStairOpeningRects).
+    if (p.deckWidth == null || p.deckDepth == null) {
+      p = Object.assign({}, p, { deckWidth: p.width, deckDepth: p.depth });
+    }
+    var zoneRects = getAllZoneRects(p).filter(function (zr) {
+      return zr.zone.type !== "cutout";
+    });
+    if (zoneRects.length < 2) return [];  // main deck alone: nothing to cross
+
+    var resolved;
+    try { resolved = window.resolveAllStairs(p); } catch (e) { return []; }
+    if (!resolved || !resolved.length) return [];
+
+    var out = [];
+    resolved.forEach(function (rs) {
+      var st = rs.stair || {};
+      var zid = (st.zoneId != null) ? st.zoneId : 0;
+      var landsOn = (st._landsOnZoneId != null) ? st._landsOnZoneId : null;
+      var ang = Math.round(rs.angle || 0);
+      if (((ang % 90) + 90) % 90 !== 0) return;
+
+      var elev = rs.elevationInfo || {};
+      var sg = window.computeStairGeometry({
+        template: st.template || "straight",
+        height: elev.totalRise != null ? elev.totalRise : (+p.height || 0),
+        stairWidth: st.width || 4,
+        numStringers: st.numStringers || 3,
+        runSplit: st.runSplit ? st.runSplit / 100 : null,
+        landingDepth: st.landingDepth || null,
+        stairGap: st.stairGap != null ? st.stairGap : 0.5
+      });
+      if (!sg) return;
+      var boxes = stairFootprintRects(sg, rs.worldAnchorX, rs.worldAnchorY, ang);
+      if (!boxes || !boxes.length) return;
+
+      zoneRects.forEach(function (zr) {
+        if (zr.id === zid || zr.id === landsOn) return;
+        var R = zr.rect, area = 0;
+        boxes.forEach(function (b) {
+          var ox = Math.min(b.xMax, R.x + R.w) - Math.max(b.xMin, R.x);
+          var oy = Math.min(b.zMax, R.y + R.d) - Math.max(b.zMin, R.y);
+          if (ox > 0.05 && oy > 0.05) area += ox * oy;
+        });
+        if (area > 0.25) {
+          out.push({ stairId: st.id, zoneId: zr.id,
+                     zoneName: sectionName(zr.id, p),
+                     area: +area.toFixed(2) });
+        }
+      });
+    });
+    return out;
+  }
+
   // ---- S105 B: legal deck dimensions, in ONE place. ----
   // These lived only in the Slider's JSX props, so anything that set a size by
   // another route (a drag) could produce a value the slider could never
@@ -1463,6 +1541,7 @@ window.atZoneCap = function(p) { return ((p && p.zones) || []).filter(function(z
   window.sectionLetter = sectionLetter;
   window.getStairOpeningRects = getStairOpeningRects;
   window.getOpeningRects = getOpeningRects;
+  window.getStairZoneCollisions = getStairZoneCollisions;
   window.getAddableEdges = getAddableEdges;
   window.validateZone = validateZone;
   window.addZoneDefaults = addZoneDefaults;

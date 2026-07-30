@@ -877,6 +877,7 @@ def calculate_steel_structure(params):
         )
     if height > 10:
         warnings.append("Height >10'. Lateral bracing by engineer recommended.")
+    warnings.extend(_stair_collision_warnings(params))  # S108
 
     return {
         "width": width, "depth": depth, "height": height,
@@ -964,6 +965,26 @@ def freestanding_max_depth(max_joist_span):
     if s <= 0:
         return 0.0
     return round(s + 2 * FREESTANDING_SETBACK_FT, 1)
+
+
+def _stair_collision_warnings(params):
+    """S108: warnings for stairs whose run crosses another deck section.
+
+    Sections have no stairwell framing machinery (see
+    zone_utils.get_stair_zone_collisions), so this configuration is refused
+    with guidance rather than half-framed onto a permit sheet. Shared by the
+    wood and steel paths -- the collision is geometry, not framing."""
+    try:
+        from .zone_utils import get_stair_zone_collisions
+        cols = get_stair_zone_collisions(params)
+    except Exception:
+        return []
+    return [
+        (f"Stair passes through {c['zone_name']}. Stairs cannot run through "
+         f"another deck section: move the stair to an open edge, or make it "
+         f"a connecting stair down to {c['zone_name']}.")
+        for c in cols
+    ]
 
 
 def calculate_structure(params):
@@ -1261,6 +1282,7 @@ def calculate_structure(params):
         warnings.append("Height >10'. Lateral bracing by engineer recommended.")
     if area > 500:
         warnings.append("Area >500 SF. Check local permit requirements.")
+    warnings.extend(_stair_collision_warnings(params))  # S108
 
     return {
         "width": width, "depth": depth, "height": height, "area": round(area, 1), "lot_area": lot_area,

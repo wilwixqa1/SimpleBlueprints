@@ -652,6 +652,71 @@ def get_stair_opening_warnings(params):
     return _analyse_stair_openings(params)[1]
 
 
+def get_stair_zone_collisions(params):
+    """S108: stairs whose RUN passes over another additive section.
+
+    A configuration nothing downstream can frame -- opening synthesis clips to
+    the stair's own zone frame, so the crossed section never learns about it
+    (Will's 3rd bug: 3D drew the run through Deck B's slab, the plan
+    overlapped silently, and the framing sheet would have shipped Deck B with
+    no stairwell). Sections have no beam-layout/opening machinery, so the
+    treatment follows the interior-opening precedent: detect and refuse with
+    guidance, never half-frame.
+
+    MUST stay mirrored with zoneUtils.js getStairZoneCollisions (guarded by
+    tests/test_stair_zone_collision.py). Per resolved stair: intersect its
+    deck-plane part boxes (runs + landings) with every OTHER additive zone's
+    rect, excluding the stair's own zone and its _landsOnZoneId destination
+    (a connecting stair sits over its landing zone BY DESIGN). Off-axis
+    stairs are skipped, same as opening synthesis. Seam grazes are not
+    collisions: each axis must overlap by more than 0.05 ft and the area by
+    more than 0.25 sq ft.
+
+    Returns [{stair_id, zone_id, zone_name, area}].
+    """
+    deck_stairs = params.get("deckStairs")
+    if not deck_stairs:
+        return []
+    W = float(params.get("width") or 0)
+    D = float(params.get("depth") or 0)
+    if W <= 0 or D <= 0:
+        return []
+    zone_rects = [zr for zr in get_additive_rects(params)]
+    if len(zone_rects) < 2:
+        return []
+
+    from .stair_utils import resolve_all_stairs
+    stub = {"width": W, "depth": D, "stairs": None}
+    try:
+        resolved = resolve_all_stairs(params, stub)
+    except Exception:
+        return []
+
+    out = []
+    for rs in resolved or []:
+        st = rs.get("stair") or {}
+        zid = st.get("zoneId", 0) if st.get("zoneId") is not None else 0
+        lands_on = st.get("_landsOnZoneId")
+        boxes = _stair_part_boxes(rs)
+        if not boxes:
+            continue
+        for zr in zone_rects:
+            if zr["id"] == zid or (lands_on is not None and zr["id"] == lands_on):
+                continue
+            R = zr["rect"]
+            area = 0.0
+            for (bx0, bx1, by0, by1) in boxes:
+                ox = min(bx1, R["x"] + R["w"]) - max(bx0, R["x"])
+                oy = min(by1, R["y"] + R["d"]) - max(by0, R["y"])
+                if ox > 0.05 and oy > 0.05:
+                    area += ox * oy
+            if area > 0.25:
+                out.append({"stair_id": st.get("id"), "zone_id": zr["id"],
+                            "zone_name": section_name(zr["id"], params),
+                            "area": round(area, 2)})
+    return out
+
+
 def get_opening_rects(params):
     """EVERY opening in the deck plane: user cutouts + stair-derived notches.
 

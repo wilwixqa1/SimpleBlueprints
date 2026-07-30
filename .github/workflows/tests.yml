@@ -149,6 +149,13 @@ jobs:
       - name: Permit checker beam-span agreement (S108, engine == checker)
         run: python3 tests/test_permit_checker_beam.py
 
+      # S108: a stair whose run crosses another section is unframeable
+      # (sections have no stairwell machinery). Detect + warn + permit error,
+      # both engines in lockstep. Will's 3rd bug: 3D drew the run through
+      # Deck B's slab.
+      - name: Stair-section collisions (S108, detect + refuse, JS == PY)
+        run: python3 tests/test_stair_zone_collision.py
+
       # S107: flush sections are shared-edge only. Joists hang off Deck A's
       # rim at the shared edge; the far edge always gets a dropped beam on
       # posts+footings. Pins the rule, cross-engine parity, sheet geometry,
